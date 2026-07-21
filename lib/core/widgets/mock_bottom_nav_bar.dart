@@ -8,10 +8,12 @@ class MockBottomNavBar extends StatelessWidget {
     super.key,
     required this.currentIndex,
     required this.profilePath,
+    this.emphasizeSelection = false,
   });
 
   final int currentIndex;
   final String profilePath;
+  final bool emphasizeSelection;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +55,12 @@ class MockBottomNavBar extends StatelessWidget {
             child: Row(
               children: [
                 for (final item in items)
-                  Expanded(child: _NavButton(item: item)),
+                  Expanded(
+                    child: _NavButton(
+                      item: item,
+                      emphasizeSelection: emphasizeSelection,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -73,33 +80,46 @@ class _NavItem {
 }
 
 class _NavButton extends StatelessWidget {
-  const _NavButton({required this.item});
+  const _NavButton({
+    required this.item,
+    required this.emphasizeSelection,
+  });
 
   final _NavItem item;
+  final bool emphasizeSelection;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    final useEmphasizedStyle = item.selected && emphasizeSelection;
+    final selectedColor = useEmphasizedStyle ? AppColors.card : AppColors.ink;
+
+    return Material(
+      color: useEmphasizedStyle ? AppColors.ink : Colors.transparent,
       borderRadius: BorderRadius.circular(16),
-      onTap: item.onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(item.icon,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: item.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                item.icon,
                 size: 22,
-                color: item.selected ? AppColors.ink : AppColors.muted),
-            const SizedBox(height: 4),
-            Text(
-              item.label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: item.selected ? AppColors.ink : AppColors.muted,
+                color: item.selected ? selectedColor : AppColors.muted,
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                item.label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: item.selected ? selectedColor : AppColors.muted,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
