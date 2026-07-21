@@ -11,16 +11,23 @@ import 'package:ridex/core/models/vehicle_type.dart';
 
 class MockAuthRepository implements AuthRepository {
   @override
+  Stream<void> authStateChanges() => const Stream<void>.empty();
+
+  @override
+  Future<AppUser?> restoreSession() async => null;
+
+  @override
   Future<AppUser> continueAsDemo(RideRole role) async {
     return role == RideRole.rider ? MockData.demoRider : MockData.demoDriver;
   }
 
   @override
-  Future<AppUser> signIn(
-      {required String email,
-      required String password,
-      required RideRole role}) async {
-    return continueAsDemo(role);
+  Future<AppUser> signIn({
+    required String email,
+    required String password,
+    RideRole? role,
+  }) async {
+    return continueAsDemo(role ?? RideRole.rider);
   }
 
   @override
@@ -73,4 +80,7 @@ class MockProfileRepository implements ProfileRepository {
         ? MockData.demoDriver
         : MockData.demoRider;
   }
+
+  @override
+  Future<AppUser> getCurrentProfile() async => MockData.demoRider;
 }

@@ -1,6 +1,7 @@
 import 'package:ridex/core/models/app_notification.dart';
 import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/models/booking_draft.dart';
+import 'package:ridex/core/models/driver_approval_status.dart';
 import 'package:ridex/core/models/mock_trip.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/vehicle_type.dart';
@@ -20,6 +21,7 @@ class MockData {
     name: 'Omar Salem',
     email: 'omar@ridex.demo',
     role: RideRole.driver,
+    driverApprovalStatus: DriverApprovalStatus.approved,
   );
 
   static const locations = [

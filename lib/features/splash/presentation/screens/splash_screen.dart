@@ -1,20 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ridex/app/theme/app_colors.dart';
+import 'package:ridex/core/models/session_status.dart';
+import 'package:ridex/core/providers/session_providers.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future<void>.delayed(const Duration(milliseconds: 900), () {
-      if (mounted) context.go('/onboarding');
+    ref.listenManual(sessionControllerProvider, (previous, next) {
+      if (!mounted || next.status == SessionStatus.loading) {
+        return;
+      }
+      if (next.status == SessionStatus.unauthenticated) {
+        context.go('/onboarding');
+      }
     });
   }
 
@@ -40,12 +48,27 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
           ),
           const Center(
-            child: Text(
-              'RideX',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 46,
-                  fontWeight: FontWeight.w800),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'RideX',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 46,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 18),
+                SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

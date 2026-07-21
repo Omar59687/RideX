@@ -22,6 +22,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  String? _errorText;
 
   @override
   void dispose() {
@@ -34,6 +35,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(selectedRoleProvider);
+
     return AppScaffold(
       title: null,
       body: LayoutBuilder(
@@ -50,25 +52,33 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       style: Theme.of(context).textTheme.displaySmall),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                      'Build a polished demo session for the ${role.label.toLowerCase()} flow before backend integration.'),
+                    'Your selected role will be sent during signup and stored in public.users as the application source of truth.',
+                  ),
                   const SizedBox(height: AppSpacing.lg),
                   Container(
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     decoration: BoxDecoration(
-                        color: AppColors.cloud,
-                        borderRadius: BorderRadius.circular(24)),
+                      color: AppColors.cloud,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
                     child: Row(
                       children: [
                         CircleAvatar(
-                            radius: 22,
-                            backgroundColor: AppColors.card,
-                            child: Icon(role == RideRole.rider
+                          radius: 22,
+                          backgroundColor: AppColors.card,
+                          child: Icon(
+                            role == RideRole.rider
                                 ? Icons.person_pin_circle_rounded
-                                : Icons.drive_eta_rounded)),
+                                : Icons.drive_eta_rounded,
+                          ),
+                        ),
                         const SizedBox(width: AppSpacing.md),
                         Expanded(
-                            child: Text('Mock account for ${role.label}',
-                                style: Theme.of(context).textTheme.titleLarge)),
+                          child: Text(
+                            'Create a ${role.label.toLowerCase()} account',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -101,25 +111,34 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   AppButton(
-                    label: 'Create demo account',
+                    label: 'Create account',
                     trailing: Icons.arrow_forward_rounded,
                     onPressed: () async {
+                      setState(() => _errorText = null);
                       if (!_formKey.currentState!.validate()) {
                         return;
                       }
-                      await ref.read(sessionControllerProvider.notifier).signUp(
-                            name: _nameController.text,
-                            email: _emailController.text,
+                      final error = await ref
+                          .read(sessionControllerProvider.notifier)
+                          .signUp(
+                            name: _nameController.text.trim(),
+                            email: _emailController.text.trim(),
                             password: _passwordController.text,
                             role: role,
                           );
-                      if (context.mounted) {
-                        context.go(role == RideRole.rider
-                            ? '/rider/home'
-                            : '/driver/home');
+                      if (!mounted || error != null) {
+                        setState(() => _errorText = error);
                       }
                     },
                   ),
+                  if (_errorText != null) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      _errorText!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.error),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.md),
                   Center(
                     child: AppButton(

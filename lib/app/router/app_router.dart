@@ -6,6 +6,7 @@ import 'package:ridex/app/router/route_guards.dart';
 import 'package:ridex/app/router/route_names.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/features/auth/presentation/screens/forgot_password_screen.dart';
+import 'package:ridex/features/auth/presentation/screens/account_blocked_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/sign_in_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/sign_up_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/destination_selection_screen.dart';
@@ -62,6 +63,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/forgot-password',
           name: RouteNames.forgotPassword,
           builder: (_, __) => const ForgotPasswordScreen()),
+      GoRoute(
+          path: '/account-blocked',
+          name: RouteNames.accountBlocked,
+          builder: (_, __) => const AccountBlockedScreen()),
       GoRoute(
           path: '/rider/home',
           name: RouteNames.riderHome,

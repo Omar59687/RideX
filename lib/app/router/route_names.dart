@@ -7,6 +7,7 @@ class RouteNames {
   static const signIn = 'signIn';
   static const signUp = 'signUp';
   static const forgotPassword = 'forgotPassword';
+  static const accountBlocked = 'accountBlocked';
   static const riderHome = 'riderHome';
   static const pickup = 'pickup';
   static const destination = 'destination';

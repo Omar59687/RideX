@@ -1,20 +1,35 @@
 import 'package:go_router/go_router.dart';
 import 'package:ridex/core/models/ride_role.dart';
+import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 
 String? redirectForSession(GoRouterState state, SessionState session) {
   final location = state.matchedLocation;
-  final inAuth = {
+  const publicLocations = {
     '/',
     '/onboarding',
     '/roles',
     '/sign-in',
     '/sign-up',
     '/forgot-password',
-  }.contains(location);
+  };
+  final inAuth = publicLocations.contains(location);
 
-  if (!session.isAuthenticated) {
+  if (session.status == SessionStatus.loading) {
+    return location == '/' ? null : '/';
+  }
+
+  if (session.status == SessionStatus.unauthenticated) {
     return inAuth ? null : '/sign-in';
+  }
+
+  if (session.status == SessionStatus.blocked) {
+    return location == '/account-blocked' ? null : '/account-blocked';
+  }
+
+  if (session.status == SessionStatus.driverPending ||
+      session.status == SessionStatus.driverRejected) {
+    return location == '/driver/application' ? null : '/driver/application';
   }
 
   if (session.role == RideRole.rider && inAuth) {

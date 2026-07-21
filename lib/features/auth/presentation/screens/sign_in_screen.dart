@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ridex/app/config/env_config.dart';
 import 'package:ridex/app/theme/app_colors.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/core/models/ride_role.dart';
@@ -21,6 +22,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController(text: 'demo@ridex.app');
   final _passwordController = TextEditingController(text: '123456');
+  String? _errorText;
 
   @override
   void dispose() {
@@ -32,6 +34,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(selectedRoleProvider);
+    final showDemo = !EnvConfig.hasBackendConfig;
+
     return AppScaffold(
       title: null,
       body: LayoutBuilder(
@@ -48,7 +52,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       style: Theme.of(context).textTheme.displayMedium),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Smart city rides with clean booking, clear pricing, and confident mock demo flows.',
+                    'Sign in with email and password. Ride role and driver approval are loaded from Supabase.',
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -75,7 +79,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Sign in as ${role.label}',
+                                  showDemo
+                                      ? 'Sign in as ${role.label}'
+                                      : 'Role selection is used for new accounts',
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleLarge
@@ -83,7 +89,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Mock authentication only for Phase 1. No backend credentials required.',
+                                  showDemo
+                                      ? 'Demo access is only available when Supabase is not configured.'
+                                      : 'Existing accounts are routed automatically after sign-in.',
                                   style: Theme.of(context)
                                       .textTheme
                                       .bodySmall
@@ -129,39 +137,50 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     label: 'Sign in',
                     trailing: Icons.arrow_forward_rounded,
                     onPressed: () async {
+                      setState(() => _errorText = null);
                       if (!_formKey.currentState!.validate()) {
                         return;
                       }
-                      await ref.read(sessionControllerProvider.notifier).signIn(
-                            email: _emailController.text,
+                      final error = await ref
+                          .read(sessionControllerProvider.notifier)
+                          .signIn(
+                            email: _emailController.text.trim(),
                             password: _passwordController.text,
                             role: role,
                           );
-                      if (context.mounted) {
-                        context.go(role == RideRole.rider
-                            ? '/rider/home'
-                            : '/driver/home');
+                      if (!mounted || error != null) {
+                        setState(() => _errorText = error);
                       }
                     },
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppButton(
-                    label: 'Continue as Demo ${role.label}',
-                    icon: role == RideRole.rider
-                        ? Icons.local_taxi_rounded
-                        : Icons.drive_eta_rounded,
-                    variant: AppButtonVariant.secondary,
-                    onPressed: () async {
-                      await ref
-                          .read(sessionControllerProvider.notifier)
-                          .continueAsDemo(role);
-                      if (context.mounted) {
-                        context.go(role == RideRole.rider
-                            ? '/rider/home'
-                            : '/driver/home');
-                      }
-                    },
-                  ),
+                  if (_errorText != null) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      _errorText!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.error),
+                    ),
+                  ],
+                  if (showDemo) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    AppButton(
+                      label: 'Continue as Demo ${role.label}',
+                      icon: role == RideRole.rider
+                          ? Icons.local_taxi_rounded
+                          : Icons.drive_eta_rounded,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: () async {
+                        await ref
+                            .read(sessionControllerProvider.notifier)
+                            .continueAsDemo(role);
+                        if (context.mounted) {
+                          context.go(role == RideRole.rider
+                              ? '/rider/home'
+                              : '/driver/home');
+                        }
+                      },
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.xl),
                   Center(
                     child: AppButton(
