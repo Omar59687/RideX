@@ -155,7 +155,11 @@ class SessionController extends Notifier<SessionState> {
 
   Future<void> signOut() async {
     await ref.read(authRepositoryProvider).signOut();
+    ref.invalidate(bookingControllerProvider);
+    ref.invalidate(activeTripControllerProvider);
+    ref.invalidate(notificationsControllerProvider);
     ref.invalidate(notificationPreferencesProvider);
+    ref.invalidate(driverOnlineProvider);
     state = const SessionState.unauthenticated();
   }
 }

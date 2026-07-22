@@ -4,7 +4,10 @@ import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 
 String? redirectForSession(GoRouterState state, SessionState session) {
-  final location = state.matchedLocation;
+  return redirectForLocation(state.matchedLocation, session);
+}
+
+String? redirectForLocation(String location, SessionState session) {
   const publicLocations = {
     '/',
     '/onboarding',
@@ -49,6 +52,10 @@ String? redirectForSession(GoRouterState state, SessionState session) {
 
   if (session.role == RideRole.driver && location.startsWith('/rider')) {
     return '/driver/home';
+  }
+
+  if (location == '/account-blocked' || location == '/driver/application') {
+    return locationForRole(session.role!);
   }
 
   return null;

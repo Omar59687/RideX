@@ -292,13 +292,15 @@ class _DriverHistoryList extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                Row(
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.xs,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     StatusChip(
                       label: trip.status.label,
                       color: isCompleted ? AppColors.accent : AppColors.warning,
                     ),
-                    const SizedBox(width: AppSpacing.sm),
                     Text(
                       '${trip.booking.distanceKm.toStringAsFixed(0)} km | ${trip.booking.etaMinutes} min',
                     ),

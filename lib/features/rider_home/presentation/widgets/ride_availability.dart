@@ -10,6 +10,8 @@ class RideAvailability extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final listHeight = 116.0 + ((textScale - 1).clamp(0, 1).toDouble() * 52);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -27,7 +29,7 @@ class RideAvailability extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         SizedBox(
-          height: 116,
+          height: listHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: vehicles.length,

@@ -234,8 +234,11 @@ class _DriverNotificationsScreen extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.md),
               itemBuilder: (context, index) {
                 final notification = notifications[index];
+                final theme = Theme.of(context);
                 return Card(
-                  color: notification.isRead ? null : AppColors.cloud,
+                  color: notification.isRead
+                      ? null
+                      : theme.colorScheme.primaryContainer,
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -256,7 +259,7 @@ class _DriverNotificationsScreen extends ConsumerWidget {
                     ),
                     title: Text(
                       notification.title,
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: theme.textTheme.titleMedium,
                     ),
                     subtitle: Padding(
                       padding: const EdgeInsets.only(top: 4),
@@ -267,7 +270,7 @@ class _DriverNotificationsScreen extends ConsumerWidget {
                       children: [
                         Text(
                           notification.timeLabel,
-                          style: Theme.of(context).textTheme.bodySmall,
+                          style: theme.textTheme.bodySmall,
                         ),
                         if (!notification.isRead)
                           const Padding(

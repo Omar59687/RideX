@@ -23,6 +23,7 @@ class VehicleTypeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final rideXTheme = context.rideXTheme;
+    final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.2;
     final type = switch (vehicle.id) {
       'taxi' => VehicleSilhouetteType.taxi,
       'suv' => VehicleSilhouetteType.suv,
@@ -104,14 +105,23 @@ class VehicleTypeCard extends StatelessWidget {
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
+                        if (largeText) ...[
+                          const SizedBox(height: AppSpacing.xxs),
+                          Text(
+                            formatMoney(vehicle.baseFare),
+                            style: theme.textTheme.titleMedium,
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    formatMoney(vehicle.baseFare),
-                    style: theme.textTheme.titleMedium,
-                  ),
+                  if (!largeText) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      formatMoney(vehicle.baseFare),
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ],
                 ],
               ),
             ),
