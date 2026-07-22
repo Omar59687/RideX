@@ -4,8 +4,8 @@
 
 - Active branch: `feature/omar/rider-ui-v2`
 - Base commit: `e374d86`
-- Latest implementation commit: `b31ec2f`
-- Position at documentation start: five commits ahead of `origin/main`
+- Latest implementation commit: `9021f6a`
+- Position after Phase 6A implementation: nine commits ahead of `origin/main`
 
 ## Completed Phases
 
@@ -16,52 +16,49 @@
 | `eed7155` | Rider authentication, real email flow, and mock-only phone/OTP |
 | `5327cb7` | Rider home and destination-first booking flow |
 | `b31ec2f` | Rider search, trip lifecycle, cancellation, completion, and rating |
+| `9021f6a` | Rider trip history, repository-backed details, filters, and rebooking |
 
-**Do not redo, replace, or restart these five completed implementation phases.** Inspect them only when the next phase requires an integration point or a failing test identifies a regression.
+**Do not redo, replace, or restart these six completed implementation phases.** Inspect them only when the next phase requires an integration point or a failing test identifies a regression.
 
 ## Verification Status
 
-At `b31ec2f`, `flutter analyze` passed and all 21 non-live tests passed. Two live Supabase tests skipped because backend environment variables were absent. Existing SVG `<filter>` warnings in tests are informational.
+At `9021f6a`, `flutter analyze` passed and all 11 focused trip history and lifecycle tests passed. Phase 6A covers loading, retryable error, empty, completed/cancelled filters, selected-trip navigation, completed and cancelled receipts, missing IDs, rebooking state, and driver history access.
 
 ## Exact Next Checkpoint
 
-Implement **Phase 6A: trip history and trip details only**:
+Implement **Phase 6B: rider profile only**:
 
-- Redesign `TripHistoryScreen` with loading, error, empty, completed/cancelled filters, and selected-trip navigation.
-- Add `/history/:tripId` and a selected `TripDetailsScreen`.
-- Keep shared `/history` functional for drivers without redesigning driver screens.
-- Do not begin profile, notifications, or settings work in this checkpoint.
+- Redesign the rider profile experience using the approved Urban Aurora references.
+- Preserve real session/profile repository data, sign-out behavior, and driver profile behavior.
+- Keep unsupported profile actions disabled, clearly explained, or isolated demo behavior.
+- Do not begin notifications or settings work in this checkpoint.
 
 Relevant files and state only:
 
 ```text
-lib/app/router/app_router.dart
-lib/app/router/route_names.dart
-lib/core/mocks/mock_data.dart
 lib/core/providers/session_providers.dart
 lib/core/providers/repositories_providers.dart
-lib/core/repositories/trips_repository.dart
-lib/features/history/
+lib/core/repositories/profile_repository.dart
+lib/core/models/app_user.dart
+lib/features/profile/presentation/screens/rider_profile_screen.dart
 lib/core/widgets/ride_x_bottom_navigation.dart
 ```
 
 Relevant routes/providers:
 
 ```text
-/history
-/history/:tripId
-tripsRepositoryProvider
-bookingControllerProvider
+/rider/profile
+sessionControllerProvider
+profileRepositoryProvider
 ```
 
 ## Remaining Phases
 
-1. Phase 6A: trip history and trip details only.
-2. Phase 6B: rider profile only.
-3. Phase 6C: notifications and settings only.
-4. Responsive, accessibility, route, provider, theme, and driver regression test pass.
-5. Bundle Plus Jakarta Sans and its official license after explicit download approval.
-6. Final documentation, full verification, visual comparison, and cleanup.
+1. Phase 6B: rider profile only.
+2. Phase 6C: notifications and settings only.
+3. Responsive, accessibility, route, provider, theme, and driver regression test pass.
+4. Bundle Plus Jakarta Sans and its official license after explicit download approval.
+5. Final documentation, full verification, visual comparison, and cleanup.
 
 Complete exactly one checkpoint per resume. After its implementation commit, update this file with the commit hash, focused test results, limitations, and next checkpoint; commit that documentation update, confirm a clean worktree, and stop.
 
