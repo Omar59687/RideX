@@ -4,69 +4,136 @@ import 'package:ridex/app/theme/app_colors.dart';
 class AppTextStyles {
   const AppTextStyles._();
 
-  static TextTheme textTheme() {
-    return const TextTheme(
-      displaySmall: TextStyle(
-        fontSize: 32,
-        fontWeight: FontWeight.w800,
-        color: AppColors.ink,
-        height: 1.05,
+  static const fontFamily = 'Plus Jakarta Sans';
+  static const fontFamilyFallback = <String>[
+    'Avenir Next',
+    'Segoe UI',
+    'sans-serif',
+  ];
+
+  static TextTheme textTheme({
+    Color textPrimary = AppColors.textPrimary,
+    Color textSecondary = AppColors.textSecondary,
+  }) {
+    TextStyle style({
+      required double size,
+      required FontWeight weight,
+      required Color color,
+      double? height,
+      double? letterSpacing,
+    }) {
+      return TextStyle(
+        fontFamily: fontFamily,
+        fontFamilyFallback: fontFamilyFallback,
+        fontSize: size,
+        fontWeight: weight,
+        color: color,
+        height: height,
+        letterSpacing: letterSpacing,
+      );
+    }
+
+    return TextTheme(
+      displayLarge: style(
+        size: 34,
+        weight: FontWeight.w800,
+        color: textPrimary,
+        height: 1.08,
+        letterSpacing: -1.02,
       ),
-      displayMedium: TextStyle(
-        fontSize: 40,
-        fontWeight: FontWeight.w800,
-        color: AppColors.ink,
-        height: 1.02,
+      displayMedium: style(
+        size: 34,
+        weight: FontWeight.w800,
+        color: textPrimary,
+        height: 1.08,
+        letterSpacing: -1.02,
       ),
-      headlineLarge: TextStyle(
-        fontSize: 26,
-        fontWeight: FontWeight.w800,
-        color: AppColors.ink,
+      displaySmall: style(
+        size: 34,
+        weight: FontWeight.w800,
+        color: textPrimary,
+        height: 1.08,
+        letterSpacing: -1.02,
+      ),
+      headlineLarge: style(
+        size: 26,
+        weight: FontWeight.w700,
+        color: textPrimary,
         height: 1.15,
+        letterSpacing: -0.52,
       ),
-      headlineMedium: TextStyle(
-        fontSize: 22,
-        fontWeight: FontWeight.w800,
-        color: AppColors.ink,
-        height: 1.2,
+      headlineMedium: style(
+        size: 26,
+        weight: FontWeight.w700,
+        color: textPrimary,
+        height: 1.15,
+        letterSpacing: -0.52,
       ),
-      titleLarge: TextStyle(
-        fontSize: 19,
-        fontWeight: FontWeight.w700,
-        color: AppColors.ink,
+      headlineSmall: style(
+        size: 19,
+        weight: FontWeight.w700,
+        color: textPrimary,
+        height: 1.15,
+        letterSpacing: -0.38,
       ),
-      titleMedium: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-        color: AppColors.ink,
+      titleLarge: style(
+        size: 19,
+        weight: FontWeight.w700,
+        color: textPrimary,
+        height: 1.15,
+        letterSpacing: -0.38,
       ),
-      bodyLarge: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
-        color: AppColors.ink,
+      titleMedium: style(
+        size: 15,
+        weight: FontWeight.w600,
+        color: textPrimary,
+        height: 1.55,
+      ),
+      titleSmall: style(
+        size: 13,
+        weight: FontWeight.w600,
+        color: textPrimary,
+        height: 1.45,
+        letterSpacing: 0.26,
+      ),
+      bodyLarge: style(
+        size: 15,
+        weight: FontWeight.w500,
+        color: textPrimary,
+        height: 1.55,
+      ),
+      bodyMedium: style(
+        size: 15,
+        weight: FontWeight.w400,
+        color: textSecondary,
+        height: 1.55,
+      ),
+      bodySmall: style(
+        size: 11,
+        weight: FontWeight.w400,
+        color: textSecondary,
         height: 1.45,
       ),
-      bodyMedium: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-        color: AppColors.slate,
+      labelLarge: style(
+        size: 13,
+        weight: FontWeight.w700,
+        color: textPrimary,
         height: 1.45,
+        letterSpacing: 0.26,
       ),
-      bodySmall: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        color: AppColors.slate,
-        height: 1.4,
+      labelMedium: style(
+        size: 13,
+        weight: FontWeight.w600,
+        color: textSecondary,
+        height: 1.45,
+        letterSpacing: 0.26,
       ),
-      labelMedium: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
-        color: AppColors.muted,
-        letterSpacing: .3,
-      ),
-      labelLarge: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w700,
+      labelSmall: style(
+        size: 11,
+        weight: FontWeight.w700,
+        color: textSecondary,
+        height: 1.45,
+        letterSpacing: 0.88,
       ),
     );
   }

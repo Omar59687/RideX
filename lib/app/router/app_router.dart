@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:ridex/app/config/app_constants.dart';
 import 'package:ridex/app/router/route_guards.dart';
 import 'package:ridex/app/router/route_names.dart';
+import 'package:ridex/app/theme/app_motion.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/account_blocked_screen.dart';
@@ -165,11 +165,14 @@ CustomTransitionPage<void> buildTransitionPage(
     {required LocalKey key, required Widget child}) {
   return CustomTransitionPage<void>(
     key: key,
-    transitionDuration: AppConstants.mockSearchDelay,
+    transitionDuration: AppMotion.standard,
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final curved =
-          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: AppMotion.standardCurve,
+        reverseCurve: AppMotion.exitCurve,
+      );
       return FadeTransition(
         opacity: curved,
         child: SlideTransition(
