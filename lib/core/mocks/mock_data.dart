@@ -33,29 +33,29 @@ class MockData {
 
   static const vehicleTypes = [
     VehicleType(
-      id: 'taxi',
-      name: 'Taxi',
-      capacity: 2,
-      arrivalMinutes: 2,
-      baseFare: 1.99,
-      description: 'Fast pickup for short city rides.',
+      id: 'economy',
+      name: 'Economy',
+      capacity: 4,
+      arrivalMinutes: 3,
+      baseFare: 4.20,
+      description: 'Smart value for everyday rides.',
+    ),
+    VehicleType(
+      id: 'standard',
+      name: 'Standard',
+      capacity: 4,
+      arrivalMinutes: 5,
+      baseFare: 5.80,
+      description: 'More comfort and highly rated drivers.',
       isPopular: true,
     ),
     VehicleType(
-      id: 'economy',
-      name: 'Economy',
-      capacity: 5,
-      arrivalMinutes: 4,
-      baseFare: 5.0,
-      description: 'Comfortable daily rides with extra room.',
-    ),
-    VehicleType(
-      id: 'economy_plus',
-      name: 'Economy+',
-      capacity: 6,
-      arrivalMinutes: 5,
-      baseFare: 8.99,
-      description: 'Best for groups, bags, and longer distances.',
+      id: 'premium',
+      name: 'Premium',
+      capacity: 4,
+      arrivalMinutes: 7,
+      baseFare: 8.90,
+      description: 'Quiet, spacious executive cars.',
     ),
   ];
 
@@ -94,14 +94,14 @@ class MockData {
   static MockTrip sampleTrip({TripStatus status = TripStatus.accepted}) {
     final booking = initialDraft().copyWith(
       vehicleType: vehicleTypes.first,
-      estimatedFare: 1.99,
+      estimatedFare: 4.20,
     );
     return MockTrip(
       id: 'trip-1',
       booking: booking,
       status: status,
       driver: driver,
-      finalFare: 1.99,
+      finalFare: 4.20,
     );
   }
 

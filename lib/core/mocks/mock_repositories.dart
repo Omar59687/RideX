@@ -46,8 +46,7 @@ class MockAuthRepository implements AuthRepository {
 class MockBookingRepository implements BookingRepository {
   @override
   Future<double> estimateFare(BookingDraft draft) async {
-    final base = draft.vehicleType?.baseFare ?? 2;
-    return base + (draft.distanceKm * 0.2) + ((draft.stops.length) * 0.3);
+    return draft.vehicleType?.baseFare ?? 0;
   }
 
   @override
