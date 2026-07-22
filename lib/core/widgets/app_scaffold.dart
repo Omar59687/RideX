@@ -12,6 +12,10 @@ class AppScaffold extends StatelessWidget {
     this.showBack = true,
     this.maxContentWidth = 560,
     this.extendBodyBehindAppBar = false,
+    this.padding,
+    this.backgroundColor,
+    this.resizeToAvoidBottomInset,
+    this.useSafeArea = true,
   });
 
   final String? title;
@@ -22,11 +26,17 @@ class AppScaffold extends StatelessWidget {
   final bool showBack;
   final double maxContentWidth;
   final bool extendBodyBehindAppBar;
+  final EdgeInsetsGeometry? padding;
+  final Color? backgroundColor;
+  final bool? resizeToAvoidBottomInset;
+  final bool useSafeArea;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: extendBodyBehindAppBar,
+      backgroundColor: backgroundColor,
+      resizeToAvoidBottomInset: resizeToAvoidBottomInset,
       appBar: title == null
           ? null
           : AppBar(
@@ -35,17 +45,29 @@ class AppScaffold extends StatelessWidget {
               actions: actions,
               scrolledUnderElevation: 0,
             ),
-      body: SafeArea(
-        bottom: bottomNavigationBar == null,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxContentWidth),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              child: body,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final horizontalPadding = constraints.maxWidth >= 600
+              ? AppSpacing.xxl
+              : constraints.maxWidth < 360
+                  ? AppSpacing.md
+                  : AppSpacing.lg;
+          final content = Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxContentWidth),
+              child: Padding(
+                padding: padding ??
+                    EdgeInsets.symmetric(horizontal: horizontalPadding),
+                child: body,
+              ),
             ),
-          ),
-        ),
+          );
+          if (!useSafeArea) return content;
+          return SafeArea(
+            bottom: bottomNavigationBar == null,
+            child: content,
+          );
+        },
       ),
       bottomNavigationBar: bottomNavigationBar,
       floatingActionButton: floatingActionButton,

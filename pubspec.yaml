@@ -39,6 +39,7 @@ dependencies:
   intl: ^0.20.2
   equatable: ^2.1.0
   flutter_animate: ^4.5.2
+  flutter_svg: ^2.2.0
   supabase_flutter: ^2.15.4
 
 dev_dependencies:
@@ -63,6 +64,11 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/branding/ridex-app-icon.svg
+    - assets/branding/ridex-route-mark.svg
+    - assets/branding/ridex-wordmark.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

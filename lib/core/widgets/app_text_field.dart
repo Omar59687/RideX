@@ -12,6 +12,18 @@ class AppTextField extends StatelessWidget {
     this.keyboardType,
     this.prefixIcon,
     this.textInputAction,
+    this.suffixIcon,
+    this.helperText,
+    this.errorText,
+    this.enabled = true,
+    this.readOnly = false,
+    this.focusNode,
+    this.onChanged,
+    this.onFieldSubmitted,
+    this.autofillHints,
+    this.maxLines = 1,
+    this.minLines,
+    this.semanticLabel,
   });
 
   final TextEditingController controller;
@@ -22,6 +34,18 @@ class AppTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final IconData? prefixIcon;
   final TextInputAction? textInputAction;
+  final Widget? suffixIcon;
+  final String? helperText;
+  final String? errorText;
+  final bool enabled;
+  final bool readOnly;
+  final FocusNode? focusNode;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onFieldSubmitted;
+  final Iterable<String>? autofillHints;
+  final int? maxLines;
+  final int? minLines;
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -30,15 +54,32 @@ class AppTextField extends StatelessWidget {
       children: [
         Text(label, style: Theme.of(context).textTheme.labelMedium),
         const SizedBox(height: AppSpacing.xs),
-        TextFormField(
-          controller: controller,
-          validator: validator,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          textInputAction: textInputAction,
-          decoration: InputDecoration(
-            hintText: hint,
-            prefixIcon: prefixIcon == null ? null : Icon(prefixIcon),
+        Semantics(
+          textField: true,
+          label: semanticLabel ?? label,
+          enabled: enabled,
+          child: TextFormField(
+            controller: controller,
+            validator: validator,
+            obscureText: obscureText,
+            keyboardType: keyboardType,
+            textInputAction: textInputAction,
+            enabled: enabled,
+            readOnly: readOnly,
+            focusNode: focusNode,
+            onChanged: onChanged,
+            onFieldSubmitted: onFieldSubmitted,
+            autofillHints: autofillHints,
+            maxLines: obscureText ? 1 : maxLines,
+            minLines: minLines,
+            decoration: InputDecoration(
+              hintText: hint,
+              helperText: helperText,
+              errorText: errorText,
+              prefixIcon: prefixIcon == null ? null : Icon(prefixIcon),
+              suffixIcon: suffixIcon,
+              constraints: const BoxConstraints(minHeight: 52),
+            ),
           ),
         ),
       ],
