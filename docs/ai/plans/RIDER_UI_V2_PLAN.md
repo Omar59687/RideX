@@ -54,10 +54,14 @@ Booking order is home, destination, pickup confirmation, ride, review, search, t
 3. Rider authentication and demo-only phone/OTP.
 4. Home and destination-first booking flow.
 5. Search, assigned, active, cancellation, completion, and rating lifecycle.
-6. History/details, profile, notifications, and settings.
-7. Responsive, accessibility, route, provider, and driver regression tests.
-8. Official bundled Plus Jakarta Sans and license after download approval.
-9. Documentation, final verification, and cleanup.
+6. Phase 6A: trip history and trip details only.
+7. Phase 6B: rider profile only.
+8. Phase 6C: notifications and settings only.
+9. Responsive, accessibility, route, provider, and driver regression tests.
+10. Official bundled Plus Jakarta Sans and license after download approval.
+11. Documentation, final verification, and cleanup.
+
+Each numbered item is a checkpoint. Complete, test, commit, update status, and stop before starting the next checkpoint.
 
 ## Acceptance Criteria
 
@@ -77,7 +81,8 @@ Real phone OTP, SMS provider integration, Google Maps, GPS, routing, geocoding, 
 
 - `dart format lib test`
 - `flutter analyze`
-- All non-live tests and focused new widget/navigation/provider tests
+- Focused widget/navigation/provider tests for each checkpoint
+- Broader non-live tests only when shared behavior changes or during final verification
 - Route guards, auth, booking, cancellation, trip states, history/details, settings, sign-out, and driver regression
 - Light/dark, reduced motion, large text, approximately 390x844 and 430x932
 - Visual comparison against the gallery and brand board

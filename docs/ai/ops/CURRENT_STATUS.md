@@ -23,16 +23,14 @@
 
 At `b31ec2f`, `flutter analyze` passed and all 21 non-live tests passed. Two live Supabase tests skipped because backend environment variables were absent. Existing SVG `<filter>` warnings in tests are informational.
 
-## Exact Next Phase
+## Exact Next Checkpoint
 
-Implement history/details, profile, notifications, and settings as one focused phase:
+Implement **Phase 6A: trip history and trip details only**:
 
 - Redesign `TripHistoryScreen` with loading, error, empty, completed/cancelled filters, and selected-trip navigation.
 - Add `/history/:tripId` and a selected `TripDetailsScreen`.
-- Redesign `RiderProfileScreen` using session data and honest unavailable-field treatment.
-- Redesign `NotificationsScreen` while preserving `notificationsControllerProvider`.
-- Redesign `SettingsScreen` with session-local push/SMS/email Riverpod state and real sign-out.
-- Keep shared `/history` and `/settings` functional for drivers without redesigning driver screens.
+- Keep shared `/history` functional for drivers without redesigning driver screens.
+- Do not begin profile, notifications, or settings work in this checkpoint.
 
 Relevant files and state only:
 
@@ -44,12 +42,7 @@ lib/core/providers/session_providers.dart
 lib/core/providers/repositories_providers.dart
 lib/core/repositories/trips_repository.dart
 lib/features/history/
-lib/features/profile/presentation/screens/rider_profile_screen.dart
-lib/features/notifications/presentation/screens/notifications_screen.dart
-lib/features/settings/
 lib/core/widgets/ride_x_bottom_navigation.dart
-lib/core/widgets/settings_row.dart
-lib/core/widgets/coming_soon_dialog.dart
 ```
 
 Relevant routes/providers:
@@ -57,21 +50,20 @@ Relevant routes/providers:
 ```text
 /history
 /history/:tripId
-/rider/profile
-/notifications
-/settings
 tripsRepositoryProvider
-sessionControllerProvider
 bookingControllerProvider
-notificationsControllerProvider
 ```
 
 ## Remaining Phases
 
-1. History/details, profile, notifications, and settings.
-2. Responsive, accessibility, route, provider, theme, and driver regression test pass.
-3. Bundle Plus Jakarta Sans and its official license after explicit download approval.
-4. Final documentation, full verification, visual comparison, and cleanup.
+1. Phase 6A: trip history and trip details only.
+2. Phase 6B: rider profile only.
+3. Phase 6C: notifications and settings only.
+4. Responsive, accessibility, route, provider, theme, and driver regression test pass.
+5. Bundle Plus Jakarta Sans and its official license after explicit download approval.
+6. Final documentation, full verification, visual comparison, and cleanup.
+
+Complete exactly one checkpoint per resume. After its implementation commit, update this file with the commit hash, focused test results, limitations, and next checkpoint; commit that documentation update, confirm a clean worktree, and stop.
 
 ## Font Status
 
