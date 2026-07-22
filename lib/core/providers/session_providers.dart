@@ -193,10 +193,18 @@ class BookingController extends Notifier<BookingDraft> {
 }
 
 class ActiveTripController extends Notifier<MockTrip?> {
+  Future<void>? _tripCreation;
+
   @override
   MockTrip? build() => null;
 
-  Future<void> createTrip() async {
+  Future<void> createTrip() {
+    return _tripCreation ??= _createTrip().whenComplete(() {
+      _tripCreation = null;
+    });
+  }
+
+  Future<void> _createTrip() async {
     final trip = await ref
         .read(tripsRepositoryProvider)
         .createTrip(ref.read(bookingControllerProvider));

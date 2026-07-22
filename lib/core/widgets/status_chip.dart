@@ -50,11 +50,15 @@ class StatusChip extends StatelessWidget {
                 Icon(icon, size: 14, color: effectiveColor),
                 const SizedBox(width: AppSpacing.xxs),
               ],
-              Text(
-                label,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: effectiveColor,
-                  fontWeight: FontWeight.w700,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: effectiveColor,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
