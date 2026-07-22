@@ -22,4 +22,4 @@
 | Platform branding | Defer launcher/platform resource replacement |
 | Backend | Do not add fake integrations or phone-auth migrations/contracts |
 
-Font download gate: if official Plus Jakarta Sans files are not locally available, stop before network access, name the official source and files, and request approval. Include the official license in the repository.
+Font download gate: if official Plus Jakarta Sans files are not locally available, stop before network access, name the official source and files, and request approval. Include the official license in the repository. This gate was fulfilled by commit `f4e0371` using the official Tokotype static files and license.

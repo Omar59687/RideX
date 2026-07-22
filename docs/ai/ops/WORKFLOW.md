@@ -46,6 +46,6 @@ Live Supabase tests require deliberate credentials and otherwise skip. Do not tr
 
 ## Clean Checkpoint And PR Handoff
 
-A checkpoint is complete when intended changes are committed, the worktree is clean, analysis passes, required tests pass, and `CURRENT_STATUS.md` names the next phase. Do not start that next phase automatically.
+A checkpoint is complete when intended changes are committed, the worktree is clean, analysis passes, required tests pass, and `CURRENT_STATUS.md` names the next phase. For a final project checkpoint, record that no phases remain instead. Do not start a subsequent phase automatically.
 
-For Pull Request handoff, inspect all feature commits and the complete `origin/main...HEAD` diff, report tests and limitations, then leave push and PR creation to explicit user approval.
+For Pull Request handoff, inspect all feature commits and the complete `origin/main...HEAD` diff. Report exact verification results, visual deviations, unsupported integrations, and branch/upstream state, then leave push and PR creation to explicit user approval.

@@ -1,5 +1,7 @@
 # Rider UI V2 Plan
 
+Implementation is complete on `feature/omar/rider-ui-v2`. See `docs/ai/ops/CURRENT_STATUS.md` for final verification and handoff details.
+
 ## Goal And Scope
 
 Convert the approved Urban Aurora rider references into modular native Flutter UI while preserving Riverpod, GoRouter, Supabase email authentication, repositories, controllers, models, redirects, and backend behavior. Driver screens are regression-tested but not redesigned.
@@ -35,6 +37,7 @@ The token JSON is the structural authority. References remain unchanged and are 
 | Completion and rating | `/rider/completed`, `/rider/rating` |
 | History and details | `/history`, approved `/history/:tripId` |
 | Profile | `/rider/profile` |
+| Notifications | `/notifications` |
 | Settings | `/settings` |
 
 Booking order is home, destination, pickup confirmation, ride, review, search, trip, completion, rating.

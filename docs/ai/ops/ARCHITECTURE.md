@@ -28,12 +28,14 @@ Feature folders currently emphasize presentation screens and feature-local widge
 - `ActiveTripController`: current `MockTrip` and validated `TripStatus` transitions.
 - `NotificationsController`: session notification list.
 - New settings preferences remain session-local Riverpod state.
+- `currentProfileProvider`: repository-backed identity for the active session.
+- `driverOnlineProvider`: session-local driver availability.
 
 Widgets read providers; they do not duplicate durable booking or trip state locally.
 
 ## Router
 
-`lib/app/router/app_router.dart` owns routes. `route_guards.dart` protects public/private, rider/driver, blocked, and driver-approval states. Existing paths are preserved. V2 adds `/verify-otp`; the next phase adds `/history/:tripId`. Bottom navigation uses `context.go()`. Do not introduce `StatefulShellRoute` in this project phase.
+`lib/app/router/app_router.dart` owns routes. `route_guards.dart` protects public/private, rider/driver, blocked, and driver-approval states. Existing paths are preserved. V2 added `/verify-otp` and `/history/:tripId`. Bottom navigation uses `context.go()`. Do not introduce `StatefulShellRoute` in this project phase.
 
 ## Theme
 
@@ -45,11 +47,11 @@ Widgets read providers; they do not duplicate durable booking or trip state loca
 
 ## Components And Assets
 
-Shared components live in `lib/core/widgets/`. Rider-specific compositions live under each feature's `presentation/widgets/`. Runtime SVGs are in `assets/branding/` and rendered with `flutter_svg`. Plus Jakarta Sans is planned for `assets/fonts/` but is not yet bundled.
+Shared components live in `lib/core/widgets/`. Rider-specific compositions live under each feature's `presentation/widgets/`. Runtime SVGs are in `assets/branding/` and rendered with `flutter_svg`. Official Plus Jakarta Sans static weights 400 through 800 and `OFL.txt` are bundled under `assets/fonts/`.
 
 ## Tests
 
-Tests live under `test/`, with shared repository overrides in `test/helpers/test_app.dart`. Existing coverage includes launch, onboarding, roles, auth V2, booking, provider fares, trip lifecycle, driver acceptance, transition rules, route/session state, and conditional live Supabase checks.
+Tests live under `test/`, with shared repository overrides in `test/helpers/test_app.dart`. Existing coverage includes launch, onboarding, roles, auth V2, booking, provider fares, trip lifecycle, driver acceptance, transition rules, route/session state, and conditional live Supabase checks. See `CURRENT_STATUS.md` for the latest exact verification results.
 
 ## Do Not Rewrite
 
