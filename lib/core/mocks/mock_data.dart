@@ -91,22 +91,35 @@ class MockData {
         etaMinutes: 12,
       );
 
-  static MockTrip sampleTrip({TripStatus status = TripStatus.accepted}) {
+  static MockTrip sampleTrip({
+    String id = 'trip-1',
+    TripStatus status = TripStatus.accepted,
+    DateTime? occurredAt,
+  }) {
     final booking = initialDraft().copyWith(
       vehicleType: vehicleTypes.first,
       estimatedFare: 4.20,
     );
     return MockTrip(
-      id: 'trip-1',
+      id: id,
       booking: booking,
       status: status,
       driver: driver,
       finalFare: 4.20,
+      occurredAt: occurredAt,
     );
   }
 
   static List<MockTrip> history() => [
-        sampleTrip(status: TripStatus.completed),
-        sampleTrip(status: TripStatus.cancelledByRider).copyWith(finalFare: 0),
+        sampleTrip(
+          id: 'trip-completed-1',
+          status: TripStatus.completed,
+          occurredAt: DateTime(2026, 7, 21, 9, 24),
+        ),
+        sampleTrip(
+          id: 'trip-cancelled-1',
+          status: TripStatus.cancelledByRider,
+          occurredAt: DateTime(2026, 7, 18, 18, 40),
+        ).copyWith(finalFare: 0),
       ];
 }

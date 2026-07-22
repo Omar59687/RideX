@@ -70,6 +70,14 @@ class MockTripsRepository implements TripsRepository {
 
   @override
   Future<List<MockTrip>> getTripHistory() async => MockData.history();
+
+  @override
+  Future<MockTrip?> getTripById(String id) async {
+    for (final trip in MockData.history()) {
+      if (trip.id == id) return trip;
+    }
+    return null;
+  }
 }
 
 class MockProfileRepository implements ProfileRepository {

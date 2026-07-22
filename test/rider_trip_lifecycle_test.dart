@@ -285,6 +285,9 @@ class _DelayedTripsRepository implements TripsRepository {
 
   @override
   Future<List<MockTrip>> getTripHistory() async => const [];
+
+  @override
+  Future<MockTrip?> getTripById(String id) async => null;
 }
 
 class _SeededActiveTripController extends ActiveTripController {

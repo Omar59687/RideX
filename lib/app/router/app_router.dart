@@ -18,6 +18,7 @@ import 'package:ridex/features/booking/presentation/screens/vehicle_type_selecti
 import 'package:ridex/features/driver_application/presentation/screens/driver_application_status_screen.dart';
 import 'package:ridex/features/driver_home/presentation/screens/driver_home_screen.dart';
 import 'package:ridex/features/history/presentation/screens/trip_history_screen.dart';
+import 'package:ridex/features/history/presentation/screens/trip_details_screen.dart';
 import 'package:ridex/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:ridex/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:ridex/features/profile/presentation/screens/driver_profile_screen.dart';
@@ -123,6 +124,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/history',
           name: RouteNames.tripHistory,
           builder: (_, __) => const TripHistoryScreen()),
+      GoRoute(
+        path: '/history/:tripId',
+        name: RouteNames.tripDetails,
+        builder: (_, state) => TripDetailsScreen(
+          tripId: state.pathParameters['tripId']!,
+        ),
+      ),
       GoRoute(
           path: '/notifications',
           name: RouteNames.notifications,

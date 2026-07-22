@@ -21,6 +21,7 @@ class RouteNames {
   static const riderProfile = 'riderProfile';
   static const driverProfile = 'driverProfile';
   static const tripHistory = 'tripHistory';
+  static const tripDetails = 'tripDetails';
   static const notifications = 'notifications';
   static const settings = 'settings';
   static const driverHome = 'driverHome';
