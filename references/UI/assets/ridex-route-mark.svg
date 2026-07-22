@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">RideX route mark</title>
+  <desc id="desc">Route-inspired RX monogram with pickup and destination endpoints.</desc>
+  <defs>
+    <linearGradient id="iris-violet" x1="18" y1="12" x2="108" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#625BF6"/>
+      <stop offset="1" stop-color="#8B6DFF"/>
+    </linearGradient>
+  </defs>
+  <path d="M35 17c-8 28-7 62 2 94" fill="none" stroke="url(#iris-violet)" stroke-width="18" stroke-linecap="round"/>
+  <path d="M75 18c-8 28-7 58 1 88" fill="none" stroke="#35C2C8" stroke-width="18" stroke-linecap="round"/>
+  <path d="M20 50c25 3 55 24 88 62" fill="none" stroke="url(#iris-violet)" stroke-width="17" stroke-linecap="round"/>
+  <circle cx="31" cy="18" r="10" fill="#FFFFFF" stroke="#FF7868" stroke-width="6"/>
+  <circle cx="106" cy="110" r="10" fill="#FFFFFF" stroke="#625BF6" stroke-width="6"/>
+</svg>

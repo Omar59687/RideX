@@ -1,0 +1,72 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "meta": {
+    "name": "RideX V2 Urban Aurora",
+    "version": "2.0.0",
+    "platformIntent": "Flutter ColorScheme and ThemeExtension conversion"
+  },
+  "primitive": {
+    "midnight": {"50":"#F5F3F8","100":"#E6E3EF","300":"#8D88A4","500":"#514C70","700":"#28234A","900":"#19162B"},
+    "iris": {"50":"#EFEDFF","100":"#DDD9FF","300":"#A8A4FF","500":"#625BF6","700":"#4D46D2","900":"#332C9C"},
+    "violet": {"50":"#F4F1FF","100":"#E4DDFF","300":"#BBAAFF","500":"#8B6DFF","700":"#7154D9","900":"#553FB2"},
+    "coral": {"50":"#FFF1EE","100":"#FFDCD6","300":"#FFAAA0","500":"#FF7868","700":"#D3574D","900":"#9F3C38"},
+    "aqua": {"50":"#EAF5F7","100":"#CFF2F3","300":"#85DDE0","500":"#35C2C8","700":"#21999F","900":"#146E74"},
+    "pearl": {"50":"#F8F5F0","100":"#F3EFE9","300":"#E7E2DB","500":"#C9C3BA","700":"#8A857E","900":"#5D5A55"},
+    "lavender": {"50":"#FBFAFF","100":"#EFEDFF","300":"#D2CDF4","500":"#AAA3D8","700":"#6F679B","900":"#3E385F"},
+    "mist": {"50":"#F7FCFC","100":"#EAF5F7","300":"#C5E4E8","500":"#8FC5CB","700":"#4C858C","900":"#28535A"},
+    "ink": {"primary":"#242233","secondary":"#6F6B7D","inverse":"#FFFFFF"},
+    "white": {"50":"#FFFFFF","100":"#FFFFFF","300":"#FFFFFF","500":"#FFFFFF","700":"#F8F5F0","900":"#E2DEEB"}
+  },
+  "semantic": {
+    "light": {
+      "color": {
+        "background":"#F8F5F0","surface":"#FFFFFF","surfaceTint":"#EFEDFF","surfaceLive":"#EAF5F7",
+        "textPrimary":"#242233","textSecondary":"#6F6B7D","textInverse":"#FFFFFF","border":"#E2DEEB",
+        "brandPrimary":"#625BF6","brandEmphasis":"#4D46D2","brandDepth":"#8B6DFF",
+        "pickup":"#D3574D","destination":"#28234A","routeLive":"#21999F",
+        "success":"#28765E","warning":"#9A5B00","error":"#B43B52","information":"#4D46D2",
+        "focus":"#21999F","disabledBackground":"#E7E2DB","disabledContent":"#8A857E"
+      },
+      "gradient": {
+        "brand":"linear-gradient(135deg, #625BF6 0%, #8B6DFF 100%)",
+        "route":"linear-gradient(90deg, #625BF6 0%, #35C2C8 100%)",
+        "reward":"linear-gradient(135deg, #FF7868 0%, #FFAA91 100%)"
+      }
+    },
+    "dark": {
+      "color": {
+        "background":"#19162B","surface":"#28234A","surfaceTint":"#332C5C","surfaceLive":"#203E49",
+        "textPrimary":"#F8F5F0","textSecondary":"#C5C0D2","textInverse":"#242233","border":"#514C70",
+        "brandPrimary":"#A8A4FF","brandEmphasis":"#DDD9FF","brandDepth":"#BBAAFF",
+        "pickup":"#FFAAA0","destination":"#EFEDFF","routeLive":"#85DDE0",
+        "success":"#73C5A7","warning":"#F5BC65","error":"#FF9AAA","information":"#A8A4FF",
+        "focus":"#85DDE0","disabledBackground":"#3C3856","disabledContent":"#8D88A4"
+      },
+      "gradient": {
+        "brand":"linear-gradient(135deg, #625BF6 0%, #8B6DFF 100%)",
+        "route":"linear-gradient(90deg, #8B6DFF 0%, #35C2C8 100%)",
+        "reward":"linear-gradient(135deg, #D3574D 0%, #FFAAA0 100%)"
+      }
+    }
+  },
+  "type": {
+    "family":"Plus Jakarta Sans, Avenir Next, Segoe UI, sans-serif",
+    "weight":{"regular":400,"medium":500,"semibold":600,"bold":700,"extraBold":800},
+    "size":{"display":34,"pageTitle":26,"sectionTitle":19,"body":15,"label":13,"caption":11},
+    "lineHeight":{"display":1.08,"title":1.15,"body":1.55,"caption":1.45},
+    "tracking":{"display":"-0.03em","title":"-0.02em","label":"0.02em","caps":"0.08em"}
+  },
+  "space":{"0":0,"1":4,"2":8,"3":12,"4":16,"5":20,"6":24,"8":32,"10":40,"12":48},
+  "radius":{"control":16,"card":20,"sheet":28,"circle":999},
+  "size":{"touchMinimum":44,"primaryButton":54,"topBar":64,"bottomNavigation":72},
+  "motion": {
+    "duration":{"instant":80,"fast":160,"standard":260,"sheet":340,"route":800},
+    "curve":{"standard":"cubic-bezier(0.2, 0.8, 0.2, 1)","enter":"cubic-bezier(0.2, 0.85, 0.25, 1)","exit":"cubic-bezier(0.4, 0, 1, 1)"},
+    "reduced":{"duration":1,"routeDraw":"none","markerMovement":"crossfade"}
+  },
+  "elevation": {
+    "card":"0 8 24 rgba(40,35,74,0.055)",
+    "floating":"0 10 28 rgba(98,91,246,0.11)",
+    "sheet":"0 -14 40 rgba(40,35,74,0.12)"
+  }
+}
