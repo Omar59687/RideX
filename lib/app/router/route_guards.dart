@@ -12,11 +12,14 @@ String? redirectForSession(GoRouterState state, SessionState session) {
     '/sign-in',
     '/sign-up',
     '/forgot-password',
+    '/verify-otp',
   };
   final inAuth = publicLocations.contains(location);
 
   if (session.status == SessionStatus.loading) {
-    return location == '/' ? null : '/';
+    // Keep auth forms mounted while a submit is in flight so they can render
+    // repository errors. Private deep links still wait on the splash route.
+    return location == '/' || inAuth ? null : '/';
   }
 
   if (session.status == SessionStatus.unauthenticated) {

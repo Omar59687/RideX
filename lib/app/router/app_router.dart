@@ -9,6 +9,7 @@ import 'package:ridex/features/auth/presentation/screens/forgot_password_screen.
 import 'package:ridex/features/auth/presentation/screens/account_blocked_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/sign_in_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/sign_up_screen.dart';
+import 'package:ridex/features/auth/presentation/screens/verify_otp_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/destination_selection_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/fare_estimate_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/pickup_selection_screen.dart';
@@ -63,6 +64,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/forgot-password',
           name: RouteNames.forgotPassword,
           builder: (_, __) => const ForgotPasswordScreen()),
+      GoRoute(
+        path: '/verify-otp',
+        name: RouteNames.verifyOtp,
+        builder: (_, state) => VerifyOtpScreen(
+          phone: _otpPhoneFromState(state),
+        ),
+      ),
       GoRoute(
           path: '/account-blocked',
           name: RouteNames.accountBlocked,
@@ -152,6 +160,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ),
   );
 });
+
+String? _otpPhoneFromState(GoRouterState state) {
+  final extra = state.extra;
+  if (extra is VerifyOtpExtra) return extra.phone;
+  if (extra is String) return extra;
+  if (extra is Map && extra['phone'] is String) {
+    return extra['phone'] as String;
+  }
+  return state.uri.queryParameters['phone'];
+}
 
 class RouterRefresh extends ChangeNotifier {
   RouterRefresh(this.ref) {

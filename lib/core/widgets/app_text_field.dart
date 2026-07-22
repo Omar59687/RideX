@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 
 class AppTextField extends StatelessWidget {
@@ -24,6 +25,7 @@ class AppTextField extends StatelessWidget {
     this.maxLines = 1,
     this.minLines,
     this.semanticLabel,
+    this.inputFormatters,
   });
 
   final TextEditingController controller;
@@ -46,6 +48,7 @@ class AppTextField extends StatelessWidget {
   final int? maxLines;
   final int? minLines;
   final String? semanticLabel;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +75,7 @@ class AppTextField extends StatelessWidget {
             autofillHints: autofillHints,
             maxLines: obscureText ? 1 : maxLines,
             minLines: minLines,
+            inputFormatters: inputFormatters,
             decoration: InputDecoration(
               hintText: hint,
               helperText: helperText,
