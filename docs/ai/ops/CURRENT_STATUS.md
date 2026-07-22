@@ -5,7 +5,8 @@
 - Active branch: `feature/omar/rider-ui-v2`
 - Base commit: `e374d86`
 - Latest implementation commit: `f4e0371`
-- Position after the font bundling checkpoint: 17 commits ahead of `origin/main`
+- Final handoff commit: `b5dc11c`
+- Final position including this status update: 20 commits ahead of `origin/main`
 
 ## Completed Phases
 
@@ -21,39 +22,45 @@
 | `96d7db9` | Rider notifications, session-local preferences, settings, and driver preservation |
 | `a39aeee` | Responsive, accessibility, route, provider, theme, and driver regression pass |
 | `f4e0371` | Official Plus Jakarta Sans static fonts, license, weight mappings, and asset verification |
+| `b5dc11c` | Final Rider V2 documentation reconciliation, visual audit, and cleanup |
 
-**Do not redo, replace, or restart these ten completed implementation phases.** Inspect them only when the next phase requires an integration point or a failing test identifies a regression.
+**Do not redo, replace, or restart these eleven completed phases.** Rider V2 has no remaining implementation checkpoint.
 
 ## Verification Status
 
-At `f4e0371`, `dart format lib test` and `flutter analyze` passed, the focused adaptive and typography file passed with 5 tests, and the full non-live suite passed with 48 tests and 2 intentional live Supabase skips. The five required static weights and `OFL.txt` have Git blob hashes matching the official Tokotype repository. Representative 400, 500, 600, 700, and 800 theme styles resolve to the bundled `Plus Jakarta Sans` family, and all six bundled files are covered by asset-loading verification.
+Final verification on July 22, 2026:
 
-## Exact Next Checkpoint
+- `dart format lib test`: 116 files checked, 0 changed.
+- `flutter analyze`: no issues found.
+- `flutter test`: 48 tests passed with 2 intentional live Supabase skips.
+- The suite logs non-failing `flutter_svg` warnings for unsupported SVG `<filter>` elements.
+- The five required static weights and `OFL.txt` retain Git blob hashes matching the official Tokotype repository. Representative 400, 500, 600, 700, and 800 theme styles resolve to the bundled `Plus Jakarta Sans` family, and all six bundled files are covered by asset-loading verification.
 
-Complete **final Rider V2 documentation, visual comparison, verification, and cleanup**:
+## Final Handoff
 
-- Compare the implemented rider screens against the curated gallery, brand board, design document, CSS, JavaScript screen definitions, and structural token JSON under `references/UI/`; do not edit the references.
-- Reconcile project documentation with the final implementation and remove only Rider V2 temporary artifacts or stale Rider V2 documentation discovered during the audit.
-- Verify the complete `origin/main...HEAD` diff contains no HTML embedding, WebView, map SDK, generated metadata, credentials, machine-specific paths, or unrelated changes.
-- Run `dart format lib test`, `flutter analyze`, and all non-live tests before committing.
-- Record final visual deviations, intentionally unsupported integrations, test results, and PR handoff state.
+Rider V2 implementation, documentation, visual comparison, verification, and cleanup are complete. No Rider V2 checkpoints remain. The branch has not been pushed or merged and no Pull Request has been opened; those actions require explicit approval.
 
-Start with these sources and documentation:
+The complete `origin/main...HEAD` diff was reviewed. It adds no HTML embedding, WebView, map SDK, generated Open Design metadata, credentials, machine-specific paths, reference edits, or unrelated product changes. The only driver-specific diff is regression coverage. Existing tracked files under `supabase/.temp/` predate this branch, contain project linkage metadata but no discovered secret, and were preserved as unrelated baseline state.
 
-```text
-references/UI/
-docs/ai/ops/PROJECT_CONTEXT.md
-docs/ai/ops/ARCHITECTURE.md
-docs/ai/ops/DECISIONS.md
-docs/ai/ops/CURRENT_STATUS.md
-README.md
-```
+`git diff --check origin/main...HEAD` reports the official `assets/fonts/OFL.txt` trailing space at line 21. That source formatting is intentionally preserved because changing it would invalidate the verified official license-file hash.
+
+## Visual Comparison
+
+The final audit compared the native Flutter screens with `RIDEX-V2-DESIGN.md`, the rider gallery, brand board, system CSS, JavaScript screen definitions, structural token JSON, and identity assets under `references/UI/`. The implementation preserves the Urban Aurora palette and semantics, bundled typography, light/dark themes, identity, destination-first flow, provider-owned state, responsive foundations, and native component strategy.
+
+Accepted implementation deviations from the conceptual gallery:
+
+- The native `CustomPainter` map is intentionally illustrative and less geographically detailed than the gallery; no live map, GPS, routing, geocoding, or tracking was introduced.
+- Authentication, searching, map markers, vehicle cards, navigation, and completion surfaces use simplified native compositions rather than pixel-identical HTML/CSS layouts.
+- Deterministic demo controls and limitation messages remain visible where production integrations do not exist.
+- Completion and rating remain separate approved routes, and driver screens retain their existing visual presentation.
+- Launcher and platform resource branding remains deferred by approved decision.
+
+These deviations do not replace provider, repository, routing, session, authentication, sign-out, or driver behavior and do not fabricate backend capabilities.
 
 ## Remaining Phases
 
-1. Final documentation, full verification, visual comparison, and cleanup.
-
-Complete exactly one checkpoint per resume. After its implementation commit, update this file with the commit hash, focused test results, limitations, and next checkpoint; commit that documentation update, confirm a clean worktree, and stop.
+None.
 
 ## Font Status
 
