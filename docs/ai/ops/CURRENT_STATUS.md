@@ -4,8 +4,8 @@
 
 - Active branch: `feature/omar/rider-ui-v2`
 - Base commit: `e374d86`
-- Latest implementation commit: `9021f6a`
-- Position after Phase 6A implementation: nine commits ahead of `origin/main`
+- Latest implementation commit: `f3a35aa`
+- Position after Phase 6B implementation: 11 commits ahead of `origin/main`
 
 ## Completed Phases
 
@@ -17,48 +17,48 @@
 | `5327cb7` | Rider home and destination-first booking flow |
 | `b31ec2f` | Rider search, trip lifecycle, cancellation, completion, and rating |
 | `9021f6a` | Rider trip history, repository-backed details, filters, and rebooking |
+| `f3a35aa` | Repository-backed rider profile, disabled previews, and real sign-out |
 
-**Do not redo, replace, or restart these six completed implementation phases.** Inspect them only when the next phase requires an integration point or a failing test identifies a regression.
+**Do not redo, replace, or restart these seven completed implementation phases.** Inspect them only when the next phase requires an integration point or a failing test identifies a regression.
 
 ## Verification Status
 
-At `9021f6a`, `flutter analyze` passed and all 11 focused trip history and lifecycle tests passed. Phase 6A covers loading, retryable error, empty, completed/cancelled filters, selected-trip navigation, completed and cancelled receipts, missing IDs, rebooking state, and driver history access.
+At `f3a35aa`, `flutter analyze` passed and all four focused profile tests passed. Phase 6B covers repository loading, retryable error, real profile identity/contact data, disabled Coming soon actions, real session sign-out, and unchanged driver profile presentation.
 
 ## Exact Next Checkpoint
 
-Implement **Phase 6B: rider profile only**:
+Implement **Phase 6C: notifications and settings only**:
 
-- Redesign the rider profile experience using the approved Urban Aurora references.
-- Preserve real session/profile repository data, sign-out behavior, and driver profile behavior.
-- Keep unsupported profile actions disabled, clearly explained, or isolated demo behavior.
-- Do not begin notifications or settings work in this checkpoint.
+- Redesign rider notifications and settings using the approved Urban Aurora references.
+- Preserve the notifications controller, session-derived role, sign-out behavior, routes, and driver behavior.
+- Keep notification/settings persistence and unsupported actions explicitly session-local, disabled, or Coming soon.
+- Do not begin the final responsive and regression pass in this checkpoint.
 
 Relevant files and state only:
 
 ```text
+lib/core/models/app_notification.dart
 lib/core/providers/session_providers.dart
-lib/core/providers/repositories_providers.dart
-lib/core/repositories/profile_repository.dart
-lib/core/models/app_user.dart
-lib/features/profile/presentation/screens/rider_profile_screen.dart
+lib/features/notifications/presentation/screens/notifications_screen.dart
+lib/features/settings/presentation/screens/settings_screen.dart
 lib/core/widgets/ride_x_bottom_navigation.dart
 ```
 
 Relevant routes/providers:
 
 ```text
-/rider/profile
+/notifications
+/settings
+notificationsControllerProvider
 sessionControllerProvider
-profileRepositoryProvider
 ```
 
 ## Remaining Phases
 
-1. Phase 6B: rider profile only.
-2. Phase 6C: notifications and settings only.
-3. Responsive, accessibility, route, provider, theme, and driver regression test pass.
-4. Bundle Plus Jakarta Sans and its official license after explicit download approval.
-5. Final documentation, full verification, visual comparison, and cleanup.
+1. Phase 6C: notifications and settings only.
+2. Responsive, accessibility, route, provider, theme, and driver regression test pass.
+3. Bundle Plus Jakarta Sans and its official license after explicit download approval.
+4. Final documentation, full verification, visual comparison, and cleanup.
 
 Complete exactly one checkpoint per resume. After its implementation commit, update this file with the commit hash, focused test results, limitations, and next checkpoint; commit that documentation update, confirm a clean worktree, and stop.
 
