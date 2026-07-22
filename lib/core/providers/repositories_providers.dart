@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/app/config/env_config.dart';
 import 'package:ridex/core/mocks/mock_repositories.dart';
+import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/repositories/auth_repository.dart';
 import 'package:ridex/core/repositories/booking_repository.dart';
 import 'package:ridex/core/repositories/profile_repository.dart';
@@ -44,4 +45,8 @@ final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
     client: ref.watch(supabaseClientProvider)!,
     profileService: ref.watch(profileServiceProvider)!,
   );
+});
+
+final currentProfileProvider = FutureProvider.autoDispose<AppUser>((ref) {
+  return ref.watch(profileRepositoryProvider).getCurrentProfile();
 });
