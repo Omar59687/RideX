@@ -4,8 +4,8 @@
 
 - Active branch: `feature/omar/rider-ui-v2`
 - Base commit: `e374d86`
-- Latest implementation commit: `96d7db9`
-- Position after Phase 6C implementation: 13 commits ahead of `origin/main`
+- Latest implementation commit: `a39aeee`
+- Position after the regression checkpoint: 15 commits ahead of `origin/main`
 
 ## Completed Phases
 
@@ -19,54 +19,45 @@
 | `9021f6a` | Rider trip history, repository-backed details, filters, and rebooking |
 | `f3a35aa` | Repository-backed rider profile, disabled previews, and real sign-out |
 | `96d7db9` | Rider notifications, session-local preferences, settings, and driver preservation |
+| `a39aeee` | Responsive, accessibility, route, provider, theme, and driver regression pass |
 
-**Do not redo, replace, or restart these eight completed implementation phases.** Inspect them only when the next phase requires an integration point or a failing test identifies a regression.
+**Do not redo, replace, or restart these nine completed implementation phases.** Inspect them only when the next phase requires an integration point or a failing test identifies a regression.
 
 ## Verification Status
 
-At `96d7db9`, `flutter analyze` passed, all five focused notifications/settings tests passed, and the full non-live suite passed with 36 tests and 2 intentional skips. Phase 6C covers unread and mark-read behavior, session-local Riverpod notification preferences that reset on sign-out, disabled Coming soon actions, real sign-out, and unchanged driver notifications/settings presentation.
+At `a39aeee`, `dart format lib test` and `flutter analyze` passed, the focused regression set passed with 44 tests, and the full non-live suite passed with 47 tests and 2 intentional live Supabase skips. Coverage now includes the rider/driver guard matrix, booking and trip continuity, sign-out state isolation, 390x844 large-text reduced-motion rider flow, 430x932 dark rider tabs, bottom-navigation semantics and targets, and the complete preserved driver trip lifecycle. The pass fixed large-text overflows in rider availability, route fields, vehicle cards, and driver history, plus driver notification contrast in dark mode.
 
 ## Exact Next Checkpoint
 
-Implement the **responsive, accessibility, route, provider, theme, and driver regression pass only**:
+Bundle **official Plus Jakarta Sans font files and their license only**, after explicit network-download approval:
 
-- Exercise the completed rider flow at approximately 390x844 and 430x932, in light/dark themes, with large text and reduced motion.
-- Add or strengthen route, provider continuity, authentication/sign-out, bottom navigation, semantics, target-size, and driver regression tests.
-- Fix only regressions exposed by this pass; do not redesign completed screens or add backend integrations.
+- Official source: `https://github.com/tokotype/PlusJakartaSans`.
+- Required static weights: Regular 400, Medium 500, SemiBold 600, Bold 700, and ExtraBold 800, plus the official `OFL.txt` license.
+- Add the files under `assets/fonts/`, declare the family and weights in `pubspec.yaml`, and verify representative text styles resolve to the bundled family.
+- Do not use `google_fonts`, substitute font files, or download anything until the user explicitly approves network access.
 - Run `dart format lib test`, `flutter analyze`, and all non-live tests before committing.
-- Do not begin font download/bundling, final documentation, or visual cleanup in this checkpoint.
+- Do not begin final documentation, visual comparison, or cleanup in this checkpoint.
 
-Start with existing tests and these shared integration points; inspect feature files only when a failing test identifies them:
-
-```text
-test/
-lib/app/router/app_router.dart
-lib/app/theme/
-lib/core/providers/session_providers.dart
-lib/core/widgets/ride_x_bottom_navigation.dart
-```
-
-Required regression areas:
+Start with these files after approval:
 
 ```text
-rider and driver route guards
-booking and trip provider continuity
-history, profile, notifications, settings, and sign-out
-light/dark themes, reduced motion, large text, and compact screens
+pubspec.yaml
+lib/app/theme/app_text_styles.dart
+assets/fonts/
+test/rider_v2_adaptive_accessibility_test.dart
 ```
 
 ## Remaining Phases
 
-1. Responsive, accessibility, route, provider, theme, and driver regression test pass.
-2. Bundle Plus Jakarta Sans and its official license after explicit download approval.
-3. Final documentation, full verification, visual comparison, and cleanup.
+1. Bundle Plus Jakarta Sans and its official license after explicit download approval.
+2. Final documentation, full verification, visual comparison, and cleanup.
 
 Complete exactly one checkpoint per resume. After its implementation commit, update this file with the commit hash, focused test results, limitations, and next checkpoint; commit that documentation update, confirm a clean worktree, and stop.
 
 ## Font Status
 
-Plus Jakarta Sans is configured as the intended family but font files and license are not bundled. Network download is not approved implicitly. Pause at the gate described in `DECISIONS.md`.
+Plus Jakarta Sans is configured as the intended family but font files and license are not bundled. No network download was performed. Pause at the gate described in `DECISIONS.md` until the user explicitly approves downloading the five static weights and `OFL.txt` from the official Tokotype repository.
 
 ## Known Limitations
 
-Phone OTP, maps/live location, booking/history persistence, card payments, promotions, rewards, calls/messages, safety services, saved-place persistence, notification delivery/persistence, and rating persistence are not production integrations. Notification read state and preferences are session-local and reset with the app/provider lifecycle; preferences also reset on sign-out. Unsupported behavior must remain explicit demo, session-local, disabled, or Coming soon behavior.
+Phone OTP, maps/live location, booking/history persistence, card payments, promotions, rewards, calls/messages, safety services, saved-place persistence, notification delivery/persistence, and rating persistence are not production integrations. Notification read state, preferences, booking drafts, active trips, and driver availability are session-local and reset on sign-out. Unsupported behavior must remain explicit demo, session-local, disabled, or Coming soon behavior.
