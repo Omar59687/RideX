@@ -155,6 +155,7 @@ class SessionController extends Notifier<SessionState> {
 
   Future<void> signOut() async {
     await ref.read(authRepositoryProvider).signOut();
+    ref.invalidate(notificationPreferencesProvider);
     state = const SessionState.unauthenticated();
   }
 }
@@ -233,6 +234,35 @@ class NotificationsController extends Notifier<List<AppNotification>> {
       for (final notification in state) notification.copyWith(isRead: true),
     ];
   }
+
+  void markRead(String id) {
+    state = [
+      for (final notification in state)
+        notification.id == id
+            ? notification.copyWith(isRead: true)
+            : notification,
+    ];
+  }
+}
+
+class NotificationPreferences {
+  const NotificationPreferences({
+    this.push = true,
+    this.sms = true,
+    this.email = false,
+  });
+
+  final bool push;
+  final bool sms;
+  final bool email;
+
+  NotificationPreferences copyWith({bool? push, bool? sms, bool? email}) {
+    return NotificationPreferences(
+      push: push ?? this.push,
+      sms: sms ?? this.sms,
+      email: email ?? this.email,
+    );
+  }
 }
 
 final selectedRoleProvider = StateProvider<RideRole>((ref) => RideRole.rider);
@@ -247,5 +277,8 @@ final activeTripControllerProvider =
 final notificationsControllerProvider =
     NotifierProvider<NotificationsController, List<AppNotification>>(
   NotificationsController.new,
+);
+final notificationPreferencesProvider = StateProvider<NotificationPreferences>(
+  (ref) => const NotificationPreferences(),
 );
 final driverOnlineProvider = StateProvider<bool>((ref) => true);
