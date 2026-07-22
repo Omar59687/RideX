@@ -1,8 +1,10 @@
 import 'dart:ui' show SemanticsFlag;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ridex/app/theme/app_text_styles.dart';
 import 'package:ridex/app/theme/app_theme.dart';
 import 'package:ridex/app/theme/ridex_theme.dart';
 import 'package:ridex/core/widgets/ride_x_bottom_navigation.dart';
@@ -19,6 +21,34 @@ void main() {
     expect(light.extension<RideXTheme>(), isNotNull);
     expect(dark.extension<RideXTheme>(), isNotNull);
     expect(light.colorScheme.primary, isNot(dark.colorScheme.primary));
+  });
+
+  testWidgets('themes resolve bundled Plus Jakarta Sans weights',
+      (tester) async {
+    const fontAssets = {
+      'assets/fonts/PlusJakartaSans-Regular.ttf': FontWeight.w400,
+      'assets/fonts/PlusJakartaSans-Medium.ttf': FontWeight.w500,
+      'assets/fonts/PlusJakartaSans-SemiBold.ttf': FontWeight.w600,
+      'assets/fonts/PlusJakartaSans-Bold.ttf': FontWeight.w700,
+      'assets/fonts/PlusJakartaSans-ExtraBold.ttf': FontWeight.w800,
+    };
+
+    for (final asset in [...fontAssets.keys, 'assets/fonts/OFL.txt']) {
+      expect((await rootBundle.load(asset)).lengthInBytes, greaterThan(0));
+    }
+
+    final textTheme = AppTheme.light().textTheme;
+    final representativeStyles = {
+      textTheme.bodyMedium: FontWeight.w400,
+      textTheme.bodyLarge: FontWeight.w500,
+      textTheme.titleMedium: FontWeight.w600,
+      textTheme.headlineLarge: FontWeight.w700,
+      textTheme.displayLarge: FontWeight.w800,
+    };
+    for (final entry in representativeStyles.entries) {
+      expect(entry.key?.fontFamily, AppTextStyles.fontFamily);
+      expect(entry.key?.fontWeight, entry.value);
+    }
   });
 
   testWidgets(

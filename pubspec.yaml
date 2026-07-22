@@ -69,6 +69,21 @@ flutter:
     - assets/branding/ridex-app-icon.svg
     - assets/branding/ridex-route-mark.svg
     - assets/branding/ridex-wordmark.svg
+    - assets/fonts/OFL.txt
+
+  fonts:
+    - family: Plus Jakarta Sans
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/PlusJakartaSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/PlusJakartaSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/PlusJakartaSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/PlusJakartaSans-ExtraBold.ttf
+          weight: 800
 
   # To add assets to your application, add an assets section, like this:
   # assets:
