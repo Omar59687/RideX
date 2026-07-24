@@ -68,6 +68,10 @@ A new six-checkpoint pre-merge correction sequence is active under `docs/ai/plan
 - Migration `004_enforce_role_authorization_boundary.sql` makes public signup Rider-only, safely backfills missing role profiles, reasserts least-privilege client grants, and adds guarded Admin Driver-promotion and approval RPCs.
 - The migration preserves existing roles, blocked values, Driver approval values, and existing profile rows. Missing Driver profiles are added as pending.
 - A 29-assertion local pgTAP suite covers malicious signup metadata, direct mutation denial, Admin and blocked-Admin behavior, Driver promotion/approval/rejection, grants, and function hardening.
+- Phase 2, three-role Flutter domain and session: `687bcd2`.
+- `RideRole` now strictly parses Rider, Driver, and Admin. Missing or malformed user and Driver profile data produces a fail-closed `profileError` session instead of defaulting to Rider or pending Driver.
+- Sign-in no longer accepts a caller-selected role. Public signup, phone OTP, and demo contracts are Rider-only, while exact mock Rider, Driver, and Admin credentials remain isolated inside `MockAuthRepository` with no email-pattern inference.
+- Driver approval parsing is strict, blocked users retain priority over role state, and existing approved/pending/rejected Driver and sign-out behavior remains preserved.
 
 Phase 1 verification on July 24, 2026:
 
@@ -78,24 +82,34 @@ Phase 1 verification on July 24, 2026:
 - The pgTAP suite could not execute locally because Supabase CLI is not installed and Docker Desktop's Linux engine remained stopped/unavailable with HTTP 500 responses. The suite must run against a local Supabase stack before migration deployment.
 - No Supabase project linking, reset, remote query, remote SQL, migration application, `db push`, or service-role operation was performed.
 
+Phase 2 verification on July 24, 2026:
+
+- Targeted `dart format` completed for all 25 Phase 2 implementation and test files with no outstanding formatting changes.
+- `flutter test test/auth_domain_session_test.dart test/auth_v2_test.dart test/role_selection_test.dart test/session_route_guards_test.dart`: 21 tests passed.
+- `flutter test test/driver_accept_trip_test.dart`: 1 Driver regression test passed.
+- `flutter analyze`: no issues found.
+- `flutter test`: 59 tests passed with 2 intentional live Supabase skips.
+- The suite retains the known non-failing `flutter_svg` warnings for unsupported SVG `<filter>` elements.
+- `git diff --cached --check`: passed before the implementation commit.
+- No Supabase project linking, reset, remote query, remote SQL, migration application, `db push`, or service-role operation was performed.
+
 ## Exact Next Checkpoint
 
-Complete **Phase 2: three-role Flutter domain and session**.
+Complete **Phase 3: public authentication flow and router guards**.
 
-- Add `RideRole.admin` and strict Rider/Driver/Admin parsing.
-- Remove role arguments from sign-in, signup, session controller, and public demo contracts.
-- Make public signup and demo Rider-only.
-- Add a fail-closed missing or invalid-profile session state.
-- Keep predefined mock Rider, Driver, and Admin credentials inside mock configuration only; never infer authorization from email patterns.
-- Complete, verify, and commit only Phase 2; update this status to Phase 3 in a separate local status commit, confirm a clean worktree, and stop.
+- Remove the rendered public role-selection flow and `selectedRoleProvider`.
+- Route onboarding Continue and Skip to the common sign-in destination.
+- Remove role-dependent sign-in and signup presentation, and state clearly that public signup creates a Rider.
+- Add protected Admin and profile-error destinations with honest copy, retry where appropriate, and sign-out only.
+- Replace prefix-only guards with explicit public, Rider, Driver, Admin, shared, application-status, blocked, and profile-error route policies.
+- Complete, verify, and commit only Phase 3; update this status to Phase 4 in a separate local status commit, confirm a clean worktree, and stop.
 
 ## Remaining Pre-Merge Checkpoints
 
-1. Three-role Flutter domain and session.
-2. Public authentication flow and router guards.
-3. Light-first visual correction.
-4. Responsive and accessibility hardening.
-5. Final verification and documentation.
+1. Public authentication flow and router guards.
+2. Light-first visual correction.
+3. Responsive and accessibility hardening.
+4. Final verification and documentation.
 
 ## Font Status
 
