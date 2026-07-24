@@ -192,8 +192,8 @@ class _ProfileHero extends StatelessWidget {
         AppSpacing.lg,
         AppSpacing.xxl,
       ),
-      decoration: const BoxDecoration(
-        color: AppColors.midnight900,
+      decoration: BoxDecoration(
+        color: context.rideXTheme.brandedPanel,
         borderRadius: BorderRadius.vertical(
           bottom: Radius.circular(AppRadii.sheet),
         ),
@@ -205,7 +205,9 @@ class _ProfileHero extends StatelessWidget {
             children: [
               Text(
                 'Profile',
-                style: textTheme.titleLarge?.copyWith(color: Colors.white),
+                style: textTheme.titleLarge?.copyWith(
+                  color: context.rideXTheme.brandedPanelForeground,
+                ),
               ),
               const Spacer(),
               Tooltip(
@@ -214,7 +216,7 @@ class _ProfileHero extends StatelessWidget {
                   key: const Key('profile-edit'),
                   onPressed: null,
                   icon: const Icon(Icons.edit_outlined),
-                  color: Colors.white,
+                  color: context.rideXTheme.brandedPanelForeground,
                   disabledColor: AppColors.midnight300,
                 ),
               ),
@@ -234,7 +236,7 @@ class _ProfileHero extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: textTheme.headlineMedium?.copyWith(
-                        color: Colors.white,
+                        color: context.rideXTheme.brandedPanelForeground,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xxs),
@@ -243,7 +245,7 @@ class _ProfileHero extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: textTheme.bodySmall?.copyWith(
-                        color: AppColors.midnight100,
+                        color: context.rideXTheme.brandedPanelMuted,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
@@ -262,7 +264,7 @@ class _ProfileHero extends StatelessWidget {
                       child: Text(
                         'RideX rider',
                         style: textTheme.labelMedium?.copyWith(
-                          color: AppColors.aqua100,
+                          color: context.rideXTheme.routeLive,
                         ),
                       ),
                     ),
@@ -288,7 +290,7 @@ class _ProfileAvatar extends StatelessWidget {
       child: Text(
         _initials(user.name),
         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: AppColors.midnight900,
+              color: context.rideXTheme.brandedPanel,
               fontWeight: FontWeight.w800,
             ),
       ),

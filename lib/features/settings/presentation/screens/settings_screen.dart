@@ -286,15 +286,18 @@ class _DriverSettingsScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-              color: AppColors.graphite,
+              color: context.rideXTheme.brandedPanel,
               borderRadius: BorderRadius.circular(28),
             ),
             child: Row(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 24,
-                  backgroundColor: Colors.white24,
-                  child: Icon(Icons.person, color: Colors.white),
+                  backgroundColor: context.rideXTheme.brandedPanelSubtle,
+                  child: Icon(
+                    Icons.person,
+                    color: context.rideXTheme.brandedPanelForeground,
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
@@ -303,18 +306,14 @@ class _DriverSettingsScreen extends StatelessWidget {
                     children: [
                       Text(
                         'Ahmed Yaser',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(color: Colors.white),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: context.rideXTheme.brandedPanelForeground),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Cash payment · Demo account',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: Colors.white70),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.rideXTheme.brandedPanelMuted),
                       ),
                     ],
                   ),

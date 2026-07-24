@@ -29,6 +29,10 @@ class RideXTheme extends ThemeExtension<RideXTheme> {
     required this.mapLabel,
     required this.mapRouteHalo,
     required this.mapVehicle,
+    required this.brandedPanel,
+    required this.brandedPanelForeground,
+    required this.brandedPanelMuted,
+    required this.brandedPanelSubtle,
   });
 
   final Color surfaceLive;
@@ -56,6 +60,11 @@ class RideXTheme extends ThemeExtension<RideXTheme> {
   final Color mapLabel;
   final Color mapRouteHalo;
   final Color mapVehicle;
+  // Midnight surfaces reserved for intentionally branded panels.
+  final Color brandedPanel;
+  final Color brandedPanelForeground;
+  final Color brandedPanelMuted;
+  final Color brandedPanelSubtle;
 
   static const light = RideXTheme(
     surfaceLive: AppColors.aqua50,
@@ -111,6 +120,10 @@ class RideXTheme extends ThemeExtension<RideXTheme> {
     mapLabel: Color(0xFF6F6B7D),
     mapRouteHalo: Color(0x33625BF6),
     mapVehicle: AppColors.midnight700,
+    brandedPanel: AppColors.midnight900,
+    brandedPanelForeground: AppColors.textInverse,
+    brandedPanelMuted: AppColors.midnight100,
+    brandedPanelSubtle: Color(0x14FFFFFF),
   );
 
   static const dark = RideXTheme(
@@ -167,6 +180,10 @@ class RideXTheme extends ThemeExtension<RideXTheme> {
     mapLabel: Color(0xFFC5C0D2),
     mapRouteHalo: Color(0x4DA8A4FF),
     mapVehicle: AppColors.iris50,
+    brandedPanel: AppColors.midnight900,
+    brandedPanelForeground: AppColors.pearl50,
+    brandedPanelMuted: AppColors.midnight100,
+    brandedPanelSubtle: Color(0x14FFFFFF),
   );
 
   @override
@@ -196,6 +213,10 @@ class RideXTheme extends ThemeExtension<RideXTheme> {
     Color? mapLabel,
     Color? mapRouteHalo,
     Color? mapVehicle,
+    Color? brandedPanel,
+    Color? brandedPanelForeground,
+    Color? brandedPanelMuted,
+    Color? brandedPanelSubtle,
   }) {
     return RideXTheme(
       surfaceLive: surfaceLive ?? this.surfaceLive,
@@ -223,6 +244,11 @@ class RideXTheme extends ThemeExtension<RideXTheme> {
       mapLabel: mapLabel ?? this.mapLabel,
       mapRouteHalo: mapRouteHalo ?? this.mapRouteHalo,
       mapVehicle: mapVehicle ?? this.mapVehicle,
+      brandedPanel: brandedPanel ?? this.brandedPanel,
+      brandedPanelForeground:
+          brandedPanelForeground ?? this.brandedPanelForeground,
+      brandedPanelMuted: brandedPanelMuted ?? this.brandedPanelMuted,
+      brandedPanelSubtle: brandedPanelSubtle ?? this.brandedPanelSubtle,
     );
   }
 
@@ -260,6 +286,13 @@ class RideXTheme extends ThemeExtension<RideXTheme> {
       mapLabel: Color.lerp(mapLabel, other.mapLabel, t)!,
       mapRouteHalo: Color.lerp(mapRouteHalo, other.mapRouteHalo, t)!,
       mapVehicle: Color.lerp(mapVehicle, other.mapVehicle, t)!,
+      brandedPanel: Color.lerp(brandedPanel, other.brandedPanel, t)!,
+      brandedPanelForeground:
+          Color.lerp(brandedPanelForeground, other.brandedPanelForeground, t)!,
+      brandedPanelMuted:
+          Color.lerp(brandedPanelMuted, other.brandedPanelMuted, t)!,
+      brandedPanelSubtle:
+          Color.lerp(brandedPanelSubtle, other.brandedPanelSubtle, t)!,
     );
   }
 }

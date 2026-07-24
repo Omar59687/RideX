@@ -21,6 +21,30 @@ void main() {
     expect(light.extension<RideXTheme>(), isNotNull);
     expect(dark.extension<RideXTheme>(), isNotNull);
     expect(light.colorScheme.primary, isNot(dark.colorScheme.primary));
+    expect(light.scaffoldBackgroundColor, const Color(0xFFF8F5F0));
+    expect(light.colorScheme.surface, const Color(0xFFFFFFFF));
+    expect(light.colorScheme.onSurface, const Color(0xFF242233));
+    expect(light.colorScheme.onSurfaceVariant, const Color(0xFF6F6B7D));
+    expect(light.colorScheme.outline, const Color(0xFFE2DEEB));
+    expect(
+        light.extension<RideXTheme>()!.brandedPanel, const Color(0xFF19162B));
+  });
+
+  testWidgets('RideX remains light when the device requests dark mode',
+      (tester) async {
+    tester.binding.platformDispatcher.platformBrightnessTestValue =
+        Brightness.dark;
+    addTearDown(
+      tester.binding.platformDispatcher.clearPlatformBrightnessTestValue,
+    );
+
+    await tester.pumpWidget(buildTestApp());
+    await tester.pump();
+
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
+      ThemeMode.light,
+    );
   });
 
   testWidgets('themes resolve bundled Plus Jakarta Sans weights',
@@ -132,7 +156,7 @@ void main() {
     expect(tester.takeException(), isNull, reason: 'active trip screen');
   });
 
-  testWidgets('rider tab screens render at 430x932 in dark mode',
+  testWidgets('rider tab screens remain light at 430x932 in dark mode',
       (tester) async {
     await _configureView(tester, size: const Size(430, 932));
     tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
@@ -150,7 +174,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(Theme.of(tester.element(find.text('Where to?'))).brightness,
-        Brightness.dark);
+        Brightness.light);
     for (final label in ['History', 'Profile', 'Settings', 'Home']) {
       await tester.tap(
         find.widgetWithText(NavigationDestination, label),
