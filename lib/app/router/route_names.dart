@@ -3,12 +3,13 @@ class RouteNames {
 
   static const splash = 'splash';
   static const onboarding = 'onboarding';
-  static const roleSelection = 'roleSelection';
   static const signIn = 'signIn';
   static const signUp = 'signUp';
   static const forgotPassword = 'forgotPassword';
   static const verifyOtp = 'verifyOtp';
   static const accountBlocked = 'accountBlocked';
+  static const profileError = 'profileError';
+  static const admin = 'admin';
   static const riderHome = 'riderHome';
   static const pickup = 'pickup';
   static const destination = 'destination';

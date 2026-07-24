@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:ridex/app/theme/app_radii.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
-import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/utils/validators.dart';
 import 'package:ridex/core/widgets/app_button.dart';
@@ -35,11 +33,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final role = ref.watch(selectedRoleProvider);
-
     return AuthShell(
       title: 'Create your account',
-      subtitle: 'One profile for every RideX journey across Jordan.',
+      subtitle:
+          'Public signup creates a Rider account for RideX journeys across Jordan.',
       footer: AppButton(
         label: 'Back to sign in',
         isExpanded: false,
@@ -51,8 +48,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SelectedRole(role: role),
-            const SizedBox(height: AppSpacing.lg),
             AppTextField(
               controller: _nameController,
               label: 'Full name',
@@ -124,42 +119,5 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       _submitting = false;
       _errorText = error;
     });
-  }
-}
-
-class _SelectedRole extends StatelessWidget {
-  const _SelectedRole({required this.role});
-
-  final RideRole role;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: colors.secondaryContainer,
-        borderRadius: BorderRadius.circular(AppRadii.control),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            role == RideRole.rider
-                ? Icons.person_pin_circle_rounded
-                : Icons.drive_eta_rounded,
-            color: colors.onSecondaryContainer,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              'Creating a ${role.label.toLowerCase()} account',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: colors.onSecondaryContainer,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

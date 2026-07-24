@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ridex/app/config/env_config.dart';
-import 'package:ridex/app/theme/app_radii.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
-import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/utils/validators.dart';
 import 'package:ridex/core/widgets/app_button.dart';
@@ -45,7 +43,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final role = ref.watch(selectedRoleProvider);
     final mockMode = !(widget.backendConfigured ?? EnvConfig.hasBackendConfig);
 
     return AuthShell(
@@ -83,7 +80,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 ? Duration.zero
                 : const Duration(milliseconds: 160),
             child: _method == AuthMethod.email
-                ? _buildEmailForm(context, role, mockMode)
+                ? _buildEmailForm(context, mockMode)
                 : _buildPhoneForm(context),
           ),
         ],
@@ -93,7 +90,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   Widget _buildEmailForm(
     BuildContext context,
-    RideRole role,
     bool mockMode,
   ) {
     return Form(
@@ -102,8 +98,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         key: const ValueKey('email-form'),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _RoleSummary(role: role, mockMode: mockMode),
-          const SizedBox(height: AppSpacing.lg),
           AppTextField(
             controller: _emailController,
             label: 'Email',
@@ -235,46 +229,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     await ref.read(sessionControllerProvider.notifier).continueAsDemo();
     if (!mounted) return;
     context.go('/rider/home');
-  }
-}
-
-class _RoleSummary extends StatelessWidget {
-  const _RoleSummary({required this.role, required this.mockMode});
-
-  final RideRole role;
-  final bool mockMode;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: colors.primaryContainer,
-        borderRadius: BorderRadius.circular(AppRadii.control),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            role == RideRole.rider
-                ? Icons.person_pin_circle_rounded
-                : Icons.drive_eta_rounded,
-            color: colors.onPrimaryContainer,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              mockMode
-                  ? 'Sign in as ${role.label}'
-                  : 'Existing accounts use their saved role',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: colors.onPrimaryContainer,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

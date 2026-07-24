@@ -278,7 +278,6 @@ class NotificationPreferences {
   }
 }
 
-final selectedRoleProvider = StateProvider<RideRole>((ref) => RideRole.rider);
 final sessionControllerProvider =
     NotifierProvider<SessionController, SessionState>(SessionController.new);
 final bookingControllerProvider =

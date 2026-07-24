@@ -3,67 +3,125 @@ import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 
+enum _RoutePolicy {
+  public,
+  rider,
+  driver,
+  admin,
+  shared,
+  applicationStatus,
+  blocked,
+  profileError,
+  unknown,
+}
+
 String? redirectForSession(GoRouterState state, SessionState session) {
   return redirectForLocation(state.matchedLocation, session);
 }
 
 String? redirectForLocation(String location, SessionState session) {
-  const publicLocations = {
-    '/',
-    '/onboarding',
-    '/roles',
-    '/sign-in',
-    '/sign-up',
-    '/forgot-password',
-    '/verify-otp',
-  };
-  final inAuth = publicLocations.contains(location);
+  final policy = _policyForLocation(location);
 
   if (session.status == SessionStatus.loading) {
-    // Keep auth forms mounted while a submit is in flight so they can render
-    // repository errors. Private deep links still wait on the splash route.
-    return location == '/' || inAuth ? null : '/';
+    // Keep public auth forms mounted during a submission so errors can render.
+    return policy == _RoutePolicy.public ? null : '/';
   }
 
   if (session.status == SessionStatus.unauthenticated) {
-    return inAuth ? null : '/sign-in';
+    return policy == _RoutePolicy.public ? null : '/sign-in';
   }
 
   if (session.status == SessionStatus.profileError) {
-    return inAuth ? null : '/sign-in';
+    return policy == _RoutePolicy.profileError ? null : '/profile-error';
   }
 
   if (session.status == SessionStatus.blocked) {
-    return location == '/account-blocked' ? null : '/account-blocked';
+    return policy == _RoutePolicy.blocked ? null : '/account-blocked';
   }
 
   if (session.status == SessionStatus.driverPending ||
       session.status == SessionStatus.driverRejected) {
-    return location == '/driver/application' ? null : '/driver/application';
+    return policy == _RoutePolicy.applicationStatus
+        ? null
+        : '/driver/application';
   }
 
-  if (session.role == RideRole.rider && inAuth) {
-    return '/rider/home';
-  }
+  final role = session.role;
+  if (role == null) return '/profile-error';
+  final home = locationForRole(role);
 
-  if (session.role == RideRole.driver && inAuth) {
-    return '/driver/home';
-  }
-
-  if (session.role == RideRole.rider && location.startsWith('/driver')) {
-    return '/rider/home';
-  }
-
-  if (session.role == RideRole.driver && location.startsWith('/rider')) {
-    return '/driver/home';
-  }
-
-  if (location == '/account-blocked' || location == '/driver/application') {
-    return locationForRole(session.role!);
-  }
-
-  return null;
+  return switch (policy) {
+    _RoutePolicy.public ||
+    _RoutePolicy.applicationStatus ||
+    _RoutePolicy.blocked ||
+    _RoutePolicy.profileError ||
+    _RoutePolicy.unknown =>
+      home,
+    _RoutePolicy.rider => role == RideRole.rider ? null : home,
+    _RoutePolicy.driver => role == RideRole.driver ? null : home,
+    _RoutePolicy.admin => role == RideRole.admin ? null : home,
+    _RoutePolicy.shared => null,
+  };
 }
+
+_RoutePolicy _policyForLocation(String location) {
+  if (_publicLocations.contains(location)) return _RoutePolicy.public;
+  if (_riderLocations.contains(location)) return _RoutePolicy.rider;
+  if (_driverLocations.contains(location)) return _RoutePolicy.driver;
+  if (_sharedLocations.contains(location) || _isTripDetailsLocation(location)) {
+    return _RoutePolicy.shared;
+  }
+
+  return switch (location) {
+    '/admin' => _RoutePolicy.admin,
+    '/driver/application' => _RoutePolicy.applicationStatus,
+    '/account-blocked' => _RoutePolicy.blocked,
+    '/profile-error' => _RoutePolicy.profileError,
+    _ => _RoutePolicy.unknown,
+  };
+}
+
+bool _isTripDetailsLocation(String location) {
+  return location.startsWith('/history/') &&
+      location.length > '/history/'.length;
+}
+
+const _publicLocations = {
+  '/',
+  '/onboarding',
+  '/sign-in',
+  '/sign-up',
+  '/forgot-password',
+  '/verify-otp',
+};
+
+const _riderLocations = {
+  '/rider/home',
+  '/rider/pickup',
+  '/rider/destination',
+  '/rider/vehicle',
+  '/rider/fare',
+  '/rider/searching',
+  '/rider/trip',
+  '/rider/completed',
+  '/rider/rating',
+  '/rider/profile',
+};
+
+const _driverLocations = {
+  '/driver/home',
+  '/driver/profile',
+  '/driver/request',
+  '/driver/arrival',
+  '/driver/trip',
+  '/driver/completed',
+};
+
+const _sharedLocations = {
+  '/history',
+  '/notifications',
+  '/settings',
+};
 
 String locationForRole(RideRole role) {
   return switch (role) {

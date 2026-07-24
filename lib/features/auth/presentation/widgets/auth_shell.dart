@@ -78,7 +78,7 @@ class AuthShell extends StatelessWidget {
                                     tooltip: 'Back',
                                     onPressed: () => context.canPop()
                                         ? context.pop()
-                                        : context.go('/roles'),
+                                        : context.go('/sign-in'),
                                     icon: const Icon(Icons.arrow_back_rounded),
                                   )
                                 else

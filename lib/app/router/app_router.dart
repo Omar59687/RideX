@@ -7,6 +7,8 @@ import 'package:ridex/app/theme/app_motion.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/account_blocked_screen.dart';
+import 'package:ridex/features/auth/presentation/screens/admin_placeholder_screen.dart';
+import 'package:ridex/features/auth/presentation/screens/profile_error_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/sign_in_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/sign_up_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/verify_otp_screen.dart';
@@ -25,7 +27,6 @@ import 'package:ridex/features/profile/presentation/screens/driver_profile_scree
 import 'package:ridex/features/profile/presentation/screens/rider_profile_screen.dart';
 import 'package:ridex/features/ratings/presentation/screens/rating_screen.dart';
 import 'package:ridex/features/rider_home/presentation/screens/rider_home_screen.dart';
-import 'package:ridex/features/role_selection/presentation/screens/role_selection_screen.dart';
 import 'package:ridex/features/settings/presentation/screens/settings_screen.dart';
 import 'package:ridex/features/splash/presentation/screens/splash_screen.dart';
 import 'package:ridex/features/trips/presentation/screens/driver_active_trip_screen.dart';
@@ -50,10 +51,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           name: RouteNames.onboarding,
           builder: (_, __) => const OnboardingScreen()),
       GoRoute(
-          path: '/roles',
-          name: RouteNames.roleSelection,
-          builder: (_, __) => const RoleSelectionScreen()),
-      GoRoute(
           path: '/sign-in',
           name: RouteNames.signIn,
           builder: (_, __) => const SignInScreen()),
@@ -76,6 +73,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/account-blocked',
           name: RouteNames.accountBlocked,
           builder: (_, __) => const AccountBlockedScreen()),
+      GoRoute(
+          path: '/profile-error',
+          name: RouteNames.profileError,
+          builder: (_, __) => const ProfileErrorScreen()),
+      GoRoute(
+          path: '/admin',
+          name: RouteNames.admin,
+          builder: (_, __) => const AdminPlaceholderScreen()),
       GoRoute(
           path: '/rider/home',
           name: RouteNames.riderHome,

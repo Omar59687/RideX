@@ -6,6 +6,7 @@ import 'package:ridex/core/mocks/mock_repositories.dart';
 import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/features/auth/presentation/screens/sign_in_screen.dart';
+import 'package:ridex/features/auth/presentation/screens/sign_up_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/verify_otp_screen.dart';
 import 'package:ridex/features/auth/presentation/widgets/jordan_phone_field.dart';
 
@@ -71,6 +72,24 @@ void main() {
     expect(find.text('Email'), findsWidgets);
   });
 
+  testWidgets('public signup clearly creates a Rider account', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWith((ref) => MockAuthRepository()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const SignUpScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('creates a Rider account'), findsOneWidget);
+    expect(find.textContaining('Driver account'), findsNothing);
+  });
+
   testWidgets('production OTP route never presents mock verification',
       (tester) async {
     await tester.pumpWidget(
@@ -108,9 +127,6 @@ void main() {
 
     await tester.ensureVisible(find.text('Skip'));
     await tester.tap(find.text('Skip'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Continue to sign in'));
-    await tester.tap(find.text('Continue to sign in'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Phone'));
     await tester.tap(find.text('Phone'));

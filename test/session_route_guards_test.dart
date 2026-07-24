@@ -27,7 +27,6 @@ void main() {
       role: RideRole.driver,
       driverApprovalStatus: DriverApprovalStatus.pending,
     );
-
     final session = SessionState.fromUser(driver);
     expect(session.status, SessionStatus.driverPending);
   });
@@ -59,6 +58,12 @@ void main() {
       role: RideRole.driver,
       driverApprovalStatus: DriverApprovalStatus.approved,
     );
+    const admin = AppUser(
+      id: 'admin',
+      name: 'Admin',
+      email: 'admin@test.com',
+      role: RideRole.admin,
+    );
 
     test('unauthenticated users cannot open private routes', () {
       const session = SessionState.unauthenticated();
@@ -70,6 +75,9 @@ void main() {
         '/history/trip-1',
         '/notifications',
         '/settings',
+        '/admin',
+        '/account-blocked',
+        '/profile-error',
       ]) {
         expect(
           redirectForLocation(location, session),
@@ -86,6 +94,7 @@ void main() {
       expect(redirectForLocation('/rider/home', session), isNull);
       expect(redirectForLocation('/history', session), isNull);
       expect(redirectForLocation('/driver/trip', session), '/rider/home');
+      expect(redirectForLocation('/admin', session), '/rider/home');
       expect(redirectForLocation('/sign-in', session), '/rider/home');
       expect(redirectForLocation('/account-blocked', session), '/rider/home');
       expect(
@@ -101,6 +110,7 @@ void main() {
       expect(redirectForLocation('/driver/home', session), isNull);
       expect(redirectForLocation('/history', session), isNull);
       expect(redirectForLocation('/rider/trip', session), '/driver/home');
+      expect(redirectForLocation('/admin', session), '/driver/home');
       expect(redirectForLocation('/sign-up', session), '/driver/home');
       expect(redirectForLocation('/account-blocked', session), '/driver/home');
       expect(
@@ -151,6 +161,27 @@ void main() {
         '/account-blocked',
       );
       expect(redirectForLocation('/account-blocked', session), isNull);
+    });
+
+    test('admins stay in the protected placeholder and cannot open app flows',
+        () {
+      final session = SessionState.fromUser(admin);
+
+      expect(redirectForLocation('/admin', session), isNull);
+      expect(redirectForLocation('/rider/home', session), '/admin');
+      expect(redirectForLocation('/driver/home', session), '/admin');
+      expect(redirectForLocation('/history/trip-1', session), isNull);
+      expect(redirectForLocation('/sign-in', session), '/admin');
+    });
+
+    test('profile errors fail closed on the profile-error destination', () {
+      const session = SessionState.profileError(
+        errorMessage: 'Your account profile is invalid.',
+      );
+
+      expect(redirectForLocation('/profile-error', session), isNull);
+      expect(redirectForLocation('/sign-in', session), '/profile-error');
+      expect(redirectForLocation('/rider/home', session), '/profile-error');
     });
   });
 }

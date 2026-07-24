@@ -22,10 +22,6 @@ void main() {
 
     await tester.tap(find.text('Skip'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Driver'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue to sign in'));
-    await tester.pumpAndSettle();
     await tester.enterText(
       find.byType(TextFormField).first,
       'driver@ridex.app',

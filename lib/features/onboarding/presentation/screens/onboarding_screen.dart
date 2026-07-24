@@ -145,7 +145,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       label: index == slides.length - 1 ? 'Continue' : 'Next',
                       onPressed: () {
                         if (index == slides.length - 1) {
-                          context.go('/roles');
+                          context.go('/sign-in');
                         } else {
                           setState(() => index += 1);
                         }
@@ -155,7 +155,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     AppButton(
                       label: 'Skip',
                       variant: AppButtonVariant.text,
-                      onPressed: () => context.go('/roles'),
+                      onPressed: () => context.go('/sign-in'),
                     ),
                   ],
                 ),
