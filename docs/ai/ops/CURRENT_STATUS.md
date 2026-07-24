@@ -4,7 +4,7 @@
 
 - Active branch: `feature/omar/rider-ui-v2`
 - Base commit: `e374d86`
-- Latest implementation commit: `10c4a30`
+- Latest implementation commit: `51c5a5d`
 - Final handoff commit: `b5dc11c`
 - Rider V2 final position: 20 commits ahead of `origin/main`
 
@@ -78,6 +78,9 @@ A new six-checkpoint pre-merge correction sequence is active under `docs/ai/plan
 - Phase 4, light-first visual correction: `10c4a30`.
 - `RideXApp` now defaults to `ThemeMode.light` regardless of device dark mode while preserving `AppTheme.dark()` for a future explicit preference.
 - Ordinary application surfaces use the approved Urban Aurora light semantics. Intentional midnight branded panels use scoped `RideXTheme` roles rather than scattered colors, preserving Rider and Driver presentation.
+- Phase 5, responsive and accessibility hardening: `51c5a5d`.
+- Expanded Rider coverage validates 320x568, 360x800, 375x667, 390x844, 430x932, phone landscape, and 600/800px tablet layouts; 1.0, 1.3, and 2.0 text scales; reduced motion; keyboard-open sign-in; target sizes; semantics; focus; short-screen scrolling; and sensible tablet bounds.
+- Home availability now wraps status text and gives its vehicle cards sufficient large-text height. Destination route fields gain sufficient large-text height without changing booking state or behavior.
 
 Phase 1 verification on July 24, 2026:
 
@@ -106,17 +109,22 @@ Phase 3 verification on July 24, 2026:
 - `flutter test`: 63 tests passed with 2 intentional live Supabase skips.
 - The suite retains the known non-failing `flutter_svg` warnings for unsupported SVG `<filter>` elements.
 
+Phase 5 verification on July 24, 2026:
+
+- `flutter test test/rider_v2_adaptive_accessibility_test.dart test/driver_accept_trip_test.dart`: 10 tests passed.
+- `flutter analyze`: no issues found.
+- `flutter test`: 67 tests passed with 2 intentional live Supabase skips.
+- The suite retains the known non-failing `flutter_svg` warnings for unsupported SVG `<filter>` elements.
+
 ## Exact Next Checkpoint
 
-Complete **Phase 5: responsive and accessibility hardening**.
+Complete **Phase 6: final verification and documentation**.
 
-- Extend the existing responsive and accessibility coverage without changing completed role, authentication, booking, theme, or Driver behavior.
-- Complete, verify, and commit only Phase 5; do not begin Phase 6 in this checkpoint.
+- Reconcile documentation, inspect the complete feature diff, and record final verification and Pull Request readiness without pushing, merging, or deploying.
 
 ## Remaining Pre-Merge Checkpoints
 
-1. Responsive and accessibility hardening.
-2. Final verification and documentation.
+1. Final verification and documentation.
 
 ## Font Status
 
