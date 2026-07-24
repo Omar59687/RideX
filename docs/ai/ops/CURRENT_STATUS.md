@@ -62,24 +62,40 @@ These deviations do not replace provider, repository, routing, session, authenti
 
 A new six-checkpoint pre-merge correction sequence is active under `docs/ai/plans/PRE_MERGE_ROLE_THEME_CORRECTIONS.md`. It corrects the production role boundary, three-role Flutter architecture, public authentication flow, light-first presentation, and responsive/accessibility coverage without reopening completed Rider V2 scope or deferred integrations.
 
+### Completed Pre-Merge Checkpoints
+
+- Phase 1, database authorization boundary: `33a882e`.
+- Migration `004_enforce_role_authorization_boundary.sql` makes public signup Rider-only, safely backfills missing role profiles, reasserts least-privilege client grants, and adds guarded Admin Driver-promotion and approval RPCs.
+- The migration preserves existing roles, blocked values, Driver approval values, and existing profile rows. Missing Driver profiles are added as pending.
+- A 29-assertion local pgTAP suite covers malicious signup metadata, direct mutation denial, Admin and blocked-Admin behavior, Driver promotion/approval/rejection, grants, and function hardening.
+
+Phase 1 verification on July 24, 2026:
+
+- `dart format test/supabase/role_authorization_migration_test.dart`: 1 file formatted.
+- `flutter test test/supabase/role_authorization_migration_test.dart`: 4 tests passed.
+- `flutter analyze`: no issues found.
+- `git diff --cached --check`: passed before the implementation commit.
+- The pgTAP suite could not execute locally because Supabase CLI is not installed and Docker Desktop's Linux engine remained stopped/unavailable with HTTP 500 responses. The suite must run against a local Supabase stack before migration deployment.
+- No Supabase project linking, reset, remote query, remote SQL, migration application, `db push`, or service-role operation was performed.
+
 ## Exact Next Checkpoint
 
-Complete **Phase 1: database authorization boundary**.
+Complete **Phase 2: three-role Flutter domain and session**.
 
-- Phase 1 may create one new forward-only Supabase migration and local migration/security tests.
-- Never edit previously applied migrations `001_create_users_and_profiles.sql`, `002_enable_rls_and_policies.sql`, or `003_create_auth_signup_trigger.sql`.
-- Do not apply any migration to remote Supabase.
-- Supabase project linking, resetting, remote SQL, `db push`, remote migration, and service-role operations are not authorized.
-- Complete, verify, and commit only Phase 1; update this status to Phase 2 in a separate local status commit, confirm a clean worktree, and stop.
+- Add `RideRole.admin` and strict Rider/Driver/Admin parsing.
+- Remove role arguments from sign-in, signup, session controller, and public demo contracts.
+- Make public signup and demo Rider-only.
+- Add a fail-closed missing or invalid-profile session state.
+- Keep predefined mock Rider, Driver, and Admin credentials inside mock configuration only; never infer authorization from email patterns.
+- Complete, verify, and commit only Phase 2; update this status to Phase 3 in a separate local status commit, confirm a clean worktree, and stop.
 
 ## Remaining Pre-Merge Checkpoints
 
-1. Database authorization boundary.
-2. Three-role Flutter domain and session.
-3. Public authentication flow and router guards.
-4. Light-first visual correction.
-5. Responsive and accessibility hardening.
-6. Final verification and documentation.
+1. Three-role Flutter domain and session.
+2. Public authentication flow and router guards.
+3. Light-first visual correction.
+4. Responsive and accessibility hardening.
+5. Final verification and documentation.
 
 ## Font Status
 
