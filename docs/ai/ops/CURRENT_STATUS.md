@@ -72,6 +72,9 @@ A new six-checkpoint pre-merge correction sequence is active under `docs/ai/plan
 - `RideRole` now strictly parses Rider, Driver, and Admin. Missing or malformed user and Driver profile data produces a fail-closed `profileError` session instead of defaulting to Rider or pending Driver.
 - Sign-in no longer accepts a caller-selected role. Public signup, phone OTP, and demo contracts are Rider-only, while exact mock Rider, Driver, and Admin credentials remain isolated inside `MockAuthRepository` with no email-pattern inference.
 - Driver approval parsing is strict, blocked users retain priority over role state, and existing approved/pending/rejected Driver and sign-out behavior remains preserved.
+- Phase 3, public authentication flow and router guards: `3331e70`.
+- The public Rider/Driver selector and its state are removed. Onboarding Continue and Skip open the shared sign-in flow, and public signup explicitly creates a Rider account.
+- Explicit route policies protect public, Rider, Driver, Admin, shared, application-status, blocked, and profile-error destinations. Admin and profile-error states have honest protected placeholder behavior.
 
 Phase 1 verification on July 24, 2026:
 
@@ -93,23 +96,27 @@ Phase 2 verification on July 24, 2026:
 - `git diff --cached --check`: passed before the implementation commit.
 - No Supabase project linking, reset, remote query, remote SQL, migration application, `db push`, or service-role operation was performed.
 
+Phase 3 verification on July 24, 2026:
+
+- `flutter test test/session_route_guards_test.dart test/onboarding_navigation_test.dart test/role_selection_test.dart test/auth_v2_test.dart test/driver_accept_trip_test.dart`: 20 tests passed.
+- `flutter analyze`: no issues found.
+- `flutter test`: 63 tests passed with 2 intentional live Supabase skips.
+- The suite retains the known non-failing `flutter_svg` warnings for unsupported SVG `<filter>` elements.
+
 ## Exact Next Checkpoint
 
-Complete **Phase 3: public authentication flow and router guards**.
+Complete **Phase 4: light-first visual correction**.
 
-- Remove the rendered public role-selection flow and `selectedRoleProvider`.
-- Route onboarding Continue and Skip to the common sign-in destination.
-- Remove role-dependent sign-in and signup presentation, and state clearly that public signup creates a Rider.
-- Add protected Admin and profile-error destinations with honest copy, retry where appropriate, and sign-out only.
-- Replace prefix-only guards with explicit public, Rider, Driver, Admin, shared, application-status, blocked, and profile-error route policies.
-- Complete, verify, and commit only Phase 3; update this status to Phase 4 in a separate local status commit, confirm a clean worktree, and stop.
+- Default `RideXApp` to the approved light theme while preserving dark-theme data for a future explicit preference.
+- Keep ordinary screens light and scope intentional midnight panels to their existing design-required components.
+- Preserve authentication, booking, Driver, and deferred integration behavior.
+- Complete, verify, and commit only Phase 4; update this status to Phase 5 in a separate local status commit, confirm a clean worktree, and stop.
 
 ## Remaining Pre-Merge Checkpoints
 
-1. Public authentication flow and router guards.
-2. Light-first visual correction.
-3. Responsive and accessibility hardening.
-4. Final verification and documentation.
+1. Light-first visual correction.
+2. Responsive and accessibility hardening.
+3. Final verification and documentation.
 
 ## Font Status
 
