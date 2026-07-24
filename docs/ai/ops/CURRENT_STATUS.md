@@ -4,7 +4,7 @@
 
 - Active branch: `feature/omar/rider-ui-v2`
 - Base commit: `e374d86`
-- Latest implementation commit: `f4e0371`
+- Latest implementation commit: `10c4a30`
 - Final handoff commit: `b5dc11c`
 - Rider V2 final position: 20 commits ahead of `origin/main`
 
@@ -75,6 +75,9 @@ A new six-checkpoint pre-merge correction sequence is active under `docs/ai/plan
 - Phase 3, public authentication flow and router guards: `3331e70`.
 - The public Rider/Driver selector and its state are removed. Onboarding Continue and Skip open the shared sign-in flow, and public signup explicitly creates a Rider account.
 - Explicit route policies protect public, Rider, Driver, Admin, shared, application-status, blocked, and profile-error destinations. Admin and profile-error states have honest protected placeholder behavior.
+- Phase 4, light-first visual correction: `10c4a30`.
+- `RideXApp` now defaults to `ThemeMode.light` regardless of device dark mode while preserving `AppTheme.dark()` for a future explicit preference.
+- Ordinary application surfaces use the approved Urban Aurora light semantics. Intentional midnight branded panels use scoped `RideXTheme` roles rather than scattered colors, preserving Rider and Driver presentation.
 
 Phase 1 verification on July 24, 2026:
 
@@ -105,18 +108,15 @@ Phase 3 verification on July 24, 2026:
 
 ## Exact Next Checkpoint
 
-Complete **Phase 4: light-first visual correction**.
+Complete **Phase 5: responsive and accessibility hardening**.
 
-- Default `RideXApp` to the approved light theme while preserving dark-theme data for a future explicit preference.
-- Keep ordinary screens light and scope intentional midnight panels to their existing design-required components.
-- Preserve authentication, booking, Driver, and deferred integration behavior.
-- Complete, verify, and commit only Phase 4; update this status to Phase 5 in a separate local status commit, confirm a clean worktree, and stop.
+- Extend the existing responsive and accessibility coverage without changing completed role, authentication, booking, theme, or Driver behavior.
+- Complete, verify, and commit only Phase 5; do not begin Phase 6 in this checkpoint.
 
 ## Remaining Pre-Merge Checkpoints
 
-1. Light-first visual correction.
-2. Responsive and accessibility hardening.
-3. Final verification and documentation.
+1. Responsive and accessibility hardening.
+2. Final verification and documentation.
 
 ## Font Status
 
