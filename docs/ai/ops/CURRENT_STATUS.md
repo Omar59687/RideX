@@ -6,8 +6,8 @@
 - Base commit: `e374d86`
 - Latest implementation commit: `51c5a5d`
 - Phase 6 documentation/audit checkpoint: `67b2b74`
-- Rider V2 final position before this status-only reconciliation commit: 32 commits ahead of `origin/main`
-- Tracking branch: `origin/feature/omar/rider-ui-v2` remains one commit behind local `HEAD`; no push was performed
+- The feature branch has the complete pre-merge history plus the unpushed Phase 6 audit documentation commits.
+- Tracking branch: `origin/feature/omar/rider-ui-v2` is behind local `HEAD`; no push was performed
 
 ## Completed Phases
 
@@ -50,7 +50,7 @@ Final Phase 6 verification on July 24, 2026:
 
 Rider V2 implementation, documentation, visual comparison, verification, and cleanup are complete. No Rider V2 implementation checkpoints remain. The branch has not been pushed or merged and no Pull Request has been opened; those actions require explicit approval.
 
-The complete `origin/main...HEAD` diff was reviewed across 31 commits and 120 tracked files. It adds no HTML embedding, WebView, map SDK, generated Open Design metadata, credentials, machine-specific paths, reference edits, or unrelated product changes. The only Driver-specific product diff is regression coverage. Ignored local Flutter/build metadata contains machine paths but is not part of the feature diff and remains untracked. Existing tracked files under `supabase/.temp/` predate this branch, contain project linkage metadata but no discovered secret, and were preserved as unrelated baseline state.
+The complete `origin/main...HEAD` diff was reviewed across 120 tracked files, including the final documentation changes. It adds no HTML embedding, WebView, map SDK, generated Open Design metadata, credentials, machine-specific paths, reference edits, or unrelated product changes. The only Driver-specific product diff is regression coverage. Ignored local Flutter/build metadata contains machine paths but is not part of the feature diff and remains untracked. Existing tracked files under `supabase/.temp/` predate this branch, contain project linkage metadata but no discovered secret, and were preserved as unrelated baseline state.
 
 `git diff --check origin/main...HEAD` reports the official `assets/fonts/OFL.txt` trailing space at line 21. That source formatting is intentionally preserved because changing it would invalidate the verified official license-file hash.
 
