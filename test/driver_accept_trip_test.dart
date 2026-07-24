@@ -24,7 +24,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Driver'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue as Demo Driver'));
+    await tester.tap(find.text('Continue to sign in'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'driver@ridex.app',
+    );
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Sign in'));
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(

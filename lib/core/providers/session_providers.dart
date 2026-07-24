@@ -29,6 +29,10 @@ class SessionState {
       : status = SessionStatus.unauthenticated,
         user = null;
 
+  const SessionState.profileError({required this.errorMessage})
+      : status = SessionStatus.profileError,
+        user = null;
+
   final SessionStatus status;
   final AppUser? user;
   final String? errorMessage;
@@ -91,6 +95,8 @@ class SessionController extends Notifier<SessionState> {
       state = user == null
           ? const SessionState.unauthenticated()
           : SessionState.fromUser(user);
+    } on ProfileException catch (error) {
+      state = SessionState.profileError(errorMessage: error.message);
     } on AuthException catch (error) {
       state = SessionState.unauthenticated(errorMessage: error.message);
     } catch (_) {
@@ -100,23 +106,25 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
-  Future<void> continueAsDemo(RideRole role) async {
-    final user = await ref.read(authRepositoryProvider).continueAsDemo(role);
+  Future<void> continueAsDemo() async {
+    final user = await ref.read(authRepositoryProvider).continueAsDemo();
     state = SessionState.fromUser(user);
   }
 
   Future<String?> signIn({
     required String email,
     required String password,
-    RideRole? role,
   }) async {
     state = const SessionState.loading();
     try {
       final user = await ref
           .read(authRepositoryProvider)
-          .signIn(email: email, password: password, role: role);
+          .signIn(email: email, password: password);
       state = SessionState.fromUser(user);
       return null;
+    } on ProfileException catch (error) {
+      state = SessionState.profileError(errorMessage: error.message);
+      return error.message;
     } on AuthException catch (error) {
       state = SessionState.unauthenticated(errorMessage: error.message);
       return error.message;
@@ -131,7 +139,6 @@ class SessionController extends Notifier<SessionState> {
     required String name,
     required String email,
     required String password,
-    required RideRole role,
   }) async {
     state = const SessionState.loading();
     try {
@@ -139,10 +146,12 @@ class SessionController extends Notifier<SessionState> {
             name: name,
             email: email,
             password: password,
-            role: role,
           );
       state = SessionState.fromUser(user);
       return null;
+    } on ProfileException catch (error) {
+      state = SessionState.profileError(errorMessage: error.message);
+      return error.message;
     } on AuthException catch (error) {
       state = SessionState.unauthenticated(errorMessage: error.message);
       return error.message;

@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/core/mocks/mock_data.dart';
 import 'package:ridex/core/mocks/mock_repositories.dart';
-import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 
@@ -81,9 +80,7 @@ void main() {
         const NotificationPreferences(push: false, sms: false, email: true);
     container.read(driverOnlineProvider.notifier).state = false;
 
-    await container
-        .read(sessionControllerProvider.notifier)
-        .continueAsDemo(RideRole.rider);
+    await container.read(sessionControllerProvider.notifier).continueAsDemo();
     await container.read(sessionControllerProvider.notifier).signOut();
 
     expect(container.read(bookingControllerProvider).vehicleType, isNull);

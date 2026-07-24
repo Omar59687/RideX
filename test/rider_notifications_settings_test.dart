@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:ridex/app/theme/app_theme.dart';
 import 'package:ridex/core/mocks/mock_data.dart';
 import 'package:ridex/core/models/app_user.dart';
-import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/repositories/auth_repository.dart';
@@ -233,13 +232,12 @@ class _TestAuthRepository implements AuthRepository {
   Future<AppUser?> restoreSession() async => user;
 
   @override
-  Future<AppUser> continueAsDemo(RideRole role) async => user;
+  Future<AppUser> continueAsDemo() async => user;
 
   @override
   Future<AppUser> signIn({
     required String email,
     required String password,
-    RideRole? role,
   }) async =>
       user;
 
@@ -248,7 +246,6 @@ class _TestAuthRepository implements AuthRepository {
     required String name,
     required String email,
     required String password,
-    required RideRole role,
   }) async =>
       user;
 

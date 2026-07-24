@@ -53,7 +53,10 @@ class RoleSelectionScreen extends ConsumerWidget {
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     const SizedBox(height: AppSpacing.xl),
-                    for (final item in RideRole.values) ...[
+                    for (final item in const [
+                      RideRole.rider,
+                      RideRole.driver,
+                    ]) ...[
                       _RoleCard(
                         role: item,
                         selected: role == item,
@@ -71,16 +74,14 @@ class RoleSelectionScreen extends ConsumerWidget {
                     if (showDemo) ...[
                       const SizedBox(height: AppSpacing.md),
                       AppButton(
-                        label: 'Continue as Demo ${role.label}',
+                        label: 'Continue as Demo Rider',
                         variant: AppButtonVariant.secondary,
                         onPressed: () async {
                           await ref
                               .read(sessionControllerProvider.notifier)
-                              .continueAsDemo(role);
+                              .continueAsDemo();
                           if (context.mounted) {
-                            context.go(role == RideRole.rider
-                                ? '/rider/home'
-                                : '/driver/home');
+                            context.go('/rider/home');
                           }
                         },
                       ),

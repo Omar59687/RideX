@@ -24,6 +24,13 @@ class MockData {
     driverApprovalStatus: DriverApprovalStatus.approved,
   );
 
+  static const demoAdmin = AppUser(
+    id: 'admin-1',
+    name: 'RideX Admin',
+    email: 'admin@ridex.demo',
+    role: RideRole.admin,
+  );
+
   static const locations = [
     RideLocation(label: 'My current location', address: 'Hashemite University'),
     RideLocation(label: 'Abdali Mall', address: 'Abdali Boulevard'),

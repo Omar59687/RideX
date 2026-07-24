@@ -123,7 +123,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             obscureText: true,
             prefixIcon: Icons.lock_outline_rounded,
             autofillHints: const [AutofillHints.password],
-            onFieldSubmitted: (_) => _submitEmail(role),
+            onFieldSubmitted: (_) => _submitEmail(),
           ),
           Align(
             alignment: AlignmentDirectional.centerEnd,
@@ -140,18 +140,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             label: 'Sign in',
             trailing: Icons.arrow_forward_rounded,
             isLoading: _submitting,
-            onPressed: () => _submitEmail(role),
+            onPressed: _submitEmail,
           ),
           _buildError(context),
           if (mockMode) ...[
             const SizedBox(height: AppSpacing.md),
             AppButton(
-              label: 'Continue as Demo ${role.label}',
-              icon: role == RideRole.rider
-                  ? Icons.local_taxi_rounded
-                  : Icons.drive_eta_rounded,
+              label: 'Continue as Demo Rider',
+              icon: Icons.local_taxi_rounded,
               variant: AppButtonVariant.secondary,
-              onPressed: _submitting ? null : () => _continueAsDemo(role),
+              onPressed: _submitting ? null : _continueAsDemo,
             ),
           ],
         ],
@@ -209,7 +207,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     );
   }
 
-  Future<void> _submitEmail(RideRole role) async {
+  Future<void> _submitEmail() async {
     if (_submitting) return;
     setState(() => _errorText = null);
     if (!_emailFormKey.currentState!.validate()) return;
@@ -217,7 +215,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     final error = await ref.read(sessionControllerProvider.notifier).signIn(
           email: _emailController.text.trim(),
           password: _passwordController.text,
-          role: role,
         );
     if (!mounted) return;
     setState(() {
@@ -233,11 +230,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         Uri(path: '/verify-otp', queryParameters: {'phone': phone}).toString());
   }
 
-  Future<void> _continueAsDemo(RideRole role) async {
+  Future<void> _continueAsDemo() async {
     setState(() => _submitting = true);
-    await ref.read(sessionControllerProvider.notifier).continueAsDemo(role);
+    await ref.read(sessionControllerProvider.notifier).continueAsDemo();
     if (!mounted) return;
-    context.go(role == RideRole.rider ? '/rider/home' : '/driver/home');
+    context.go('/rider/home');
   }
 }
 

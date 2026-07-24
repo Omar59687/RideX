@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'helpers/test_app.dart';
 
 void main() {
-  testWidgets('role selection updates and signs into driver demo',
+  testWidgets('public demo remains Rider-only after selecting Driver',
       (tester) async {
     await tester.pumpWidget(buildTestApp());
     await tester.pump(const Duration(milliseconds: 950));
@@ -14,11 +14,11 @@ void main() {
     await tester.tap(find.text('Driver'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Continue as Demo Driver'), findsOneWidget);
+    expect(find.text('Continue as Demo Rider'), findsOneWidget);
 
-    await tester.tap(find.text('Continue as Demo Driver'));
+    await tester.tap(find.text('Continue as Demo Rider'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Driver mode'), findsOneWidget);
+    expect(find.text('Good morning, Ahmed'), findsOneWidget);
   });
 }

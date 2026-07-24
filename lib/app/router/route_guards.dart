@@ -29,6 +29,10 @@ String? redirectForLocation(String location, SessionState session) {
     return inAuth ? null : '/sign-in';
   }
 
+  if (session.status == SessionStatus.profileError) {
+    return inAuth ? null : '/sign-in';
+  }
+
   if (session.status == SessionStatus.blocked) {
     return location == '/account-blocked' ? null : '/account-blocked';
   }
@@ -65,6 +69,7 @@ String locationForRole(RideRole role) {
   return switch (role) {
     RideRole.rider => '/rider/home',
     RideRole.driver => '/driver/home',
+    RideRole.admin => '/admin',
   };
 }
 
@@ -72,5 +77,6 @@ String nextTripRouteForRole(RideRole role) {
   return switch (role) {
     RideRole.rider => '/rider/trip',
     RideRole.driver => '/driver/trip',
+    RideRole.admin => '/admin',
   };
 }

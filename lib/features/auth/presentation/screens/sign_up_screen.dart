@@ -82,7 +82,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               obscureText: true,
               prefixIcon: Icons.lock_outline_rounded,
               autofillHints: const [AutofillHints.newPassword],
-              onFieldSubmitted: (_) => _submit(role),
+              onFieldSubmitted: (_) => _submit(),
             ),
             if (_errorText != null) ...[
               const SizedBox(height: AppSpacing.md),
@@ -101,7 +101,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               label: 'Create account',
               trailing: Icons.arrow_forward_rounded,
               isLoading: _submitting,
-              onPressed: () => _submit(role),
+              onPressed: _submit,
             ),
           ],
         ),
@@ -109,7 +109,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     );
   }
 
-  Future<void> _submit(RideRole role) async {
+  Future<void> _submit() async {
     if (_submitting) return;
     setState(() => _errorText = null);
     if (!_formKey.currentState!.validate()) return;
@@ -118,7 +118,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           name: _nameController.text.trim(),
           email: _emailController.text.trim(),
           password: _passwordController.text,
-          role: role,
         );
     if (!mounted) return;
     setState(() {

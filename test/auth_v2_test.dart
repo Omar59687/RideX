@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/app/theme/app_theme.dart';
 import 'package:ridex/core/mocks/mock_repositories.dart';
 import 'package:ridex/core/models/app_user.dart';
-import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/features/auth/presentation/screens/sign_in_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/verify_otp_screen.dart';
@@ -45,7 +44,6 @@ void main() {
 
     expect(repository.email, 'demo@ridex.app');
     expect(repository.password, '123456');
-    expect(repository.role, RideRole.rider);
   });
 
   testWidgets('production configuration disables phone sign-in',
@@ -137,17 +135,13 @@ void main() {
 class _RecordingAuthRepository extends MockAuthRepository {
   String? email;
   String? password;
-  RideRole? role;
-
   @override
   Future<AppUser> signIn({
     required String email,
     required String password,
-    RideRole? role,
   }) async {
     this.email = email;
     this.password = password;
-    this.role = role;
-    return super.signIn(email: email, password: password, role: role);
+    return super.signIn(email: email, password: password);
   }
 }

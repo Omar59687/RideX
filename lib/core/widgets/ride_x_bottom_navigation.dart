@@ -18,10 +18,12 @@ class RideXBottomNavigation extends StatelessWidget {
     final homePath = switch (role) {
       RideRole.rider => '/rider/home',
       RideRole.driver => '/driver/home',
+      RideRole.admin => '/admin',
     };
     final profilePath = switch (role) {
       RideRole.rider => '/rider/profile',
       RideRole.driver => '/driver/profile',
+      RideRole.admin => '/admin',
     };
     final paths = [homePath, '/history', profilePath, '/settings'];
 

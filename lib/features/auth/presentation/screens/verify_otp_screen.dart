@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ridex/app/config/env_config.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
-import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_text_field.dart';
@@ -157,9 +156,7 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
       return;
     }
     setState(() => _verifying = true);
-    await ref
-        .read(sessionControllerProvider.notifier)
-        .continueAsDemo(RideRole.rider);
+    await ref.read(sessionControllerProvider.notifier).continueAsDemo();
     if (mounted) context.go('/rider/home');
   }
 }

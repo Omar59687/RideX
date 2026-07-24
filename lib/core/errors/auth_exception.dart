@@ -6,3 +6,7 @@ class AuthException implements Exception {
   @override
   String toString() => message;
 }
+
+class ProfileException extends AuthException {
+  const ProfileException(super.message);
+}
