@@ -43,7 +43,8 @@ Widgets read providers; they do not duplicate durable booking or trip state loca
 - `app_theme.dart`: complete Material light/dark themes.
 - `ridex_theme.dart`: `ThemeExtension` for route, map, gradient, shadow, and custom semantic roles.
 - `app_text_styles.dart`, `app_spacing.dart`, `app_radii.dart`, `app_motion.dart`: reusable roles.
-- `RideXApp` uses `ThemeMode.system`.
+- `RideXApp` defaults to `ThemeMode.light`; `AppTheme.dark()` remains available for
+  an explicitly selected preference.
 
 ## Components And Assets
 

@@ -5,8 +5,9 @@
 - Active branch: `feature/omar/rider-ui-v2`
 - Base commit: `e374d86`
 - Latest implementation commit: `51c5a5d`
-- Final handoff commit: `b5dc11c`
-- Rider V2 final position: 20 commits ahead of `origin/main`
+- Phase 6 documentation/audit checkpoint: pending local commit
+- Rider V2 final position before the Phase 6 commit: 31 commits ahead of `origin/main`
+- Tracking branch: `origin/feature/omar/rider-ui-v2` is at the same commit as `HEAD`
 
 ## Completed Phases
 
@@ -23,26 +24,39 @@
 | `a39aeee` | Responsive, accessibility, route, provider, theme, and driver regression pass |
 | `f4e0371` | Official Plus Jakarta Sans static fonts, license, weight mappings, and asset verification |
 | `b5dc11c` | Final Rider V2 documentation reconciliation, visual audit, and cleanup |
+| `33a882e` | Pre-merge Phase 1: database authorization boundary |
+| `687bcd2` | Pre-merge Phase 2: three-role Flutter domain and trusted session |
+| `3331e70` | Pre-merge Phase 3: public Rider authentication flow and router guards |
+| `10c4a30` | Pre-merge Phase 4: light-first visual correction |
+| `51c5a5d` | Pre-merge Phase 5: responsive and accessibility hardening |
+| Pending | Pre-merge Phase 6: final verification, documentation, and handoff assessment |
 
-**Do not redo, replace, or restart these eleven completed phases.** Rider V2 has no remaining implementation checkpoint.
+**Do not redo, replace, or restart these completed phases.** Rider V2 has no remaining implementation checkpoint.
 
 ## Verification Status
 
-Final verification on July 22, 2026:
+Final Phase 6 verification on July 24, 2026:
 
-- `dart format lib test`: 116 files checked, 0 changed.
+- `dart format lib test`: 119 files checked, 0 changed.
+- Focused authentication, public-role, route-guard, light-first theme, responsive/accessibility, Driver-regression, and migration-contract command: 40 tests passed.
 - `flutter analyze`: no issues found.
-- `flutter test`: 48 tests passed with 2 intentional live Supabase skips.
-- The suite logs non-failing `flutter_svg` warnings for unsupported SVG `<filter>` elements.
-- The five required static weights and `OFL.txt` retain Git blob hashes matching the official Tokotype repository. Representative 400, 500, 600, 700, and 800 theme styles resolve to the bundled `Plus Jakarta Sans` family, and all six bundled files are covered by asset-loading verification.
+- Full non-live `flutter test`: 67 tests passed with 2 intentional live Supabase skips.
+- The test suite logs non-failing `flutter_svg` warnings for unsupported SVG `<filter>` elements.
+- Local pgTAP execution was not possible: `supabase --version` failed because Supabase CLI is not installed; `docker info` found Docker 28.3.2 but returned HTTP 500 because the Docker Desktop Linux engine is unavailable.
+- The 29-assertion pgTAP suite in `supabase/tests/database/004_role_authorization_boundary.test.sql` remains unexecuted. It must pass against a local Supabase stack before migration deployment and final merge approval.
+- No Supabase linking, reset, remote query, remote SQL, migration application, `db push`, deployment, or service-role operation was performed.
 
 ## Rider V2 Final Handoff
 
 Rider V2 implementation, documentation, visual comparison, verification, and cleanup are complete. No Rider V2 implementation checkpoints remain. The branch has not been pushed or merged and no Pull Request has been opened; those actions require explicit approval.
 
-The complete `origin/main...HEAD` diff was reviewed. It adds no HTML embedding, WebView, map SDK, generated Open Design metadata, credentials, machine-specific paths, reference edits, or unrelated product changes. The only driver-specific diff is regression coverage. Existing tracked files under `supabase/.temp/` predate this branch, contain project linkage metadata but no discovered secret, and were preserved as unrelated baseline state.
+The complete `origin/main...HEAD` diff was reviewed across 31 commits and 120 tracked files. It adds no HTML embedding, WebView, map SDK, generated Open Design metadata, credentials, machine-specific paths, reference edits, or unrelated product changes. The only Driver-specific product diff is regression coverage. Ignored local Flutter/build metadata contains machine paths but is not part of the feature diff and remains untracked. Existing tracked files under `supabase/.temp/` predate this branch, contain project linkage metadata but no discovered secret, and were preserved as unrelated baseline state.
 
 `git diff --check origin/main...HEAD` reports the official `assets/fonts/OFL.txt` trailing space at line 21. That source formatting is intentionally preserved because changing it would invalidate the verified official license-file hash.
+
+Role and route audit confirms that public signup, phone OTP, and demo entry are Rider-only; trusted profile data determines Rider, Driver, or Admin routing; blocked and malformed profile states fail closed; and Rider, Driver, and Admin route policies remain separated. `RideXApp` is light-first while the explicit dark theme remains available.
+
+Migration deployment order is `001_create_users_and_profiles.sql`, then `002_enable_rls_and_policies.sql`, then `003_create_auth_signup_trigger.sql`, then `004_enforce_role_authorization_boundary.sql`. Migration `004` must not be deployed until its local pgTAP suite passes. Remote deployment remains outside this checkpoint.
 
 ## Visual Comparison
 
@@ -116,15 +130,9 @@ Phase 5 verification on July 24, 2026:
 - `flutter test`: 67 tests passed with 2 intentional live Supabase skips.
 - The suite retains the known non-failing `flutter_svg` warnings for unsupported SVG `<filter>` elements.
 
-## Exact Next Checkpoint
+## Final Pre-Merge Assessment
 
-Complete **Phase 6: final verification and documentation**.
-
-- Reconcile documentation, inspect the complete feature diff, and record final verification and Pull Request readiness without pushing, merging, or deploying.
-
-## Remaining Pre-Merge Checkpoints
-
-1. Final verification and documentation.
+All six approved pre-merge phases are complete. Phase 6 completed the final diff audit, documentation reconciliation, formatting, focused verification, analysis, and full non-live test run. The branch is ready for Pull Request review after explicit user approval to open one, but it is **not ready for final merge approval or migration deployment** until the local pgTAP suite passes against a local Supabase stack. No push, merge, deployment, or Pull Request was performed.
 
 ## Font Status
 
