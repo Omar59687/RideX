@@ -6,7 +6,7 @@
 - Base commit: `e374d86`
 - Latest implementation commit: `f4e0371`
 - Final handoff commit: `b5dc11c`
-- Final position including this status update: 20 commits ahead of `origin/main`
+- Rider V2 final position: 20 commits ahead of `origin/main`
 
 ## Completed Phases
 
@@ -36,9 +36,9 @@ Final verification on July 22, 2026:
 - The suite logs non-failing `flutter_svg` warnings for unsupported SVG `<filter>` elements.
 - The five required static weights and `OFL.txt` retain Git blob hashes matching the official Tokotype repository. Representative 400, 500, 600, 700, and 800 theme styles resolve to the bundled `Plus Jakarta Sans` family, and all six bundled files are covered by asset-loading verification.
 
-## Final Handoff
+## Rider V2 Final Handoff
 
-Rider V2 implementation, documentation, visual comparison, verification, and cleanup are complete. No Rider V2 checkpoints remain. The branch has not been pushed or merged and no Pull Request has been opened; those actions require explicit approval.
+Rider V2 implementation, documentation, visual comparison, verification, and cleanup are complete. No Rider V2 implementation checkpoints remain. The branch has not been pushed or merged and no Pull Request has been opened; those actions require explicit approval.
 
 The complete `origin/main...HEAD` diff was reviewed. It adds no HTML embedding, WebView, map SDK, generated Open Design metadata, credentials, machine-specific paths, reference edits, or unrelated product changes. The only driver-specific diff is regression coverage. Existing tracked files under `supabase/.temp/` predate this branch, contain project linkage metadata but no discovered secret, and were preserved as unrelated baseline state.
 
@@ -58,9 +58,28 @@ Accepted implementation deviations from the conceptual gallery:
 
 These deviations do not replace provider, repository, routing, session, authentication, sign-out, or driver behavior and do not fabricate backend capabilities.
 
-## Remaining Phases
+## Pre-Merge Correction Sequence
 
-None.
+A new six-checkpoint pre-merge correction sequence is active under `docs/ai/plans/PRE_MERGE_ROLE_THEME_CORRECTIONS.md`. It corrects the production role boundary, three-role Flutter architecture, public authentication flow, light-first presentation, and responsive/accessibility coverage without reopening completed Rider V2 scope or deferred integrations.
+
+## Exact Next Checkpoint
+
+Complete **Phase 1: database authorization boundary**.
+
+- Phase 1 may create one new forward-only Supabase migration and local migration/security tests.
+- Never edit previously applied migrations `001_create_users_and_profiles.sql`, `002_enable_rls_and_policies.sql`, or `003_create_auth_signup_trigger.sql`.
+- Do not apply any migration to remote Supabase.
+- Supabase project linking, resetting, remote SQL, `db push`, remote migration, and service-role operations are not authorized.
+- Complete, verify, and commit only Phase 1; update this status to Phase 2 in a separate local status commit, confirm a clean worktree, and stop.
+
+## Remaining Pre-Merge Checkpoints
+
+1. Database authorization boundary.
+2. Three-role Flutter domain and session.
+3. Public authentication flow and router guards.
+4. Light-first visual correction.
+5. Responsive and accessibility hardening.
+6. Final verification and documentation.
 
 ## Font Status
 
