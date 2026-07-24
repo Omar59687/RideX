@@ -80,7 +80,7 @@ class _RouteFields extends StatelessWidget {
     final destination = draft.destination?.address ?? 'Search destination';
     final textScale = MediaQuery.textScalerOf(context).scale(1);
     final fieldGroupHeight =
-        148.0 + ((textScale - 1).clamp(0, 1).toDouble() * 64);
+        148.0 + ((textScale - 1).clamp(0, 1).toDouble() * 138);
     return SizedBox(
       height: fieldGroupHeight,
       child: Row(

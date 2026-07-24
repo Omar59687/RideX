@@ -11,20 +11,23 @@ class RideAvailability extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textScale = MediaQuery.textScalerOf(context).scale(1);
-    final listHeight = 116.0 + ((textScale - 1).clamp(0, 1).toDouble() * 52);
+    final listHeight = 116.0 + ((textScale - 1).clamp(0, 1).toDouble() * 82);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Expanded(
-              child: Text(
-                'Ride your way',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+            Text(
+              'Ride your way',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-            Text('Demo availability',
-                style: Theme.of(context).textTheme.bodySmall),
+            Text(
+              'Demo availability',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.sm),

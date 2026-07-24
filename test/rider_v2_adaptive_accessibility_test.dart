@@ -156,6 +156,97 @@ void main() {
     expect(tester.takeException(), isNull, reason: 'active trip screen');
   });
 
+  testWidgets('rider entry flow adapts across phone sizes', (tester) async {
+    for (final size in [
+      const Size(320, 568),
+      const Size(360, 800),
+      const Size(375, 667),
+      const Size(390, 844),
+      const Size(430, 932),
+      const Size(568, 320),
+    ]) {
+      await _configureView(tester, size: size, textScaleFactor: 1.3);
+      await tester.pumpWidget(
+        KeyedSubtree(key: ValueKey(size), child: buildTestApp()),
+      );
+      await tester.pump(const Duration(milliseconds: 950));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Skip'));
+      await tester.tap(find.text('Skip'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Continue as Demo Rider'));
+      await tester.tap(find.text('Continue as Demo Rider'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Where to?'), findsOneWidget, reason: '$size home');
+      expect(tester.takeException(), isNull, reason: '$size');
+    }
+  });
+
+  testWidgets(
+      'compact large text keeps authentication and destination actions reachable',
+      (tester) async {
+    await _configureView(
+      tester,
+      size: const Size(320, 568),
+      textScaleFactor: 2,
+    );
+    await tester.pumpWidget(buildTestApp());
+    await tester.pump(const Duration(milliseconds: 950));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Skip'));
+    await tester.tap(find.text('Skip'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Sign in'));
+    expect(tester.takeException(), isNull, reason: 'authentication at 2x text');
+
+    await tester.enterText(find.byType(TextFormField).first, 'rider@ridex.app');
+    await tester.pump();
+    await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Sign in'));
+    await tester.tap(find.text('Continue as Demo Rider'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('rider-destination-search-card')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Plan your route'), findsOneWidget);
+    expect(tester.takeException(), isNull, reason: 'destination at 2x text');
+  });
+
+  testWidgets(
+      'rider tablet layouts retain sensible content widths and focus order',
+      (tester) async {
+    for (final width in [600.0, 800.0]) {
+      await _configureView(tester, size: Size(width, 800));
+      await tester.pumpWidget(
+        KeyedSubtree(key: ValueKey(width), child: buildTestApp()),
+      );
+      await tester.pump(const Duration(milliseconds: 950));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Skip'));
+      await tester.tap(find.text('Skip'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Continue as Demo Rider'));
+      await tester.tap(find.text('Continue as Demo Rider'));
+      await tester.pumpAndSettle();
+
+      final destinationBounds = tester.getRect(find.text('Where to?'));
+      expect(destinationBounds.width, lessThan(width), reason: '$width layout');
+      expect(destinationBounds.left, greaterThanOrEqualTo(0),
+          reason: '$width left inset');
+      expect(destinationBounds.right, lessThanOrEqualTo(width),
+          reason: '$width right inset');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(FocusManager.instance.primaryFocus, isNotNull);
+      expect(tester.takeException(), isNull, reason: '$width');
+    }
+  });
+
   testWidgets('rider tab screens remain light at 430x932 in dark mode',
       (tester) async {
     await _configureView(tester, size: const Size(430, 932));
