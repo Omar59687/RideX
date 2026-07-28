@@ -1,45 +1,213 @@
+# =========================================================
 # Miscellaneous
+# =========================================================
 *.class
 *.log
 *.pyc
 *.swp
+*.tmp
+*.temp
+*.bak
+*.orig
 .DS_Store
+Thumbs.db
+Desktop.ini
+
 .atom/
-.build/
-.buildlog/
-.history
+.history/
 .svn/
 .swiftpm/
 migrate_working_dir/
 
-# IntelliJ related
+# =========================================================
+# IntelliJ / Android Studio
+# =========================================================
 *.iml
 *.ipr
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
+# =========================================================
+# VS Code
+# Keep this commented if the team wants to share launch/tasks
+# =========================================================
 #.vscode/
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
+# =========================================================
+# Dart / Flutter / Pub
+# =========================================================
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+.packages
 .pub-cache/
 .pub/
+build/
 /build/
+**/build/
+**/doc/api/
 
-# Symbolication related
-app.*.symbols
+# Flutter local generated files
+**/ios/Flutter/.last_build_id
 
-# Obfuscation related
-app.*.map.json
+# =========================================================
+# Environment files
+# Never commit real environment values
+# =========================================================
+.env
+.env.*
+!.env.example
 
-# Android Studio will place build artifacts here
+*.env
+!*.env.example
+
+# =========================================================
+# Local configuration
+# =========================================================
+/Plan.md
+local.properties
+*.local
+*.local.*
+config.local.*
+settings.local.*
+
+# =========================================================
+# Secrets
+# =========================================================
+secrets/
+secret/
+private/
+
+*.secret
+*.secrets
+*.credentials
+credentials.json
+service-account.json
+service_account.json
+
+# =========================================================
+# Private keys and certificates
+# =========================================================
+*.pem
+*.key
+*.p12
+*.pfx
+*.p8
+*.cer
+*.crt
+*.der
+*.mobileprovision
+*.provisionprofile
+
+# =========================================================
+# Android signing files
+# =========================================================
+*.jks
+*.keystore
+key.properties
+
+# =========================================================
+# Android build artifacts
+# =========================================================
 /android/app/debug
 /android/app/profile
 /android/app/release
+android/.gradle/
+android/captures/
+android/local.properties
+
+# =========================================================
+# iOS / macOS
+# =========================================================
+ios/Pods/
+macos/Pods/
+
+ios/.symlinks/
+macos/.symlinks/
+
+ios/Flutter/ephemeral/
+macos/Flutter/ephemeral/
+
+ios/Runner.xcworkspace/xcuserdata/
+ios/Runner.xcodeproj/xcuserdata/
+macos/Runner.xcworkspace/xcuserdata/
+macos/Runner.xcodeproj/xcuserdata/
+
+**/*.xcuserstate
+**/xcuserdata/
+**/DerivedData/
+
+# CocoaPods
+Pods/
+
+# =========================================================
+# Windows / Linux generated build folders
+# =========================================================
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/
+
+# =========================================================
+# Web generated files
+# =========================================================
+web/.dart_tool/
+
+# =========================================================
+# Test coverage
+# =========================================================
+coverage/
+lcov.info
+
+# =========================================================
+# Symbolication
+# =========================================================
+app.*.symbols
+
+# =========================================================
+# Obfuscation
+# =========================================================
+app.*.map.json
+
+# =========================================================
+# Firebase local generated files
+# =========================================================
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# =========================================================
+# Supabase local development
+# Keep migrations and config.toml tracked
+# =========================================================
+supabase/.branches/
+supabase/.temp/
+supabase/.cache/
+supabase/.env
+supabase/.env.*
+supabase/functions/.env
+supabase/functions/.env.*
+
+# =========================================================
+# Node tooling, if used
+# =========================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================================================
+# Temporary database files
+# =========================================================
+*.sqlite
+*.sqlite3
+*.db
+
+# =========================================================
+# Operating system files
+# =========================================================
+ehthumbs.db
+Icon?
+._*
+
+.vscode/
