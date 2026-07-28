@@ -1,4 +1,5 @@
 import 'package:ridex/core/mocks/mock_data.dart';
+import 'package:ridex/core/errors/auth_exception.dart';
 import 'package:ridex/core/repositories/auth_repository.dart';
 import 'package:ridex/core/repositories/booking_repository.dart';
 import 'package:ridex/core/repositories/profile_repository.dart';
@@ -6,10 +7,16 @@ import 'package:ridex/core/repositories/trips_repository.dart';
 import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/mock_trip.dart';
-import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/vehicle_type.dart';
 
 class MockAuthRepository implements AuthRepository {
+  static const _password = '123456';
+  static const _usersByEmail = <String, AppUser>{
+    'demo@ridex.app': MockData.demoRider,
+    'driver@ridex.app': MockData.demoDriver,
+    'admin@ridex.app': MockData.demoAdmin,
+  };
+
   @override
   Stream<void> authStateChanges() => const Stream<void>.empty();
 
@@ -17,26 +24,31 @@ class MockAuthRepository implements AuthRepository {
   Future<AppUser?> restoreSession() async => null;
 
   @override
-  Future<AppUser> continueAsDemo(RideRole role) async {
-    return role == RideRole.rider ? MockData.demoRider : MockData.demoDriver;
-  }
+  Future<AppUser> continueAsDemo() async => MockData.demoRider;
 
   @override
   Future<AppUser> signIn({
     required String email,
     required String password,
-    RideRole? role,
   }) async {
-    return continueAsDemo(role ?? RideRole.rider);
+    final user = _usersByEmail[email.trim().toLowerCase()];
+    if (user == null || password != _password) {
+      throw const AuthException('Incorrect email or password.');
+    }
+    return user;
   }
 
   @override
   Future<AppUser> signUp(
       {required String name,
       required String email,
-      required String password,
-      required RideRole role}) async {
-    return AppUser(id: 'demo-$name', name: name, email: email, role: role);
+      required String password}) async {
+    return AppUser(
+      id: 'demo-$name',
+      name: name,
+      email: email,
+      role: MockData.demoRider.role,
+    );
   }
 
   @override
@@ -46,8 +58,7 @@ class MockAuthRepository implements AuthRepository {
 class MockBookingRepository implements BookingRepository {
   @override
   Future<double> estimateFare(BookingDraft draft) async {
-    final base = draft.vehicleType?.baseFare ?? 2;
-    return base + (draft.distanceKm * 0.2) + ((draft.stops.length) * 0.3);
+    return draft.vehicleType?.baseFare ?? 0;
   }
 
   @override
@@ -71,6 +82,14 @@ class MockTripsRepository implements TripsRepository {
 
   @override
   Future<List<MockTrip>> getTripHistory() async => MockData.history();
+
+  @override
+  Future<MockTrip?> getTripById(String id) async {
+    for (final trip in MockData.history()) {
+      if (trip.id == id) return trip;
+    }
+    return null;
+  }
 }
 
 class MockProfileRepository implements ProfileRepository {

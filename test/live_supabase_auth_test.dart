@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/app/config/env_config.dart';
-import 'package:ridex/core/models/driver_approval_status.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/repositories/supabase_auth_repository.dart';
 import 'package:ridex/core/services/supabase/auth_service.dart';
@@ -39,26 +38,14 @@ void main() {
         () async {
       final suffix = DateTime.now().millisecondsSinceEpoch;
       final riderEmail = 'ridex_rider_$suffix@example.com';
-      final driverEmail = 'ridex_driver_$suffix@example.com';
       const password = 'Ridex123!';
 
       final rider = await repository.signUp(
         name: 'RideX Rider $suffix',
         email: riderEmail,
         password: password,
-        role: RideRole.rider,
       );
       expect(rider.role, RideRole.rider);
-      await repository.signOut();
-
-      final driver = await repository.signUp(
-        name: 'RideX Driver $suffix',
-        email: driverEmail,
-        password: password,
-        role: RideRole.driver,
-      );
-      expect(driver.role, RideRole.driver);
-      expect(driver.driverApprovalStatus, DriverApprovalStatus.pending);
       await repository.signOut();
 
       final signedIn = await repository.signIn(

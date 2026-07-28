@@ -55,6 +55,7 @@ class MockTrip extends Equatable {
     required this.status,
     required this.driver,
     required this.finalFare,
+    this.occurredAt,
   });
 
   final String id;
@@ -62,19 +63,26 @@ class MockTrip extends Equatable {
   final TripStatus status;
   final DriverSummary driver;
   final double finalFare;
+  final DateTime? occurredAt;
 
-  MockTrip copyWith({TripStatus? status, double? finalFare}) {
+  MockTrip copyWith({
+    TripStatus? status,
+    double? finalFare,
+    DateTime? occurredAt,
+  }) {
     return MockTrip(
       id: id,
       booking: booking,
       status: status ?? this.status,
       driver: driver,
       finalFare: finalFare ?? this.finalFare,
+      occurredAt: occurredAt ?? this.occurredAt,
     );
   }
 
   @override
-  List<Object?> get props => [id, booking, status, driver, finalFare];
+  List<Object?> get props =>
+      [id, booking, status, driver, finalFare, occurredAt];
 }
 
 bool canTransition(TripStatus from, TripStatus to) {

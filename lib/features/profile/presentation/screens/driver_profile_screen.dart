@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:ridex/app/theme/app_colors.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
+import 'package:ridex/app/theme/ridex_theme.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
 import 'package:ridex/core/widgets/mock_bottom_nav_bar.dart';
@@ -22,27 +22,24 @@ class DriverProfileScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-                color: AppColors.graphite,
+                color: context.rideXTheme.brandedPanel,
                 borderRadius: BorderRadius.circular(28)),
             child: Column(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                     radius: 38,
                     backgroundColor: Colors.white24,
                     child: Icon(Icons.drive_eta_rounded,
-                        size: 34, color: Colors.white)),
+                        size: 34,
+                        color: context.rideXTheme.brandedPanelForeground)),
                 const SizedBox(height: AppSpacing.md),
                 Text(user?.name ?? '-',
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineLarge
-                        ?.copyWith(color: Colors.white)),
+                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                        color: context.rideXTheme.brandedPanelForeground)),
                 const SizedBox(height: 4),
                 Text('Approved driver · 4.9 rating',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: Colors.white70)),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.rideXTheme.brandedPanelMuted)),
               ],
             ),
           ),

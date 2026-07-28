@@ -11,7 +11,8 @@ extension DriverApprovalStatusX on DriverApprovalStatus {
     return switch (value) {
       'approved' => DriverApprovalStatus.approved,
       'rejected' => DriverApprovalStatus.rejected,
-      _ => DriverApprovalStatus.pending,
+      'pending' => DriverApprovalStatus.pending,
+      _ => throw FormatException('Unknown Driver approval status: $value'),
     };
   }
 }

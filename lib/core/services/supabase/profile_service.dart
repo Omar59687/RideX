@@ -17,14 +17,15 @@ class ProfileService {
         .maybeSingle();
 
     if (userRow == null) {
-      throw const AuthException('Your account profile is missing.');
+      throw const ProfileException('Your account profile is missing.');
     }
 
-    final roleValue = userRow['role'] as String?;
-    final role = switch (roleValue) {
-      'driver' => RideRole.driver,
-      _ => RideRole.rider,
-    };
+    final RideRole role;
+    try {
+      role = RideRoleX.fromDatabase(userRow['role'] as String);
+    } on Object {
+      throw const ProfileException('Your account profile is invalid.');
+    }
 
     DriverApprovalStatus? approvalStatus;
     if (role == RideRole.driver) {
@@ -34,9 +35,16 @@ class ProfileService {
           .eq('user_id', userId)
           .maybeSingle();
 
-      approvalStatus = DriverApprovalStatusX.fromDatabase(
-        (driverRow?['approval_status'] as String?) ?? 'pending',
-      );
+      if (driverRow == null) {
+        throw const ProfileException('Your Driver profile is missing.');
+      }
+      try {
+        approvalStatus = DriverApprovalStatusX.fromDatabase(
+          driverRow['approval_status'] as String,
+        );
+      } on Object {
+        throw const ProfileException('Your Driver profile is invalid.');
+      }
     }
 
     return AppUser(

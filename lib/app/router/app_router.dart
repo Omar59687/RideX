@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:ridex/app/config/app_constants.dart';
 import 'package:ridex/app/router/route_guards.dart';
 import 'package:ridex/app/router/route_names.dart';
+import 'package:ridex/app/theme/app_motion.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/account_blocked_screen.dart';
+import 'package:ridex/features/auth/presentation/screens/admin_placeholder_screen.dart';
+import 'package:ridex/features/auth/presentation/screens/profile_error_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/sign_in_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/sign_up_screen.dart';
+import 'package:ridex/features/auth/presentation/screens/verify_otp_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/destination_selection_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/fare_estimate_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/pickup_selection_screen.dart';
@@ -17,13 +20,13 @@ import 'package:ridex/features/booking/presentation/screens/vehicle_type_selecti
 import 'package:ridex/features/driver_application/presentation/screens/driver_application_status_screen.dart';
 import 'package:ridex/features/driver_home/presentation/screens/driver_home_screen.dart';
 import 'package:ridex/features/history/presentation/screens/trip_history_screen.dart';
+import 'package:ridex/features/history/presentation/screens/trip_details_screen.dart';
 import 'package:ridex/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:ridex/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:ridex/features/profile/presentation/screens/driver_profile_screen.dart';
 import 'package:ridex/features/profile/presentation/screens/rider_profile_screen.dart';
 import 'package:ridex/features/ratings/presentation/screens/rating_screen.dart';
 import 'package:ridex/features/rider_home/presentation/screens/rider_home_screen.dart';
-import 'package:ridex/features/role_selection/presentation/screens/role_selection_screen.dart';
 import 'package:ridex/features/settings/presentation/screens/settings_screen.dart';
 import 'package:ridex/features/splash/presentation/screens/splash_screen.dart';
 import 'package:ridex/features/trips/presentation/screens/driver_active_trip_screen.dart';
@@ -48,10 +51,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           name: RouteNames.onboarding,
           builder: (_, __) => const OnboardingScreen()),
       GoRoute(
-          path: '/roles',
-          name: RouteNames.roleSelection,
-          builder: (_, __) => const RoleSelectionScreen()),
-      GoRoute(
           path: '/sign-in',
           name: RouteNames.signIn,
           builder: (_, __) => const SignInScreen()),
@@ -64,9 +63,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           name: RouteNames.forgotPassword,
           builder: (_, __) => const ForgotPasswordScreen()),
       GoRoute(
+        path: '/verify-otp',
+        name: RouteNames.verifyOtp,
+        builder: (_, state) => VerifyOtpScreen(
+          phone: _otpPhoneFromState(state),
+        ),
+      ),
+      GoRoute(
           path: '/account-blocked',
           name: RouteNames.accountBlocked,
           builder: (_, __) => const AccountBlockedScreen()),
+      GoRoute(
+          path: '/profile-error',
+          name: RouteNames.profileError,
+          builder: (_, __) => const ProfileErrorScreen()),
+      GoRoute(
+          path: '/admin',
+          name: RouteNames.admin,
+          builder: (_, __) => const AdminPlaceholderScreen()),
       GoRoute(
           path: '/rider/home',
           name: RouteNames.riderHome,
@@ -116,6 +130,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           name: RouteNames.tripHistory,
           builder: (_, __) => const TripHistoryScreen()),
       GoRoute(
+        path: '/history/:tripId',
+        name: RouteNames.tripDetails,
+        builder: (_, state) => TripDetailsScreen(
+          tripId: state.pathParameters['tripId']!,
+        ),
+      ),
+      GoRoute(
           path: '/notifications',
           name: RouteNames.notifications,
           builder: (_, __) => const NotificationsScreen()),
@@ -153,6 +174,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
+String? _otpPhoneFromState(GoRouterState state) {
+  final extra = state.extra;
+  if (extra is VerifyOtpExtra) return extra.phone;
+  if (extra is String) return extra;
+  if (extra is Map && extra['phone'] is String) {
+    return extra['phone'] as String;
+  }
+  return state.uri.queryParameters['phone'];
+}
+
 class RouterRefresh extends ChangeNotifier {
   RouterRefresh(this.ref) {
     ref.listen(sessionControllerProvider, (_, __) => notifyListeners());
@@ -165,11 +196,14 @@ CustomTransitionPage<void> buildTransitionPage(
     {required LocalKey key, required Widget child}) {
   return CustomTransitionPage<void>(
     key: key,
-    transitionDuration: AppConstants.mockSearchDelay,
+    transitionDuration: AppMotion.standard,
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final curved =
-          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: AppMotion.standardCurve,
+        reverseCurve: AppMotion.exitCurve,
+      );
       return FadeTransition(
         opacity: curved,
         child: SlideTransition(

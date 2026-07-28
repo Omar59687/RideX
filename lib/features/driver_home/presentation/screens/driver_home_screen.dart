@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ridex/app/theme/app_colors.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
+import 'package:ridex/app/theme/ridex_theme.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
@@ -31,7 +32,7 @@ class DriverHomeScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-                color: AppColors.graphite,
+                color: context.rideXTheme.brandedPanel,
                 borderRadius: BorderRadius.circular(28)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,7 +44,9 @@ class DriverHomeScreen extends ConsumerWidget {
                             style: Theme.of(context)
                                 .textTheme
                                 .headlineLarge
-                                ?.copyWith(color: Colors.white))),
+                                ?.copyWith(
+                                    color: context
+                                        .rideXTheme.brandedPanelForeground))),
                     StatusChip(
                         label: online ? 'Available' : 'Offline',
                         color: online ? AppColors.accent : AppColors.warning),
@@ -161,7 +164,7 @@ class _SummaryTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .08),
+          color: context.rideXTheme.brandedPanelSubtle,
           borderRadius: BorderRadius.circular(18)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,13 +173,13 @@ class _SummaryTile extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: Colors.white70)),
+                  ?.copyWith(color: context.rideXTheme.brandedPanelMuted)),
           const SizedBox(height: 6),
           Text(value,
               style: Theme.of(context)
                   .textTheme
                   .titleLarge
-                  ?.copyWith(color: Colors.white)),
+                  ?.copyWith(color: context.rideXTheme.brandedPanelForeground)),
         ],
       ),
     );

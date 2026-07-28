@@ -5,4 +5,5 @@ enum SessionStatus {
   driverPending,
   driverRejected,
   blocked,
+  profileError,
 }

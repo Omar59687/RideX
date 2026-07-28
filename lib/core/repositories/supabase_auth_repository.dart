@@ -1,6 +1,5 @@
 import 'package:ridex/core/errors/auth_exception.dart';
 import 'package:ridex/core/models/app_user.dart';
-import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/repositories/auth_repository.dart';
 import 'package:ridex/core/services/supabase/auth_service.dart';
 import 'package:ridex/core/services/supabase/profile_service.dart';
@@ -30,7 +29,7 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AppUser> continueAsDemo(RideRole role) async {
+  Future<AppUser> continueAsDemo() async {
     throw const AuthException(
         'Demo authentication is unavailable when Supabase is configured.');
   }
@@ -39,7 +38,6 @@ class SupabaseAuthRepository implements AuthRepository {
   Future<AppUser> signIn({
     required String email,
     required String password,
-    RideRole? role,
   }) async {
     try {
       final response =
@@ -64,7 +62,6 @@ class SupabaseAuthRepository implements AuthRepository {
     required String name,
     required String email,
     required String password,
-    required RideRole role,
   }) async {
     try {
       final response = await _authService.signUp(
@@ -72,7 +69,6 @@ class SupabaseAuthRepository implements AuthRepository {
         password: password,
         metadata: {
           'display_name': name.trim(),
-          'role': role.name,
         },
       );
       final user = response.user;
