@@ -35,16 +35,17 @@
 
 ## Verification Status
 
-Final Phase 6 verification on July 24, 2026:
+Final Phase 6 verification on July 28, 2026:
 
 - `dart format lib test`: 119 files checked, 0 changed.
 - Focused authentication, public-role, route-guard, light-first theme, responsive/accessibility, Driver-regression, and migration-contract command: 40 tests passed.
 - `flutter analyze`: no issues found.
 - Full non-live `flutter test`: 67 tests passed with 2 intentional live Supabase skips.
 - The test suite logs non-failing `flutter_svg` warnings for unsupported SVG `<filter>` elements.
-- Local pgTAP execution was not possible: `supabase --version` failed because Supabase CLI is not installed; `docker info` found Docker 28.3.2 but returned HTTP 500 because the Docker Desktop Linux engine is unavailable.
-- The 29-assertion pgTAP suite in `supabase/tests/database/004_role_authorization_boundary.test.sql` remains unexecuted. It must pass against a local Supabase stack before migration deployment and final merge approval.
-- No Supabase linking, reset, remote query, remote SQL, migration application, `db push`, deployment, or service-role operation was performed.
+- Local Supabase verification passed: `npx supabase@latest db reset --local` completed, and all 29 assertions in `supabase/tests/database/004_role_authorization_boundary.test.sql` passed with `npx supabase@latest test db`.
+- `flutter analyze`: no issues found.
+- Full non-live `flutter test`: 67 tests passed with 2 intentional live Supabase skips.
+- The local Supabase stack was stopped after verification. No Supabase linking, remote query, remote SQL, migration application, `db push`, deployment, or service-role operation was performed.
 
 ## Rider V2 Final Handoff
 
@@ -132,7 +133,7 @@ Phase 5 verification on July 24, 2026:
 
 ## Final Pre-Merge Assessment
 
-All six approved pre-merge phases are complete. Phase 6 completed the final diff audit, documentation reconciliation, formatting, focused verification, analysis, and full non-live test run. The branch is ready for Pull Request review after explicit user approval to open one, but it is **not ready for final merge approval or migration deployment** until the local pgTAP suite passes against a local Supabase stack. No push, merge, deployment, or Pull Request was performed.
+All six approved pre-merge phases are complete. Phase 6 completed the final diff audit, documentation reconciliation, formatting, focused verification, analysis, full non-live test run, and local pgTAP verification. The pgTAP merge blocker is resolved. The branch is ready for Pull Request review after explicit user approval to open one. No push, merge, deployment, or Pull Request was performed.
 
 ## Font Status
 
