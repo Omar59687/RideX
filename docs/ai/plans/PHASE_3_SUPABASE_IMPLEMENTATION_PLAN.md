@@ -122,11 +122,19 @@ The schema enforces separate Cash/Card statuses, one active Card authorization, 
 
 Definition of done: payment compatibility constraints, append-only attempts, duplicate operation handling, receipt prerequisites, refund state, participant-safe reads, and service-only writes pass.
 
+### Checkpoint 3.5H - Verified authorization and Refund-state hardening
+
+Migration: `supabase/migrations/010_phase3_payment_state_verification_hardening.sql`
+
+Test: `supabase/tests/database/010_phase3_payment_state_verification_hardening.test.sql`
+
+This corrective checkpoint requires verified, timely trusted authorization completion before a Card Payment can become authorized. It associates every Refund attempt with its canonical Refund, routes Refund operations through dedicated backend-only lifecycle functions, retains failed Refunds as pending for up to two retries, and permits `refunded` only after verified Refund completion.
+
 ### Checkpoint 3.6 - Driver-location database foundation
 
-Migration: `supabase/migrations/010_phase3_driver_location_foundation.sql`
+Migration: `supabase/migrations/011_phase3_driver_location_foundation.sql`
 
-Test: `supabase/tests/database/010_phase3_driver_location_foundation.test.sql`
+Test: `supabase/tests/database/011_phase3_driver_location_foundation.test.sql`
 
 Table: `driver_locations`.
 
@@ -138,9 +146,9 @@ Definition of done: unauthorized read/write, ownership, assigned-Rider visibilit
 
 ### Checkpoint 3.7 - Support, feedback, and notification foundations
 
-Migration: `supabase/migrations/011_phase3_support_feedback_notification_foundation.sql`
+Migration: `supabase/migrations/012_phase3_support_feedback_notification_foundation.sql`
 
-Test: `supabase/tests/database/011_phase3_support_feedback_notification_foundation.test.sql`
+Test: `supabase/tests/database/012_phase3_support_feedback_notification_foundation.test.sql`
 
 Tables: `ratings`, `notifications`, `help_requests`.
 
@@ -152,9 +160,9 @@ Definition of done: participant ownership, moderation visibility, valid rating/h
 
 ### Checkpoint 3.8 - Cross-cutting RLS and RPC hardening
 
-Migration: `supabase/migrations/012_phase3_rls_rpc_hardening.sql`
+Migration: `supabase/migrations/013_phase3_rls_rpc_hardening.sql`
 
-Test: `supabase/tests/database/012_phase3_rls_rpc_hardening.test.sql`
+Test: `supabase/tests/database/013_phase3_rls_rpc_hardening.test.sql`
 
 Tables: none. RPCs: no new domain RPCs; all Phase 3 function privileges, search paths, security-definer properties, grants, revokes, and RLS enablement are finalized and verified.
 
@@ -162,7 +170,7 @@ Definition of done: the complete matrix below is asserted for every Phase 3 tabl
 
 ## Migration Dependencies
 
-`005` depends on the identity and role boundary established by `001`-`004`. `006` depends on `005` enums, versions, and audit support. `007` depends on user/Driver/vehicle foundations. `008` depends on booking, FareQuote, Driver availability, and Trip-assignment foundations; it does not reference a Payment table. `009` depends on booking, FareQuote, and Trip structures, creates Payment records, and adds any required Payment-to-Trip relationship after both sides exist. `010` depends on Driver and Trip identifiers. `011` depends on Trip, payment, and user records. `012` depends on every prior Phase 3 object. There is no circular migration dependency.
+`005` depends on the identity and role boundary established by `001`-`004`. `006` depends on `005` enums, versions, and audit support. `007` depends on user/Driver/vehicle foundations. `008` depends on booking, FareQuote, Driver availability, and Trip-assignment foundations; it does not reference a Payment table. `009` depends on booking, FareQuote, and Trip structures, creates Payment records, and adds any required Payment-to-Trip relationship after both sides exist. `010` depends on `009` Payment, PaymentAttempt, and Refund records to harden verified authorization and Refund lifecycles. `011` depends on Driver and Trip identifiers. `012` depends on Trip, payment, and user records. `013` depends on every prior Phase 3 object. There is no circular migration dependency.
 
 Applied migrations are never edited. Any correction after local application uses a new compensating migration. Existing data is preserved; backfills are idempotent and use conflict-safe inserts.
 
