@@ -164,7 +164,7 @@ Migration: `supabase/migrations/013_phase3_rls_rpc_hardening.sql`
 
 Test: `supabase/tests/database/013_phase3_rls_rpc_hardening.test.sql`
 
-Tables: none. RPCs: no new domain RPCs; all Phase 3 function privileges, search paths, security-definer properties, grants, revokes, and RLS enablement are finalized and verified.
+Tables: no new domain tables. `driver_profiles` receives trusted `rating_average` and `rating_count` aggregate fields, deterministically backfilled and transactionally maintained from Ratings. RPCs: no new domain RPCs; all Phase 3 function privileges, search paths, security-definer properties, grants, revokes, and RLS enablement are finalized and verified. The checkpoint rejects mismatched Rating, HelpRequest, and Notification retries; recursively rejects credential/payment-card payload keys at every Notification JSON depth; and restricts audit JSON to bounded safe metadata.
 
 Definition of done: the complete matrix below is asserted for every Phase 3 table and function, all non-live local database tests pass, and no direct client write bypass remains.
 
@@ -300,3 +300,14 @@ Phase 3 is complete when:
 - Local Supabase Docker/CLI verification passes, including the existing database tests.
 - No Flutter code, dependency, configuration, credential, MCP, remote Git, branch, or remote Supabase state is changed.
 - Remote deployment remains explicitly separate and has not occurred.
+
+## Completion Record
+
+- Completed checkpoints: 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.5H, 3.6, 3.7, and 3.8.
+- Final implementation commit: `f604c4e` (`fix(db): finalize Phase 3 security boundaries`).
+- `npx supabase@latest db reset --local` applied migrations `001` through `013` successfully.
+- Focused `013` verification passed: `npx supabase@latest test db --local supabase/tests/database/013_phase3_rls_rpc_hardening.test.sql` (`Files=1, Tests=41, Result: PASS`).
+- Complete local database verification passed: `npx supabase@latest test db --local` (`Files=10, Tests=628, Result: PASS`).
+- Local Supabase was stopped after verification. No remote Git, remote Supabase, deployment, push, merge, or pull-request operation occurred.
+- Deferred integrations remain notification delivery/push/SMS/email/external delivery, chat, attachments, payment-provider authorization/capture/refunds/receipt delivery/webhook delivery and verification, exceptional partial charges, Card in-progress adjustments, mobile GPS/permissions/location publishing/heartbeats/Realtime/maps, remote integration, real matching execution, Flutter repositories/screens, Admin UI, and remote deployment.
+- Phase 4 requires a separate approved plan and branch and must not begin automatically. This branch remains local until explicit push/PR approval.

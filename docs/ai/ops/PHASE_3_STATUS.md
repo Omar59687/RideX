@@ -2,8 +2,8 @@
 
 - Active branch: `codex/phase-3-supabase-foundation`
 - Approved Phase 2 contract: `docs/ai/plans/PHASE_2_DOMAIN_ARCHITECTURE_AND_CONTRACTS.md`
-- Current checkpoint: Checkpoint 3.7 completed and committed.
-- Completed checkpoints: Checkpoint 3.0, Checkpoint 3.1, Checkpoint 3.2, Checkpoint 3.3, Checkpoint 3.4, Checkpoint 3.5, Checkpoint 3.5H, Checkpoint 3.6, Checkpoint 3.7
+- Current checkpoint: Phase 3 complete; no Phase 3 checkpoint remains.
+- Completed checkpoints: Checkpoint 3.0, Checkpoint 3.1, Checkpoint 3.2, Checkpoint 3.3, Checkpoint 3.4, Checkpoint 3.5, Checkpoint 3.5H, Checkpoint 3.6, Checkpoint 3.7, Checkpoint 3.8
 - Checkpoint 3.1 implementation commit: `7695660` (`feat(db): add Phase 3 core security foundation`)
 - Checkpoint 3.2 implementation commit: `7dad235` (`feat(db): add Driver assets and canonical availability`)
 - Checkpoint 3.3 implementation commit: `fd6d220` (`feat(db): add booking fare and matching foundations`)
@@ -12,9 +12,12 @@
 - Checkpoint 3.5H correction implementation commit: `b23f7cd` (`fix(db): require verified payment and Refund transitions`)
 - Checkpoint 3.6 implementation commit: `190d515` (`feat(db): add Driver location foundation`)
 - Checkpoint 3.7 implementation commit: `979931f` (`feat(db): add support feedback and notification foundations`)
-- Current migration/test files: `supabase/migrations/012_phase3_support_feedback_notification_foundation.sql`; `supabase/tests/database/012_phase3_support_feedback_notification_foundation.test.sql`
-- Exact next checkpoint: Checkpoint 3.8 — Cross-cutting RLS and RPC hardening (`013` migration/test)
-- Required verification: `npx supabase@latest db reset --local` applied migrations `001` through `012`; focused `npx supabase@latest test db --local supabase/tests/database/012_phase3_support_feedback_notification_foundation.test.sql` passed (`Files=1, Tests=68, Result: PASS`). Complete `npx supabase@latest test db --local` passed (`Files=9, Tests=587, Result: PASS`). Local Supabase Docker stack was stopped afterward.
+- Checkpoint 3.8 implementation commit: `f604c4e` (`fix(db): finalize Phase 3 security boundaries`)
+- Final migration/test files: `supabase/migrations/013_phase3_rls_rpc_hardening.sql`; `supabase/tests/database/013_phase3_rls_rpc_hardening.test.sql`
+- Final security audit and corrections: all 23 Phase 3 tables have RLS; anonymous and authenticated client writes are denied; client reads follow the complete RLS matrix; PUBLIC function execution is revoked; anonymous and backend-only RPC boundaries are isolated; private-schema use remains denied. `013` adds trusted Driver `rating_average`/`rating_count` aggregates with deterministic backfill and transactional Rating refresh, rejects mismatched Rating, HelpRequest, and Notification retries, recursively rejects sensitive nested Notification payload keys, and constrains ordinary audit JSON to bounded safe metadata without precise location, credentials, payment card data, raw webhook payloads, or unrestricted support/notification content.
+- Exact final verification: `npx supabase@latest db reset --local` applied migrations `001` through `013`; focused `npx supabase@latest test db --local supabase/tests/database/013_phase3_rls_rpc_hardening.test.sql` passed (`Files=1, Tests=41, Result: PASS`). Complete `npx supabase@latest test db --local` passed (`Files=10, Tests=628, Result: PASS`). Local Supabase Docker stack was stopped afterward.
 - Deferred features: notification delivery infrastructure, push, SMS, email, external delivery services, chat, attachments, real payment-provider integration, including provider authorization, capture, refunds, receipt delivery, and webhook delivery/verification; partial charges for exceptional termination; Card in-progress adjustments; mobile GPS, device permissions, active-Trip five-second and available/reserved twenty-second publishing cadence, mobile location publishing, heartbeats, Realtime, maps, remote integration, real matching execution, Flutter repositories/screens, Admin UI, and remote deployment.
 - Known blockers: None.
-- Remote deployment state: Unchanged; no remote Supabase operation occurred. No remote Git operation occurred.
+- Handoff: Phase 4 is the next project work and requires its own approved plan and branch; it must not start automatically. This branch remains local until explicit push/PR approval.
+- Final local state: Supabase is stopped and the working tree is clean after the Phase 3 documentation commit.
+- Remote deployment state: Unchanged; no remote Supabase, remote Git, deployment, push, merge, or pull-request operation occurred.
