@@ -291,7 +291,7 @@ The current Supabase CLI test command runs the complete database test directory;
 Phase 3 is complete when:
 
 - Checkpoints 3.0 through 3.8 are individually completed in order.
-- Migrations `005` through `012` apply cleanly after `001` through `004`.
+- Migrations `005` through `013` apply cleanly after `001` through `004`.
 - Every Phase 3 table has appropriate keys, checks, indexes, RLS, grants, and pgTAP coverage.
 - Trusted RPCs enforce approved actor, state, ownership, version, money, idempotency, and audit rules.
 - Legacy availability fields remain compatible and are documented as deprecated.
