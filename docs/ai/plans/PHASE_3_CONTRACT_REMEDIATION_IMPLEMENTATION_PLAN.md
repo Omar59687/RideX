@@ -163,6 +163,16 @@ Implementation commit: `fix(db): serialize Driver lifecycle transitions`
 
 Documentation commit: `docs(ai): advance remediation to 3R.2`
 
+Completed August 4, 2026: implementation commit `c83bdf1` added only
+migration/test `016`. The focused pgTAP file used independent `dblink` sessions
+with deterministic lock waits to exercise assignment versus rejection and
+assignment versus blocking in both winner orders; all 37 assertions passed. A
+second clean local reset applied migrations `001` through `016`, and the complete
+database suite passed 709 assertions across 13 files. The correction preserves
+the prior Trip transition implementation behind a private function, exposes an
+authenticated-only public wrapper, and serializes accepted assignment with
+Admin rejection/blocking. Local Supabase was stopped after verification.
+
 ## Checkpoint 3R.2 - Trip, Payment, and Concurrency Safety
 
 Migration: `supabase/migrations/017_phase3_trip_payment_concurrency.sql`
