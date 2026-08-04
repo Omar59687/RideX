@@ -4,9 +4,11 @@
 - Base commit: `fe8e65a` (merged Phase 3 Pull Request #3)
 - Approved design: `docs/ai/plans/PHASE_3_CONTRACT_REMEDIATION_DESIGN.md`
 - Implementation plan: `docs/ai/plans/PHASE_3_CONTRACT_REMEDIATION_IMPLEMENTATION_PLAN.md`
-- Current checkpoint: 3R.0 documentation package
-- Completed remediation checkpoints: design approval only
-- Exact next checkpoint after this documentation commit: 3R.1 - Driver lifecycle consistency
+- Design commits: `5f3d0c2`, `a93cc1c`
+- Planning commit: `31bc54c`
+- Current checkpoint: 3R.1 - Driver lifecycle consistency
+- Completed remediation checkpoints: 3R.0 documentation package
+- Exact next work: implement and verify 3R.1 only
 - Next migration/test: `014_phase3_driver_lifecycle_reconciliation.sql` and matching pgTAP file
 - Immutable baseline: migrations/tests `001` through `013`
 - Known blockers: the ten confirmed gaps listed in the approved design remain unresolved until their assigned checkpoints pass
