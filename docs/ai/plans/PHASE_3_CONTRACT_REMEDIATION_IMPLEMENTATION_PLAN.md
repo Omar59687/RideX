@@ -1,6 +1,6 @@
 # Phase 3 Contract Remediation Implementation Plan
 
-Status: Approved for staged implementation; amended with 3R.1H
+Status: Approved for staged implementation; amended with 3R.1HC
 
 Branch: `codex/phase-3-contract-remediation`
 
@@ -13,13 +13,14 @@ Contract: `docs/ai/plans/PHASE_2_DOMAIN_ARCHITECTURE_AND_CONTRACTS.md`
 Close the confirmed Phase 2 contract gaps in the merged Phase 3 database
 foundation before Phase 4 starts. Complete exactly one checkpoint per Build-mode
 session. Preserve migrations `001` through `013` byte-for-byte and use only
-additive migrations and tests numbered `014` through `018`.
+additive migrations and tests numbered `014` through `019`.
 
 ## Global Rules
 
 - Verify the active branch and clean worktree before every checkpoint.
-- Never edit, rename, delete, reorder, squash, or replace migrations/tests
-  `001` through `013`.
+- Never edit, rename, delete, reorder, squash, or replace any committed
+  migration/test. At 3R.1HC, migrations/tests `001` through `015` are immutable;
+  later checkpoints must also preserve every newly committed predecessor.
 - Keep Flutter, maps, GPS, Stripe calls, Realtime, real matching execution,
   Admin UI, dependencies, credentials, and remote Supabase out of scope.
 - Use transactions, row locks, explicit authorization, positive expected
@@ -120,11 +121,53 @@ across 12 files. Local Supabase was stopped after verification. Limitations: thi
 checkpoint did not create or alter Trip, Payment, Receipt, or settlement
 transitions.
 
+## Checkpoint 3R.1HC - Driver Lifecycle Concurrency Correction
+
+Migration: `supabase/migrations/016_phase3_driver_lifecycle_concurrency_correction.sql`
+
+Test: `supabase/tests/database/016_phase3_driver_lifecycle_concurrency_correction.test.sql`
+
+Required behavior:
+
+- Preserve migrations/tests `001` through `015` byte-for-byte and apply only an
+  additive correction.
+- Replace the trusted Trip-transition and Admin rejection/blocking functions as
+  needed so each acquires lifecycle locks in the same order: target user row,
+  Driver profile row, then Trip/availability resources.
+- Revalidate the Driver role, blocked state, approval status, and operation
+  authority after acquiring the lifecycle locks; do not rely only on state read
+  before waiting for a lock.
+- While holding those locks, reject Driver rejection/blocking when a nonterminal
+  Trip exists. Ensure a concurrent assignment cannot commit between the check
+  and the Admin state change.
+- Preserve all existing Trip-transition, idempotency, RLS, grants, audit,
+  reservation, Payment, and Receipt behavior outside this correction.
+- Avoid inverse lock ordering and verify both race directions complete without
+  deadlock.
+
+Focused coverage:
+
+- Use two independent database sessions with deterministic synchronization to
+  exercise assignment versus rejection and assignment versus blocking.
+- Prove that exactly one side succeeds and final Trip, Driver approval/blocking,
+  and availability state remain consistent.
+- A sequential second reservation call must not be presented as concurrency
+  coverage.
+- Re-run repeated missing-row reconciliation/idempotence coverage and assert
+  automatic offer-expiry/cancellation and terminal-Booking release each produce
+  bounded audit evidence.
+- If the local database cannot provide a safe two-session test mechanism, stop
+  and report the blocker instead of substituting a sequential test.
+
+Implementation commit: `fix(db): serialize Driver lifecycle transitions`
+
+Documentation commit: `docs(ai): advance remediation to 3R.2`
+
 ## Checkpoint 3R.2 - Trip, Payment, and Concurrency Safety
 
-Migration: `supabase/migrations/016_phase3_trip_payment_concurrency.sql`
+Migration: `supabase/migrations/017_phase3_trip_payment_concurrency.sql`
 
-Test: `supabase/tests/database/016_phase3_trip_payment_concurrency.test.sql`
+Test: `supabase/tests/database/017_phase3_trip_payment_concurrency.test.sql`
 
 Required behavior:
 
@@ -157,9 +200,9 @@ Documentation commit: `docs(ai): advance remediation to 3R.3`
 
 ## Checkpoint 3R.3 - Fare and Payment-Attempt Correctness
 
-Migration: `supabase/migrations/017_phase3_fare_payment_attempt_hardening.sql`
+Migration: `supabase/migrations/018_phase3_fare_payment_attempt_hardening.sql`
 
-Test: `supabase/tests/database/017_phase3_fare_payment_attempt_hardening.test.sql`
+Test: `supabase/tests/database/018_phase3_fare_payment_attempt_hardening.test.sql`
 
 Required behavior:
 
@@ -189,9 +232,9 @@ Documentation commit: `docs(ai): advance remediation to 3R.4`
 
 ## Checkpoint 3R.4 - Safe Exposure and Final Verification
 
-Migration: `supabase/migrations/018_phase3_safe_exposure_hardening.sql`
+Migration: `supabase/migrations/019_phase3_safe_exposure_hardening.sql`
 
-Test: `supabase/tests/database/018_phase3_safe_exposure_hardening.test.sql`
+Test: `supabase/tests/database/019_phase3_safe_exposure_hardening.test.sql`
 
 Verification artifact: `docs/ai/verification/PHASE_3_REMEDIATION_VERIFICATION.md`
 
@@ -222,13 +265,13 @@ Final verification:
 1. Capture Git commit SHA, Docker version, Supabase CLI version, and PostgreSQL
    version without secrets.
 2. Start local Supabase and perform a clean local reset applying migrations
-   `001` through `018` in order.
-3. Run focused `018` pgTAP verification.
+   `001` through `019` in order.
+3. Run focused `019` pgTAP verification.
 4. Run the complete database test suite once and capture command, output totals,
    result, and exit status in the verification artifact.
 5. Perform a second implementation/security review against the Phase 2 contract,
    this plan, the full RLS matrix, and captured results.
-6. Correct any confirmed finding through migration `019+` and matching tests;
+6. Correct any confirmed finding through migration `020+` and matching tests;
    do not declare completion while a blocker remains.
 7. Update Phase 3 and remediation status documents, stop Supabase, inspect the
    complete branch diff, and confirm a clean worktree.
@@ -257,9 +300,9 @@ reset, production credentials, or a remote project in this remediation.
 
 Phase 3 becomes Approved/Completed for its backend-foundation scope only when:
 
-- Checkpoints 3R.0, 3R.1, 3R.1H, and 3R.2 through 3R.4 are committed in order.
-- Migrations/tests `001` through at least `018`, including any required `019+`
-  review correction, apply and pass without editing `001–013`.
+- Checkpoints 3R.0, 3R.1, 3R.1H, 3R.1HC, and 3R.2 through 3R.4 are committed in order.
+- Migrations/tests `001` through at least `019`, including any required `020+`
+  review correction, apply and pass without editing any committed predecessor.
 - Every confirmed blocker in the approved design has a focused regression.
 - The complete pgTAP suite passes from a clean isolated local reset.
 - The second review records no unresolved Phase 2 contract or security blocker.

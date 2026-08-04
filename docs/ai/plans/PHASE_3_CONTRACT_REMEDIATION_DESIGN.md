@@ -1,6 +1,6 @@
 # Phase 3 Contract Remediation Design
 
-Status: Approved, amended after 3R.1 verification review
+Status: Approved, amended after 3R.1H concurrency review
 
 Branch: `codex/phase-3-contract-remediation`
 
@@ -17,6 +17,8 @@ Realtime, or Admin UI.
 
 - Migrations `001` through `013` are immutable and must not be edited, renamed,
   reordered, deleted, or squashed.
+- Every committed additive migration/test becomes immutable as well. At the
+  3R.1HC checkpoint, migrations/tests `001` through `015` are protected.
 - All schema and function corrections use additive compensating migrations
   beginning with `014`.
 - Every migration receives a matching focused pgTAP regression file.
@@ -79,9 +81,27 @@ ownership and vehicle eligibility, concurrency, reserved/onTrip vehicle
 switching, assignment consistency, active-Trip rejection/blocking, and audit
 evidence.
 
+### 3R.1HC - Driver Lifecycle Concurrency Correction
+
+Add migration/test `016` without changing committed migrations/tests `001`
+through `015`. Serialize Trip assignment and Driver rejection/blocking using the
+same canonical lifecycle lock order: lock the target user row, then the Driver
+profile row, before locking Trip or availability state. Revalidate role,
+blocked state, and approval after acquiring those locks. Admin rejection and
+blocking must then check for a nonterminal Trip while the lifecycle lock is
+held, so a concurrent assignment cannot appear after a successful check.
+
+Focused verification must use two independent database sessions with controlled
+interleaving for assignment versus rejection and assignment versus blocking. A
+second sequential call is not concurrency evidence. Each race must finish
+without deadlock and leave exactly one valid result: either assignment succeeds
+and the Admin operation fails closed, or the Admin operation succeeds and
+assignment fails. Also verify repeated availability reconciliation is
+idempotent and automatic offer/Booking releases write bounded audit evidence.
+
 ### 3R.2 - Trip, Payment, and Concurrency Safety
 
-Add migration/test `016`. Every versioned public or backend RPC rejects null and
+Add migration/test `017`. Every versioned public or backend RPC rejects null and
 values below one before comparing canonical versions. Trip assignment creates or
 reconciles its Payment. Card progression to `driverArriving`, `driverArrived`, or
 `inProgress` requires the matching Payment to have a verified successful
@@ -91,7 +111,7 @@ entire transition. Card completion remains separate from provider Capture.
 
 ### 3R.3 - Fare and Payment-Attempt Correctness
 
-Add migration/test `017`. Cash adjustments use trusted remaining-route inputs,
+Add migration/test `018`. Cash adjustments use trusted remaining-route inputs,
 charge only the nonnegative difference, never recharge the completed route, and
 reconcile Trip and Payment totals when applied. Payment attempts require a
 compatible Payment/Trip state, correct operation type and amount, approved retry
@@ -100,7 +120,7 @@ operation data fails closed and is safely audited.
 
 ### 3R.4 - Safe Exposure and Final Verification
 
-Add migration/test `018`. Replace direct client finance-table reads with approved
+Add migration/test `019`. Replace direct client finance-table reads with approved
 safe projections or RPCs for Rider/Driver summaries and restricted Admin finance
 views; keep authoritative and provider fields backend-only. Reject likely payment
 card data in HelpRequest subject/message without logging the rejected content.
@@ -133,7 +153,7 @@ cancellation reconciliation, null/zero/negative expected versions, remaining-rou
 adjustments, Payment reconciliation, attempt mismatch and retry limits, safe
 finance exposure, HelpRequest Card-data rejection, and Notification navigation.
 
-The final clean reset must apply migrations `001` through `018` in order and run
+The final clean reset must apply migrations `001` through `019` in order and run
 all database tests. Existing tests remain preserved unless an additive migration
 intentionally changes an expectation; any compatibility update must be isolated,
 explained, and regression-tested.
@@ -141,7 +161,7 @@ explained, and regression-tested.
 ## Completion Criteria
 
 Phase 3 is fully complete for its approved backend-foundation scope only when all
-six remediation checkpoints are committed, the independent full reset and test
+seven remediation checkpoints are committed, the independent full reset and test
 suite pass, the second review finds no unresolved Phase 2 contract blocker, the
 verification evidence is retained without secrets, Supabase is stopped, and the
 branch is clean. Phase 4 then starts on a separate branch after this remediation
