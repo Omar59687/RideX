@@ -1,0 +1,231 @@
+# Phase 3 Contract Remediation Implementation Plan
+
+Status: Approved for staged implementation
+
+Branch: `codex/phase-3-contract-remediation`
+
+Design: `docs/ai/plans/PHASE_3_CONTRACT_REMEDIATION_DESIGN.md`
+
+Contract: `docs/ai/plans/PHASE_2_DOMAIN_ARCHITECTURE_AND_CONTRACTS.md`
+
+## Objective
+
+Close the confirmed Phase 2 contract gaps in the merged Phase 3 database
+foundation before Phase 4 starts. Complete exactly one checkpoint per Build-mode
+session. Preserve migrations `001` through `013` byte-for-byte and use only
+additive migrations and tests numbered `014` through `017`.
+
+## Global Rules
+
+- Verify the active branch and clean worktree before every checkpoint.
+- Never edit, rename, delete, reorder, squash, or replace migrations/tests
+  `001` through `013`.
+- Keep Flutter, maps, GPS, Stripe calls, Realtime, real matching execution,
+  Admin UI, dependencies, credentials, and remote Supabase out of scope.
+- Use transactions, row locks, explicit authorization, positive expected
+  versions, strict state validation, and payload-bound idempotency.
+- Run the focused pgTAP file while developing, then the complete database suite
+  once before the implementation commit.
+- Commit implementation and status documentation separately, update the exact
+  next checkpoint, stop Supabase, confirm a clean worktree, and stop.
+- Never push, merge, open a Pull Request, or deploy without explicit approval.
+
+## Checkpoint 3R.0 - Planning and Resume Package
+
+Files:
+
+- `docs/ai/plans/PHASE_3_CONTRACT_REMEDIATION_DESIGN.md`
+- `docs/ai/plans/PHASE_3_CONTRACT_REMEDIATION_IMPLEMENTATION_PLAN.md`
+- `docs/ai/ops/PHASE_3_REMEDIATION_STATUS.md`
+- `.opencode/commands/resume-phase-3-remediation.md`
+- Minimal pointer correction in `docs/ai/ops/PHASE_3_STATUS.md`
+
+No SQL, tests, dependencies, configuration, or remote state changes.
+
+Definition of done: every document agrees on branch, migration immutability,
+checkpoint order, exact next checkpoint, verification rules, exclusions, and
+completion criteria; `git diff --check` passes; documentation is committed; the
+worktree is clean.
+
+## Checkpoint 3R.1 - Driver Lifecycle Consistency
+
+Migration: `supabase/migrations/014_phase3_driver_lifecycle_reconciliation.sql`
+
+Test: `supabase/tests/database/014_phase3_driver_lifecycle_reconciliation.test.sql`
+
+Required behavior:
+
+- Backfill any missing canonical availability row without altering valid rows.
+- Revise trusted promotion/approval/rejection/blocking functions additively so
+  each relevant Driver has exactly one canonical row.
+- Promotion and approval produce a valid offline row when none exists.
+- Rejection or blocking locks and forces availability offline, clearing vehicle,
+  Booking reservation, active Trip, and heartbeat references.
+- Add backend-only reservation and release operations for the `reserved` state.
+- Reservation requires a non-blocked approved Driver, owned active compatible
+  vehicle, eligible BookingRequest, and no other reservation or active Trip.
+- Trip assignment requires the same reservation and vehicle; acceptance moves
+  `reserved` to `onTrip` atomically.
+- Activating another vehicle fails whenever the existing active vehicle is
+  referenced by available, reserved, or onTrip state.
+- Direct client writes remain denied and all functions use empty search paths
+  and explicit grants.
+
+Focused coverage: post-`006` promotion, approval, rejection, blocking, idempotent
+reconciliation, reservation/release, stale versions, wrong ownership, inactive
+vehicle, vehicle switching, concurrent reservation, and active-Trip consistency.
+
+Implementation commit: `fix(db): reconcile Driver lifecycle state`
+
+Documentation commit: `docs(ai): advance remediation to 3R.2`
+
+## Checkpoint 3R.2 - Trip, Payment, and Concurrency Safety
+
+Migration: `supabase/migrations/015_phase3_trip_payment_concurrency.sql`
+
+Test: `supabase/tests/database/015_phase3_trip_payment_concurrency.test.sql`
+
+Required behavior:
+
+- Inventory every versioned public/backend/Admin Phase 3 RPC and reject null,
+  zero, and negative expected versions before any comparison or idempotent
+  early return.
+- Trip assignment atomically creates or reconciles exactly one Payment tied to
+  the BookingRequest, FareQuote, Trip, Rider, method, currency, and fare.
+- Card progression to `driverArriving`, `driverArrived`, or `inProgress`
+  requires the canonical Payment to be `cardPaymentAuthorized` and backed by a
+  verified successful, timely authorization attempt.
+- Rider/Driver/Admin cancellation atomically reconciles Cash cancellation or
+  safely cancels/releases eligible pre-start Card state. It must fail closed if
+  trusted provider reconciliation is still required.
+- Cash completion atomically transitions the Trip, cancels unresolved
+  unapproved changes, blocks approved-unapplied changes, settles the Payment at
+  the reconciled final amount, and issues one Receipt. Any failure rolls back
+  all changes.
+- Card completion records Trip completion only; Capture remains a later trusted
+  provider operation and no paid Receipt is fabricated.
+
+Focused coverage: all invalid expected-version shapes, Payment creation/replay,
+Card progression denied before authorization, accepted after verified
+authorization, cancellation reconciliation, atomic Cash settlement/Receipt,
+rollback on failure, and Card completion without fabricated settlement.
+
+Implementation commit: `fix(db): enforce Trip Payment atomicity`
+
+Documentation commit: `docs(ai): advance remediation to 3R.3`
+
+## Checkpoint 3R.3 - Fare and Payment-Attempt Correctness
+
+Migration: `supabase/migrations/016_phase3_fare_payment_attempt_hardening.sql`
+
+Test: `supabase/tests/database/016_phase3_fare_payment_attempt_hardening.test.sql`
+
+Required behavior:
+
+- Price Cash Trip changes from trusted remaining-route metrics, excluding the
+  already completed route and already charged components.
+- Adjustment equals `max(0, trusted_new_remaining_fare -
+  trusted_original_remaining_fare)` using approved JOD fils pricing and rounding.
+- Applying an approved adjustment atomically updates Trip route/current fare,
+  stops, adjustment/request states, and canonical Cash Payment final amount.
+- Reconcile all operation types with compatible Payment/Trip states: initial or
+  replacement authorization, Capture or Capture retry, void/cancellation, and
+  Refund attempts.
+- Enforce approved attempt totals and operation ordering.
+- Bind each idempotency key to Payment/Refund, operation type, amount, currency,
+  provider, and other authoritative operation inputs. Identical replay returns
+  the canonical attempt; mismatched reuse fails closed and writes safe metadata
+  audit evidence.
+- A terminal attempt cannot be completed again with different terminal data.
+
+Focused coverage: nonnegative and zero adjustments, completed-route exclusion,
+Payment reconciliation, stale versions, incompatible attempt states, attempt
+limits, identical replay, mismatched replay, and terminal completion mismatch.
+
+Implementation commit: `fix(db): harden Fare and Payment attempts`
+
+Documentation commit: `docs(ai): advance remediation to 3R.4`
+
+## Checkpoint 3R.4 - Safe Exposure and Final Verification
+
+Migration: `supabase/migrations/017_phase3_safe_exposure_hardening.sql`
+
+Test: `supabase/tests/database/017_phase3_safe_exposure_hardening.test.sql`
+
+Verification artifact: `docs/ai/verification/PHASE_3_REMEDIATION_VERIFICATION.md`
+
+Required behavior:
+
+- Revoke authenticated whole-row finance-table reads that expose backend-only
+  or provider-sensitive columns.
+- Add stable safe projections or narrow RPCs for Rider Payment summaries,
+  PaymentAttempt summaries, Refund status, participant Receipt data, and
+  restricted Admin finance/support views.
+- Preserve direct client write denial and prevent Driver finance access beyond
+  the approved Receipt/Trip relationship.
+- Reject likely PAN/card-number patterns and CVV/CVC disclosures in HelpRequest
+  subject/message and Admin resolution input without persisting or auditing the
+  rejected content.
+- Define an explicit Notification navigation destination allowlist and validate
+  destination-specific identifiers. Continue recursive sensitive-payload
+  rejection.
+- Reassert the complete RLS/grant/function matrix after all corrections.
+
+Focused coverage: column-level finance exposure by Rider, Driver, Admin, blocked
+user, anonymous user, and service role; HelpRequest Card-data patterns;
+Notification destinations/identifiers; function grants; direct writes; and all
+new regression boundaries from 3R.1-3R.3.
+
+Final verification:
+
+1. Capture Git commit SHA, Docker version, Supabase CLI version, and PostgreSQL
+   version without secrets.
+2. Start local Supabase and perform a clean local reset applying migrations
+   `001` through `017` in order.
+3. Run focused `017` pgTAP verification.
+4. Run the complete database test suite once and capture command, output totals,
+   result, and exit status in the verification artifact.
+5. Perform a second implementation/security review against the Phase 2 contract,
+   this plan, the full RLS matrix, and captured results.
+6. Correct any confirmed finding through migration `018+` and matching tests;
+   do not declare completion while a blocker remains.
+7. Update Phase 3 and remediation status documents, stop Supabase, inspect the
+   complete branch diff, and confirm a clean worktree.
+
+Implementation commit: `fix(db): finalize Phase 3 contract remediation`
+
+Documentation commit: `docs(ai): complete Phase 3 remediation`
+
+## Verification Commands
+
+Use the locally configured Supabase project only:
+
+```powershell
+npx supabase@latest start
+npx supabase@latest db reset --local
+npx supabase@latest test db --local supabase/tests/database/<focused-file>.sql
+npx supabase@latest test db --local
+npx supabase@latest stop
+```
+
+If the installed CLI does not accept a focused path, document that fact and run
+the complete local suite instead. Never use `supabase link`, `db push`, remote
+reset, production credentials, or a remote project in this remediation.
+
+## Final Definition of Done
+
+Phase 3 becomes Approved/Completed for its backend-foundation scope only when:
+
+- Checkpoints 3R.0 through 3R.4 are committed in order.
+- Migrations/tests `001` through at least `017`, including any required `018+`
+  review correction, apply and pass without editing `001–013`.
+- Every confirmed blocker in the approved design has a focused regression.
+- The complete pgTAP suite passes from a clean isolated local reset.
+- The second review records no unresolved Phase 2 contract or security blocker.
+- Verification evidence contains versions, commit SHA, commands, totals, result,
+  and exit status, but no credentials or machine-specific secrets.
+- Local Supabase is stopped and the worktree is clean.
+- No remote Supabase deployment or Phase 4 implementation has occurred.
+
+After review, push, and merge of this branch, Phase 4 begins from updated `main`
+on a separate approved branch and plan.
