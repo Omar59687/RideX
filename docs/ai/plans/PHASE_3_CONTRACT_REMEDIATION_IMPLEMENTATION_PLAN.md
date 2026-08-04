@@ -1,6 +1,6 @@
 # Phase 3 Contract Remediation Implementation Plan
 
-Status: Approved for staged implementation
+Status: Approved for staged implementation; amended with 3R.1H
 
 Branch: `codex/phase-3-contract-remediation`
 
@@ -13,7 +13,7 @@ Contract: `docs/ai/plans/PHASE_2_DOMAIN_ARCHITECTURE_AND_CONTRACTS.md`
 Close the confirmed Phase 2 contract gaps in the merged Phase 3 database
 foundation before Phase 4 starts. Complete exactly one checkpoint per Build-mode
 session. Preserve migrations `001` through `013` byte-for-byte and use only
-additive migrations and tests numbered `014` through `017`.
+additive migrations and tests numbered `014` through `018`.
 
 ## Global Rules
 
@@ -79,11 +79,45 @@ Implementation commit: `fix(db): reconcile Driver lifecycle state`
 
 Documentation commit: `docs(ai): advance remediation to 3R.2`
 
+## Checkpoint 3R.1H - Driver Lifecycle Verification Hardening
+
+Migration: `supabase/migrations/015_phase3_driver_lifecycle_verification_hardening.sql`
+
+Test: `supabase/tests/database/015_phase3_driver_lifecycle_verification_hardening.test.sql`
+
+Required behavior:
+
+- Preserve migration/test `014` byte-for-byte and correct it only through this
+  additive migration and focused regression file.
+- Release a Driver reservation automatically and idempotently when the matching
+  offer expires or is cancelled, or when the BookingRequest becomes terminal
+  before Trip assignment.
+- Lock and compare the current reservation identifiers so a stale terminal event
+  cannot release a newer reservation.
+- Write bounded audit records for reservation and release without copying
+  sensitive Booking, location, or free-text data.
+- Fail closed when an Admin tries to reject or block a Driver assigned to a
+  nonterminal Trip. Require the existing trusted Trip termination workflow first;
+  do not detach the Driver or synthesize Trip, Payment, or Receipt transitions.
+- Preserve the approved offline reconciliation behavior when no nonterminal Trip
+  exists.
+
+Focused coverage: missing availability-row reconciliation and idempotence,
+approval after a missing row, actual offer-driven reservation, release on offer
+expiry/cancellation and Booking cancellation, stale release protection, wrong
+vehicle ownership, inactive/incompatible vehicles, concurrent reservation,
+reserved/onTrip vehicle switching, reservation-backed Trip assignment,
+rejection/blocking during an active Trip, and reservation/release audit records.
+
+Implementation commit: `fix(db): harden Driver reservation lifecycle`
+
+Documentation commit: `docs(ai): advance remediation to 3R.2`
+
 ## Checkpoint 3R.2 - Trip, Payment, and Concurrency Safety
 
-Migration: `supabase/migrations/015_phase3_trip_payment_concurrency.sql`
+Migration: `supabase/migrations/016_phase3_trip_payment_concurrency.sql`
 
-Test: `supabase/tests/database/015_phase3_trip_payment_concurrency.test.sql`
+Test: `supabase/tests/database/016_phase3_trip_payment_concurrency.test.sql`
 
 Required behavior:
 
@@ -116,9 +150,9 @@ Documentation commit: `docs(ai): advance remediation to 3R.3`
 
 ## Checkpoint 3R.3 - Fare and Payment-Attempt Correctness
 
-Migration: `supabase/migrations/016_phase3_fare_payment_attempt_hardening.sql`
+Migration: `supabase/migrations/017_phase3_fare_payment_attempt_hardening.sql`
 
-Test: `supabase/tests/database/016_phase3_fare_payment_attempt_hardening.test.sql`
+Test: `supabase/tests/database/017_phase3_fare_payment_attempt_hardening.test.sql`
 
 Required behavior:
 
@@ -148,9 +182,9 @@ Documentation commit: `docs(ai): advance remediation to 3R.4`
 
 ## Checkpoint 3R.4 - Safe Exposure and Final Verification
 
-Migration: `supabase/migrations/017_phase3_safe_exposure_hardening.sql`
+Migration: `supabase/migrations/018_phase3_safe_exposure_hardening.sql`
 
-Test: `supabase/tests/database/017_phase3_safe_exposure_hardening.test.sql`
+Test: `supabase/tests/database/018_phase3_safe_exposure_hardening.test.sql`
 
 Verification artifact: `docs/ai/verification/PHASE_3_REMEDIATION_VERIFICATION.md`
 
@@ -181,13 +215,13 @@ Final verification:
 1. Capture Git commit SHA, Docker version, Supabase CLI version, and PostgreSQL
    version without secrets.
 2. Start local Supabase and perform a clean local reset applying migrations
-   `001` through `017` in order.
-3. Run focused `017` pgTAP verification.
+   `001` through `018` in order.
+3. Run focused `018` pgTAP verification.
 4. Run the complete database test suite once and capture command, output totals,
    result, and exit status in the verification artifact.
 5. Perform a second implementation/security review against the Phase 2 contract,
    this plan, the full RLS matrix, and captured results.
-6. Correct any confirmed finding through migration `018+` and matching tests;
+6. Correct any confirmed finding through migration `019+` and matching tests;
    do not declare completion while a blocker remains.
 7. Update Phase 3 and remediation status documents, stop Supabase, inspect the
    complete branch diff, and confirm a clean worktree.
@@ -216,8 +250,8 @@ reset, production credentials, or a remote project in this remediation.
 
 Phase 3 becomes Approved/Completed for its backend-foundation scope only when:
 
-- Checkpoints 3R.0 through 3R.4 are committed in order.
-- Migrations/tests `001` through at least `017`, including any required `018+`
+- Checkpoints 3R.0, 3R.1, 3R.1H, and 3R.2 through 3R.4 are committed in order.
+- Migrations/tests `001` through at least `018`, including any required `019+`
   review correction, apply and pass without editing `001–013`.
 - Every confirmed blocker in the approved design has a focused regression.
 - The complete pgTAP suite passes from a clean isolated local reset.

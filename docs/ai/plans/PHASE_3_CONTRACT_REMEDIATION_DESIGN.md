@@ -1,6 +1,6 @@
 # Phase 3 Contract Remediation Design
 
-Status: Approved design awaiting written-spec review
+Status: Approved, amended after 3R.1 verification review
 
 Branch: `codex/phase-3-contract-remediation`
 
@@ -62,9 +62,26 @@ Driver ownership, approval, blocking, active vehicle, reservation, and active-Tr
 consistency under row locks. Activating a different vehicle must fail while the
 current vehicle is referenced by non-offline availability.
 
+### 3R.1H - Driver Lifecycle Verification Hardening
+
+Add migration/test `015` without changing committed migration/test `014`.
+Automatically release a reservation when its offer expires or is cancelled, or
+when its BookingRequest reaches a terminal state before Trip assignment. Make
+release idempotent and ensure a stale terminal event cannot clear a newer valid
+reservation. Reservation and release operations write bounded audit records.
+
+Reject Driver rejection or blocking while that Driver is assigned to a
+nonterminal Trip. The trusted Admin must first terminate the Trip through its
+approved lifecycle operation; this checkpoint must not silently detach the
+Driver or fabricate Trip, Payment, or Receipt state. Expand focused coverage for
+missing-row reconciliation, actual offer-driven reservation, terminal release,
+ownership and vehicle eligibility, concurrency, reserved/onTrip vehicle
+switching, assignment consistency, active-Trip rejection/blocking, and audit
+evidence.
+
 ### 3R.2 - Trip, Payment, and Concurrency Safety
 
-Add migration/test `015`. Every versioned public or backend RPC rejects null and
+Add migration/test `016`. Every versioned public or backend RPC rejects null and
 values below one before comparing canonical versions. Trip assignment creates or
 reconciles its Payment. Card progression to `driverArriving`, `driverArrived`, or
 `inProgress` requires the matching Payment to have a verified successful
@@ -74,7 +91,7 @@ entire transition. Card completion remains separate from provider Capture.
 
 ### 3R.3 - Fare and Payment-Attempt Correctness
 
-Add migration/test `016`. Cash adjustments use trusted remaining-route inputs,
+Add migration/test `017`. Cash adjustments use trusted remaining-route inputs,
 charge only the nonnegative difference, never recharge the completed route, and
 reconcile Trip and Payment totals when applied. Payment attempts require a
 compatible Payment/Trip state, correct operation type and amount, approved retry
@@ -83,7 +100,7 @@ operation data fails closed and is safely audited.
 
 ### 3R.4 - Safe Exposure and Final Verification
 
-Add migration/test `017`. Replace direct client finance-table reads with approved
+Add migration/test `018`. Replace direct client finance-table reads with approved
 safe projections or RPCs for Rider/Driver summaries and restricted Admin finance
 views; keep authoritative and provider fields backend-only. Reject likely payment
 card data in HelpRequest subject/message without logging the rejected content.
@@ -116,7 +133,7 @@ cancellation reconciliation, null/zero/negative expected versions, remaining-rou
 adjustments, Payment reconciliation, attempt mismatch and retry limits, safe
 finance exposure, HelpRequest Card-data rejection, and Notification navigation.
 
-The final clean reset must apply migrations `001` through `017` in order and run
+The final clean reset must apply migrations `001` through `018` in order and run
 all database tests. Existing tests remain preserved unless an additive migration
 intentionally changes an expectation; any compatibility update must be isolated,
 explained, and regression-tested.
@@ -124,7 +141,7 @@ explained, and regression-tested.
 ## Completion Criteria
 
 Phase 3 is fully complete for its approved backend-foundation scope only when all
-five remediation checkpoints are committed, the independent full reset and test
+six remediation checkpoints are committed, the independent full reset and test
 suite pass, the second review finds no unresolved Phase 2 contract blocker, the
 verification evidence is retained without secrets, Supabase is stopped, and the
 branch is clean. Phase 4 then starts on a separate branch after this remediation
