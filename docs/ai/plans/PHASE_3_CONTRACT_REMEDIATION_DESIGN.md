@@ -1,7 +1,9 @@
 # Phase 3 Contract Remediation Design
 
-Status: Approved design awaiting written-spec review  
-Branch: `codex/phase-3-contract-remediation`  
+Status: Approved design awaiting written-spec review
+
+Branch: `codex/phase-3-contract-remediation`
+
 Base: merged Phase 3 commit `fe8e65a`
 
 ## Purpose
