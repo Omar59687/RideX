@@ -113,6 +113,13 @@ Implementation commit: `fix(db): harden Driver reservation lifecycle`
 
 Documentation commit: `docs(ai): advance remediation to 3R.2`
 
+Completed August 4, 2026: implementation commit `05610b6` added only migration/test
+`015`. A clean local reset applied migrations `001` through `015`; focused `015`
+pgTAP passed 27 assertions and the complete database suite passed 672 assertions
+across 12 files. Local Supabase was stopped after verification. Limitations: this
+checkpoint did not create or alter Trip, Payment, Receipt, or settlement
+transitions.
+
 ## Checkpoint 3R.2 - Trip, Payment, and Concurrency Safety
 
 Migration: `supabase/migrations/016_phase3_trip_payment_concurrency.sql`
