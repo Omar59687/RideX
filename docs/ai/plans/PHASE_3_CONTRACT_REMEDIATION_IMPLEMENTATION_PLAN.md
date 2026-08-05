@@ -310,15 +310,36 @@ Implementation commit: `fix(db): finalize Phase 3 contract remediation`
 
 Documentation commit: `docs(ai): complete Phase 3 remediation`
 
-Completed August 5, 2026: implementation commit `fd154fc` added migration/test
-`019` and the authorized compatibility updates to tests `009`, `010`, and `013`.
-Migration `019` removes authenticated finance-table read policies and exposes
-only participant-authorized safe summary RPCs; it rejects HelpRequest card data
-before persistence/auditing and enforces allowlisted Notification destinations.
-The final clean local reset applied migrations `001` through `019`; focused `019`
-passed 15 assertions and the complete suite passed 795 assertions across 16 files.
-The second contract/security review found no unresolved blocker and required no
-`020+` correction. Verification evidence is retained in
+The original August 5, 2026 completion record is superseded by corrective
+checkpoint 3R.4C below. The review found that migration `019` authorized an
+assigned Driver to read Payment, PaymentAttempt, and Refund summaries, contrary
+to this checkpoint's approved Receipt/Trip-only Driver relationship.
+
+## Checkpoint 3R.4C - Driver Finance Exposure Correction
+
+Migration: `supabase/migrations/020_phase3_driver_finance_exposure_correction.sql`
+
+Test: `supabase/tests/database/020_phase3_driver_finance_exposure_correction.test.sql`
+
+Required behavior:
+
+- Preserve migrations/tests `001` through `019` byte-for-byte and correct only
+  through this additive migration and focused regression file.
+- Separate finance authorization by resource: Rider and Admin may read approved
+  Payment, PaymentAttempt, Refund, and Receipt summaries; an assigned Driver may
+  read only the restricted Receipt summary for the assigned Trip.
+- Deny Drivers Payment, PaymentAttempt, and Refund summaries even for an
+  assigned Trip. Deny unrelated Drivers, blocked users, and anonymous users all
+  finance summaries.
+- Preserve service-role operations and direct-client write denial.
+
+Verification result, August 5, 2026: implementation commit `5564bc8` added only
+migration/test `020`. A clean local reset applied migrations `001` through `020`.
+Focused test `020` passed 36 assertions. The complete suite did not pass: immutable
+test `019` aborts on its obsolete assertion that an assigned Driver can read the
+Payment summary. The 020 authorization boundary must not be weakened to preserve
+that false expectation. Phase 3 remains blocked until the immutable-test conflict
+has an approved resolution. Evidence is retained in
 `docs/ai/verification/PHASE_3_REMEDIATION_VERIFICATION.md`.
 
 ## Verification Commands
@@ -341,7 +362,8 @@ reset, production credentials, or a remote project in this remediation.
 
 Phase 3 becomes Approved/Completed for its backend-foundation scope only when:
 
-- Checkpoints 3R.0, 3R.1, 3R.1H, 3R.1HC, and 3R.2 through 3R.4 are committed in order.
+- Checkpoints 3R.0, 3R.1, 3R.1H, 3R.1HC, 3R.2 through 3R.4, and any required
+  corrective checkpoint are committed in order.
 - Migrations/tests `001` through at least `019`, including any required `020+`
   review correction, apply and pass without editing any committed predecessor.
 - Every confirmed blocker in the approved design has a focused regression.
@@ -352,6 +374,5 @@ Phase 3 becomes Approved/Completed for its backend-foundation scope only when:
 - Local Supabase is stopped and the worktree is clean.
 - No remote Supabase deployment or Phase 4 implementation has occurred.
 
-Phase 3 remediation is complete. After explicit review, push, and merge of this
-branch, Phase 4 may begin from updated `main` on a separate approved branch and
-plan.
+Phase 3 remediation is blocked by the immutable-test conflict recorded at 3R.4C.
+Do not begin Phase 4.

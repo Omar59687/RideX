@@ -121,8 +121,10 @@ operation data fails closed and is safely audited.
 ### 3R.4 - Safe Exposure and Final Verification
 
 Add migration/test `019`. Replace direct client finance-table reads with approved
-safe projections or RPCs for Rider/Driver summaries and restricted Admin finance
-views; keep authoritative and provider fields backend-only. Reject likely payment
+safe projections or RPCs for Rider summaries and restricted Admin finance views;
+allow an assigned Driver only the approved restricted Receipt summary, never
+Payment, PaymentAttempt, or Refund data. Keep authoritative and provider fields
+backend-only. Reject likely payment
 card data in HelpRequest subject/message without logging the rejected content.
 Restrict Notification navigation to explicit application destinations and safe
 identifier shapes.
@@ -153,17 +155,18 @@ cancellation reconciliation, null/zero/negative expected versions, remaining-rou
 adjustments, Payment reconciliation, attempt mismatch and retry limits, safe
 finance exposure, HelpRequest Card-data rejection, and Notification navigation.
 
-The final clean reset must apply migrations `001` through `019` in order and run
-all database tests. Existing tests remain preserved unless an additive migration
-intentionally changes an expectation; any compatibility update must be isolated,
-explained, and regression-tested.
+The final clean reset must apply migrations `001` through the latest additive
+correction in order and run all database tests. Existing tests remain immutable;
+an obsolete expectation must be reported as a blocker rather than preserved by
+weakening an approved security boundary.
 
 ## Completion Criteria
 
-Phase 3 is fully complete for its approved backend-foundation scope: all seven
-remediation checkpoints are committed, the independent full reset and test suite
-pass, the second review has no unresolved Phase 2 contract blocker, and non-secret
-verification evidence is retained. Supabase is stopped and the branch is clean.
+Phase 3 is fully complete for its approved backend-foundation scope only when all
+remediation checkpoints and required corrections are committed, the independent
+full reset and test suite pass, the second review has no unresolved Phase 2
+contract blocker, and non-secret verification evidence is retained. Supabase is
+stopped and the branch is clean.
 Phase 4 remains blocked until this remediation is explicitly reviewed, pushed,
 and merged, then starts on a separate branch.
 
