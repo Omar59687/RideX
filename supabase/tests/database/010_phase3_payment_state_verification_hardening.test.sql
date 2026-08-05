@@ -75,9 +75,9 @@ select public.test_settle_card_payment((select id from public.payments where boo
 select public.test_settle_card_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000001'),'refund-full-auth','refund-full-capture');
 
 set local role authenticated; select set_config('request.jwt.claim.sub','a0000000-0000-0000-0000-000000000003',true); select set_config('request.jwt.claim.role','authenticated',true);
-select lives_ok($$select public.admin_request_refund((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000004'),3,'duplicate_charge')$$,'Admin creates retry Refund');
-select lives_ok($$select public.admin_request_refund((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000005'),3,'duplicate_charge')$$,'Admin creates success Refund');
-select lives_ok($$select public.admin_request_refund((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000001'),3,'duplicate_charge')$$,'Admin creates full Refund');
+select lives_ok($$select public.admin_request_refund((select id from public.user_trip_payment_summary('a4000000-0000-0000-0000-000000000004')),3,'duplicate_charge')$$,'Admin creates retry Refund');
+select lives_ok($$select public.admin_request_refund((select id from public.user_trip_payment_summary('a4000000-0000-0000-0000-000000000005')),3,'duplicate_charge')$$,'Admin creates success Refund');
+select lives_ok($$select public.admin_request_refund((select id from public.user_trip_payment_summary('a4000000-0000-0000-0000-000000000001')),3,'duplicate_charge')$$,'Admin creates full Refund');
 reset role;
 
 select throws_ok($$select public.backend_transition_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000001'),4,null,'refunded')$$,'55000','Invalid Card payment transition.','direct transition to refunded without verified Refund completion is rejected');
