@@ -7,6 +7,7 @@ Date: August 5, 2026
 - Branch: `codex/phase-3-contract-remediation`
 - Original implementation commit: `fd154fcab466f154d26490a440b046f81c7bfc6f`
 - Corrective implementation commit: `5564bc8`
+- Approved compatibility test commit: `16dbbe2`
 - Local only. No Supabase project linking, remote query, remote SQL, migration
   deployment, `db push`, deployment, push, merge, or Pull Request occurred.
 
@@ -21,8 +22,9 @@ Date: August 5, 2026
 | Command | Result | Exit status |
 |---|---|---|
 | `npx supabase@latest db reset --local` | Applied migrations `001` through `020` in order | `0` |
+| `npx supabase@latest test db --local supabase/tests/database/019_phase3_safe_exposure_hardening.test.sql` | `Files=1, Tests=15, Result: PASS` | `0` |
 | `npx supabase@latest test db --local supabase/tests/database/020_phase3_driver_finance_exposure_correction.test.sql` | `Files=1, Tests=36, Result: PASS` | `0` |
-| `npx supabase@latest test db --local` | `Files=17, Tests=825, Result: FAIL`; immutable test `019` exited `3` after its obsolete assigned-Driver Payment expectation | `1` |
+| `npx supabase@latest test db --local` | `Files=17, Tests=831, Result: PASS` | `0` |
 
 The reset emitted the existing informational `supabase/seed.sql` no-match warning.
 It did not affect migration application or test results.
@@ -47,16 +49,15 @@ clean-reset results above.
   an explicit destination allowlist with the corresponding UUID identifier.
 - The authorized 3R.4 compatibility updates to tests `009`, `010`, and `013`
   replace their direct finance-read expectations with the safe-summary boundary.
-- The confirmed Driver finance authorization defect is corrected by `020`, and
-  focused role/resource coverage passes. The required complete-suite pass is
-  blocked because immutable test `019` still expects the now-forbidden assigned
-  Driver Payment summary. Preserving that expectation would weaken the approved
-  boundary, so no bypass was added.
+- The confirmed Driver finance authorization defect is corrected by `020`. The
+  explicit compatibility approval changed only test `019`'s obsolete assigned-
+  Driver Payment-read expectation to the required `42501` denial; it did not
+  alter any migration or weaken the Receipt-only Driver boundary. Focused role/
+  resource coverage and the complete suite pass.
 
 ## Completion
 
-Checkpoint 3R.4C implementation is committed, but Phase 3 backend-foundation
-remediation is not complete. Local Supabase must be stopped after the
-documentation commit and final worktree inspection. Phase 4 remains out of scope
-and blocked pending an approved resolution of the immutable-test conflict, review,
+Checkpoint 3R.4C and the Phase 3 backend-foundation remediation are complete.
+Local Supabase must be stopped after the documentation commit and final worktree
+inspection. Phase 4 remains out of scope and blocked pending explicit review,
 push, and merge approval on a separate branch.

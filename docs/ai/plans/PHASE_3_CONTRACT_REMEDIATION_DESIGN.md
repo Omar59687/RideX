@@ -156,9 +156,10 @@ adjustments, Payment reconciliation, attempt mismatch and retry limits, safe
 finance exposure, HelpRequest Card-data rejection, and Notification navigation.
 
 The final clean reset must apply migrations `001` through the latest additive
-correction in order and run all database tests. Existing tests remain immutable;
-an obsolete expectation must be reported as a blocker rather than preserved by
-weakening an approved security boundary.
+correction in order and run all database tests. Existing tests remain immutable
+unless an explicit approval authorizes a narrowly scoped compatibility correction;
+the 3R.4C approval changed only test `019`'s obsolete assigned-Driver Payment
+expectation to the approved denial boundary.
 
 ## Completion Criteria
 
@@ -169,6 +170,11 @@ contract blocker, and non-secret verification evidence is retained. Supabase is
 stopped and the branch is clean.
 Phase 4 remains blocked until this remediation is explicitly reviewed, pushed,
 and merged, then starts on a separate branch.
+
+Completion confirmed August 5, 2026: migration/test `020` implementation commit
+`5564bc8` and approved test `019` compatibility correction commit `16dbbe2`
+passed the clean reset and full pgTAP suite. Verification evidence is retained in
+`docs/ai/verification/PHASE_3_REMEDIATION_VERIFICATION.md`.
 
 This completion does not mean the entire RideX product is complete. Maps, live
 GPS, Flutter repository integration, real matching execution, Realtime, Stripe

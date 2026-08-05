@@ -334,12 +334,12 @@ Required behavior:
 - Preserve service-role operations and direct-client write denial.
 
 Verification result, August 5, 2026: implementation commit `5564bc8` added only
-migration/test `020`. A clean local reset applied migrations `001` through `020`.
-Focused test `020` passed 36 assertions. The complete suite did not pass: immutable
-test `019` aborts on its obsolete assertion that an assigned Driver can read the
-Payment summary. The 020 authorization boundary must not be weakened to preserve
-that false expectation. Phase 3 remains blocked until the immutable-test conflict
-has an approved resolution. Evidence is retained in
+migration/test `020`. The explicit compatibility approval then authorized commit
+`16dbbe2` to change only test `019`'s obsolete assigned-Driver Payment-read
+expectation to the approved `42501` denial. A clean local reset applied migrations
+`001` through `020`; focused tests `019` and `020` passed 15 and 36 assertions.
+The complete suite passed 831 assertions across 17 files. Assigned-Driver Receipt
+access remains covered by test `020`. Evidence is retained in
 `docs/ai/verification/PHASE_3_REMEDIATION_VERIFICATION.md`.
 
 ## Verification Commands
@@ -374,5 +374,6 @@ Phase 3 becomes Approved/Completed for its backend-foundation scope only when:
 - Local Supabase is stopped and the worktree is clean.
 - No remote Supabase deployment or Phase 4 implementation has occurred.
 
-Phase 3 remediation is blocked by the immutable-test conflict recorded at 3R.4C.
-Do not begin Phase 4.
+Phase 3 remediation is complete for its approved backend-foundation scope. Do not
+begin Phase 4 without explicit review, push, and merge approval on a separate
+branch.
