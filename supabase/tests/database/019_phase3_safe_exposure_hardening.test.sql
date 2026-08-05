@@ -43,7 +43,7 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'f9000000-0000-0000-0000-000000000002', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
-select is((select card_last_four from public.user_payment_summary('f9200000-0000-0000-0000-000000000005')), '4242', 'Driver receives only the approved participant Payment summary');
+select throws_ok($$select public.user_payment_summary('f9200000-0000-0000-0000-000000000005')$$, '42501', 'Finance data does not belong to this user.', 'assigned Driver cannot read Payment summaries');
 reset role;
 
 set local role authenticated;
