@@ -208,6 +208,18 @@ Implementation commit: `fix(db): enforce Trip Payment atomicity`
 
 Documentation commit: `docs(ai): advance remediation to 3R.3`
 
+Completed August 5, 2026: implementation commit `f9c4c08` added migration/test
+`017` and made the explicitly approved compatibility correction to the Card
+lifecycle expectations in test `008`; migration `008` remained unchanged. The
+correction enforces positive expected versions, atomic canonical Payment
+creation/reconciliation, verified Card authorization before Driver progression,
+safe cancellation handling, and atomic Cash settlement with one Receipt. After
+a clean reset through migration `017`, focused test `008` passed 117 assertions
+and focused test `017` passed 55 assertions. A second clean reset applied
+migrations `001` through `017`, and the complete suite passed 767 assertions
+across 14 files. Local Supabase was stopped after verification. Card Capture
+remains a trusted provider operation and was not fabricated by Trip completion.
+
 ## Checkpoint 3R.3 - Fare and Payment-Attempt Correctness
 
 Migration: `supabase/migrations/018_phase3_fare_payment_attempt_hardening.sql`
