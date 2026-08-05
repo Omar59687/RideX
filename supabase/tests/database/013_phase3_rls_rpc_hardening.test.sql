@@ -50,7 +50,7 @@ select is(
   (select count(*) from pg_policies
    where schemaname = 'public' and tablename in (select name from phase3_tables)
      and roles @> array['authenticated']::name[] and cmd = 'SELECT'),
-  20::bigint, 'every client-readable Phase 3 table has an authenticated select policy'
+  16::bigint, 'only non-finance Phase 3 tables have authenticated select policies'
 );
 
 select is(

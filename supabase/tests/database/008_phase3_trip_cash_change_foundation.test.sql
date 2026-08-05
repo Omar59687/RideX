@@ -239,6 +239,27 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000012', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select lives_ok($$select public.driver_transition_trip('54000000-0000-0000-0000-000000000003', 'accepted', 1, 'accept-card')$$, 'Driver accepts Card Trip');
+select throws_ok(
+  $$select public.driver_transition_trip((select id from public.trips where payment_method = 'card'), 'driverArriving', 1, 'card-arriving-before-auth')$$,
+  '55000', 'Card Trip progression requires a verified authorized Payment.',
+  'Card Driver cannot start arriving before verified authorization'
+);
+reset role;
+select public.backend_record_payment_attempt(
+  (select id from public.payments where trip_id = (select id from public.trips where payment_method = 'card')),
+  'initialAuthorization', 2500, '008-card-auth', 'provider'
+);
+select public.backend_complete_payment_attempt(
+  (select id from public.payment_attempts where idempotency_key = '008-card-auth'),
+  'succeeded', '008-card-provider-auth'
+);
+select public.backend_transition_payment(
+  (select id from public.payments where trip_id = (select id from public.trips where payment_method = 'card')),
+  1, null, 'cardPaymentAuthorized'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000012', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
 select lives_ok($$select public.driver_transition_trip((select id from public.trips where payment_method = 'card'), 'driverArriving', 1, 'card-arriving')$$, 'Card Driver starts arriving');
 select lives_ok($$select public.driver_transition_trip((select id from public.trips where payment_method = 'card'), 'driverArrived', 2, 'card-arrived')$$, 'Card Driver arrives');
 select lives_ok($$select public.driver_transition_trip((select id from public.trips where payment_method = 'card'), 'inProgress', 3, 'card-start')$$, 'Card Trip starts');
@@ -262,6 +283,28 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000020', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select is((select count(*) from public.trips), 2::bigint, 'non-blocked Admin has restricted Trip read access');
+select throws_ok(
+  $$select public.admin_terminate_trip(
+    (select id from public.trips where payment_method = 'card'), 4,
+    'cancelledByAdmin', 'safety_exception'
+  )$$,
+  '55000',
+  'Card Payment requires trusted provider reconciliation before cancellation.',
+  'Admin Card termination fails closed before provider reconciliation'
+);
+select is(
+  (select status::text from public.trips where payment_method = 'card'),
+  'inProgress',
+  'failed Admin Card termination leaves the Trip unchanged'
+);
+reset role;
+select public.backend_transition_payment(
+  (select id from public.payments where trip_id = (select id from public.trips where payment_method = 'card')),
+  2, null, 'paymentCancelled'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000020', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
 select lives_ok(
   $$select public.admin_terminate_trip(
     (select id from public.trips where payment_method = 'card'), 4,
