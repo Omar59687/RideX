@@ -1,6 +1,6 @@
 # Phase 3 Contract Remediation Implementation Plan
 
-Status: Approved for staged implementation; amended with 3R.1HC
+Status: Completed August 5, 2026
 
 Branch: `codex/phase-3-contract-remediation`
 
@@ -252,6 +252,14 @@ Implementation commit: `fix(db): harden Fare and Payment attempts`
 
 Documentation commit: `docs(ai): advance remediation to 3R.4`
 
+Completed August 5, 2026: implementation commit `1093bdc` added only migration/test
+`018`. A clean local reset applied migrations `001` through `018`; focused `018`
+pgTAP passed 13 assertions and the complete database suite passed 780 assertions
+across 15 files. Local Supabase was stopped after verification. The checkpoint
+preserves the earlier Card Capture boundary while enforcing remaining-route Cash
+pricing, Payment reconciliation, PaymentAttempt compatibility, retry limits, and
+payload-bound idempotency.
+
 ## Checkpoint 3R.4 - Safe Exposure and Final Verification
 
 Migration: `supabase/migrations/019_phase3_safe_exposure_hardening.sql`
@@ -302,6 +310,17 @@ Implementation commit: `fix(db): finalize Phase 3 contract remediation`
 
 Documentation commit: `docs(ai): complete Phase 3 remediation`
 
+Completed August 5, 2026: implementation commit `fd154fc` added migration/test
+`019` and the authorized compatibility updates to tests `009`, `010`, and `013`.
+Migration `019` removes authenticated finance-table read policies and exposes
+only participant-authorized safe summary RPCs; it rejects HelpRequest card data
+before persistence/auditing and enforces allowlisted Notification destinations.
+The final clean local reset applied migrations `001` through `019`; focused `019`
+passed 15 assertions and the complete suite passed 795 assertions across 16 files.
+The second contract/security review found no unresolved blocker and required no
+`020+` correction. Verification evidence is retained in
+`docs/ai/verification/PHASE_3_REMEDIATION_VERIFICATION.md`.
+
 ## Verification Commands
 
 Use the locally configured Supabase project only:
@@ -333,5 +352,6 @@ Phase 3 becomes Approved/Completed for its backend-foundation scope only when:
 - Local Supabase is stopped and the worktree is clean.
 - No remote Supabase deployment or Phase 4 implementation has occurred.
 
-After review, push, and merge of this branch, Phase 4 begins from updated `main`
-on a separate approved branch and plan.
+Phase 3 remediation is complete. After explicit review, push, and merge of this
+branch, Phase 4 may begin from updated `main` on a separate approved branch and
+plan.

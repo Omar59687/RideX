@@ -2,7 +2,7 @@
 
 - Active remediation branch: `codex/phase-3-contract-remediation`
 - Approved Phase 2 contract: `docs/ai/plans/PHASE_2_DOMAIN_ARCHITECTURE_AND_CONTRACTS.md`
-- Current checkpoint: contract remediation is active on `codex/phase-3-contract-remediation`; see `docs/ai/ops/PHASE_3_REMEDIATION_STATUS.md`.
+- Current checkpoint: contract remediation is complete on `codex/phase-3-contract-remediation`; see `docs/ai/ops/PHASE_3_REMEDIATION_STATUS.md`.
 - Completed checkpoints: Checkpoint 3.0, Checkpoint 3.1, Checkpoint 3.2, Checkpoint 3.3, Checkpoint 3.4, Checkpoint 3.5, Checkpoint 3.5H, Checkpoint 3.6, Checkpoint 3.7, Checkpoint 3.8
 - Checkpoint 3.1 implementation commit: `7695660` (`feat(db): add Phase 3 core security foundation`)
 - Checkpoint 3.2 implementation commit: `7dad235` (`feat(db): add Driver assets and canonical availability`)
@@ -13,11 +13,12 @@
 - Checkpoint 3.6 implementation commit: `190d515` (`feat(db): add Driver location foundation`)
 - Checkpoint 3.7 implementation commit: `979931f` (`feat(db): add support feedback and notification foundations`)
 - Checkpoint 3.8 implementation commit: `f604c4e` (`fix(db): finalize Phase 3 security boundaries`)
-- Final migration/test files: `supabase/migrations/013_phase3_rls_rpc_hardening.sql`; `supabase/tests/database/013_phase3_rls_rpc_hardening.test.sql`
+- Final remediation migration/test files: `supabase/migrations/019_phase3_safe_exposure_hardening.sql`; `supabase/tests/database/019_phase3_safe_exposure_hardening.test.sql`
 - Final security audit and corrections: all 23 Phase 3 tables have RLS; anonymous and authenticated client writes are denied; client reads follow the complete RLS matrix; PUBLIC function execution is revoked; anonymous and backend-only RPC boundaries are isolated; private-schema use remains denied. `013` adds trusted Driver `rating_average`/`rating_count` aggregates with deterministic backfill and transactional Rating refresh, rejects mismatched Rating, HelpRequest, and Notification retries, recursively rejects sensitive nested Notification payload keys, and constrains ordinary audit JSON to bounded safe metadata without precise location, credentials, payment card data, raw webhook payloads, or unrestricted support/notification content.
 - Exact final verification: `npx supabase@latest db reset --local` applied migrations `001` through `013`; focused `npx supabase@latest test db --local supabase/tests/database/013_phase3_rls_rpc_hardening.test.sql` passed (`Files=1, Tests=41, Result: PASS`). Complete `npx supabase@latest test db --local` passed (`Files=10, Tests=628, Result: PASS`). Local Supabase Docker stack was stopped afterward.
 - Deferred features: notification delivery infrastructure, push, SMS, email, external delivery services, chat, attachments, real payment-provider integration, including provider authorization, capture, refunds, receipt delivery, and webhook delivery/verification; partial charges for exceptional termination; Card in-progress adjustments; mobile GPS, device permissions, active-Trip five-second and available/reserved twenty-second publishing cadence, mobile location publishing, heartbeats, Realtime, maps, remote integration, real matching execution, Flutter repositories/screens, Admin UI, and remote deployment.
-- Known blockers: the confirmed contract-remediation findings are tracked in `docs/ai/plans/PHASE_3_CONTRACT_REMEDIATION_DESIGN.md`; the historical 628-test pass did not cover those boundaries.
-- Handoff: Phase 4 remains blocked until the additive remediation migrations/tests pass independent verification and the remediation branch is reviewed and merged.
-- Final local state: Supabase is stopped and the working tree is clean after the Phase 3 documentation commit.
+- Remediation completion: implementation commit `fd154fc` removes authenticated finance-table read policies in favor of participant-authorized safe summary RPCs, rejects HelpRequest card data before persistence/auditing, and allowlists Notification destinations. The authorized updates to tests `009`, `010`, and `013` preserve regression coverage without restoring whole-row finance exposure.
+- Final verification: clean reset through migration `019`; focused `019` passed 15 assertions; full pgTAP suite passed 795 assertions across 16 files. The second contract/security review found no unresolved Phase 2 blocker. Evidence: `docs/ai/verification/PHASE_3_REMEDIATION_VERIFICATION.md`.
+- Handoff: Phase 4 remains not started and blocked until this remediation branch is reviewed, pushed, and merged with explicit approval.
+- Final local state: Supabase is stopped and the working tree is clean after the Phase 3 remediation documentation commit.
 - Remote state: Phase 3 foundation was merged by Pull Request #3 at `fe8e65a`; remote Supabase remains unchanged and the remediation branch has not been pushed or merged.

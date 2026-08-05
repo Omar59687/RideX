@@ -1,6 +1,6 @@
 # Phase 3 Contract Remediation Design
 
-Status: Approved, amended after 3R.1H concurrency review
+Status: Completed August 5, 2026
 
 Branch: `codex/phase-3-contract-remediation`
 
@@ -160,12 +160,12 @@ explained, and regression-tested.
 
 ## Completion Criteria
 
-Phase 3 is fully complete for its approved backend-foundation scope only when all
-seven remediation checkpoints are committed, the independent full reset and test
-suite pass, the second review finds no unresolved Phase 2 contract blocker, the
-verification evidence is retained without secrets, Supabase is stopped, and the
-branch is clean. Phase 4 then starts on a separate branch after this remediation
-is reviewed, pushed, and merged.
+Phase 3 is fully complete for its approved backend-foundation scope: all seven
+remediation checkpoints are committed, the independent full reset and test suite
+pass, the second review has no unresolved Phase 2 contract blocker, and non-secret
+verification evidence is retained. Supabase is stopped and the branch is clean.
+Phase 4 remains blocked until this remediation is explicitly reviewed, pushed,
+and merged, then starts on a separate branch.
 
 This completion does not mean the entire RideX product is complete. Maps, live
 GPS, Flutter repository integration, real matching execution, Realtime, Stripe
