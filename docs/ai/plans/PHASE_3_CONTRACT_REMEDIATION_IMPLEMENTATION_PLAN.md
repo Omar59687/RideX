@@ -1,6 +1,6 @@
 # Phase 3 Contract Remediation Implementation Plan
 
-Status: Approved and completed August 8, 2026
+Status: **Approved / Completed** August 9, 2026
 
 Final hardening branch: `codex/phase-3-post-merge-hardening`
 
@@ -12,8 +12,8 @@ Contract: `docs/ai/plans/PHASE_2_DOMAIN_ARCHITECTURE_AND_CONTRACTS.md`
 
 Close the confirmed Phase 2 contract gaps in the merged Phase 3 database
 foundation before Phase 4 starts. Complete exactly one checkpoint per Build-mode
-session. Preserve migrations `001` through `013` byte-for-byte and use only
-additive migrations and tests numbered `014` through `019`.
+session. Preserve committed predecessors byte-for-byte and use additive
+migrations and matching tests numbered `014` through final correction `022`.
 
 ## Global Rules
 
@@ -295,7 +295,7 @@ Final verification:
 1. Capture Git commit SHA, Docker version, Supabase CLI version, and PostgreSQL
    version without secrets.
 2. Start local Supabase and perform a clean local reset applying migrations
-   `001` through `019` in order.
+   `001` through the latest additive correction in order.
 3. Run focused `019` pgTAP verification.
 4. Run the complete database test suite once and capture command, output totals,
    result, and exit status in the verification artifact.
@@ -360,12 +360,12 @@ reset, production credentials, or a remote project in this remediation.
 
 ## Final Definition of Done
 
-Phase 3 becomes Approved/Completed for its backend-foundation scope only when:
+Phase 3 is **Approved / Completed** for its backend-foundation scope because:
 
-- Checkpoints 3R.0, 3R.1, 3R.1H, 3R.1HC, 3R.2 through 3R.4, and any required
-  corrective checkpoint are committed in order.
-- Migrations/tests `001` through at least `019`, including any required `020+`
-  review correction, apply and pass without editing any committed predecessor.
+- Checkpoints 3R.0, 3R.1, 3R.1H, 3R.1HC, 3R.2 through 3R.4, and required
+  corrective checkpoints are implemented in order.
+- Migrations/tests `001` through final correction `022` apply and pass without
+  editing any committed predecessor.
 - Every confirmed blocker in the approved design has a focused regression.
 - The complete pgTAP suite passes from a clean isolated local reset.
 - The second review records no unresolved Phase 2 contract or security blocker.
@@ -390,6 +390,16 @@ passed 118, 68, 44, and 38 assertions; the complete suite passed 873 assertions
 across 18 files. Database lint produced only three pre-existing warnings. Supabase
 was stopped, no RideX containers remained, and no remote action occurred.
 
-Phase 3 remediation and post-merge hardening are Approved and Completed. No known
-Phase 3 contract blocker remains. The next project activity is separate Phase 4
-planning; Phase 4 has not started.
+## Final Payment Lifecycle Remediation Completion
+
+Migration/test `022` is the latest Phase 3 correction. It completes deterministic
+Authorization-cycle binding, verified current-cycle Card void/release, active-Trip
+Payment cancellation denial, generic Cash-paid denial, atomic trusted Cash
+completion, Capture retry ordering and pending uniqueness, initial/replacement
+Authorization ordering, protected PaymentAttempt idempotency, zero-adjustment
+coverage, and Admin HelpRequest card-data regression coverage.
+
+Omar manually verified a clean isolated migration run from `001` through `022`.
+The complete pgTAP suite passed with no failures. All Phase 3 remediation blockers
+are resolved, and Phase 3 is **Approved / Completed**. Phase 4 has not started and
+is the next phase subject to separate scope approval.
