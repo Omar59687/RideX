@@ -1,8 +1,8 @@
 # Phase 3 Contract Remediation Implementation Plan
 
-Status: Completed August 5, 2026
+Status: Approved and completed August 8, 2026
 
-Branch: `codex/phase-3-contract-remediation`
+Final hardening branch: `codex/phase-3-post-merge-hardening`
 
 Design: `docs/ai/plans/PHASE_3_CONTRACT_REMEDIATION_DESIGN.md`
 
@@ -374,6 +374,22 @@ Phase 3 becomes Approved/Completed for its backend-foundation scope only when:
 - Local Supabase is stopped and the worktree is clean.
 - No remote Supabase deployment or Phase 4 implementation has occurred.
 
-Phase 3 remediation is complete for its approved backend-foundation scope. Do not
-begin Phase 4 without explicit review, push, and merge approval on a separate
-branch.
+## Post-Merge Hardening Completion
+
+Completed August 8, 2026: implementation commit `e2b4a30` added migration/test
+`021` and the approved compatibility updates to tests `008`, `012`, and `013`.
+Migrations `001` through `020` remain unchanged. `021` closes the post-merge
+FareQuote version gate, retires the full-route Cash pricing RPC, binds Card
+authorization to the latest applicable attempt, hardens Refund ordering and
+idempotency, validates recipient-authorized Notification destinations, and
+deterministically sequences historical PaymentAttempts by `created_at, id` before
+generated future values.
+
+A clean reset through `021` passed. Focused tests `008`, `012`, `013`, and `021`
+passed 118, 68, 44, and 38 assertions; the complete suite passed 873 assertions
+across 18 files. Database lint produced only three pre-existing warnings. Supabase
+was stopped, no RideX containers remained, and no remote action occurred.
+
+Phase 3 remediation and post-merge hardening are Approved and Completed. No known
+Phase 3 contract blocker remains. The next project activity is separate Phase 4
+planning; Phase 4 has not started.
