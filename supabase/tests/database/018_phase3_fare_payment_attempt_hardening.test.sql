@@ -63,6 +63,15 @@ select lives_ok(
 select is((select current_fare_fils from public.trips where id = 'e8400000-0000-0000-0000-000000000001'), 2850, 'Cash Trip final fare is reconciled');
 select is((select final_amount_fils from public.payments where trip_id = 'e8400000-0000-0000-0000-000000000001'), 2850, 'canonical Cash Payment final amount is reconciled');
 
+insert into public.payment_attempts (
+  payment_id, type, status, requested_amount_fils, currency, idempotency_key,
+  provider_name, provider_transaction_reference, completed_at, verified_at,
+  authorization_cycle
+) values (
+  (select id from public.payments where method = 'card'),
+  'initialAuthorization', 'succeeded', 2000, 'JOD', '018-authorization',
+  'provider-a', 'authorization-018', now(), now(), 1
+);
 select lives_ok(
   $$select public.backend_record_payment_attempt((select id from public.payments where method = 'card'), 'capture', 2000, '018-capture', 'provider-a')$$,
   'compatible initial Capture is recorded'
@@ -88,7 +97,7 @@ select throws_ok(
 );
 select throws_ok(
   $$select public.backend_record_payment_attempt((select id from public.payments where trip_id = 'e8400000-0000-0000-0000-000000000001'), 'capture', 2850, '018-cash-capture', 'provider-a')$$,
-  '55000', 'Capture requires a completed Trip with an authorized Card Payment.',
+  '55000', 'Capture requires a completed Trip with the current authorized Card Payment.',
   'incompatible Cash Capture is rejected'
 );
 select * from finish();

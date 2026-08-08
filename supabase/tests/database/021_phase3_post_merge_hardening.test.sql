@@ -164,6 +164,14 @@ select public.backend_complete_payment_attempt(
 select public.backend_transition_payment(
   '21500000-0000-0000-0000-000000000002', 1, null, 'cardPaymentAuthorized'
 );
+select public.backend_record_payment_attempt(
+  '21500000-0000-0000-0000-000000000002',
+  'voidAuthorization', 2000, '021-auth-old-void', 'provider-a'
+);
+select public.backend_complete_payment_attempt(
+  (select id from public.payment_attempts where idempotency_key = '021-auth-old-void'),
+  'succeeded', 'auth-old-void-reference'
+);
 select public.backend_transition_payment(
   '21500000-0000-0000-0000-000000000002', 2, null, 'cardPaymentPending'
 );
@@ -195,10 +203,10 @@ select ok(
 select throws_ok(
   $$insert into public.payment_attempts (
     payment_id, type, status, requested_amount_fils, currency, idempotency_key,
-    attempt_sequence
+    authorization_cycle, attempt_sequence
   ) values (
     '21500000-0000-0000-0000-000000000002', 'capture', 'pending',
-    2000, 'JOD', '021-attempt-sequence-override', 1
+    2000, 'JOD', '021-attempt-sequence-override', 1, 1
   )$$,
   '428C9', null, 'callers cannot override generated PaymentAttempt sequence values'
 );
@@ -206,7 +214,7 @@ select throws_ok(
   $$select public.backend_transition_payment(
     '21500000-0000-0000-0000-000000000002', 3, null, 'cardPaymentAuthorized'
   )$$,
-  '55000', 'Card authorization requires a verified two-minute authorization attempt.',
+  '55000', 'Card authorization requires the current verified authorization cycle.',
   'pending replacement authorization prevents reuse of prior success'
 );
 select public.backend_complete_payment_attempt(
@@ -253,7 +261,7 @@ select throws_ok(
   $$select public.backend_transition_payment(
     '21500000-0000-0000-0000-000000000003', 3, null, 'cardPaymentAuthorized'
   )$$,
-  '55000', 'Card authorization requires a verified two-minute authorization attempt.',
+  '55000', 'Card authorization requires the current verified authorization cycle.',
   'successful void prevents reuse of the voided authorization'
 );
 

@@ -304,7 +304,7 @@ select throws_ok(
     'cancelledByAdmin', 'safety_exception'
   )$$,
   '55000',
-  'Card Payment requires trusted provider reconciliation before cancellation.',
+  'Card Payment requires a verified current-cycle void before cancellation.',
   'Admin Card termination fails closed before provider reconciliation'
 );
 select is(
@@ -313,28 +313,22 @@ select is(
   'failed Admin Card termination leaves the Trip unchanged'
 );
 reset role;
-select public.backend_transition_payment(
-  (select id from public.payments where trip_id = (select id from public.trips where payment_method = 'card')),
-  2, null, 'paymentCancelled'
-);
-set local role authenticated;
-select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000020', true);
-select set_config('request.jwt.claim.role', 'authenticated', true);
-select lives_ok(
-  $$select public.admin_terminate_trip(
-    (select id from public.trips where payment_method = 'card'), 4,
-    'cancelledByAdmin', 'safety_exception'
-  )$$, 'Admin exceptionally terminates a nonterminal Trip without a partial charge'
-);
 select throws_ok(
-  $$select public.admin_terminate_trip(
-    (select id from public.trips where payment_method = 'card'), 5,
-    'failed', 'again'
-  )$$, '55000', 'A terminal Trip cannot be terminated again.', 'Admin cannot terminate an already terminal Trip'
+  $$select public.backend_transition_payment(
+    (select id from public.payments where trip_id = (select id from public.trips where payment_method = 'card')),
+    2, null, 'paymentCancelled'
+  )$$,
+  '55000', 'Payment cancellation requires a terminal cancelled Trip.',
+  'trusted Payment service cannot cancel Card while Trip remains active'
+);
+select is(
+  (select status::text from public.trips where payment_method = 'card'),
+  'inProgress',
+  'blocked Payment cancellation leaves active Card Trip unchanged'
 );
 reset role;
 select is((select current_fare_fils from public.trips where payment_method = 'card'), 2500, 'Admin termination does not create a partial Card charge');
-select is((select status::text from public.trips where payment_method = 'card'), 'cancelledByAdmin', 'Admin termination records the approved terminal state');
+select is((select status::text from public.trips where payment_method = 'card'), 'inProgress', 'blocked Admin termination preserves the active Trip state');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000002', true);
@@ -391,7 +385,7 @@ select is(
   8::bigint, 'all public Checkpoint 3.4 command functions have empty search paths'
 );
 select is((select count(*) from public.audit_records where action = 'trip.accepted'), 2::bigint, 'Trip acceptance is audited once per Trip despite replay');
-select is((select count(*) from public.audit_records where action = 'trip.terminated_by_admin'), 1::bigint, 'Admin exceptional termination is audited');
+select is((select count(*) from public.audit_records where action = 'trip.terminated_by_admin'), 0::bigint, 'blocked Admin termination creates no terminal audit record');
 
 select * from finish();
 rollback;

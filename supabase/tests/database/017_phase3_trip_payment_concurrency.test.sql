@@ -339,7 +339,7 @@ select throws_ok(
     (select trip_id from test_trips where sequence_number = 5)
   ),
   '55000',
-  'Card Payment requires trusted provider reconciliation before cancellation.',
+  'Card Payment requires a verified current-cycle void before cancellation.',
   'Authorized Card cancellation fails closed pending provider reconciliation'
 );
 select is(
@@ -348,10 +348,14 @@ select is(
   'accepted',
   'Failed Card cancellation rolls back the Trip transition'
 );
-select public.backend_transition_payment(
+select public.backend_record_payment_attempt(
   (select id from public.payments
-   where trip_id = (select trip_id from test_trips where sequence_number = 5)),
-  2, null, 'paymentCancelled'
+    where trip_id = (select trip_id from test_trips where sequence_number = 5)),
+  'voidAuthorization', 2000, '017-cancel-void', 'provider'
+);
+select public.backend_complete_payment_attempt(
+  (select id from public.payment_attempts where idempotency_key = '017-cancel-void'),
+  'succeeded', '017-cancel-provider-void'
 );
 select pg_temp.as_user('c7000000-0000-0000-0000-000000000001');
 select lives_ok(
@@ -359,7 +363,7 @@ select lives_ok(
     $$select public.rider_cancel_trip(%L, 1, 'changed_mind')$$,
     (select trip_id from test_trips where sequence_number = 5)
   ),
-  'Card Trip cancellation succeeds after trusted provider reconciliation'
+  'Card Trip cancellation succeeds after verified provider release'
 );
 
 insert into test_trips values (6, pg_temp.assign_trip(6));
