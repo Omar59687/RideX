@@ -83,8 +83,8 @@ select is((select count(*) from public.ratings), 1::bigint, 'Admin has Rating mo
 reset role;
 
 set local role service_role;
-select lives_ok($$select public.backend_create_notification('c1000000-0000-0000-0000-000000000001', 'trip.completed', 'Trip complete', 'Your trip is complete.', '{"trip_id":"c1200000-0000-0000-0000-000000000004"}', null, 'trip-completed-4')$$, 'service role creates notification');
-select lives_ok($$select public.backend_create_notification('c1000000-0000-0000-0000-000000000001', 'trip.completed', 'Trip complete', 'Your trip is complete.', '{"trip_id":"c1200000-0000-0000-0000-000000000004"}', null, 'trip-completed-4')$$, 'notification deduplication is repeat-safe');
+select lives_ok($$select public.backend_create_notification('c1000000-0000-0000-0000-000000000001', 'trip.completed', 'Trip complete', 'Your trip is complete.', '{"destination":"trip","trip_id":"c1200000-0000-0000-0000-000000000004"}', null, 'trip-completed-4')$$, 'service role creates notification');
+select lives_ok($$select public.backend_create_notification('c1000000-0000-0000-0000-000000000001', 'trip.completed', 'Trip complete', 'Your trip is complete.', '{"destination":"trip","trip_id":"c1200000-0000-0000-0000-000000000004"}', null, 'trip-completed-4')$$, 'notification deduplication is repeat-safe');
 select is((select count(*) from public.notifications), 1::bigint, 'notification deduplication prevents duplicates');
 reset role;
 set local role authenticated;

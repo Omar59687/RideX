@@ -171,16 +171,31 @@ select throws_ok(
 select throws_ok($$select public.backend_price_trip_change_request((select id from public.trip_change_requests), 1, 4000, 1200, 'changed-route')$$, '42501', null, 'Rider cannot execute backend Cash pricing');
 reset role;
 
-select lives_ok(
+select throws_ok(
   $$select public.backend_price_trip_change_request((select id from public.trip_change_requests), 1, 4000, 1200, 'changed-route')$$,
-  'backend prices the Cash route change'
+  '0A000',
+  'Full-route Cash change pricing is retired; use the remaining-route pricing operation.',
+  'legacy full-route Cash pricing fails closed'
+);
+select lives_ok(
+  $$select public.backend_price_trip_change_request_remaining(
+    (select id from public.trip_change_requests), 1,
+    4000, 1200, 3000, 720, 'changed-route'
+  )$$,
+  'backend prices the Cash change from remaining-route metrics'
 );
 select is((select status::text from public.trip_change_requests), 'awaitingRiderApproval', 'priced change awaits Rider approval');
 select is((select previous_fare_fils from public.fare_adjustments), 2000, 'adjustment records the prior fare');
 select is((select adjusted_fare_fils from public.fare_adjustments), 2900, 'backend uses deterministic integer-fils pricing');
 select is((select adjustment_fils from public.fare_adjustments), 900, 'adjustment reconciles old and new fares');
 select is((select count(*) from public.fare_adjustments), 1::bigint, 'pricing creates one adjustment');
-select lives_ok($$select public.backend_price_trip_change_request((select id from public.trip_change_requests), 1, 4000, 1200, 'changed-route')$$, 'pricing replay is idempotent');
+select lives_ok(
+  $$select public.backend_price_trip_change_request_remaining(
+    (select id from public.trip_change_requests), 1,
+    4000, 1200, 3000, 720, 'changed-route'
+  )$$,
+  'remaining-route pricing replay is idempotent'
+);
 select is((select count(*) from public.fare_adjustments), 1::bigint, 'pricing replay cannot duplicate an adjustment');
 
 set local role authenticated;

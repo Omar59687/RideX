@@ -80,11 +80,14 @@ select is(
    where schemas.nspname = 'public' and functions.proname like 'backend_%'
      and not has_function_privilege('authenticated', functions.oid, 'execute')
      and has_function_privilege('service_role', functions.oid, 'execute')),
-  16::bigint, 'all backend-only Phase 3 RPCs are isolated to service_role'
+  17::bigint, 'all backend-only Phase 3 RPCs are isolated to service_role'
 );
 select ok(not has_schema_privilege('authenticated', 'private', 'USAGE'), 'clients cannot resolve private helpers');
 select ok(not has_function_privilege('authenticated', 'private.refresh_driver_rating_aggregate()', 'execute'), 'rating aggregate helper is private');
 select ok(not has_function_privilege('authenticated', 'private.is_safe_json_content(jsonb,integer,integer)', 'execute'), 'JSON safety helper is private');
+select ok(has_function_privilege('service_role', 'public.backend_price_trip_change_request_remaining(uuid,integer,integer,integer,integer,integer,text)', 'execute'), 'service role can execute remaining-route pricing');
+select ok(not has_function_privilege('authenticated', 'public.backend_price_trip_change_request_remaining(uuid,integer,integer,integer,integer,integer,text)', 'execute'), 'authenticated cannot execute remaining-route pricing');
+select ok(not has_function_privilege('anon', 'public.backend_price_trip_change_request_remaining(uuid,integer,integer,integer,integer,integer,text)', 'execute'), 'anonymous cannot execute remaining-route pricing');
 
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token)
 values
@@ -151,13 +154,13 @@ select is((select count(*) from public.help_requests), 1::bigint, 'HelpRequest m
 reset role;
 
 set local role service_role;
-select lives_ok($$select public.backend_create_notification('d1000000-0000-0000-0000-000000000001', 'trip.completed', 'Trip complete', 'Your trip is complete.', '{"trip_id":"d1200000-0000-0000-0000-000000000004"}', null, 'hardening-notification')$$, 'backend notification creation succeeds');
-select lives_ok($$select public.backend_create_notification('d1000000-0000-0000-0000-000000000001', 'trip.completed', ' Trip complete ', ' Your trip is complete. ', '{"trip_id":"d1200000-0000-0000-0000-000000000004"}', null, ' hardening-notification ')$$, 'identical normalized notification retry returns the original');
-select throws_ok($$select public.backend_create_notification('d1000000-0000-0000-0000-000000000001', 'trip.completed', 'Changed', 'Your trip is complete.', '{"trip_id":"d1200000-0000-0000-0000-000000000004"}', null, 'hardening-notification')$$, '55000', 'Notification retry does not match the existing Notification.', 'notification mismatch fails closed');
-select lives_ok($$select public.backend_create_notification('d1000000-0000-0000-0000-000000000002', 'trip.completed', 'Trip complete', 'Your trip is complete.', '{"trip_id":"d1200000-0000-0000-0000-000000000004"}', null, 'hardening-notification')$$, 'notification deduplication remains recipient-isolated');
+select lives_ok($$select public.backend_create_notification('d1000000-0000-0000-0000-000000000001', 'trip.completed', 'Trip complete', 'Your trip is complete.', '{"destination":"notifications"}', null, 'hardening-notification')$$, 'backend notification creation succeeds');
+select lives_ok($$select public.backend_create_notification('d1000000-0000-0000-0000-000000000001', 'trip.completed', ' Trip complete ', ' Your trip is complete. ', '{"destination":"notifications"}', null, ' hardening-notification ')$$, 'identical normalized notification retry returns the original');
+select throws_ok($$select public.backend_create_notification('d1000000-0000-0000-0000-000000000001', 'trip.completed', 'Changed', 'Your trip is complete.', '{"destination":"notifications"}', null, 'hardening-notification')$$, '55000', 'Notification retry does not match the existing Notification.', 'notification mismatch fails closed');
+select lives_ok($$select public.backend_create_notification('d1000000-0000-0000-0000-000000000002', 'trip.completed', 'Trip complete', 'Your trip is complete.', '{"destination":"notifications"}', null, 'hardening-notification')$$, 'notification deduplication remains recipient-isolated');
 select is((select count(*) from public.notifications), 2::bigint, 'notification retries never duplicate records');
-select throws_ok($$select public.backend_create_notification('d1000000-0000-0000-0000-000000000001', 'security.notice', 'Notice', 'Body', '{"safe":{"access_token":"not-stored"}}', null, 'nested-token')$$, '23514', null, 'nested access tokens are rejected');
-select throws_ok($$select public.backend_create_notification('d1000000-0000-0000-0000-000000000001', 'security.notice', 'Notice', 'Body', '{"items":[{"card_number":"not-stored"}]}', null, 'nested-pan')$$, '23514', null, 'nested card data is rejected');
+select throws_ok($$select public.backend_create_notification('d1000000-0000-0000-0000-000000000001', 'security.notice', 'Notice', 'Body', '{"destination":"notifications","safe":{"access_token":"not-stored"}}', null, 'nested-token')$$, '23514', null, 'nested access tokens are rejected');
+select throws_ok($$select public.backend_create_notification('d1000000-0000-0000-0000-000000000001', 'security.notice', 'Notice', 'Body', '{"destination":"notifications","items":[{"card_number":"not-stored"}]}', null, 'nested-pan')$$, '23514', null, 'nested card data is rejected');
 reset role;
 
 select throws_ok($$select private.write_audit_record(null, 'unsafe.audit', null, null, '{"latitude":31.95}'::jsonb, '{}'::jsonb)$$, '22023', 'Audit data must contain only bounded safe metadata.', 'audit records reject precise Driver coordinates');
