@@ -1,6 +1,6 @@
 # Phase 3 Contract Remediation Design
 
-Status: Completed August 5, 2026
+Status: **Approved / Completed** August 9, 2026
 
 Branch: `codex/phase-3-contract-remediation`
 
@@ -22,9 +22,14 @@ Realtime, or Admin UI.
 - All schema and function corrections use additive compensating migrations
   beginning with `014`.
 - Every migration receives a matching focused pgTAP regression file.
+- Migrations `001` through `021` remain preserved; migration/test `022` is the
+  final additive Phase 3 remediation.
 - No remote Supabase deployment occurs in this remediation.
 
-## Confirmed Gaps
+## Resolved Gaps
+
+The following gaps drove the remediation design and are all resolved in the
+final implementation through migration `022`:
 
 1. Driver promotion, approval, rejection, and blocking do not consistently
    provision or reconcile the canonical `driver_availability` row.
@@ -135,6 +140,17 @@ commands, output, test totals, result, and exit status in a non-secret verificat
 artifact. Perform a second contract/security review, update factual project
 documentation, stop local Supabase, and require a clean worktree.
 
+### 3R.5 - Final Payment Lifecycle Remediation
+
+Add migration/test `022`. Bind each Authorization, void, and Capture operation to
+a deterministic authorization cycle. Prevent historical Authorization reuse,
+require verified current-cycle release before Card cancellation, reject Payment
+cancellation while a Trip is active, and reject generic Cash-paid transitions.
+Enforce initial/replacement Authorization ordering, latest-failed Capture retry
+ordering, pending Capture uniqueness, retry limits, and protected idempotency
+payload equivalence. Add final regressions for atomic Cash completion and rollback,
+zero remaining-route FareAdjustment, and Admin HelpRequest card-data rejection.
+
 ## Security and Transaction Rules
 
 - Use row locks and database transactions for cross-aggregate state changes.
@@ -163,18 +179,16 @@ expectation to the approved denial boundary.
 
 ## Completion Criteria
 
-Phase 3 is fully complete for its approved backend-foundation scope only when all
-remediation checkpoints and required corrections are committed, the independent
+Phase 3 is fully complete for its approved backend-foundation scope because all
+remediation checkpoints and required corrections are implemented, the independent
 full reset and test suite pass, the second review has no unresolved Phase 2
-contract blocker, and non-secret verification evidence is retained. Supabase is
-stopped and the branch is clean.
-Phase 4 remains blocked until this remediation is explicitly reviewed, pushed,
-and merged, then starts on a separate branch.
+contract blocker, and final verification is approved. Phase 4 has not started and
+requires a separately approved scope.
 
-Completion confirmed August 5, 2026: migration/test `020` implementation commit
-`5564bc8` and approved test `019` compatibility correction commit `16dbbe2`
-passed the clean reset and full pgTAP suite. Verification evidence is retained in
-`docs/ai/verification/PHASE_3_REMEDIATION_VERIFICATION.md`.
+Final completion confirmed August 9, 2026: migration/test `022` is the latest
+Phase 3 correction. Omar manually verified a clean isolated migration run from
+`001` through `022`, and the complete pgTAP suite passed with no failures. All
+confirmed remediation gaps are resolved.
 
 This completion does not mean the entire RideX product is complete. Maps, live
 GPS, Flutter repository integration, real matching execution, Realtime, Stripe

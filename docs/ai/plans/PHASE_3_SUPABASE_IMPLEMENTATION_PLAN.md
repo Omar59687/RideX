@@ -1,6 +1,6 @@
 # Phase 3 - Supabase Database, Constraints, RPCs, and RLS
 
-Status: Approved for staged implementation
+Status: **Approved / Completed**
 
 Branch: `codex/phase-3-supabase-foundation`
 
@@ -170,7 +170,7 @@ Definition of done: the complete matrix below is asserted for every Phase 3 tabl
 
 ## Migration Dependencies
 
-`005` depends on the identity and role boundary established by `001`-`004`. `006` depends on `005` enums, versions, and audit support. `007` depends on user/Driver/vehicle foundations. `008` depends on booking, FareQuote, Driver availability, and Trip-assignment foundations; it does not reference a Payment table. `009` depends on booking, FareQuote, and Trip structures, creates Payment records, and adds any required Payment-to-Trip relationship after both sides exist. `010` depends on `009` Payment, PaymentAttempt, and Refund records to harden verified authorization and Refund lifecycles. `011` depends on Driver and Trip identifiers. `012` depends on Trip, payment, and user records. `013` depends on every prior Phase 3 object. There is no circular migration dependency.
+`005` depends on the identity and role boundary established by `001`-`004`. `006` depends on `005` enums, versions, and audit support. `007` depends on user/Driver/vehicle foundations. `008` depends on booking, FareQuote, Driver availability, and Trip-assignment foundations; it does not reference a Payment table. `009` depends on booking, FareQuote, and Trip structures, creates Payment records, and adds any required Payment-to-Trip relationship after both sides exist. `010` depends on `009` Payment, PaymentAttempt, and Refund records to harden verified authorization and Refund lifecycles. `011` depends on Driver and Trip identifiers. `012` depends on Trip, payment, and user records. `013` depends on every prior Phase 3 object. Additive remediation migrations `014` through `022` preserve their predecessors and complete Driver lifecycle, Trip/Payment atomicity, Fare/attempt correctness, safe exposure, post-merge hardening, and final Payment lifecycle guarantees. There is no circular migration dependency.
 
 Applied migrations are never edited. Any correction after local application uses a new compensating migration. Existing data is preserved; backfills are idempotent and use conflict-safe inserts.
 
@@ -288,16 +288,16 @@ The current Supabase CLI test command runs the complete database test directory;
 
 ## Phase 3 Definition Of Done
 
-Phase 3 is complete when:
+Phase 3 is complete because:
 
 - Checkpoints 3.0 through 3.8 are individually completed in order.
-- Migrations `005` through `013` apply cleanly after `001` through `004`.
+- Migrations `001` through final Phase 3 migration `022` apply cleanly in order.
 - Every Phase 3 table has appropriate keys, checks, indexes, RLS, grants, and pgTAP coverage.
 - Trusted RPCs enforce approved actor, state, ownership, version, money, idempotency, and audit rules.
 - Legacy availability fields remain compatible and are documented as deprecated.
 - Driver-location persistence and retention foundations pass unauthorized/stale/out-of-order tests.
 - Payment and matching records remain schema-only with no external integrations.
-- Local Supabase Docker/CLI verification passes, including the existing database tests.
+- Clean isolated migration verification through `022` and the complete pgTAP suite pass.
 - No Flutter code, dependency, configuration, credential, MCP, remote Git, branch, or remote Supabase state is changed.
 - Remote deployment remains explicitly separate and has not occurred.
 
@@ -305,9 +305,9 @@ Phase 3 is complete when:
 
 - Completed checkpoints: 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.5H, 3.6, 3.7, and 3.8.
 - Final implementation commit: `f604c4e` (`fix(db): finalize Phase 3 security boundaries`).
-- `npx supabase@latest db reset --local` applied migrations `001` through `013` successfully.
-- Focused `013` verification passed: `npx supabase@latest test db --local supabase/tests/database/013_phase3_rls_rpc_hardening.test.sql` (`Files=1, Tests=41, Result: PASS`).
-- Complete local database verification passed: `npx supabase@latest test db --local` (`Files=10, Tests=628, Result: PASS`).
-- Local Supabase was stopped after verification. No remote Git, remote Supabase, deployment, push, merge, or pull-request operation occurred.
+- Historical checkpoint verification through `013` passed before additive remediation.
+- Final migration/test `022` completes Phase 3 authorization-cycle, cancellation, atomic Cash completion, PaymentAttempt ordering/idempotency, and final regression protections.
+- Omar manually verified a clean isolated migration run from `001` through `022`; the complete pgTAP suite passed with no failures.
+- All Phase 3 remediation blockers are resolved. No remote Supabase deployment occurred as part of Phase 3.
 - Deferred integrations remain notification delivery/push/SMS/email/external delivery, chat, attachments, payment-provider authorization/capture/refunds/receipt delivery/webhook delivery and verification, exceptional partial charges, Card in-progress adjustments, mobile GPS/permissions/location publishing/heartbeats/Realtime/maps, remote integration, real matching execution, Flutter repositories/screens, Admin UI, and remote deployment.
-- Phase 4 requires a separate approved plan and branch and must not begin automatically. This branch remains local until explicit push/PR approval.
+- Phase 4 has not started. It is the next phase and requires a separate approved scope before implementation.

@@ -21,7 +21,7 @@ insert into public.fare_quotes (id,booking_request_id,rider_id,status,pickup,des
 ('93000000-0000-0000-0000-000000000002','92000000-0000-0000-0000-000000000002','90000000-0000-0000-0000-000000000001','locked','{"latitude":31.94,"longitude":35.92}','{"latitude":31.99,"longitude":35.98}','[]',1000,60,'economy','{"fixed_fare_fils":2500}',2500,(select id from public.pricing_configurations where is_active),1,1,now());
 insert into public.trips (id,booking_request_id,fare_quote_id,rider_id,driver_id,vehicle_id,status,payment_method,pickup,destination,route_distance_meters,route_duration_seconds,original_fare_fils,current_fare_fils) values
 ('94000000-0000-0000-0000-000000000001','92000000-0000-0000-0000-000000000001','93000000-0000-0000-0000-000000000001','90000000-0000-0000-0000-000000000001','90000000-0000-0000-0000-000000000002','91000000-0000-0000-0000-000000000001','completed','cash','{"latitude":31.95,"longitude":35.93}','{"latitude":31.98,"longitude":35.97}',1000,60,2000,2000),
-('94000000-0000-0000-0000-000000000002','92000000-0000-0000-0000-000000000002','93000000-0000-0000-0000-000000000002','90000000-0000-0000-0000-000000000001','90000000-0000-0000-0000-000000000002','91000000-0000-0000-0000-000000000001','completed','card','{"latitude":31.94,"longitude":35.92}','{"latitude":31.99,"longitude":35.98}',1000,60,2500,2500);
+('94000000-0000-0000-0000-000000000002','92000000-0000-0000-0000-000000000002','93000000-0000-0000-0000-000000000002','90000000-0000-0000-0000-000000000001','90000000-0000-0000-0000-000000000002','91000000-0000-0000-0000-000000000001','accepted','card','{"latitude":31.94,"longitude":35.92}','{"latitude":31.99,"longitude":35.98}',1000,60,2500,2500);
 
 select has_table('public','payments','payments table exists');
 select has_table('public','payment_attempts','payment attempts table exists');
@@ -40,21 +40,25 @@ select is((select count(*) from public.payments),2::bigint,'one canonical paymen
 select is((select cash_status::text from public.payments where method='cash'),'cashSelected','Cash uses its separate lifecycle');
 select is((select card_status::text from public.payments where method='card'),'cardPaymentPending','Card uses its separate lifecycle');
 select is((select public.backend_create_payment('94000000-0000-0000-0000-000000000001')).id,(select id from public.payments where method='cash'),'payment creation is idempotent');
-select throws_ok($$select public.backend_record_payment_attempt((select id from public.payments where method='cash'),'initialAuthorization',2000,'cash-auth')$$,'55000','Only Card payments can be authorized.','Cash cannot authorize');
+select throws_ok($$select public.backend_record_payment_attempt((select id from public.payments where method='cash'),'initialAuthorization',2000,'cash-auth')$$,'55000','Initial authorization requires an accepted pending Card Payment.','Cash cannot authorize');
 select lives_ok($$select public.backend_record_payment_attempt((select id from public.payments where method='card'),'initialAuthorization',2500,'auth-1','provider')$$,'first authorization is recorded');
 select lives_ok($$select public.backend_complete_payment_attempt((select id from public.payment_attempts where idempotency_key='auth-1'),'failed',null,'DECLINED')$$,'first authorization receives a verified terminal result');
 select lives_ok($$select public.backend_record_payment_attempt((select id from public.payments where method='card'),'replacementAuthorization',2500,'auth-2','provider')$$,'second authorization is recorded');
-select throws_ok($$select public.backend_transition_payment((select id from public.payments where method='card'),1,null,'cardPaymentAuthorized')$$,'55000','Card authorization requires a verified two-minute authorization attempt.','pending replacement authorization cannot authorize Card payment');
+select throws_ok($$select public.backend_transition_payment((select id from public.payments where method='card'),1,null,'cardPaymentAuthorized')$$,'55000','Card authorization requires the current verified authorization cycle.','pending replacement authorization cannot authorize Card payment');
 select lives_ok($$select public.backend_complete_payment_attempt((select id from public.payment_attempts where idempotency_key='auth-2'),'succeeded','auth-2-provider')$$,'replacement authorization is completed through trusted backend');
 select lives_ok($$select public.backend_transition_payment((select id from public.payments where method='card'),1,null,'cardPaymentAuthorized')$$,'verified replacement authorization authorizes Card payment');
-select throws_ok($$select public.backend_record_payment_attempt((select id from public.payments where method='card'),'initialAuthorization',2500,'auth-3','provider')$$,'55000','Card authorization permits at most two attempts.','third authorization is rejected');
+select throws_ok($$select public.backend_record_payment_attempt((select id from public.payments where method='card'),'initialAuthorization',2500,'auth-3','provider')$$,'55000','Initial authorization must be the first authorization attempt.','third authorization is rejected');
 select throws_ok($$update public.payment_attempts set status='failed'$$,'55000','Payment attempts are append-only.','attempts cannot be rewritten');
-select lives_ok($$select public.backend_transition_payment((select id from public.payments where method='cash'),1,'paid',null)$$,'completed Cash Trip settles Cash payment');
-select lives_ok($$select public.backend_issue_receipt((select id from public.payments where method='cash'))$$,'settled Cash payment issues receipt');
+select throws_ok($$select public.backend_transition_payment((select id from public.payments where method='cash'),1,'paid',null)$$,'55000','Cash Payment can be paid only by atomic trusted Trip completion.','generic Payment transition cannot settle Cash');
+select lives_ok($$select private.settle_cash_trip_and_issue_receipt('94000000-0000-0000-0000-000000000001')$$,'trusted Cash settlement issues receipt atomically');
 select matches((select receipt_number from public.receipts where payment_id=(select id from public.payments where method='cash')),'^RDX-[0-9]{8}-[A-Z0-9]{8}$','receipt number has approved format');
 select throws_ok($$update public.receipts set amount_paid_fils=1$$,'55000','Receipt financial snapshots are immutable.','receipt facts are immutable');
+update public.trips set status='driverArriving' where id='94000000-0000-0000-0000-000000000002';
+update public.trips set status='driverArrived' where id='94000000-0000-0000-0000-000000000002';
+update public.trips set status='inProgress' where id='94000000-0000-0000-0000-000000000002';
+update public.trips set status='completed',completed_at=now() where id='94000000-0000-0000-0000-000000000002';
 select lives_ok($$select public.backend_record_payment_attempt((select id from public.payments where method='card'),'capture',2500,'capture-1','provider')$$,'capture attempt is recorded');
-select throws_ok($$select public.backend_transition_payment((select id from public.payments where method='card'),2,null,'cardPaymentSucceeded')$$,'55000','Card success requires a completed Trip and verified Capture.','Card cannot settle without successful Capture');
+select throws_ok($$select public.backend_transition_payment((select id from public.payments where method='card'),2,null,'cardPaymentSucceeded')$$,'55000','Card success requires the latest verified current-cycle Capture.','Card cannot settle without successful Capture');
 select lives_ok($$select public.backend_complete_payment_attempt((select id from public.payment_attempts where idempotency_key='capture-1'),'succeeded','capture-1-provider')$$,'capture is completed through trusted backend');
 select lives_ok($$select public.backend_transition_payment((select id from public.payments where method='card'),2,null,'cardPaymentSucceeded')$$,'verified capture settles Card payment');
 set local role authenticated; select set_config('request.jwt.claim.sub','90000000-0000-0000-0000-000000000003',true); select set_config('request.jwt.claim.role','authenticated',true);
@@ -84,6 +88,6 @@ select ok(has_function_privilege('service_role','public.backend_create_payment(u
 select ok(has_function_privilege('authenticated','public.admin_request_refund(uuid,integer,text)','EXECUTE'),'authenticated can reach guarded refund RPC');
 select ok(not has_function_privilege('anon','public.admin_request_refund(uuid,integer,text)','EXECUTE'),'anonymous cannot request refunds');
 select is((select count(*) from pg_proc where oid in ('public.backend_create_payment(uuid)'::regprocedure,'public.backend_record_payment_attempt(uuid,public.payment_attempt_type,integer,text,text)'::regprocedure,'public.backend_transition_payment(uuid,integer,public.cash_payment_status,public.card_payment_status)'::regprocedure,'public.backend_issue_receipt(uuid)'::regprocedure,'public.backend_record_processed_webhook_event(text,text,uuid)'::regprocedure,'public.admin_request_refund(uuid,integer,text)'::regprocedure) and prosecdef),6::bigint,'financial mutation functions are SECURITY DEFINER');
-select is((select count(*) from public.audit_records where action in ('payment.state_transition','receipt.issued','payment.refund_requested')),5::bigint,'financial transitions and issuance are audited');
+select is((select count(*) from public.audit_records where action in ('payment.state_transition','receipt.issued','payment.refund_requested')),4::bigint,'financial transitions and issuance are audited');
 select * from finish();
 rollback;

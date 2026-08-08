@@ -27,7 +27,7 @@ begin
     insert into public.fare_quotes (id,booking_request_id,rider_id,status,pickup,destination,ordered_stops,route_distance_meters,route_duration_seconds,vehicle_type_code,breakdown,fixed_fare_fils,pricing_configuration_id,pricing_version,quote_version,locked_at) values
       (quote_id,booking_id,'a0000000-0000-0000-0000-000000000001','locked','{"latitude":31.95,"longitude":35.93}','{"latitude":31.98,"longitude":35.97}','[]',1000,60,'economy','{"fixed_fare_fils":2500}',2500,(select id from public.pricing_configurations where is_active),1,1,now());
     insert into public.trips (id,booking_request_id,fare_quote_id,rider_id,driver_id,vehicle_id,status,payment_method,pickup,destination,route_distance_meters,route_duration_seconds,original_fare_fils,current_fare_fils) values
-      (trip_id,booking_id,quote_id,'a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','a1000000-0000-0000-0000-000000000001','completed','card','{"latitude":31.95,"longitude":35.93}','{"latitude":31.98,"longitude":35.97}',1000,60,2500,2500);
+      (trip_id,booking_id,quote_id,'a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','a1000000-0000-0000-0000-000000000001','accepted','card','{"latitude":31.95,"longitude":35.93}','{"latitude":31.98,"longitude":35.97}',1000,60,2500,2500);
     perform public.backend_create_payment(trip_id);
   end loop;
 end;
@@ -44,6 +44,10 @@ begin
     select * into current_payment from public.payments where id = target_payment_id;
     perform public.backend_transition_payment(target_payment_id, current_payment.version, null, 'cardPaymentAuthorized');
   end if;
+  update public.trips set status = 'driverArriving' where id = current_payment.trip_id and status = 'accepted';
+  update public.trips set status = 'driverArrived' where id = current_payment.trip_id and status = 'driverArriving';
+  update public.trips set status = 'inProgress' where id = current_payment.trip_id and status = 'driverArrived';
+  update public.trips set status = 'completed', completed_at = now() where id = current_payment.trip_id and status = 'inProgress';
   select * into current_attempt from public.backend_record_payment_attempt(target_payment_id, 'capture', current_payment.authorized_amount_fils, capture_key, 'provider');
   perform public.backend_complete_payment_attempt(current_attempt.id, 'succeeded', 'capture-' || capture_key);
   select * into current_payment from public.payments where id = target_payment_id;
@@ -55,20 +59,20 @@ select has_column('public','payment_attempts','refund_id','Refund attempts retai
 select throws_ok($$select public.backend_record_payment_attempt((select id from public.payments limit 1),'refund',2500,'generic-refund')$$,'55000','Refund attempts require their canonical Refund operation.','generic unassociated Refund attempts are rejected');
 
 select lives_ok($$select public.backend_record_payment_attempt((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000001'),'initialAuthorization',2500,'auth-pending','provider')$$,'pending authorization is recorded');
-select throws_ok($$select public.backend_transition_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000001'),1,null,'cardPaymentAuthorized')$$,'55000','Card authorization requires a verified two-minute authorization attempt.','pending authorization cannot authorize Card payment');
+select throws_ok($$select public.backend_transition_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000001'),1,null,'cardPaymentAuthorized')$$,'55000','Card authorization requires the current verified authorization cycle.','pending authorization cannot authorize Card payment');
 select lives_ok($$select public.backend_complete_payment_attempt((select id from public.payment_attempts where idempotency_key='auth-pending'),'failed',null,'DECLINED')$$,'failed authorization is completed through trusted backend');
-select throws_ok($$select public.backend_transition_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000001'),1,null,'cardPaymentAuthorized')$$,'55000','Card authorization requires a verified two-minute authorization attempt.','failed authorization cannot authorize Card payment');
+select throws_ok($$select public.backend_transition_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000001'),1,null,'cardPaymentAuthorized')$$,'55000','Card authorization requires the current verified authorization cycle.','failed authorization cannot authorize Card payment');
 select lives_ok($$select public.backend_record_payment_attempt((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000001'),'replacementAuthorization',2500,'auth-success','provider')$$,'second authorization is recorded');
 select lives_ok($$select public.backend_complete_payment_attempt((select id from public.payment_attempts where idempotency_key='auth-success'),'succeeded','auth-success-provider')$$,'successful authorization is verified by trusted backend');
 select lives_ok($$select public.backend_transition_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000001'),1,null,'cardPaymentAuthorized')$$,'successful authorization within two minutes authorizes Card payment');
-select throws_ok($$select public.backend_record_payment_attempt((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000001'),'initialAuthorization',2500,'auth-third','provider')$$,'55000','Card authorization permits at most two attempts.','more than two authorizations are rejected');
+select throws_ok($$select public.backend_record_payment_attempt((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000001'),'initialAuthorization',2500,'auth-third','provider')$$,'55000','Initial authorization must be the first authorization attempt.','more than two authorizations are rejected');
 
-insert into public.payment_attempts (payment_id,type,requested_amount_fils,currency,idempotency_key,created_at) values ((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000002'),'initialAuthorization',2500,'JOD','auth-stale',now()-interval '3 minutes');
+insert into public.payment_attempts (payment_id,type,requested_amount_fils,currency,idempotency_key,created_at,authorization_cycle) values ((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000002'),'initialAuthorization',2500,'JOD','auth-stale',now()-interval '3 minutes',1);
 select lives_ok($$select public.backend_complete_payment_attempt((select id from public.payment_attempts where idempotency_key='auth-stale'),'succeeded','auth-stale-provider')$$,'stale authorization receives a trusted completion');
-select throws_ok($$select public.backend_transition_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000002'),1,null,'cardPaymentAuthorized')$$,'55000','Card authorization requires a verified two-minute authorization attempt.','stale successful authorization cannot authorize Card payment');
+select throws_ok($$select public.backend_transition_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000002'),1,null,'cardPaymentAuthorized')$$,'55000','Card authorization requires the current verified authorization cycle.','stale successful authorization cannot authorize Card payment');
 select lives_ok($$select public.backend_record_payment_attempt((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000003'),'initialAuthorization',2500,'auth-failed','provider')$$,'failed authorization fixture is recorded');
 select lives_ok($$select public.backend_complete_payment_attempt((select id from public.payment_attempts where idempotency_key='auth-failed'),'failed',null,'DECLINED')$$,'failed authorization fixture is completed');
-select throws_ok($$select public.backend_transition_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000003'),1,null,'cardPaymentAuthorized')$$,'55000','Card authorization requires a verified two-minute authorization attempt.','another failed authorization cannot authorize Card payment');
+select throws_ok($$select public.backend_transition_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000003'),1,null,'cardPaymentAuthorized')$$,'55000','Card authorization requires the current verified authorization cycle.','another failed authorization cannot authorize Card payment');
 
 select public.test_settle_card_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000004'),'refund-retry-auth','refund-retry-capture');
 select public.test_settle_card_payment((select id from public.payments where booking_request_id='a2000000-0000-0000-0000-000000000005'),'refund-success-auth','refund-success-capture');
