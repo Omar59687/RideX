@@ -10,7 +10,9 @@ The native Flutter rider flow covers authentication, destination-first booking,
 pickup confirmation, vehicle and fare selection, driver search, trip states,
 completion and rating, history and details, profile, notifications, and
 settings. Urban Aurora light and dark themes use bundled Plus Jakarta Sans
-fonts, native SVG identity assets, and a custom-painted map. The curated design
+fonts, native SVG identity assets, and Google Maps on the Rider and Driver home
+screens. Route and trip previews remain custom-painted until their owning
+implementation phases. The curated design
 references under `references/UI/` are never embedded at runtime.
 
 When Supabase is configured, email/password authentication, session restoration,
@@ -18,7 +20,8 @@ profile roles, blocked state, driver approval, and sign-out use the real backend
 Without configuration, deterministic mock authentication and profile repositories
 keep local development and tests self-contained.
 
-Phone OTP, live maps and location, booking/history persistence, card payments,
+Phone OTP, place search, routing, continuous Driver tracking,
+booking/history persistence, card payments,
 promotions, rewards, calls/messages, safety services, notification delivery,
 saved-place persistence, and rating persistence are not production integrations.
 The UI presents these as disabled, Coming soon, session-local, or explicit demo
@@ -42,6 +45,44 @@ flutter run --dart-define=SUPABASE_URL=<url> --dart-define=SUPABASE_PUBLISHABLE_
 Do not commit backend credentials. Live Supabase tests skip unless intentionally
 configured.
 
+### Google Maps and foreground location
+
+Checkpoint 4A supports Google Maps on Android and iOS with one foreground
+current-location request. It does not request background location.
+
+Android configuration:
+
+1. Enable only Maps SDK for Android in Google Cloud Console.
+2. Create an Android-restricted key for `com.ridex.app` and the applicable
+   debug/release signing certificate fingerprints.
+3. Add the key to ignored `android/local.properties`:
+
+   ```properties
+   MAPS_API_KEY=your_restricted_android_key
+   ```
+
+iOS configuration:
+
+1. Enable only Maps SDK for iOS in Google Cloud Console.
+2. Create an iOS-restricted key for bundle identifier `com.ridex.app`.
+3. Create ignored `ios/Flutter/config.local.xcconfig`:
+
+   ```text
+   GOOGLE_MAPS_API_KEY=your_restricted_ios_key
+   ```
+
+Enable the in-app Google Maps surface with the non-secret Dart flag:
+
+```powershell
+flutter run --dart-define=GOOGLE_MAPS_ENABLED=true
+```
+
+Use separate restricted Android and iOS keys. Do not enable Places, Geocoding,
+Routes, or Directions APIs for Checkpoint 4A. Mobile Maps keys are client-visible;
+application restrictions, API restrictions, quotas, and monitoring are required.
+If the flag or native key is absent, RideX uses a safe map fallback and remains
+usable.
+
 ## Verification
 
 ```powershell
@@ -59,8 +100,9 @@ flutter test
 - [Current status and handoff](docs/ai/ops/CURRENT_STATUS.md)
 ## Environment configuration
 
-RideX reads environment configuration at compile time with
-`String.fromEnvironment`. It does not load `.env` files at runtime.
+RideX reads Dart environment configuration at compile time. It does not load
+`.env` files at runtime. Native Maps keys use the ignored platform files
+documented above.
 
 To run with the local Mock repositories, omit the Supabase defines:
 

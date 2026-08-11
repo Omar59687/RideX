@@ -1,5 +1,3 @@
-import 'dart:ui' show SemanticsFlag;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -119,10 +117,8 @@ void main() {
     await tester.tap(find.text('Standard'));
     await tester.pumpAndSettle();
     expect(
-      tester
-          .getSemantics(find.byKey(const ValueKey('vehicle-standard')))
-          .hasFlag(SemanticsFlag.isSelected),
-      isTrue,
+      tester.getSemantics(find.byKey(const ValueKey('vehicle-standard'))),
+      containsSemantics(isSelected: true),
     );
     await tester.scrollUntilVisible(
       find.text('Choose Standard'),
@@ -309,7 +305,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final semantics = tester.getSemantics(find.text('History'));
-    expect(semantics.hasFlag(SemanticsFlag.isSelected), isTrue);
+    expect(semantics, containsSemantics(isSelected: true));
     for (final label in ['Home', 'History', 'Profile', 'Settings']) {
       final destination = find.ancestor(
         of: find.text(label),

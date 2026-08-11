@@ -3,7 +3,7 @@ import 'package:ridex/app/theme/app_radii.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/app/theme/ridex_theme.dart';
 import 'package:ridex/core/models/booking_draft.dart';
-import 'package:ridex/core/widgets/map_placeholder.dart';
+import 'package:ridex/core/widgets/ride_current_location_map.dart';
 import 'package:ridex/core/widgets/ride_x_brand.dart';
 
 class HomeMapHeader extends StatelessWidget {
@@ -34,9 +34,9 @@ class HomeMapHeader extends StatelessWidget {
             children: [
               Positioned.fill(
                 bottom: 38,
-                child: MapPlaceholder(
+                child: RideCurrentLocationMap(
                   borderRadius: 0,
-                  semanticLabel: 'Stylized map of nearby rides in Amman',
+                  semanticLabel: 'Rider map showing current location',
                 ),
               ),
               Positioned(
