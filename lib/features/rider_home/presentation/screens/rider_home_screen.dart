@@ -35,7 +35,7 @@ class RiderHomeScreen extends ConsumerWidget {
         children: [
           HomeMapHeader(
             firstName: firstName,
-            pickup: booking.pickup ?? MockData.locations.first,
+            pickup: booking.pickup,
             unreadCount: unreadCount,
             onNotifications: () => context.push('/notifications'),
             onPlanRide: () => context.go('/rider/destination'),
@@ -52,7 +52,12 @@ class RiderHomeScreen extends ConsumerWidget {
               children: [
                 SavedRecentPlaces(
                   locations: MockData.locations.skip(1).toList(),
-                  onPlaceTap: () => context.go('/rider/destination'),
+                  onPlaceTap: (location) {
+                    ref
+                        .read(bookingControllerProvider.notifier)
+                        .setDestination(location);
+                    context.go('/rider/pickup');
+                  },
                   onViewAll: () => context.go('/rider/destination'),
                 ),
                 const SizedBox(height: AppSpacing.xl),

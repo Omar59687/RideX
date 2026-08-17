@@ -54,11 +54,15 @@ void main() {
     controller.setDestination(MockData.locations[1]);
     expect(container.read(bookingControllerProvider).vehicleType, isNull);
     expect(container.read(bookingControllerProvider).estimatedFare, 0);
+    expect(container.read(bookingControllerProvider).distanceKm, 0);
+    expect(container.read(bookingControllerProvider).etaMinutes, 0);
 
     controller.setVehicleType(MockData.vehicleTypes[2]);
     controller.setPickup(MockData.locations[0]);
     expect(container.read(bookingControllerProvider).vehicleType, isNull);
     expect(container.read(bookingControllerProvider).estimatedFare, 0);
+    expect(container.read(bookingControllerProvider).distanceKm, 0);
+    expect(container.read(bookingControllerProvider).etaMinutes, 0);
   });
 
   test('sign out clears session-scoped booking, trip, and preferences',

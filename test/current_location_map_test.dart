@@ -138,9 +138,11 @@ void main() {
           home: Scaffold(
             body: HomeMapHeader(
               firstName: 'Rider',
-              pickup: const RideLocation(
+              pickup: RideLocation(
+                point: point,
                 label: 'Current location',
                 address: 'Location pending',
+                source: LocationSelectionSource.gps,
               ),
               unreadCount: 0,
               onNotifications: _doNothing,

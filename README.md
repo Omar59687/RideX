@@ -83,6 +83,41 @@ application restrictions, API restrictions, quotas, and monitoring are required.
 If the flag or native key is absent, RideX uses a safe map fallback and remains
 usable.
 
+### Google place search and geocoding
+
+Checkpoint 4B uses Places API (New), including Autocomplete (New) and Place
+Details (New), plus Geocoding API v4 through the authenticated Supabase
+`places` Edge Function. Flutter does not call these Google web services
+directly.
+
+Google Cloud configuration:
+
+1. Enable Places API (New) and Geocoding API v4.
+2. Create a separate server-side key restricted to only those two APIs.
+3. Keep the Android and iOS Maps SDK keys unchanged and Maps-only.
+4. Configure Google Cloud quotas, budget alerts, and usage monitoring.
+
+The function also applies per-Rider operation and concurrency limits. These are
+instance-local safeguards, not a replacement for Google Cloud hard quotas. If
+the Edge environment cannot provide stable egress IP addresses, use controlled
+egress backend infrastructure before production if IP application restriction
+is required.
+
+Store the server credential only as the Supabase Edge Function secret
+`GOOGLE_MAPS_WEB_SERVICES_API_KEY`. For local function development, use an
+ignored `supabase/functions/.env` file. For hosted functions, configure the
+secret through Supabase secret management. Never add this key to Dart defines,
+Flutter source, Android resources, iOS resources, or Git.
+
+Deploy `supabase/functions/places` with JWT verification enabled. The function
+also verifies that the caller is an authenticated, unblocked Rider. Local Mock
+mode uses explicit deterministic demo results and never calls Google; configured
+Supabase mode never falls back to those results after an API failure.
+
+Before release, publish RideX Terms of Use and a Privacy Policy that disclose
+place-search and precise-location processing and incorporate the required
+Google Maps Platform terms and privacy links.
+
 ## Verification
 
 ```powershell

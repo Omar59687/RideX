@@ -2,143 +2,139 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
-import 'package:ridex/core/mocks/mock_data.dart';
+import 'package:ridex/core/models/booking_draft.dart';
+import 'package:ridex/core/models/current_location_state.dart';
+import 'package:ridex/core/models/place_selection_state.dart';
+import 'package:ridex/core/providers/location_providers.dart';
+import 'package:ridex/core/providers/place_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
-import 'package:ridex/core/widgets/app_bottom_sheet.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
-import 'package:ridex/core/widgets/coming_soon_dialog.dart';
-import 'package:ridex/core/widgets/map_placeholder.dart';
+import 'package:ridex/core/widgets/ride_location_selection_map.dart';
+import 'package:ridex/core/widgets/google_maps_attribution.dart';
+import 'package:ridex/features/booking/presentation/widgets/location_search_panel.dart';
 
-class PickupSelectionScreen extends ConsumerWidget {
+class PickupSelectionScreen extends ConsumerStatefulWidget {
   const PickupSelectionScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PickupSelectionScreen> createState() =>
+      _PickupSelectionScreenState();
+}
+
+class _PickupSelectionScreenState extends ConsumerState<PickupSelectionScreen> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const endpoint = LocationEndpoint.pickup;
+    final selection = ref.watch(placeSelectionControllerProvider(endpoint));
+    final selectionController =
+        ref.read(placeSelectionControllerProvider(endpoint).notifier);
     final draft = ref.watch(bookingControllerProvider);
-    final pickup = draft.pickup ?? MockData.locations.first;
-    final destination = draft.destination;
+    final current = ref.watch(currentLocationControllerProvider);
+    final validationMessage = switch (draft.locationValidation) {
+      BookingLocationValidation.sameLocation =>
+        'Pickup and destination must be different locations.',
+      BookingLocationValidation.missingDestination =>
+        'Choose a destination before continuing.',
+      _ => null,
+    };
     return AppScaffold(
-      title: 'Confirm pickup',
-      padding: EdgeInsets.zero,
-      maxContentWidth: 720,
-      useSafeArea: false,
-      body: Stack(
+      title: 'Choose pickup',
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: AppSpacing.xl),
         children: [
-          const Positioned.fill(
-            child: MapPlaceholder(
-              borderRadius: 0,
-              semanticLabel: 'Demo map for pickup confirmation',
+          LocationSearchPanel(
+            endpoint: endpoint,
+            state: selection,
+            controller: _search,
+            onChanged: selectionController.search,
+            onSubmitted: selectionController.submitAddress,
+            onPredictionSelected: (index) => selectionController
+                .selectPrediction(selection.predictions[index]),
+            onRetry: selectionController.retrySearch,
+            onRetryAddress: selectionController.retryAddress,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _CurrentLocationAction(
+            state: current,
+            onUse: current.point == null
+                ? null
+                : () => selectionController.selectPoint(
+                      current.point!,
+                      source: LocationSelectionSource.gps,
+                    ),
+            onRequest: () => ref
+                .read(currentLocationControllerProvider.notifier)
+                .requestPermission(),
+            onOpenAppSettings: () => ref
+                .read(currentLocationControllerProvider.notifier)
+                .openAppSettings(),
+            onOpenLocationSettings: () => ref
+                .read(currentLocationControllerProvider.notifier)
+                .openLocationSettings(),
+            onRetry: () =>
+                ref.read(currentLocationControllerProvider.notifier).refresh(),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            'Or place the pickup pin',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          RideLocationSelectionMap(
+            activeEndpoint: endpoint,
+            pickup: draft.pickup,
+            destination: draft.destination,
+            currentLocation: current.point,
+            onPointSelected: (point) => selectionController.selectPoint(
+              point,
+              source: LocationSelectionSource.map,
             ),
           ),
-          Positioned(
-            top: AppSpacing.md,
-            left: AppSpacing.lg,
-            right: AppSpacing.lg,
-            child: Row(
-              children: [
-                _MapChip(
-                  label:
-                      '${draft.etaMinutes} min · ${draft.distanceKm.toStringAsFixed(1)} km',
-                ),
-                const Spacer(),
-                IconButton.filledTonal(
-                  tooltip: 'Explain demo recentering',
-                  onPressed: () => showComingSoonDialog(
-                    context,
-                    feature: 'Live map recentering',
-                  ),
-                  icon: const Icon(Icons.my_location_rounded),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: 110,
-            left: AppSpacing.lg,
-            child: _MapChip(label: 'Demo map · pickup is not GPS-tracked'),
-          ),
-          AppBottomSheet(
-            showHandle: true,
-            useSafeArea: true,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'PICKUP CONFIRMED',
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    pickup.address,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.location_on_outlined),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                pickup.label,
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                              Text(
-                                'Demo pickup point · no precise entrance data',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => showComingSoonDialog(
-                            context,
-                            feature: 'Precise pickup editing',
-                          ),
-                          child: const Text('Edit'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Route to ${destination?.label ?? 'destination'}',
-                        ),
-                      ),
-                      Text(
-                        '${draft.etaMinutes} min',
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppButton(
-                    label: 'Confirm pickup point',
-                    onPressed: destination == null
-                        ? null
-                        : () {
-                            ref
-                                .read(bookingControllerProvider.notifier)
-                                .setPickup(pickup);
-                            context.push('/rider/vehicle');
-                          },
-                  ),
-                ],
+          const SizedBox(height: AppSpacing.md),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.trip_origin_rounded),
+              title: Text(draft.pickup?.label ?? 'No pickup selected'),
+              subtitle: Text(
+                draft.pickup?.address ??
+                    'Use GPS, search, or tap the map to choose pickup.',
               ),
             ),
+          ),
+          if (draft.pickup?.providerName == 'google') ...[
+            const SizedBox(height: AppSpacing.xs),
+            const Align(
+              alignment: Alignment.centerRight,
+              child: GoogleMapsAttribution(),
+            ),
+          ],
+          if (validationMessage != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              validationMessage,
+              key: const ValueKey('booking-location-validation'),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          AppButton(
+            label: selection.isResolving
+                ? 'Resolving pickup...'
+                : 'Confirm pickup point',
+            onPressed: !draft.isRoutingReady ||
+                    selection.isResolving ||
+                    selection.hasUncommittedQuery
+                ? null
+                : () => context.push('/rider/vehicle'),
           ),
         ],
       ),
@@ -146,29 +142,75 @@ class PickupSelectionScreen extends ConsumerWidget {
   }
 }
 
-class _MapChip extends StatelessWidget {
-  const _MapChip({required this.label});
+class _CurrentLocationAction extends StatelessWidget {
+  const _CurrentLocationAction({
+    required this.state,
+    required this.onUse,
+    required this.onRequest,
+    required this.onOpenAppSettings,
+    required this.onOpenLocationSettings,
+    required this.onRetry,
+  });
 
-  final String label;
+  final CurrentLocationState state;
+  final VoidCallback? onUse;
+  final VoidCallback onRequest;
+  final VoidCallback onOpenAppSettings;
+  final VoidCallback onOpenLocationSettings;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 260),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        label,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.labelMedium,
-      ),
+    if (state.point != null) {
+      return OutlinedButton.icon(
+        key: const ValueKey('use-current-location'),
+        onPressed: onUse,
+        icon: const Icon(Icons.my_location_rounded),
+        label: const Text('Use current GPS location'),
+      );
+    }
+    final isBusy = state.status == CurrentLocationStatus.checking ||
+        state.status == CurrentLocationStatus.requestingPermission ||
+        state.status == CurrentLocationStatus.loading;
+    if (isBusy) {
+      return const Row(
+        children: [
+          SizedBox.square(
+            dimension: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: AppSpacing.sm),
+          Expanded(child: Text('Checking current location...')),
+        ],
+      );
+    }
+    final (message, action, actionLabel) = switch (state.status) {
+      CurrentLocationStatus.serviceDisabled => (
+          'Location services are disabled. Search still works.',
+          onOpenLocationSettings,
+          'Location settings',
+        ),
+      _ when state.permission == LocationPermissionStatus.permanentlyDenied => (
+          'Location permission is blocked. Search still works.',
+          onOpenAppSettings,
+          'App settings',
+        ),
+      CurrentLocationStatus.unavailable => (
+          'GPS is unavailable. Search or select manually.',
+          onRetry,
+          'Try again',
+        ),
+      _ => (
+          'GPS unavailable? Search or select manually.',
+          onRequest,
+          'Allow location',
+        ),
+    };
+    return Row(
+      children: [
+        Expanded(child: Text(message)),
+        TextButton(onPressed: action, child: Text(actionLabel)),
+      ],
     );
   }
 }

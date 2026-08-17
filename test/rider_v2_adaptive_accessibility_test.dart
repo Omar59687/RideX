@@ -98,18 +98,39 @@ void main() {
 
     await tester.tap(find.text('Where to?'));
     await tester.pumpAndSettle();
-    expect(find.text('Plan your route'), findsOneWidget);
+    expect(find.text('Choose destination'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
+    await tester.enterText(
+      find.byKey(const ValueKey('destination-search-field')),
+      'Abdali',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Abdali Mall').first);
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Abdali Mall').first,
+      find.text('Choose pickup'),
       250,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Abdali Mall').first);
+    await tester.tap(find.text('Choose pickup'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'pickup screen');
-    await tester.ensureVisible(find.text('Confirm pickup point'));
+    await tester.enterText(
+      find.byKey(const ValueKey('pickup-search-field')),
+      'Hashemite',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('pickup-prediction-0')),
+    );
+    await tester.tap(find.byKey(const ValueKey('pickup-prediction-0')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Confirm pickup point'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Confirm pickup point'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'vehicle screen');
@@ -207,7 +228,7 @@ void main() {
       find.byKey(const ValueKey('rider-destination-search-card')),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Plan your route'), findsOneWidget);
+    expect(find.text('Choose destination'), findsOneWidget);
     expect(tester.takeException(), isNull, reason: 'destination at 2x text');
   });
 

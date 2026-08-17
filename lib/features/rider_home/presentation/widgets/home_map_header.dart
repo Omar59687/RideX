@@ -10,14 +10,14 @@ class HomeMapHeader extends StatelessWidget {
   const HomeMapHeader({
     super.key,
     required this.firstName,
-    required this.pickup,
+    this.pickup,
     required this.unreadCount,
     required this.onNotifications,
     required this.onPlanRide,
   });
 
   final String firstName;
-  final RideLocation pickup;
+  final RideLocation? pickup;
   final int unreadCount;
   final VoidCallback onNotifications;
   final VoidCallback onPlanRide;
@@ -87,7 +87,7 @@ class HomeMapHeader extends StatelessWidget {
 class _DestinationSearch extends StatelessWidget {
   const _DestinationSearch({required this.pickup, required this.onPressed});
 
-  final RideLocation pickup;
+  final RideLocation? pickup;
   final VoidCallback onPressed;
 
   @override
@@ -139,7 +139,9 @@ class _DestinationSearch extends StatelessWidget {
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: Text(
-                      'Pickup confirmed · ${pickup.address}',
+                      pickup == null
+                          ? 'Pickup not selected'
+                          : 'Pickup selected · ${pickup!.address}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall,

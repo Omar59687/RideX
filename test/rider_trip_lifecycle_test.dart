@@ -8,6 +8,7 @@ import 'package:ridex/app/theme/app_theme.dart';
 import 'package:ridex/core/mocks/mock_data.dart';
 import 'package:ridex/core/mocks/mock_repositories.dart';
 import 'package:ridex/core/models/booking_draft.dart';
+import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/mock_trip.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
@@ -31,6 +32,11 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
+    final booking = container.read(bookingControllerProvider.notifier);
+    booking.setPickup(MockData.locations[0]);
+    booking.setDestination(MockData.locations[1]);
+    booking.setVehicleType(MockData.vehicleTypes[0]);
+    await booking.estimateFare();
     final router = GoRouter(
       initialLocation: '/search',
       routes: [
@@ -250,9 +256,18 @@ Future<void> _setLargeTestSurface(WidgetTester tester) async {
 
 MockTrip _trip({TripStatus status = TripStatus.accepted}) {
   final booking = MockData.initialDraft().copyWith(
-    pickup: const RideLocation(label: 'Pickup', address: 'Campus gate'),
-    destination:
-        const RideLocation(label: 'Destination', address: 'City centre'),
+    pickup: RideLocation(
+      point: LocationPoint(latitude: 32.1, longitude: 36.18),
+      label: 'Pickup',
+      address: 'Campus gate',
+      source: LocationSelectionSource.demo,
+    ),
+    destination: RideLocation(
+      point: LocationPoint(latitude: 31.96, longitude: 35.91),
+      label: 'Destination',
+      address: 'City centre',
+      source: LocationSelectionSource.demo,
+    ),
     vehicleType: MockData.vehicleTypes[1],
     estimatedFare: 7.35,
   );

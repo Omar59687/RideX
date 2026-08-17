@@ -10,6 +10,7 @@ import 'package:ridex/core/widgets/app_scaffold.dart';
 import 'package:ridex/core/widgets/coming_soon_dialog.dart';
 import 'package:ridex/core/widgets/route_timeline.dart';
 import 'package:ridex/core/widgets/vehicle_type_card.dart';
+import 'package:ridex/core/widgets/google_maps_attribution.dart';
 
 class VehicleTypeSelectionScreen extends ConsumerWidget {
   const VehicleTypeSelectionScreen({super.key});
@@ -41,23 +42,20 @@ class VehicleTypeSelectionScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${draft.distanceKm.toStringAsFixed(1)} km',
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      Text(
-                        '${draft.etaMinutes} min',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+                  TextButton(
+                    onPressed: () => context.go('/rider/destination'),
+                    child: const Text('Change'),
                   ),
                 ],
               ),
             ),
           ),
+          if (draft.pickup?.providerName == 'google' ||
+              draft.destination?.providerName == 'google')
+            const Align(
+              alignment: Alignment.centerRight,
+              child: GoogleMapsAttribution(),
+            ),
           const SizedBox(height: AppSpacing.md),
           for (final option in MockData.vehicleTypes) ...[
             VehicleTypeCard(
@@ -117,7 +115,7 @@ class VehicleTypeSelectionScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.md),
           AppButton(
             label: vehicle == null ? 'Choose a ride' : 'Choose ${vehicle.name}',
-            onPressed: vehicle == null
+            onPressed: vehicle == null || !draft.isRoutingReady
                 ? null
                 : () async {
                     await ref

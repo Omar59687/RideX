@@ -18,15 +18,34 @@ void main() {
     expect(find.text('Where to?'), findsOneWidget);
     await tester.tap(find.text('Where to?'));
     await tester.pumpAndSettle();
-    expect(find.text('Plan your route'), findsOneWidget);
+    expect(find.text('Choose destination'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('destination-search-field')),
+      'Abdali',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Abdali Mall').first);
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Abdali Mall').first,
+      find.text('Choose pickup'),
       250,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Abdali Mall').first);
+    await tester.tap(find.text('Choose pickup'));
     await tester.pumpAndSettle();
-    expect(find.text('Confirm pickup'), findsOneWidget);
+    expect(find.text('Choose pickup'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('pickup-search-field')),
+      'Hashemite',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Hashemite University').first);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Confirm pickup point'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Confirm pickup point'));
     await tester.pumpAndSettle();
     expect(find.text('Economy'), findsOneWidget);
