@@ -7,8 +7,8 @@ import 'package:ridex/app/theme/ridex_theme.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
-import 'package:ridex/core/widgets/map_placeholder.dart';
 import 'package:ridex/core/widgets/mock_bottom_nav_bar.dart';
+import 'package:ridex/core/widgets/ride_current_location_map.dart';
 import 'package:ridex/core/widgets/status_chip.dart';
 
 class DriverHomeScreen extends ConsumerWidget {
@@ -80,7 +80,10 @@ class DriverHomeScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          const MapPlaceholder(height: 220),
+          const RideCurrentLocationMap(
+            height: 220,
+            semanticLabel: 'Driver map showing current location',
+          ),
           const SizedBox(height: AppSpacing.lg),
           Card(
             child: Padding(

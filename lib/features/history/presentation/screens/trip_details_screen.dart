@@ -47,7 +47,9 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
     final booking = ref.read(bookingControllerProvider.notifier);
     booking.setPickup(pickup);
     booking.setDestination(destination);
-    context.go('/rider/vehicle');
+    if (ref.read(bookingControllerProvider).isRoutingReady) {
+      context.go('/rider/vehicle');
+    }
   }
 
   @override

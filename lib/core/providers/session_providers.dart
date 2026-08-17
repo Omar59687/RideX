@@ -182,6 +182,8 @@ class BookingController extends Notifier<BookingDraft> {
       pickup: location,
       clearVehicleType: true,
       estimatedFare: 0,
+      distanceKm: 0,
+      etaMinutes: 0,
     );
   }
 
@@ -190,6 +192,28 @@ class BookingController extends Notifier<BookingDraft> {
       destination: location,
       clearVehicleType: true,
       estimatedFare: 0,
+      distanceKm: 0,
+      etaMinutes: 0,
+    );
+  }
+
+  void clearPickup() {
+    state = state.copyWith(
+      clearPickup: true,
+      clearVehicleType: true,
+      estimatedFare: 0,
+      distanceKm: 0,
+      etaMinutes: 0,
+    );
+  }
+
+  void clearDestination() {
+    state = state.copyWith(
+      clearDestination: true,
+      clearVehicleType: true,
+      estimatedFare: 0,
+      distanceKm: 0,
+      etaMinutes: 0,
     );
   }
 

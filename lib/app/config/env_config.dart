@@ -32,13 +32,13 @@ class EnvConfig {
       String.fromEnvironment('SUPABASE_URL', defaultValue: '');
   static const supabasePublishableKey =
       String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY', defaultValue: '');
-  static const googleMapsApiKey =
-      String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: '');
+  static const googleMapsEnabled =
+      bool.fromEnvironment('GOOGLE_MAPS_ENABLED', defaultValue: false);
 
   static bool get hasBackendConfig =>
       supabaseUrl.trim().isNotEmpty && supabasePublishableKey.trim().isNotEmpty;
 
-  static bool get hasMapsConfig => googleMapsApiKey.isNotEmpty;
+  static bool get hasMapsConfig => googleMapsEnabled;
 
   static SupabaseEnvironment? get supabaseEnvironment =>
       validateSupabaseEnvironment(

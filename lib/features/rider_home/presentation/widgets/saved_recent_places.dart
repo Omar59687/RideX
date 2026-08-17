@@ -11,7 +11,7 @@ class SavedRecentPlaces extends StatelessWidget {
   });
 
   final List<RideLocation> locations;
-  final VoidCallback onPlaceTap;
+  final ValueChanged<RideLocation> onPlaceTap;
   final VoidCallback onViewAll;
 
   @override
@@ -38,7 +38,7 @@ class SavedRecentPlaces extends StatelessWidget {
                       margin: EdgeInsets.zero,
                       clipBehavior: Clip.antiAlias,
                       child: InkWell(
-                        onTap: onPlaceTap,
+                        onTap: () => onPlaceTap(location),
                         child: Padding(
                           padding: const EdgeInsets.all(AppSpacing.md),
                           child: Column(

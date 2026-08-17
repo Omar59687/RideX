@@ -2,6 +2,7 @@ import 'package:ridex/core/models/app_notification.dart';
 import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/driver_approval_status.dart';
+import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/mock_trip.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/vehicle_type.dart';
@@ -31,11 +32,39 @@ class MockData {
     role: RideRole.admin,
   );
 
-  static const locations = [
-    RideLocation(label: 'My current location', address: 'Hashemite University'),
-    RideLocation(label: 'Abdali Mall', address: 'Abdali Boulevard'),
-    RideLocation(label: 'Airport Center', address: 'Queen Alia Airport'),
-    RideLocation(label: '7th Circle', address: 'Amman, Jordan'),
+  static final locations = [
+    RideLocation(
+      point: LocationPoint(latitude: 32.1026, longitude: 36.1848),
+      label: 'Hashemite University',
+      address: 'Hashemite University, Zarqa, Jordan',
+      source: LocationSelectionSource.demo,
+      providerName: 'demo',
+      providerPlaceReference: 'demo-hashemite-university',
+    ),
+    RideLocation(
+      point: LocationPoint(latitude: 31.9632, longitude: 35.9084),
+      label: 'Abdali Mall',
+      address: 'Abdali Boulevard, Amman, Jordan',
+      source: LocationSelectionSource.demo,
+      providerName: 'demo',
+      providerPlaceReference: 'demo-abdali-mall',
+    ),
+    RideLocation(
+      point: LocationPoint(latitude: 31.7226, longitude: 35.9932),
+      label: 'Queen Alia Airport',
+      address: 'Queen Alia International Airport, Jordan',
+      source: LocationSelectionSource.demo,
+      providerName: 'demo',
+      providerPlaceReference: 'demo-queen-alia-airport',
+    ),
+    RideLocation(
+      point: LocationPoint(latitude: 31.9592, longitude: 35.8575),
+      label: '7th Circle',
+      address: '7th Circle, Amman, Jordan',
+      source: LocationSelectionSource.demo,
+      providerName: 'demo',
+      providerPlaceReference: 'demo-7th-circle',
+    ),
   ];
 
   static const vehicleTypes = [
@@ -90,10 +119,11 @@ class MockData {
     ),
   ];
 
-  static BookingDraft initialDraft() => const BookingDraft(
-        pickup: RideLocation(label: 'Pickup', address: 'Hashemite University'),
-        destination:
-            RideLocation(label: 'Drop-off', address: 'Abdali Boulevard'),
+  static BookingDraft initialDraft() => const BookingDraft();
+
+  static BookingDraft sampleBookingDraft() => BookingDraft(
+        pickup: locations[0],
+        destination: locations[1],
         distanceKm: 5,
         etaMinutes: 12,
       );
@@ -103,7 +133,7 @@ class MockData {
     TripStatus status = TripStatus.accepted,
     DateTime? occurredAt,
   }) {
-    final booking = initialDraft().copyWith(
+    final booking = sampleBookingDraft().copyWith(
       vehicleType: vehicleTypes.first,
       estimatedFare: 4.20,
     );

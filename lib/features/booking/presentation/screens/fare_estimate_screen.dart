@@ -8,6 +8,7 @@ import 'package:ridex/core/widgets/app_scaffold.dart';
 import 'package:ridex/core/widgets/fare_summary_card.dart';
 import 'package:ridex/core/widgets/route_timeline.dart';
 import 'package:ridex/core/widgets/vehicle_silhouette.dart';
+import 'package:ridex/core/widgets/google_maps_attribution.dart';
 
 class FareEstimateScreen extends ConsumerWidget {
   const FareEstimateScreen({super.key});
@@ -19,10 +20,7 @@ class FareEstimateScreen extends ConsumerWidget {
     final rider = ref.watch(sessionControllerProvider).user;
     final fare =
         draft.estimatedFare > 0 ? draft.estimatedFare : vehicle?.baseFare ?? 0;
-    final ready = draft.pickup != null &&
-        draft.destination != null &&
-        vehicle != null &&
-        fare > 0;
+    final ready = draft.isRoutingReady && vehicle != null && fare > 0;
 
     return AppScaffold(
       title: 'Review booking',
@@ -76,6 +74,12 @@ class FareEstimateScreen extends ConsumerWidget {
               ],
             ),
           ),
+          if (draft.pickup?.providerName == 'google' ||
+              draft.destination?.providerName == 'google')
+            const Align(
+              alignment: Alignment.centerRight,
+              child: GoogleMapsAttribution(),
+            ),
           const SizedBox(height: AppSpacing.xl),
           Text('Ride details', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: AppSpacing.sm),
@@ -113,9 +117,9 @@ class FareEstimateScreen extends ConsumerWidget {
                     value: rider?.name ?? 'Demo rider',
                   ),
                   const _SummaryRow(label: 'Payment', value: 'Cash'),
-                  _SummaryRow(
-                    label: 'Estimated duration',
-                    value: '${draft.etaMinutes} min',
+                  const _SummaryRow(
+                    label: 'Location status',
+                    value: 'Pickup and destination selected',
                   ),
                 ],
               ),

@@ -1,5 +1,3 @@
-import 'dart:ui' show SemanticsFlag;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -100,18 +98,39 @@ void main() {
 
     await tester.tap(find.text('Where to?'));
     await tester.pumpAndSettle();
-    expect(find.text('Plan your route'), findsOneWidget);
+    expect(find.text('Choose destination'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
+    await tester.enterText(
+      find.byKey(const ValueKey('destination-search-field')),
+      'Abdali',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Abdali Mall').first);
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Abdali Mall').first,
+      find.text('Choose pickup'),
       250,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Abdali Mall').first);
+    await tester.tap(find.text('Choose pickup'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'pickup screen');
-    await tester.ensureVisible(find.text('Confirm pickup point'));
+    await tester.enterText(
+      find.byKey(const ValueKey('pickup-search-field')),
+      'Hashemite',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('pickup-prediction-0')),
+    );
+    await tester.tap(find.byKey(const ValueKey('pickup-prediction-0')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Confirm pickup point'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Confirm pickup point'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'vehicle screen');
@@ -119,10 +138,8 @@ void main() {
     await tester.tap(find.text('Standard'));
     await tester.pumpAndSettle();
     expect(
-      tester
-          .getSemantics(find.byKey(const ValueKey('vehicle-standard')))
-          .hasFlag(SemanticsFlag.isSelected),
-      isTrue,
+      tester.getSemantics(find.byKey(const ValueKey('vehicle-standard'))),
+      containsSemantics(isSelected: true),
     );
     await tester.scrollUntilVisible(
       find.text('Choose Standard'),
@@ -211,7 +228,7 @@ void main() {
       find.byKey(const ValueKey('rider-destination-search-card')),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Plan your route'), findsOneWidget);
+    expect(find.text('Choose destination'), findsOneWidget);
     expect(tester.takeException(), isNull, reason: 'destination at 2x text');
   });
 
@@ -309,7 +326,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final semantics = tester.getSemantics(find.text('History'));
-    expect(semantics.hasFlag(SemanticsFlag.isSelected), isTrue);
+    expect(semantics, containsSemantics(isSelected: true));
     for (final label in ['Home', 'History', 'Profile', 'Settings']) {
       final destination = find.ancestor(
         of: find.text(label),

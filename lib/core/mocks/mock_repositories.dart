@@ -71,6 +71,11 @@ class MockBookingRepository implements BookingRepository {
 class MockTripsRepository implements TripsRepository {
   @override
   Future<MockTrip> createTrip(BookingDraft draft) async {
+    if (!draft.isRoutingReady ||
+        draft.vehicleType == null ||
+        draft.estimatedFare <= 0) {
+      throw StateError('Booking is not ready.');
+    }
     return MockTrip(
       id: 'trip-1',
       booking: draft,

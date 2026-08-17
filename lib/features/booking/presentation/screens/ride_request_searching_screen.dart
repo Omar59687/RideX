@@ -29,7 +29,20 @@ class _RideRequestSearchingScreenState
   @override
   void initState() {
     super.initState();
-    Future<void>.microtask(_createTrip);
+    Future<void>.microtask(_validateAndCreateTrip);
+  }
+
+  Future<void> _validateAndCreateTrip() async {
+    final draft = ref.read(bookingControllerProvider);
+    if (!draft.isRoutingReady) {
+      if (mounted) context.go('/rider/destination');
+      return;
+    }
+    if (draft.vehicleType == null || draft.estimatedFare <= 0) {
+      if (mounted) context.go('/rider/vehicle');
+      return;
+    }
+    await _createTrip();
   }
 
   Future<void> _createTrip() async {

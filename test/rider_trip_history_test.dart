@@ -98,10 +98,13 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('rebook-route')));
     await tester.pumpAndSettle();
-    expect(find.text('Rebooking Hashemite University'), findsOneWidget);
+    expect(
+      find.text('Rebooking Hashemite University, Zarqa, Jordan'),
+      findsOneWidget,
+    );
     expect(
       container.read(bookingControllerProvider).destination?.address,
-      'Abdali Boulevard',
+      'Abdali Boulevard, Amman, Jordan',
     );
   });
 
@@ -139,7 +142,10 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('rebook-route')));
     await tester.pumpAndSettle();
-    expect(find.text('Rebooking Hashemite University'), findsOneWidget);
+    expect(
+      find.text('Rebooking Hashemite University, Zarqa, Jordan'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('missing trip offers a route back to history', (tester) async {
@@ -181,8 +187,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Trip history'), findsOneWidget);
-    expect(find.textContaining('Hashemite University -> Abdali Boulevard'),
-        findsWidgets);
+    expect(
+      find.textContaining(
+        'Hashemite University, Zarqa, Jordan -> '
+        'Abdali Boulevard, Amman, Jordan',
+      ),
+      findsWidgets,
+    );
     expect(find.byKey(const Key('history-filter-all')), findsNothing);
   });
 }

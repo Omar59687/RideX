@@ -3,21 +3,21 @@ import 'package:ridex/app/theme/app_radii.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/app/theme/ridex_theme.dart';
 import 'package:ridex/core/models/booking_draft.dart';
-import 'package:ridex/core/widgets/map_placeholder.dart';
+import 'package:ridex/core/widgets/ride_current_location_map.dart';
 import 'package:ridex/core/widgets/ride_x_brand.dart';
 
 class HomeMapHeader extends StatelessWidget {
   const HomeMapHeader({
     super.key,
     required this.firstName,
-    required this.pickup,
+    this.pickup,
     required this.unreadCount,
     required this.onNotifications,
     required this.onPlanRide,
   });
 
   final String firstName;
-  final RideLocation pickup;
+  final RideLocation? pickup;
   final int unreadCount;
   final VoidCallback onNotifications;
   final VoidCallback onPlanRide;
@@ -34,9 +34,9 @@ class HomeMapHeader extends StatelessWidget {
             children: [
               Positioned.fill(
                 bottom: 38,
-                child: MapPlaceholder(
+                child: RideCurrentLocationMap(
                   borderRadius: 0,
-                  semanticLabel: 'Stylized map of nearby rides in Amman',
+                  semanticLabel: 'Rider map showing current location',
                 ),
               ),
               Positioned(
@@ -87,7 +87,7 @@ class HomeMapHeader extends StatelessWidget {
 class _DestinationSearch extends StatelessWidget {
   const _DestinationSearch({required this.pickup, required this.onPressed});
 
-  final RideLocation pickup;
+  final RideLocation? pickup;
   final VoidCallback onPressed;
 
   @override
@@ -139,7 +139,9 @@ class _DestinationSearch extends StatelessWidget {
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: Text(
-                      'Pickup confirmed · ${pickup.address}',
+                      pickup == null
+                          ? 'Pickup not selected'
+                          : 'Pickup selected · ${pickup!.address}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall,
