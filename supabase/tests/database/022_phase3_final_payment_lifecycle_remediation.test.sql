@@ -165,7 +165,7 @@ select throws_ok(
     'replacementAuthorization', 2000, '022-replacement-before-void', 'provider-a'
   )$$,
   '55000',
-  'Replacement authorization requires a failed authorization or verified release.',
+  'Replacement authorization requires one valid preceding initial authorization.',
   'replacement authorization cannot precede verified release'
 );
 select public.backend_record_payment_attempt(

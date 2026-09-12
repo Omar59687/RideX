@@ -1,0 +1,7 @@
+{
+  "name": "ridex",
+  "private": true,
+  "devDependencies": {
+    "supabase": "2.111.0"
+  }
+}
