@@ -45,6 +45,32 @@ flutter run --dart-define=SUPABASE_URL=<url> --dart-define=SUPABASE_PUBLISHABLE_
 Do not commit backend credentials. Live Supabase tests skip unless intentionally
 configured.
 
+### Supabase database workflow
+
+The Supabase CLI is pinned as a project development dependency. After installing
+Node.js 20 or newer, install it with:
+
+```powershell
+npm install
+npx supabase --version
+```
+
+Authenticate and link the project only on the local machine. Supabase stores that
+state outside committed application configuration. Before deploying database
+changes, start Docker Desktop and verify the complete migration sequence locally:
+
+```powershell
+npx supabase start
+npx supabase db reset --local
+npx supabase test db --local
+npx supabase db lint --local
+npx supabase db push --linked --dry-run
+```
+
+Review the dry-run list before using `npx supabase db push --linked`. Never commit
+access tokens, database passwords, secret/service-role keys, or files under
+`supabase/.temp/`.
+
 ### Google Maps and foreground location
 
 Checkpoint 4A supports Google Maps on Android and iOS with one foreground
