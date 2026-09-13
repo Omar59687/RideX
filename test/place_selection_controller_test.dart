@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ridex/app/theme/app_theme.dart';
 import 'package:ridex/core/errors/place_exception.dart';
+import 'package:ridex/core/mocks/mock_data.dart';
 import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/place_prediction.dart';
@@ -11,6 +14,7 @@ import 'package:ridex/core/providers/place_providers.dart';
 import 'package:ridex/core/providers/location_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/features/booking/presentation/screens/vehicle_type_selection_screen.dart';
 
 import 'helpers/fake_places.dart';
 import 'helpers/fake_location.dart';
@@ -176,6 +180,108 @@ void main() {
     expect(container.read(bookingControllerProvider).pickup?.point, point);
     expect(container.read(provider).status, PlaceSearchStatus.selected);
     expect(container.read(provider).message, contains('still valid'));
+  });
+
+  for (final endpoint in LocationEndpoint.values) {
+    test('$endpoint keeps routing blocked until reverse geocoding settles',
+        () async {
+      final reverse = Completer<RideLocation?>();
+      final fake = _QueuedReverseRepository([reverse.future]);
+      final container = _container(fake);
+      addTearDown(container.dispose);
+      container.read(bookingControllerProvider.notifier)
+        ..setPickup(testLocation(latitude: 31.95, longitude: 35.91))
+        ..setDestination(testLocation(latitude: 31.96, longitude: 35.92));
+      final provider = placeSelectionControllerProvider(endpoint);
+      container.listen(provider, (_, __) {});
+      final point = endpoint == LocationEndpoint.pickup
+          ? LocationPoint(latitude: 31.94, longitude: 35.90)
+          : LocationPoint(latitude: 31.97, longitude: 35.93);
+
+      final operation = container.read(provider.notifier).selectPoint(
+            point,
+            source: LocationSelectionSource.map,
+          );
+
+      final resolvingDraft = container.read(bookingControllerProvider);
+      expect(
+        endpoint == LocationEndpoint.pickup
+            ? resolvingDraft.pickup
+            : resolvingDraft.destination,
+        isNull,
+      );
+      expect(resolvingDraft.isRoutingReady, isFalse);
+      expect(container.read(provider).status, PlaceSearchStatus.resolving);
+      expect(container.read(provider).selected?.point, point);
+
+      reverse.complete(testLocation(
+        latitude: point.latitude,
+        longitude: point.longitude,
+        source: LocationSelectionSource.map,
+      ));
+      await operation;
+
+      final settledDraft = container.read(bookingControllerProvider);
+      expect(settledDraft.isRoutingReady, isTrue);
+      expect(
+        endpoint == LocationEndpoint.pickup
+            ? settledDraft.pickup?.point
+            : settledDraft.destination?.point,
+        point,
+      );
+    });
+  }
+
+  testWidgets(
+      'direct vehicle selection stays blocked while an endpoint resolves',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final reverse = Completer<RideLocation?>();
+    final fake = _QueuedReverseRepository([reverse.future]);
+    final container = _container(fake);
+    addTearDown(container.dispose);
+    final booking = container.read(bookingControllerProvider.notifier)
+      ..setPickup(testLocation(latitude: 31.95, longitude: 35.91))
+      ..setDestination(testLocation(latitude: 31.96, longitude: 35.92));
+    final provider =
+        placeSelectionControllerProvider(LocationEndpoint.destination);
+    container.listen(provider, (_, __) {});
+    final point = LocationPoint(latitude: 31.97, longitude: 35.93);
+
+    final operation = container.read(provider.notifier).selectPoint(
+          point,
+          source: LocationSelectionSource.map,
+        );
+    final vehicle = MockData.vehicleTypes.first;
+    booking.setVehicleType(vehicle);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const VehicleTypeSelectionScreen(),
+        ),
+      ),
+    );
+
+    ElevatedButton chooseButton() => tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'Choose ${vehicle.name}'),
+        );
+
+    expect(chooseButton().onPressed, isNull);
+
+    reverse.complete(testLocation(
+      latitude: point.latitude,
+      longitude: point.longitude,
+      source: LocationSelectionSource.map,
+    ));
+    await operation;
+    booking.setVehicleType(vehicle);
+    await tester.pump();
+
+    expect(chooseButton().onPressed, isNotNull);
   });
 
   test('stale reverse response cannot attach to a newer coordinate', () async {
