@@ -20,12 +20,15 @@ profile roles, blocked state, driver approval, and sign-out use the real backend
 Without configuration, deterministic mock authentication and profile repositories
 keep local development and tests self-contained.
 
-Phone OTP, place search, routing, continuous Driver tracking,
-booking/history persistence, card payments,
+Phone OTP, routing, continuous Driver tracking, booking/history persistence, card payments,
 promotions, rewards, calls/messages, safety services, notification delivery,
 saved-place persistence, and rating persistence are not production integrations.
 The UI presents these as disabled, Coming soon, session-local, or explicit demo
 behavior.
+
+Google Maps/GPS and place-search/geocoding foundations are implemented and
+Checkpoints 4A and 4B are approved. Routing, route rendering, and continuous
+Driver tracking remain later Phase 4 work. See `docs/ai/ops/CURRENT_STATUS.md`.
 
 ## Setup
 
@@ -109,6 +112,10 @@ application restrictions, API restrictions, quotas, and monitoring are required.
 If the flag or native key is absent, RideX uses a safe map fallback and remains
 usable.
 
+Repository and fake-based tests pass. The project owner reports that Omar also
+completed every remaining physical Android Maps/GPS, permission/fallback, and
+Cloud-restriction check successfully; Checkpoint 4A is approved.
+
 ### Google place search and geocoding
 
 Checkpoint 4B uses Places API (New), including Autocomplete (New) and Place
@@ -143,6 +150,11 @@ Supabase mode never falls back to those results after an API failure.
 Before release, publish RideX Terms of Use and a Privacy Policy that disclose
 place-search and precise-location processing and incorporate the required
 Google Maps Platform terms and privacy links.
+
+The hosted `places` function and required secret name are configured. The project
+owner reports that Omar completed every remaining live authenticated Google and
+Cloud configuration requirement successfully. Final routing-guard regression
+coverage also passes, and Checkpoint 4B is approved.
 
 ## Verification
 

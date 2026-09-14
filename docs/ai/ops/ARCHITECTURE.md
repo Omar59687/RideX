@@ -25,6 +25,8 @@ Feature folders currently emphasize presentation screens and feature-local widge
 
 - `SessionController`: authenticated user and role state.
 - `BookingController`: pickup, destination, stops, category, distance, ETA, and upfront fare.
+- `CurrentLocationController`: one-shot foreground permission and device-location state through the location repository.
+- `PlaceSelectionController`: independent pickup/destination search, geocoding, and provisional/committed selection state through the place repository.
 - `ActiveTripController`: current `MockTrip` and validated `TripStatus` transitions.
 - `NotificationsController`: session notification list.
 - New settings preferences remain session-local Riverpod state.
@@ -32,6 +34,12 @@ Feature folders currently emphasize presentation screens and feature-local widge
 - `driverOnlineProvider`: session-local driver availability.
 
 Widgets read providers; they do not duplicate durable booking or trip state locally.
+
+Phase 4A/4B location flow preserves provider boundaries: Geolocator and Google
+Maps types remain in services/widgets, `LocationPoint` and `RideLocation` remain
+provider-neutral, and hosted place requests pass through the authenticated
+Supabase `places` function. Checkpoints 4A and 4B are approved; routing and
+continuous Driver tracking remain later Phase 4 work.
 
 ## Router
 
@@ -52,7 +60,7 @@ Shared components live in `lib/core/widgets/`. Rider-specific compositions live 
 
 ## Tests
 
-Tests live under `test/`, with shared repository overrides in `test/helpers/test_app.dart`. Existing coverage includes launch, onboarding, roles, auth V2, booking, provider fares, trip lifecycle, driver acceptance, transition rules, route/session state, and conditional live Supabase checks. See `CURRENT_STATUS.md` for the latest exact verification results.
+Tests live under `test/`, with shared repository overrides in `test/helpers/test_app.dart`. Existing coverage includes launch, onboarding, roles, auth V2, booking, provider fares, trip lifecycle, driver acceptance, transition rules, route/session state, location permissions, map fallbacks, place selection/geocoding with fakes, and conditional live Supabase checks. See `CURRENT_STATUS.md` for the latest exact verification results.
 
 ## Do Not Rewrite
 

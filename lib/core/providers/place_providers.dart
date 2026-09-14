@@ -76,6 +76,7 @@ class PlaceSelectionController
   Future<void> selectPrediction(PlacePrediction prediction) async {
     _debounce?.cancel();
     final generation = ++_generation;
+    _clearCommittedLocation();
     state = state.copyWith(
       status: PlaceSearchStatus.resolving,
       clearMessage: true,
@@ -102,6 +103,7 @@ class PlaceSelectionController
     _debounce?.cancel();
     _sessionToken = _newSessionToken();
     final generation = ++_generation;
+    _clearCommittedLocation();
     state = state.copyWith(
       status: PlaceSearchStatus.resolving,
       clearMessage: true,

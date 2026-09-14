@@ -2,12 +2,34 @@
 
 ## Git Checkpoint
 
-- Active branch: `feature/omar/rider-ui-v2`
-- Base commit: `e374d86`
-- Latest implementation commit: `51c5a5d`
-- Phase 6 documentation/audit checkpoint: `67b2b74`
-- The feature branch has the complete pre-merge history plus the unpushed Phase 6 audit documentation commits.
-- Tracking branch: `origin/feature/omar/rider-ui-v2` is behind local `HEAD`; no push was performed
+- Active branch: `yousuf/supabase-env-audit`
+- Current and tracking-branch commit: `41dd2f5`
+- Current `origin/main`: `eeba67d`
+- Checkpoint 4A implementation: `d65a58a`, merged into `main`
+- Checkpoint 4B implementation: `2359a81`, merged into `main`
+- Checkpoint 4B unresolved map/GPS selection fix: `41dd2f5`, pushed on the
+  active branch but not yet in `origin/main`
+- The final prediction-details/forward-geocode replacement guard, eight new
+  regression cases, and approval documentation are present but uncommitted.
+
+## Phase 4 Checkpoint Status
+
+- Checkpoint 4A: **Approved.** Twenty-three focused automated cases passed, and
+  the project owner reports that Omar completed every remaining physical Android,
+  Maps/GPS, permission/fallback, and configuration check successfully.
+- Checkpoint 4B: **Approved.** The final replacement-selection guard now blocks
+  routing during map/GPS, prediction-details, and forward-geocode resolution.
+  All 33 focused Flutter cases pass, and the project owner reports that Omar
+  completed every remaining physical/live/configuration check successfully.
+- Final full verification: `flutter analyze` found no issues;
+  `flutter test --no-pub` passed 132 tests with 2 intentional skips and known
+  non-failing SVG warnings.
+- Checkpoints 4C through 4G remain incomplete. Phase 4 is not approved.
+- Detailed evidence:
+  `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
+
+The Rider V2 sections below describe the accepted historical UI scope. Their
+original exclusions do not override the newer Phase 4 status above.
 
 ## Completed Phases
 
@@ -141,4 +163,12 @@ Plus Jakarta Sans Regular 400, Medium 500, SemiBold 600, Bold 700, and ExtraBold
 
 ## Known Limitations
 
-Phone OTP, maps/live location, booking/history persistence, card payments, promotions, rewards, calls/messages, safety services, saved-place persistence, notification delivery/persistence, and rating persistence are not production integrations. Notification read state, preferences, booking drafts, active trips, and driver availability are session-local and reset on sign-out. Unsupported behavior must remain explicit demo, session-local, disabled, or Coming soon behavior.
+Phone OTP, routing, continuous/live Driver location, booking/history persistence,
+card payments, promotions, rewards, calls/messages, safety services, saved-place
+persistence, notification delivery/persistence, and rating persistence are not
+production integrations. Google Maps/GPS and place-search foundations now exist,
+and Checkpoints 4A and 4B are approved. Routing and continuous Driver tracking
+remain later Phase 4 work.
+Notification read state, preferences, booking drafts, active trips, and driver
+availability are session-local and reset on sign-out. Unsupported behavior must
+remain explicit demo, session-local, disabled, or Coming soon behavior.
