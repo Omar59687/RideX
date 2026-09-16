@@ -6,6 +6,7 @@ import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/location_providers.dart';
 import 'package:ridex/core/services/maps/ride_map_service.dart';
 import 'package:ridex/core/repositories/mock_place_repository.dart';
+import 'package:ridex/core/repositories/mock_route_repository.dart';
 import 'package:ridex/core/repositories/location_repository.dart';
 import 'package:ridex/core/models/current_location_state.dart';
 
@@ -17,6 +18,7 @@ Widget buildTestApp({List<Override> overrides = const []}) {
       tripsRepositoryProvider.overrideWith((ref) => MockTripsRepository()),
       profileRepositoryProvider.overrideWith((ref) => MockProfileRepository()),
       placeRepositoryProvider.overrideWith((ref) => MockPlaceRepository()),
+      routeRepositoryProvider.overrideWithValue(const MockRouteRepository()),
       rideMapServiceProvider.overrideWithValue(const MockRideMapService()),
       locationRepositoryProvider.overrideWithValue(
         const _UnavailableLocationRepository(),

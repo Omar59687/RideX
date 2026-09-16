@@ -1,6 +1,8 @@
 # Phase 4A - Google Maps and GPS Foundation
 
-Status: Approved for implementation
+Status: Approved
+
+Implementation commit: `d65a58a`
 
 ## Scope
 
@@ -94,9 +96,26 @@ timeout/error mapping, stale operation protection, Rider/Driver fallback
 behavior, and offline map substitution. Formatting, `flutter analyze`, focused
 tests, and the complete non-live Flutter regression suite run before approval.
 
-Physical Google Map and GPS verification remains incomplete until valid
-restricted credentials and suitable devices are available. iOS build/device
-verification is also unavailable on the current Windows host.
+Final repository verification on 2026-09-14 passed 23 focused Checkpoint 4A
+Flutter tests, `flutter analyze`, and the complete regression suite. These tests
+use fakes and map substitutions and are not presented as physical-device tests.
+
+On 2026-09-14, the project owner reported that Omar completed every previously
+remaining Checkpoint 4A verification requirement successfully. This attestation
+covers physical Android Rider and Driver map loading, hardware GPS and
+camera/marker behavior, permission/service/settings states, unavailable-GPS
+usability, and Android application/API restrictions. No credential value or
+Cloud Console output was added to the repository.
+
+Checkpoint 4A is **approved** based on repository automation plus this explicit
+project-owner verification record.
+
+iOS build/device verification is unavailable on the current Windows host and is
+outside the Android-only Checkpoint 4A approval gate.
+
+See
+`docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md` for the final
+evidence and unresolved gate items.
 
 ## Exclusions
 

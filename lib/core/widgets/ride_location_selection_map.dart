@@ -13,6 +13,7 @@ typedef LocationSelectionMapBuilder = Widget Function(
   required RideLocation? pickup,
   required RideLocation? destination,
   required LocationPoint? currentLocation,
+  required List<LocationPoint> routeGeometry,
   required ValueChanged<LocationPoint> onPointSelected,
 });
 
@@ -24,6 +25,7 @@ final locationSelectionMapBuilderProvider =
     required pickup,
     required destination,
     required currentLocation,
+    required routeGeometry,
     required onPointSelected,
   }) {
     return GoogleLocationSelectionMap(
@@ -31,6 +33,7 @@ final locationSelectionMapBuilderProvider =
       pickup: pickup,
       destination: destination,
       currentLocation: currentLocation,
+      routeGeometry: routeGeometry,
       onPointSelected: onPointSelected,
     );
   };
@@ -44,6 +47,7 @@ class RideLocationSelectionMap extends ConsumerWidget {
     required this.destination,
     required this.currentLocation,
     required this.onPointSelected,
+    this.routeGeometry = const [],
     this.height = 280,
   });
 
@@ -51,6 +55,7 @@ class RideLocationSelectionMap extends ConsumerWidget {
   final RideLocation? pickup;
   final RideLocation? destination;
   final LocationPoint? currentLocation;
+  final List<LocationPoint> routeGeometry;
   final ValueChanged<LocationPoint> onPointSelected;
   final double height;
 
@@ -70,6 +75,7 @@ class RideLocationSelectionMap extends ConsumerWidget {
                 pickup: pickup,
                 destination: destination,
                 currentLocation: currentLocation,
+                routeGeometry: routeGeometry,
                 onPointSelected: onPointSelected,
               )
             : Stack(

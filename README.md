@@ -11,8 +11,9 @@ pickup confirmation, vehicle and fare selection, driver search, trip states,
 completion and rating, history and details, profile, notifications, and
 settings. Urban Aurora light and dark themes use bundled Plus Jakarta Sans
 fonts, native SVG identity assets, and Google Maps on the Rider and Driver home
-screens. Route and trip previews remain custom-painted until their owning
-implementation phases. The curated design
+screens. Pickup/destination selection can render trusted route geometry through
+the Google map adapter; later trip previews remain illustrative until their
+owning implementation phases. The curated design
 references under `references/UI/` are never embedded at runtime.
 
 When Supabase is configured, email/password authentication, session restoration,
@@ -20,12 +21,17 @@ profile roles, blocked state, driver approval, and sign-out use the real backend
 Without configuration, deterministic mock authentication and profile repositories
 keep local development and tests self-contained.
 
-Phone OTP, place search, routing, continuous Driver tracking,
-booking/history persistence, card payments,
+Phone OTP, continuous Driver tracking, booking/history persistence, card payments,
 promotions, rewards, calls/messages, safety services, notification delivery,
 saved-place persistence, and rating persistence are not production integrations.
 The UI presents these as disabled, Coming soon, session-local, or explicit demo
 behavior.
+
+Google Maps/GPS and place-search/geocoding foundations are implemented and
+Checkpoints 4A, 4B, and 4C are approved. Checkpoint 4C verification includes the
+deployed authenticated Google route and physical Android polyline, metrics, and
+recalculation behavior. Continuous Driver tracking remains later Phase 4 work.
+See `docs/ai/ops/CURRENT_STATUS.md`.
 
 ## Setup
 
@@ -109,6 +115,10 @@ application restrictions, API restrictions, quotas, and monitoring are required.
 If the flag or native key is absent, RideX uses a safe map fallback and remains
 usable.
 
+Repository and fake-based tests pass. The project owner reports that Omar also
+completed every remaining physical Android Maps/GPS, permission/fallback, and
+Cloud-restriction check successfully; Checkpoint 4A is approved.
+
 ### Google place search and geocoding
 
 Checkpoint 4B uses Places API (New), including Autocomplete (New) and Place
@@ -143,6 +153,28 @@ Supabase mode never falls back to those results after an API failure.
 Before release, publish RideX Terms of Use and a Privacy Policy that disclose
 place-search and precise-location processing and incorporate the required
 Google Maps Platform terms and privacy links.
+
+The hosted `places` function and required secret name are configured. The project
+owner reports that Omar completed every remaining live authenticated Google and
+Cloud configuration requirement successfully. Final routing-guard regression
+coverage also passes, and Checkpoint 4B is approved.
+
+### Google routing
+
+Checkpoint 4C extends the authenticated `places` Edge Function with a strict
+`route` operation backed by Google Routes API v2 `computeRoutes`. Flutter receives
+only normalized encoded geometry, meters, and seconds through RideX service and
+repository contracts. Configured Supabase mode never falls back to demo routing
+after a provider failure; local Mock mode remains deterministic.
+
+Use a separate server-only key restricted to Routes API and store it only as the
+Supabase Edge Function secret `GOOGLE_ROUTES_API_KEY`. Do not reuse the mobile
+Maps keys or `GOOGLE_MAPS_WEB_SERVICES_API_KEY`, and never expose the routing key
+through Dart defines, native app resources, source, logs, or Git.
+
+The Flutter and Deno suites pass. Routes API/key setup, deployed authenticated
+routing, and physical Android polyline rendering are verified; Checkpoint 4C is
+approved.
 
 ## Verification
 

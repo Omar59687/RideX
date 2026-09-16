@@ -10,7 +10,8 @@ RideX is a Jordan-focused ride-hailing graduation project. It covers rider and d
 - Riverpod
 - GoRouter
 - Supabase Flutter
-- `intl`, `equatable`, `flutter_animate`, and `flutter_svg`
+- `intl`, `equatable`, `flutter_animate`, `flutter_svg`, `google_maps_flutter`,
+  and `geolocator`
 
 ## Important State And Data
 
@@ -18,6 +19,8 @@ RideX is a Jordan-focused ride-hailing graduation project. It covers rider and d
 |---|---|
 | Session, role, restoration, sign-out | `sessionControllerProvider` |
 | Booking draft and selected ride | `bookingControllerProvider` |
+| Foreground permission and current GPS point | `currentLocationControllerProvider` through the location repository |
+| Pickup/destination place selection | `placeSelectionControllerProvider` through the configured place repository |
 | Search and trip lifecycle | `activeTripControllerProvider` |
 | Notifications | `notificationsControllerProvider` |
 | Current profile | `currentProfileProvider` through the configured profile repository |
@@ -32,7 +35,18 @@ Important public routes include `/sign-in`, `/sign-up`, `/forgot-password`, and 
 
 When Supabase is configured, real behavior covers email/password authentication, session restoration, profile role data, blocked state, driver approval state, and sign-out. Without configuration, authentication and profile data use deterministic mock repositories.
 
-Booking locations, upfront fares, driver matching, trip transitions, history, notifications, maps, phone OTP, ratings, and most profile/settings data are mock, session-local, or presentation-only. Profile identity is repository-backed, while profile editing, ride statistics, rewards, saved places, and payment methods remain unavailable or presentational. Unsupported controls must explain that limitation.
+Google Maps/foreground GPS and place-search/geocoding foundations are
+implemented, with Mock repositories used by ordinary automated tests.
+Checkpoints 4A and 4B are approved after final routing-guard regression coverage
+and project-owner-reported completion of all remaining physical/live checks.
+Checkpoint 4C routing is approved after automated Edge/Flutter verification and
+authenticated live Google routing on physical Android.
+Upfront fares, driver matching, trip transitions, history,
+notifications, phone OTP, ratings, and most profile/settings data remain mock,
+session-local, or presentation-only. Profile identity is repository-backed,
+while profile editing, ride statistics, rewards, saved places, and payment
+methods remain unavailable or presentational. Unsupported controls must explain
+that limitation.
 
 ## Design References
 
@@ -41,7 +55,8 @@ The curated Urban Aurora package is under `references/UI/`. `references/UI/token
 ## Constraints
 
 - Preserve architecture and backend behavior.
-- Do not introduce HTML/WebView or a map SDK.
+- Do not introduce HTML/WebView. Preserve the Phase 4 Google Maps, location,
+  place-service, and routing boundaries.
 - Do not fabricate persistence or production integrations.
 - Keep V2 screens modular, responsive, accessible, dark-theme aware, and reduced-motion aware.
 - Driver screens are outside visual scope but require regression tests.

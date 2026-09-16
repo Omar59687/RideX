@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:ridex/app/theme/ridex_theme.dart';
 import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/place_selection_state.dart';
@@ -11,6 +13,7 @@ class GoogleLocationSelectionMap extends StatefulWidget {
     required this.pickup,
     required this.destination,
     required this.currentLocation,
+    required this.routeGeometry,
     required this.onPointSelected,
   });
 
@@ -18,6 +21,7 @@ class GoogleLocationSelectionMap extends StatefulWidget {
   final RideLocation? pickup;
   final RideLocation? destination;
   final LocationPoint? currentLocation;
+  final List<LocationPoint> routeGeometry;
   final ValueChanged<LocationPoint> onPointSelected;
 
   @override
@@ -40,7 +44,10 @@ class _GoogleLocationSelectionMapState
     final oldPoint = oldWidget.activeEndpoint == LocationEndpoint.pickup
         ? oldWidget.pickup?.point
         : oldWidget.destination?.point;
-    if (_activePoint != null && oldPoint != _activePoint) {
+    if (!listEquals(oldWidget.routeGeometry, widget.routeGeometry) &&
+        widget.routeGeometry.length >= 2) {
+      _scheduleRouteFit();
+    } else if (_activePoint != null && oldPoint != _activePoint) {
       _moveTo(_activePoint!);
     }
   }
@@ -64,6 +71,11 @@ class _GoogleLocationSelectionMapState
         zoom: initialPoint == null ? 8 : 16,
       ),
       markers: _markers,
+      polylines: buildRoutePolylines(
+        geometry: widget.routeGeometry,
+        routeColor: context.rideXTheme.routeLive,
+        haloColor: context.rideXTheme.mapRouteHalo,
+      ),
       onTap: (position) => widget.onPointSelected(
         LocationPoint(
           latitude: position.latitude,
@@ -76,7 +88,11 @@ class _GoogleLocationSelectionMapState
           return;
         }
         _controller = controller;
-        if (_activePoint != null) _moveTo(_activePoint!);
+        if (widget.routeGeometry.length >= 2) {
+          _scheduleRouteFit();
+        } else if (_activePoint != null) {
+          _moveTo(_activePoint!);
+        }
       },
       myLocationButtonEnabled: false,
       myLocationEnabled: false,
@@ -152,6 +168,18 @@ class _GoogleLocationSelectionMapState
     );
   }
 
+  void _scheduleRouteFit() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _fitRoute();
+    });
+  }
+
+  Future<void> _fitRoute() async {
+    final bounds = routeBounds(widget.routeGeometry);
+    if (bounds == null) return;
+    await _controller?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 44));
+  }
+
   static LatLng _latLng(LocationPoint point) =>
       LatLng(point.latitude, point.longitude);
 
@@ -159,4 +187,51 @@ class _GoogleLocationSelectionMapState
       other != null &&
       point.latitude == other.latitude &&
       point.longitude == other.longitude;
+}
+
+Set<Polyline> buildRoutePolylines({
+  required List<LocationPoint> geometry,
+  required Color routeColor,
+  required Color haloColor,
+}) {
+  if (geometry.length < 2) return const {};
+  final points = [
+    for (final point in geometry) LatLng(point.latitude, point.longitude),
+  ];
+  return {
+    Polyline(
+      polylineId: const PolylineId('route-halo'),
+      points: points,
+      color: haloColor,
+      width: 10,
+      zIndex: 1,
+    ),
+    Polyline(
+      polylineId: const PolylineId('route-live'),
+      points: points,
+      color: routeColor,
+      width: 6,
+      zIndex: 2,
+    ),
+  };
+}
+
+LatLngBounds? routeBounds(List<LocationPoint> geometry) {
+  if (geometry.length < 2) return null;
+  var minLatitude = geometry.first.latitude;
+  var maxLatitude = geometry.first.latitude;
+  var minLongitude = geometry.first.longitude;
+  var maxLongitude = geometry.first.longitude;
+  for (final point in geometry.skip(1)) {
+    minLatitude = point.latitude < minLatitude ? point.latitude : minLatitude;
+    maxLatitude = point.latitude > maxLatitude ? point.latitude : maxLatitude;
+    minLongitude =
+        point.longitude < minLongitude ? point.longitude : minLongitude;
+    maxLongitude =
+        point.longitude > maxLongitude ? point.longitude : maxLongitude;
+  }
+  return LatLngBounds(
+    southwest: LatLng(minLatitude, minLongitude),
+    northeast: LatLng(maxLatitude, maxLongitude),
+  );
 }

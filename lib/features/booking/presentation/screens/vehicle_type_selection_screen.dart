@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/core/mocks/mock_data.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/providers/route_providers.dart';
 import 'package:ridex/core/utils/money_utils.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
 import 'package:ridex/core/widgets/coming_soon_dialog.dart';
 import 'package:ridex/core/widgets/route_timeline.dart';
+import 'package:ridex/core/widgets/route_status_panel.dart';
 import 'package:ridex/core/widgets/vehicle_type_card.dart';
 import 'package:ridex/core/widgets/google_maps_attribution.dart';
 
@@ -18,6 +20,7 @@ class VehicleTypeSelectionScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(bookingControllerProvider);
+    final route = ref.watch(routeControllerProvider);
     final vehicle = draft.vehicleType;
     return AppScaffold(
       title: 'Choose your ride',
@@ -56,6 +59,11 @@ class VehicleTypeSelectionScreen extends ConsumerWidget {
               alignment: Alignment.centerRight,
               child: GoogleMapsAttribution(),
             ),
+          const SizedBox(height: AppSpacing.md),
+          RouteStatusPanel(
+            state: route,
+            onRetry: () => ref.read(routeControllerProvider.notifier).retry(),
+          ),
           const SizedBox(height: AppSpacing.md),
           for (final option in MockData.vehicleTypes) ...[
             VehicleTypeCard(
@@ -115,7 +123,9 @@ class VehicleTypeSelectionScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.md),
           AppButton(
             label: vehicle == null ? 'Choose a ride' : 'Choose ${vehicle.name}',
-            onPressed: vehicle == null || !draft.isRoutingReady
+            onPressed: vehicle == null ||
+                    !draft.isRoutingReady ||
+                    !route.isReadyFor(draft)
                 ? null
                 : () async {
                     await ref

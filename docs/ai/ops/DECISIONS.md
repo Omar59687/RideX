@@ -6,8 +6,8 @@
 | Coral/Aqua | Darker semantic foregrounds for contrast; brighter accents for markers/routes |
 | Typography | Bundle official, licensed Plus Jakarta Sans files and license; no `google_fonts` |
 | SVG | Use `flutter_svg`; runtime copies under `assets/branding/` |
-| Maps | Native stylized `CustomPainter` map |
-| Map SDK | No Google Maps/GPS/routing/geocoding/live tracking in this phase |
+| Rider V2 maps | Native stylized `CustomPainter` map for the original UI scope; later Phase 4 map integration is tracked separately |
+| Rider V2 map SDK | Google Maps/GPS/routing/geocoding/live tracking were excluded from the original Rider V2 scope; later Phase 4 checkpoints are tracked separately and are not implied approved |
 | Email auth | Preserve real Supabase email/password behavior |
 | Phone/OTP | Deterministic mock mode only; production path disabled and explained |
 | Notification preferences | Session-local Riverpod state |

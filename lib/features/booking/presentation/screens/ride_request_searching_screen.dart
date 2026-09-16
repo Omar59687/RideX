@@ -5,6 +5,7 @@ import 'package:ridex/app/theme/app_motion.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/core/models/mock_trip.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/providers/route_providers.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_dialog.dart';
 import 'package:ridex/core/widgets/app_error_view.dart';
@@ -36,6 +37,10 @@ class _RideRequestSearchingScreenState
     final draft = ref.read(bookingControllerProvider);
     if (!draft.isRoutingReady) {
       if (mounted) context.go('/rider/destination');
+      return;
+    }
+    if (!ref.read(routeControllerProvider).isReadyFor(draft)) {
+      if (mounted) context.go('/rider/pickup');
       return;
     }
     if (draft.vehicleType == null || draft.estimatedFare <= 0) {

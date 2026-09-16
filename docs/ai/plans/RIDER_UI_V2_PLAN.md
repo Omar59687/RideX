@@ -78,7 +78,12 @@ Each numbered item is a checkpoint. Complete, test, commit, update status, and s
 
 ## Out Of Scope
 
-Real phone OTP, SMS provider integration, Google Maps, GPS, routing, geocoding, live tracking, card processing, promotions, rewards, persisted saved places, persisted settings, call/message, safety services, and rating persistence. Present these as disabled, coming soon, or explicit deterministic demo behavior.
+Real phone OTP, SMS provider integration, Google Maps, GPS, routing, geocoding,
+live tracking, card processing, promotions, rewards, persisted saved places,
+persisted settings, call/message, safety services, and rating persistence were
+outside the original Rider V2 scope. Later approved Checkpoints 4A and 4B add
+Maps/GPS and place-search foundations; their current evidence is tracked in
+`docs/ai/ops/CURRENT_STATUS.md`.
 
 ## Verification
 

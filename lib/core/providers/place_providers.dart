@@ -76,6 +76,7 @@ class PlaceSelectionController
   Future<void> selectPrediction(PlacePrediction prediction) async {
     _debounce?.cancel();
     final generation = ++_generation;
+    _clearCommittedLocation();
     state = state.copyWith(
       status: PlaceSearchStatus.resolving,
       clearMessage: true,
@@ -102,6 +103,7 @@ class PlaceSelectionController
     _debounce?.cancel();
     _sessionToken = _newSessionToken();
     final generation = ++_generation;
+    _clearCommittedLocation();
     state = state.copyWith(
       status: PlaceSearchStatus.resolving,
       clearMessage: true,
@@ -143,7 +145,7 @@ class PlaceSelectionController
       address: 'Address unavailable',
       source: source,
     );
-    _commit(fallback);
+    _clearCommittedLocation();
     state = state.copyWith(
       status: PlaceSearchStatus.resolving,
       selected: fallback,
@@ -166,6 +168,7 @@ class PlaceSelectionController
       }
     } on PlaceException catch (error) {
       if (generation != _generation || state.selected?.point != point) return;
+      _commit(fallback);
       state = state.copyWith(
         status: PlaceSearchStatus.selected,
         message: error.failure == PlaceFailure.notFound
@@ -174,6 +177,7 @@ class PlaceSelectionController
       );
     } catch (_) {
       if (generation != _generation || state.selected?.point != point) return;
+      _commit(fallback);
       state = state.copyWith(
         status: PlaceSearchStatus.selected,
         message: 'Address lookup failed. The selected pin is still valid.',
@@ -192,12 +196,16 @@ class PlaceSelectionController
     _generation++;
     _lastRequestedQuery = null;
     _sessionToken = _newSessionToken();
+    _clearCommittedLocation();
+    state = const PlaceSelectionState();
+  }
+
+  void _clearCommittedLocation() {
     if (_endpoint == LocationEndpoint.pickup) {
       ref.read(bookingControllerProvider.notifier).clearPickup();
     } else {
       ref.read(bookingControllerProvider.notifier).clearDestination();
     }
-    state = const PlaceSelectionState();
   }
 
   Future<void> _loadPredictions(String query, int generation) async {
