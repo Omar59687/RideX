@@ -2,8 +2,10 @@ import { authorizeCaller, createPlacesHandler, type FetchLike } from "./core.ts"
 
 const TOKEN = `Bearer ${"a".repeat(40)}`;
 const SECRET = "test-google-key-never-return";
+const ROUTES_SECRET = "test-google-routes-key-never-return";
 const SESSION_TOKEN = "3519edfe-0f75-4a30-bfe4-7cbd89340b2c";
 const CALLER_ID = "25b79de4-8856-4bad-b18d-54c667691df5";
+const ENCODED_POLYLINE = "_p~iF~ps|U_ulLnnqC_mqNvxq`@";
 
 function assert(condition: unknown, message = "Assertion failed"): asserts condition {
   if (!condition) throw new Error(message);
@@ -38,9 +40,11 @@ function request(body: unknown, headers: HeadersInit = {}): Request {
 function handlerWith(
   upstream: FetchLike,
   timeoutMs = 100,
+  googleRoutesApiKey = ROUTES_SECRET,
 ): (request: Request) => Promise<Response> {
   return createPlacesHandler({
     apiKey: SECRET,
+    googleRoutesApiKey,
     authorize: () => Promise.resolve(CALLER_ID),
     fetch: upstream,
     upstreamTimeoutMs: timeoutMs,
@@ -356,13 +360,223 @@ Deno.test("blank, unknown, extra, and invalid coordinate inputs are rejected wit
   assertEquals(calls, 0);
 });
 
+Deno.test("route uses the exact Google Routes policy and normalizes the first route", async () => {
+  let capturedUrl = "";
+  let capturedInit: RequestInit | undefined;
+  const handler = handlerWith((input, init) => {
+    capturedUrl = String(input);
+    capturedInit = init;
+    return Response.json({
+      routes: [{
+        distanceMeters: 12345,
+        duration: "987s",
+        polyline: { encodedPolyline: ENCODED_POLYLINE },
+      }],
+    });
+  });
+
+  const response = await handler(request({
+    operation: "route",
+    origin: { latitude: 31.95, longitude: 35.92 },
+    destination: { latitude: 32.08, longitude: 36.1 },
+    intermediates: [],
+  }));
+
+  assertEquals(response.status, 200);
+  assertEquals(await responseBody(response), {
+    data: {
+      encodedPolyline: ENCODED_POLYLINE,
+      distanceMeters: 12345,
+      durationSeconds: 987,
+    },
+  });
+  assertEquals(capturedUrl, "https://routes.googleapis.com/directions/v2:computeRoutes");
+  assertEquals(capturedInit?.method, "POST");
+  assertEquals(JSON.parse(String(capturedInit?.body)), {
+    origin: { location: { latLng: { latitude: 31.95, longitude: 35.92 } } },
+    destination: { location: { latLng: { latitude: 32.08, longitude: 36.1 } } },
+    travelMode: "DRIVE",
+    routingPreference: "TRAFFIC_AWARE",
+    computeAlternativeRoutes: false,
+    polylineQuality: "OVERVIEW",
+    polylineEncoding: "ENCODED_POLYLINE",
+    units: "METRIC",
+  });
+  const headers = new Headers(capturedInit?.headers);
+  assertEquals(headers.get("content-type"), "application/json");
+  assertEquals(headers.get("x-goog-api-key"), ROUTES_SECRET);
+  assertEquals(
+    headers.get("x-goog-fieldmask"),
+    "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
+  );
+});
+
+Deno.test("route strictly validates its schema and coordinates without upstream calls", async () => {
+  let calls = 0;
+  const handler = handlerWith(() => {
+    calls++;
+    return Response.json({});
+  });
+  const origin = { latitude: 31.95, longitude: 35.92 };
+  const destination = { latitude: 32.08, longitude: 36.1 };
+  const invalidBodies = [
+    { operation: "route", origin, destination },
+    { operation: "route", origin, destination, intermediates: [], extra: true },
+    { operation: "route", origin: { latitude: 31.95 }, destination, intermediates: [] },
+    {
+      operation: "route",
+      origin: { latitude: 31.95, longitude: 35.92, altitude: 10 },
+      destination,
+      intermediates: [],
+    },
+    {
+      operation: "route",
+      origin: { latitude: "31.95", longitude: 35.92 },
+      destination,
+      intermediates: [],
+    },
+    {
+      operation: "route",
+      origin,
+      destination: { latitude: 91, longitude: 36.1 },
+      intermediates: [],
+    },
+    { operation: "route", origin, destination: origin, intermediates: [] },
+    { operation: "route", origin, destination, intermediates: null },
+  ];
+
+  for (const body of invalidBodies) {
+    const response = await handler(request(body));
+    assertEquals(response.status, 400);
+    assertEquals((await responseBody(response)).error, {
+      code: "invalid_request",
+      message: "Request is invalid.",
+    });
+  }
+  assertEquals(calls, 0);
+});
+
+Deno.test("route rejects non-empty intermediates without an upstream call", async () => {
+  let calls = 0;
+  const handler = handlerWith(() => {
+    calls++;
+    return Response.json({});
+  });
+  const response = await handler(request({
+    operation: "route",
+    origin: { latitude: 31.95, longitude: 35.92 },
+    destination: { latitude: 32.08, longitude: 36.1 },
+    intermediates: [{ latitude: 32, longitude: 36 }],
+  }));
+
+  assertEquals(response.status, 400);
+  assertEquals((await responseBody(response)).error, {
+    code: "invalid_request",
+    message: "Request is invalid.",
+  });
+  assertEquals(calls, 0);
+});
+
+Deno.test("route rejects missing, malformed, and nonpositive provider data", async () => {
+  const malformedPayloads = [
+    {},
+    { routes: [] },
+    { routes: [{}] },
+    {
+      routes: [{
+        distanceMeters: 123,
+        duration: "10s",
+        polyline: { encodedPolyline: "" },
+      }],
+    },
+    {
+      routes: [{
+        distanceMeters: 123,
+        duration: "10s",
+        polyline: { encodedPolyline: "abc" },
+      }],
+    },
+    {
+      routes: [{
+        distanceMeters: 0,
+        duration: "10s",
+        polyline: { encodedPolyline: ENCODED_POLYLINE },
+      }],
+    },
+    {
+      routes: [{
+        distanceMeters: 123.5,
+        duration: "10s",
+        polyline: { encodedPolyline: ENCODED_POLYLINE },
+      }],
+    },
+    {
+      routes: [{
+        distanceMeters: 123,
+        duration: "0s",
+        polyline: { encodedPolyline: ENCODED_POLYLINE },
+      }],
+    },
+    {
+      routes: [{
+        distanceMeters: 123,
+        duration: "1.5s",
+        polyline: { encodedPolyline: ENCODED_POLYLINE },
+      }],
+    },
+  ];
+
+  for (const payload of malformedPayloads) {
+    const handler = handlerWith(() => Response.json(payload));
+    const response = await handler(request({
+      operation: "route",
+      origin: { latitude: 31.95, longitude: 35.92 },
+      destination: { latitude: 32.08, longitude: 36.1 },
+      intermediates: [],
+    }));
+    assertEquals(response.status, 502);
+    assertEquals((await responseBody(response)).error, {
+      code: "provider_response_invalid",
+      message: "Location provider response is invalid.",
+    });
+  }
+});
+
+Deno.test("a missing Routes key affects only route requests", async () => {
+  let calls = 0;
+  const handler = handlerWith(() => {
+    calls++;
+    return Response.json({});
+  }, 100, "");
+
+  const routeResponse = await handler(request({
+    operation: "route",
+    origin: { latitude: 31.95, longitude: 35.92 },
+    destination: { latitude: 32.08, longitude: 36.1 },
+    intermediates: [],
+  }));
+  const autocompleteResponse = await handler(request({
+    operation: "autocomplete",
+    input: "Amman",
+    sessionToken: SESSION_TOKEN,
+  }));
+
+  assertEquals(routeResponse.status, 503);
+  assertEquals((await responseBody(routeResponse)).error, {
+    code: "service_unavailable",
+    message: "Location service is unavailable.",
+  });
+  assertEquals(autocompleteResponse.status, 200);
+  assertEquals(calls, 1);
+});
+
 Deno.test("unsupported operations are rejected without upstream calls", async () => {
   let calls = 0;
   const handler = handlerWith(() => {
     calls++;
     return Response.json({});
   });
-  const response = await handler(request({ operation: "route", url: "https://evil.invalid" }));
+  const response = await handler(request({ operation: "directions", url: "https://evil.invalid" }));
   assertEquals(response.status, 400);
   assertEquals((await responseBody(response)).error, {
     code: "unsupported_operation",
@@ -448,6 +662,7 @@ Deno.test("caller authorization rejects missing auth, Driver, blocked Rider, and
   ) {
     const handler = createPlacesHandler({
       apiKey: SECRET,
+      googleRoutesApiKey: ROUTES_SECRET,
       authorize: (req) =>
         authorizeCaller(req, {
           supabaseUrl: "https://project.supabase.co",
@@ -500,12 +715,30 @@ Deno.test("per-user operation limits return sanitized 429 and expire after one m
       body: { operation: "reverseGeocode", latitude: 31.95, longitude: 35.92 },
       upstream: { results: [] },
     },
+    {
+      operation: "route",
+      limit: 10,
+      body: {
+        operation: "route",
+        origin: { latitude: 31.95, longitude: 35.92 },
+        destination: { latitude: 32.08, longitude: 36.1 },
+        intermediates: [],
+      },
+      upstream: {
+        routes: [{
+          distanceMeters: 12345,
+          duration: "987s",
+          polyline: { encodedPolyline: ENCODED_POLYLINE },
+        }],
+      },
+    },
   ] as const;
 
   for (const testCase of limits) {
     let upstreamCalls = 0;
     const handler = createPlacesHandler({
       apiKey: SECRET,
+      googleRoutesApiKey: ROUTES_SECRET,
       authorize: () => Promise.resolve(CALLER_ID),
       fetch: () => {
         upstreamCalls++;
@@ -536,6 +769,7 @@ Deno.test("per-user concurrency is capped at two and released when requests fini
   let upstreamCalls = 0;
   const handler = createPlacesHandler({
     apiKey: SECRET,
+    googleRoutesApiKey: ROUTES_SECRET,
     authorize: () => Promise.resolve(CALLER_ID),
     fetch: () => {
       upstreamCalls++;
@@ -630,6 +864,7 @@ Deno.test("upstream failure and malformed responses are sanitized and leak no se
 Deno.test("unexpected authorization errors do not leak tokens or details", async () => {
   const handler = createPlacesHandler({
     apiKey: SECRET,
+    googleRoutesApiKey: ROUTES_SECRET,
     authorize: () => Promise.reject(new Error(`bad token ${TOKEN}`)),
     fetch: () => Response.json({}),
   });

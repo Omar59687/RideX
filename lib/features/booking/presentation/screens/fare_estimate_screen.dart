@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/providers/route_providers.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
 import 'package:ridex/core/widgets/fare_summary_card.dart';
 import 'package:ridex/core/widgets/route_timeline.dart';
+import 'package:ridex/core/widgets/route_status_panel.dart';
 import 'package:ridex/core/widgets/vehicle_silhouette.dart';
 import 'package:ridex/core/widgets/google_maps_attribution.dart';
 
@@ -16,11 +18,15 @@ class FareEstimateScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(bookingControllerProvider);
+    final route = ref.watch(routeControllerProvider);
     final vehicle = draft.vehicleType;
     final rider = ref.watch(sessionControllerProvider).user;
     final fare =
         draft.estimatedFare > 0 ? draft.estimatedFare : vehicle?.baseFare ?? 0;
-    final ready = draft.isRoutingReady && vehicle != null && fare > 0;
+    final ready = draft.isRoutingReady &&
+        route.isReadyFor(draft) &&
+        vehicle != null &&
+        fare > 0;
 
     return AppScaffold(
       title: 'Review booking',
@@ -81,6 +87,11 @@ class FareEstimateScreen extends ConsumerWidget {
               child: GoogleMapsAttribution(),
             ),
           const SizedBox(height: AppSpacing.xl),
+          RouteStatusPanel(
+            state: route,
+            onRetry: () => ref.read(routeControllerProvider.notifier).retry(),
+          ),
+          const SizedBox(height: AppSpacing.md),
           Text('Ride details', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: AppSpacing.sm),
           Card(

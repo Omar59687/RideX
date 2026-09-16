@@ -6,10 +6,12 @@ import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/place_selection_state.dart';
 import 'package:ridex/core/providers/location_providers.dart';
 import 'package:ridex/core/providers/place_providers.dart';
+import 'package:ridex/core/providers/route_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
 import 'package:ridex/core/widgets/ride_location_selection_map.dart';
+import 'package:ridex/core/widgets/route_status_panel.dart';
 import 'package:ridex/core/widgets/google_maps_attribution.dart';
 import 'package:ridex/features/booking/presentation/widgets/location_search_panel.dart';
 
@@ -38,6 +40,7 @@ class _DestinationSelectionScreenState
     final selectionController =
         ref.read(placeSelectionControllerProvider(endpoint).notifier);
     final draft = ref.watch(bookingControllerProvider);
+    final route = ref.watch(routeControllerProvider);
     final current = ref.watch(currentLocationControllerProvider).point;
     return AppScaffold(
       title: 'Choose destination',
@@ -66,10 +69,16 @@ class _DestinationSelectionScreenState
             pickup: draft.pickup,
             destination: draft.destination,
             currentLocation: current,
+            routeGeometry:
+                route.isReadyFor(draft) ? route.result!.geometry : const [],
             onPointSelected: (point) => selectionController.selectPoint(
               point,
               source: LocationSelectionSource.map,
             ),
+          ),
+          RouteStatusPanel(
+            state: route,
+            onRetry: () => ref.read(routeControllerProvider.notifier).retry(),
           ),
           const SizedBox(height: AppSpacing.md),
           _SelectedLocation(location: draft.destination),

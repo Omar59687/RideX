@@ -11,7 +11,9 @@ import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/mock_trip.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
+import 'package:ridex/core/providers/route_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/repositories/mock_route_repository.dart';
 import 'package:ridex/core/repositories/trips_repository.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/features/booking/presentation/screens/ride_request_searching_screen.dart';
@@ -29,6 +31,7 @@ void main() {
         tripsRepositoryProvider.overrideWith((ref) => repository),
         bookingRepositoryProvider
             .overrideWith((ref) => MockBookingRepository()),
+        routeRepositoryProvider.overrideWithValue(const MockRouteRepository()),
       ],
     );
     addTearDown(container.dispose);
@@ -37,6 +40,14 @@ void main() {
     booking.setDestination(MockData.locations[1]);
     booking.setVehicleType(MockData.vehicleTypes[0]);
     await booking.estimateFare();
+    container.read(routeControllerProvider);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const SizedBox.shrink(),
+      ),
+    );
+    await tester.pump();
     final router = GoRouter(
       initialLocation: '/search',
       routes: [

@@ -2,6 +2,7 @@ const AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete";
 const PLACE_DETAILS_URL = "https://places.googleapis.com/v1/places";
 const FORWARD_GEOCODE_URL = "https://geocode.googleapis.com/v4/geocode/address";
 const REVERSE_GEOCODE_URL = "https://geocode.googleapis.com/v4/geocode/location";
+const ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
 const AUTOCOMPLETE_MASK = [
   "suggestions.placePrediction.placeId",
@@ -11,6 +12,7 @@ const AUTOCOMPLETE_MASK = [
 ].join(",");
 const PLACE_DETAILS_MASK = "id,formattedAddress,location";
 const GEOCODE_MASK = "results.place,results.formattedAddress,results.location";
+const ROUTES_MASK = "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline";
 
 const MAX_REQUEST_BYTES = 4096;
 const MAX_UPSTREAM_BYTES = 256 * 1024;
@@ -31,6 +33,7 @@ const OPERATION_RATE_LIMITS = {
   placeDetails: 15,
   forwardGeocode: 10,
   reverseGeocode: 20,
+  route: 10,
 } as const;
 
 type JsonRecord = Record<string, unknown>;
@@ -47,6 +50,7 @@ type RunLimited = (
 
 export interface PlacesHandlerDependencies {
   apiKey: string;
+  googleRoutesApiKey: string;
   authorize: Authorize;
   fetch?: FetchLike;
   upstreamTimeoutMs?: number;
@@ -176,6 +180,16 @@ function sessionToken(value: unknown): string {
 
 function optionalBias(value: unknown): { latitude: number; longitude: number } | undefined {
   if (value === undefined) return undefined;
+  if (!isRecord(value) || !hasExactKeys(value, ["latitude", "longitude"])) {
+    throw invalidRequest();
+  }
+  return {
+    latitude: coordinate(value.latitude, -90, 90),
+    longitude: coordinate(value.longitude, -180, 180),
+  };
+}
+
+function routePoint(value: unknown): { latitude: number; longitude: number } {
   if (!isRecord(value) || !hasExactKeys(value, ["latitude", "longitude"])) {
     throw invalidRequest();
   }
@@ -398,6 +412,64 @@ function normalizeGeocode(payload: unknown): JsonRecord {
   return { results: results.slice(0, 5) };
 }
 
+function validEncodedPolyline(value: string): boolean {
+  let index = 0;
+  let latitude = 0;
+  let longitude = 0;
+  let coordinateCount = 0;
+
+  while (index < value.length) {
+    let result = 0;
+    let shift = 0;
+    let byte = 0;
+    do {
+      if (index >= value.length || shift > 30) return false;
+      byte = value.charCodeAt(index++) - 63;
+      if (byte < 0 || byte > 63) return false;
+      result += (byte & 0x1f) * 2 ** shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    const delta = result % 2 === 1 ? -(result + 1) / 2 : result / 2;
+    if (coordinateCount % 2 === 0) {
+      latitude += delta;
+      if (latitude < -9000000 || latitude > 9000000) return false;
+    } else {
+      longitude += delta;
+      if (longitude < -18000000 || longitude > 18000000) return false;
+    }
+    coordinateCount++;
+  }
+
+  return coordinateCount >= 4 && coordinateCount % 2 === 0;
+}
+
+function normalizeRoute(payload: unknown): JsonRecord {
+  if (!isRecord(payload) || !Array.isArray(payload.routes) || payload.routes.length === 0) {
+    throw new HttpError(502, "provider_response_invalid", "Location provider response is invalid.");
+  }
+  const route = payload.routes[0];
+  if (!isRecord(route) || !isRecord(route.polyline)) {
+    throw new HttpError(502, "provider_response_invalid", "Location provider response is invalid.");
+  }
+  const encodedPolyline = providerString(route.polyline.encodedPolyline, MAX_UPSTREAM_BYTES);
+  const distanceMeters = route.distanceMeters;
+  const duration = route.duration;
+  const durationMatch = typeof duration === "string" ? /^([1-9]\d*)s$/u.exec(duration) : null;
+  const durationSeconds = durationMatch ? Number(durationMatch[1]) : 0;
+  if (
+    !validEncodedPolyline(encodedPolyline) ||
+    typeof distanceMeters !== "number" ||
+    !Number.isSafeInteger(distanceMeters) ||
+    distanceMeters <= 0 ||
+    !Number.isSafeInteger(durationSeconds) ||
+    durationSeconds <= 0
+  ) {
+    throw new HttpError(502, "provider_response_invalid", "Location provider response is invalid.");
+  }
+  return { encodedPolyline, distanceMeters, durationSeconds };
+}
+
 function googleHeaders(apiKey: string, fieldMask: string): HeadersInit {
   return {
     "content-type": "application/json",
@@ -492,6 +564,39 @@ function executeOperation(
     });
   }
 
+  if (body.operation === "route") {
+    if (!hasExactKeys(body, ["operation", "origin", "destination", "intermediates"])) {
+      throw invalidRequest();
+    }
+    const origin = routePoint(body.origin);
+    const destination = routePoint(body.destination);
+    if (
+      origin.latitude === destination.latitude && origin.longitude === destination.longitude
+    ) {
+      throw invalidRequest();
+    }
+    if (!Array.isArray(body.intermediates) || body.intermediates.length !== 0) {
+      throw invalidRequest();
+    }
+    return runLimited("route", async () => {
+      const payload = await fetchUpstreamJson(fetchImpl, ROUTES_URL, {
+        method: "POST",
+        headers: googleHeaders(apiKey, ROUTES_MASK),
+        body: JSON.stringify({
+          origin: { location: { latLng: origin } },
+          destination: { location: { latLng: destination } },
+          travelMode: "DRIVE",
+          routingPreference: "TRAFFIC_AWARE",
+          computeAlternativeRoutes: false,
+          polylineQuality: "OVERVIEW",
+          polylineEncoding: "ENCODED_POLYLINE",
+          units: "METRIC",
+        }),
+      }, timeoutMs);
+      return normalizeRoute(payload);
+    });
+  }
+
   throw new HttpError(400, "unsupported_operation", "Operation is not supported.");
 }
 
@@ -527,13 +632,16 @@ export function createPlacesHandler(
         throw invalidRequest();
       }
       if (!isRecord(body) || typeof body.operation !== "string") throw invalidRequest();
-      if (dependencies.apiKey.length === 0) {
+      const apiKey = body.operation === "route"
+        ? dependencies.googleRoutesApiKey
+        : dependencies.apiKey;
+      if (apiKey.length === 0) {
         throw new HttpError(503, "service_unavailable", "Location service is unavailable.");
       }
 
       const data = await executeOperation(
         body,
-        dependencies.apiKey,
+        apiKey,
         fetchImpl,
         timeoutMs,
         async (operation, operationCall) => {

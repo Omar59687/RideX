@@ -16,6 +16,7 @@ void main() {
       (tester) async {
     final pickup = testLocation(latitude: 31.95, longitude: 35.91);
     final destination = testLocation(latitude: 31.96, longitude: 35.92);
+    final routeGeometry = [pickup.point, destination.point];
     LocationPoint? tappedPoint;
 
     await tester.pumpWidget(
@@ -31,6 +32,7 @@ void main() {
             required pickup,
             required destination,
             required currentLocation,
+            required routeGeometry,
             required onPointSelected,
           }) {
             return TextButton(
@@ -40,7 +42,7 @@ void main() {
               ),
               child: Text(
                 '${activeEndpoint.name}:${pickup?.point.latitude}:'
-                '${destination?.point.latitude}',
+                '${destination?.point.latitude}:${routeGeometry.length}',
               ),
             );
           }),
@@ -53,6 +55,7 @@ void main() {
               pickup: pickup,
               destination: destination,
               currentLocation: null,
+              routeGeometry: routeGeometry,
               onPointSelected: (point) => tappedPoint = point,
             ),
           ),
@@ -61,7 +64,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('pickup:31.95:31.96'), findsOneWidget);
+    expect(find.text('pickup:31.95:31.96:2'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('fake-selection-map')));
     expect(tappedPoint, LocationPoint(latitude: 32, longitude: 36));
   });
