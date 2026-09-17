@@ -210,6 +210,30 @@
   RPC, RLS, canonical-read, and Realtime verification remain outstanding. 4D is
   not approved based on automated tests alone; those physical and authenticated
   checks must still be completed.
+- Verification attempt on 2026-09-17 found the Android toolchain installed, but
+  `flutter devices` listed only Windows, Chrome, and Edge; no physical Android
+  device or emulator was available. `adb devices -l` could not run because `adb`
+  is not on PATH. `flutter doctor -v` otherwise reported a healthy Android
+  toolchain. No device permission, Start/Stop, physical background/resume,
+  canonical-write, reconnect, or unauthorized-write check was performed.
+- The same attempt found no `SUPABASE`, `RIDEX`, `ANDROID`, or `ADB` environment
+  variables. No credential values were displayed. The live command
+  `flutter test --no-pub test/live_supabase_auth_test.dart
+  test/live_supabase_role_state_test.dart` completed with both tests skipped
+  because `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` were absent. No
+  authenticated Supabase 4D check was performed.
+- The Android manifest currently declares coarse/fine foreground location only;
+  it does not declare background-location permission. App background/resume can
+  therefore be checked only as foreground-stream cancellation and resume, not as
+  continuous OS-background tracking.
+- Required next prerequisites are an authorized Android device visible as
+  `device` through `adb`/`flutter devices`, a hosted Supabase project with
+  migrations `001` through `022`, local uncommitted publishable URL/key
+  `--dart-define` values, an approved non-blocked Driver with vehicle and
+  availability, and a separate Rider or pending/blocked account for rejection.
+  The manual sequence is documented in the 4D verification-attempt section of
+  `Plan.md`: permission then Start/Stop, canonical sequence/timestamp inspection,
+  app background/resume, connectivity recovery, and negative RPC/no-row checks.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`

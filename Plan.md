@@ -1,6 +1,6 @@
 # RideX Development Plan
 
-Last updated: 2026-09-14
+Last updated: 2026-09-17
 
 ## Purpose
 
@@ -47,7 +47,7 @@ metadata through 2026-09-14:
 
 ## Active Goal
 
-Checkpoints 4A, 4B, and 4C are approved. Checkpoint 4D implementation slices are complete, but its final approval review on 2026-09-17 found blocking ordering coverage and regression-test failures; it remains unapproved. Its approved scope and delivery slices are recorded in `docs/superpowers/specs/2026-09-17-checkpoint-4d-driver-location-tracking-design.md`.
+Checkpoints 4A, 4B, and 4C are approved. Checkpoint 4D implementation slices and automated corrections are complete, but real physical Android and authenticated Supabase verification is still unavailable; it remains unapproved. Its approved scope and delivery slices are recorded in `docs/superpowers/specs/2026-09-17-checkpoint-4d-driver-location-tracking-design.md`.
 
 ### Problem
 
@@ -890,6 +890,32 @@ Physical-device GPS/permission/background verification and authenticated
 Supabase RPC, RLS, canonical-read, and Realtime verification remain outstanding.
 Checkpoint 4D remains unapproved until those physical and authenticated checks
 are completed; automated tests alone do not approve 4D.
+
+#### Checkpoint 4D verification attempt — environment blockers
+
+Verification date: 2026-09-17. No implementation or test fixes were repeated.
+
+Checks actually performed:
+
+- The active branch was `codex/phase-4d-driver-location` and the worktree was clean before documentation changes.
+- `flutter doctor -v` confirmed Flutter 3.27.3, the Android toolchain, Android SDK, Java, and accepted Android licenses are installed.
+- `flutter devices` reported only Windows, Chrome, and Edge. No physical Android device or Android emulator was available.
+- `adb devices -l` could not run because `adb` is not available on PATH.
+- No `SUPABASE`, `RIDEX`, `ANDROID`, or `ADB` environment variables were present. No environment value or credential was displayed.
+- `flutter test --no-pub test/live_supabase_auth_test.dart test/live_supabase_role_state_test.dart` completed with both live tests skipped because `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` were not configured.
+- The Android manifest was inspected and contains coarse/fine foreground location permissions only; no background-location permission is configured.
+
+Not performed because the prerequisites were unavailable: Driver permission flow on physical Android; physical Start/Stop; physical app background/resume; canonical availability/latest-location reads and RPC writes; network/reconnection recovery; and unauthorized-write rejection. These checks must not be recorded as passed, and Checkpoint 4D remains unapproved.
+
+Prerequisites and manual verification sequence:
+
+1. Connect an Android phone with GPS and network enabled, USB debugging enabled, and this computer authorized. Install/configure `adb` so `adb devices -l` shows the phone as `device`, then confirm it appears in `flutter devices`.
+2. Use a hosted Supabase project with migrations `001` through `022` deployed. Provide only a valid publishable client key and project URL through local, uncommitted `--dart-define` values; never use or record a service-role key.
+3. Prepare an approved, non-blocked Driver account with an approved vehicle and canonical availability row, plus a separate Rider or pending/blocked Driver account for the negative authorization check. Ensure the tester can inspect sanitized row results in authorized project tooling without recording personal data or secrets.
+4. Run the app on the physical phone with `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` supplied by `--dart-define`, sign in as the approved Driver, and verify the permission prompt appears only after Start. Grant permission, tap Start, confirm the sharing state, move the phone or wait for distinct GPS fixes, and verify increasing canonical `driver_locations.sequence`, coordinates, and `received_at` through authorized read-only inspection.
+5. Tap Stop and verify the UI stops sharing and no later location rows are written. Background the app and return while tracking is requested; verify the foreground stream is recreated once, canonical availability/latest location is re-read, and no duplicate stream or conflicting sequence is produced. Because the current manifest has no background-location permission, do not claim continuous OS-background tracking; this is an app background/resume check only unless that separate capability is implemented and approved.
+6. While tracking is active, interrupt network connectivity, restore it, and verify one recovery stream is created, the latest canonical row is re-read, and the next write uses a sequence greater than the saved maximum without replaying the failed sample.
+7. Sign in as the Rider and separately as a pending/blocked Driver, attempt the location write through the authenticated client path, and verify the RPC is rejected and no `driver_locations` row is created. Record only sanitized status/error categories and row-count/sequence evidence.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
