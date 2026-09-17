@@ -772,6 +772,26 @@ reported no issues; `git diff --cached --check` passed before the commit.
 Next step: Network and Realtime reconnect/recovery handling is next. Do not
 start that step as part of Slice 2B2A.
 
+#### Checkpoint 4D Slice 2B2 — Network recovery entry point
+
+Status: Completed and committed locally as `7ddc3f3` on 2026-09-17.
+
+Slice 2B2 adds the testable `recoverAfterConnectivity()` entry point. After a
+publish or network failure it cancels the old stream while preserving deliberate
+tracking intent, re-fetches canonical availability and latest saved location,
+derives the next sequence from the canonical row, and opens exactly one new
+foreground stream. Failed samples are never replayed. Repeated recovery calls
+and recovery after Stop, sign-out, backgrounding, or disposal are ignored. No
+connectivity package, Realtime subscription, UI, background tracking, or
+matching was added.
+
+Verification: changed Dart files formatted; `flutter test
+test/driver_tracking_controller_test.dart` passed 16 tests; `flutter analyze`
+reported no issues; `git diff --cached --check` passed before the commit.
+
+Next step: Wire an actual network/reconnection signal to the recovery entry
+point. Do not start that wiring as part of Slice 2B2.
+
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
 - [ ] 4.24 Make GPS updates efficient:

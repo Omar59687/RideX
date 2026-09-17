@@ -3,6 +3,8 @@
 ## Git Checkpoint
 
 - Active branch: `codex/phase-4d-driver-location`
+- Checkpoint 4D network recovery implementation: `7ddc3f3`; documentation
+  updated in the separate commit following it.
 - Checkpoint 4D slice 2B2A implementation: `1a2bad3`; documentation updated in
   the separate commit following it.
 - Checkpoint 4D slice 2B1 implementation: `c3e85ee`; review correction:
@@ -72,7 +74,7 @@
 - Slice 2A limitation: no tracking controller, ordering, lifecycle, reconnect,
   canonical recovery, UI, or live Supabase verification. Slice 2B1 and 2B2A
   addressed the controller and foreground lifecycle foundations below; network
-  and Realtime reconnect/recovery remain next.
+  and Realtime reconnect/recovery entry point is recorded below.
 - Checkpoint 4D slice 2B1: **Completed.** Commit `c3e85ee` adds the Riverpod
   Driver tracking controller with explicit start/stop, canonical availability
   and latest-location reads before owning one foreground stream, ordered
@@ -91,7 +93,7 @@
   issues; staged diff check passed before the correction commit.
 - Slice 2B1 limitation: lifecycle handling, reconnect, canonical recovery, UI,
   and live Supabase verification remain unimplemented. Slice 2B2A addressed
-  lifecycle handling below; network and Realtime reconnect/recovery remain.
+  lifecycle handling below; network and Realtime recovery is recorded below.
 - Checkpoint 4D slice 2B2A: **Completed.** Commit `1a2bad3` adds the testable
   lifecycle boundary and foreground background/resume handling. Background
   entry cancels the GPS stream and invalidates pending work while preserving
@@ -106,8 +108,25 @@
   `flutter analyze` reported no issues; staged diff check passed before commit.
 - Slice 2B2A limitation: network and Realtime reconnect/recovery, UI, live
   Supabase verification, background permissions, and matching remain
-  unimplemented. Network and Realtime reconnect/recovery are next and remain
-  unstarted.
+  unimplemented. Network recovery is addressed below; actual reconnection
+  signal wiring remains next and unstarted.
+- Checkpoint 4D network recovery: **Completed.** Commit `7ddc3f3` adds the
+  testable `recoverAfterConnectivity()` entry point. After publish/network
+  failure it cancels the old stream while preserving deliberate tracking intent,
+  re-fetches canonical availability/latest location, derives the next sequence,
+  and opens one replacement foreground stream without replaying failed samples.
+  Repeated recovery and recovery after Stop, sign-out, backgrounding, or
+  disposal are ignored. No connectivity package, Realtime subscription, UI,
+  background tracking, or matching was added.
+- Network recovery verification: changed Dart files formatted; focused test
+  `test/driver_tracking_controller_test.dart` passed 16 tests, including higher
+  canonical sequence recovery, repeated recovery signals, and Stop during
+  recovery; `flutter analyze` reported no issues; staged diff check passed
+  before commit.
+- Network recovery limitation: no actual connectivity/reconnection signal is
+  wired yet. Realtime, UI, live Supabase verification, background permissions,
+  and matching remain unimplemented. Reconnection signal wiring is next and
+  remains unstarted.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
