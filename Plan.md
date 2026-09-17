@@ -667,6 +667,40 @@ Approval gate:
 - [ ] No Driver matching logic is implemented in Phase 4.
 - [ ] Relevant tests pass.
 
+#### Checkpoint 4D Slice 1 — Contracts and adapters
+
+Status: Completed and committed locally as `4694a5e` on 2026-09-17.
+
+Implemented files:
+
+- `lib/core/errors/driver_location_exception.dart`
+- `lib/core/models/driver_availability.dart`
+- `lib/core/models/driver_location.dart`
+- `lib/core/providers/repositories_providers.dart`
+- `lib/core/repositories/driver_location_repository.dart`
+- `lib/core/repositories/mock_driver_location_repository.dart`
+- `lib/core/services/driver_location/driver_location_service.dart`
+- `lib/core/services/driver_location/supabase_driver_location_service.dart`
+- `test/driver_location_repository_test.dart`
+
+Slice 1 adds provider-neutral availability, timestamped sample, and saved-location
+models; strict mapping and sanitized failures; canonical availability/latest-location
+reads; RPC-only publishing through `driver_record_location`; and a deterministic
+Mock implementation. It does not edit committed migrations.
+
+Verification: `dart format` completed on all changed Dart files; `flutter test
+test/driver_location_repository_test.dart` passed 6 tests; `flutter analyze`
+reported no issues; `git diff --check` and staged `git diff --cached --check`
+passed before the commit.
+
+Limitations: no GPS stream, tracking controller, Driver Home UI, Realtime
+subscription, matching, background behavior, lifecycle/reconnect recovery, or live
+Supabase verification is included. The Checkpoint 4D items above remain incomplete
+until the later slices provide those behaviors.
+
+Next step: Slice 2 adds a foreground GPS stream and Riverpod tracking controller
+with ordering, lifecycle, reconnect, and canonical recovery tests.
+
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
 - [ ] 4.24 Make GPS updates efficient:

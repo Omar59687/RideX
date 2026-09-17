@@ -2,9 +2,10 @@
 
 ## Git Checkpoint
 
-- Active branch: `yousuf/supabase-env-audit`
-- Current local commit: `0424563`
-- Current tracking-branch commit: `41dd2f5`
+- Active branch: `codex/phase-4d-driver-location`
+- Current local implementation commit: `4694a5e`
+- Checkpoint 4D slice 1 is committed locally; its documentation update remains
+  uncommitted at this status checkpoint.
 - Current `origin/main`: `eeba67d`
 - Checkpoint 4A implementation: `d65a58a`, merged into `main`
 - Checkpoint 4B implementation: `2359a81`, merged into `main`
@@ -31,6 +32,26 @@
   physical Android polyline, service-backed distance/duration, selected
   endpoints, and endpoint-change recalculation are verified.
 - Checkpoints 4D through 4G remain incomplete. Phase 4 is not approved.
+- Checkpoint 4D slice 1: **Completed.** Commit `4694a5e` adds the Driver location
+  provider-neutral availability, sample, and saved-location contracts; sanitized
+  failure types; canonical Supabase availability/latest-location reads; RPC-only
+  `driver_record_location` publishing; and deterministic Mock behavior. The exact
+  implementation files are `lib/core/errors/driver_location_exception.dart`,
+  `lib/core/models/driver_availability.dart`,
+  `lib/core/models/driver_location.dart`,
+  `lib/core/providers/repositories_providers.dart`,
+  `lib/core/repositories/driver_location_repository.dart`,
+  `lib/core/repositories/mock_driver_location_repository.dart`,
+  `lib/core/services/driver_location/driver_location_service.dart`,
+  `lib/core/services/driver_location/supabase_driver_location_service.dart`, and
+  `test/driver_location_repository_test.dart`.
+- Slice 1 verification: changed Dart files formatted; focused Driver location suite
+  passed 6 tests; `flutter analyze` reported no issues; `git diff --check` and
+  staged `git diff --cached --check` passed before commit.
+- Slice 1 limitations: no GPS stream, tracking controller, Driver Home UI, Realtime
+  subscription, matching, background behavior, lifecycle/reconnect recovery, or
+  live Supabase verification. Slice 2 is next: foreground GPS stream and Riverpod
+  tracking controller with ordering, lifecycle, reconnect, and recovery tests.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
