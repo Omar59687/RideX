@@ -3,6 +3,8 @@
 ## Git Checkpoint
 
 - Active branch: `codex/phase-4d-driver-location`
+- Checkpoint 4D reconnection signal wiring implementation: `610835f`;
+  documentation updated in the separate commit following it.
 - Checkpoint 4D network recovery implementation: `7ddc3f3`; documentation
   updated in the separate commit following it.
 - Checkpoint 4D slice 2B2A implementation: `1a2bad3`; documentation updated in
@@ -108,8 +110,8 @@
   `flutter analyze` reported no issues; staged diff check passed before commit.
 - Slice 2B2A limitation: network and Realtime reconnect/recovery, UI, live
   Supabase verification, background permissions, and matching remain
-  unimplemented. Network recovery is addressed below; actual reconnection
-  signal wiring remains next and unstarted.
+  unimplemented. Network recovery and reconnection signal wiring are addressed
+  below; Driver Home UI remains next.
 - Checkpoint 4D network recovery: **Completed.** Commit `7ddc3f3` adds the
   testable `recoverAfterConnectivity()` entry point. After publish/network
   failure it cancels the old stream while preserving deliberate tracking intent,
@@ -123,10 +125,25 @@
   canonical sequence recovery, repeated recovery signals, and Stop during
   recovery; `flutter analyze` reported no issues; staged diff check passed
   before commit.
-- Network recovery limitation: no actual connectivity/reconnection signal is
-  wired yet. Realtime, UI, live Supabase verification, background permissions,
-  and matching remain unimplemented. Reconnection signal wiring is next and
-  remains unstarted.
+- Network recovery limitation: Driver Home UI and live Supabase verification
+  remain unimplemented. Reconnection signal wiring is addressed below;
+  background permissions and matching remain unimplemented.
+- Checkpoint 4D reconnection signal wiring: **Completed.** Commit `610835f`
+  adds a disposable, testable connection-status boundary, a no-op Mock
+  implementation, and a Supabase adapter that owns one lightweight Realtime
+  channel while tracking is requested. Initial subscription is not recovery;
+  disconnect/error followed by successful resubscription invokes
+  `recoverAfterConnectivity()` once. Stop, sign-out, backgrounding, and
+  disposal remove the channel. No `driver_locations` changes subscription,
+  dependency, UI, background permission, or matching was added.
+- Reconnection wiring verification: changed Dart files formatted; focused test
+  `test/driver_tracking_controller_test.dart` passed 21 tests, including
+  disconnect/reconnect, repeated status events, Stop while disconnected,
+  background/resume, cleanup, canonical recovery, and duplicate-stream guards;
+  `flutter analyze` reported no issues; staged diff check passed before commit.
+- Reconnection wiring limitation: no Driver Home UI, live Supabase verification,
+  background permissions, or matching is implemented. Driver Home tracking UI
+  and focused widget tests are next and remain unstarted.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`

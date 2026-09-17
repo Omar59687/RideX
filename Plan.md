@@ -792,6 +792,25 @@ reported no issues; `git diff --cached --check` passed before the commit.
 Next step: Wire an actual network/reconnection signal to the recovery entry
 point. Do not start that wiring as part of Slice 2B2.
 
+#### Checkpoint 4D Reconnection signal wiring
+
+Status: Completed and committed locally as `610835f` on 2026-09-17.
+
+Added a disposable, testable connection-status boundary with a no-op Mock
+implementation and a Supabase adapter. While Driver tracking is requested in
+Supabase mode, the controller owns one lightweight Realtime channel. Initial
+subscription is not treated as recovery; a disconnect/error followed by a
+successful resubscription invokes `recoverAfterConnectivity()` once. The
+channel is removed on Stop, sign-out, backgrounding, and disposal. The adapter
+does not subscribe to `driver_locations` changes, and no dependency was added.
+
+Verification: changed Dart files formatted; `flutter test
+test/driver_tracking_controller_test.dart` passed 21 tests; `flutter analyze`
+reported no issues; `git diff --cached --check` passed before the commit.
+
+Next step: Driver Home tracking UI and focused widget tests. Do not start the UI
+step as part of this reconnection wiring.
+
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
 - [ ] 4.24 Make GPS updates efficient:
