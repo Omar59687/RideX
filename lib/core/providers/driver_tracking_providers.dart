@@ -100,7 +100,9 @@ class DriverTrackingController
   String? _activeTripId;
   int _nextSequence = 1;
   bool _startInProgress = false;
+  bool _recoveryInProgress = false;
   bool _trackingRequested = false;
+  bool _backgrounded = false;
   int _generation = 0;
   bool _disposed = false;
 
@@ -123,11 +125,12 @@ class DriverTrackingController
 
   Future<void> start() async {
     _trackingRequested = true;
+    if (_backgrounded) return;
     await _startSession();
   }
 
   Future<void> _startSession() async {
-    if (_startInProgress || _subscription != null) return;
+    if (_backgrounded || _startInProgress || _subscription != null) return;
 
     final generation = ++_generation;
     _startInProgress = true;
@@ -191,12 +194,35 @@ class DriverTrackingController
 
   Future<void> stopForSignOut() => stop();
 
+  Future<void> recoverAfterConnectivity() async {
+    if (!_trackingRequested ||
+        _backgrounded ||
+        _disposed ||
+        _recoveryInProgress ||
+        _startInProgress) {
+      return;
+    }
+    _recoveryInProgress = true;
+    try {
+      await _stopSession();
+      if (_trackingRequested && !_backgrounded && !_disposed) {
+        await _startSession();
+      }
+    } finally {
+      _recoveryInProgress = false;
+    }
+  }
+
   void _handleLifecycleChange(DriverTrackingLifecycleState lifecycleState) {
     _lifecycleQueue = _lifecycleQueue.then((_) async {
       if (lifecycleState == DriverTrackingLifecycleState.background) {
+        _backgrounded = true;
         if (_trackingRequested) await _stopSession();
       } else if (_trackingRequested) {
+        _backgrounded = false;
         await _startSession();
+      } else {
+        _backgrounded = false;
       }
     });
   }

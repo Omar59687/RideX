@@ -264,6 +264,71 @@ void main() {
     expect(container.read(driverTrackingControllerProvider).status,
         DriverTrackingStatus.stopped);
   });
+
+  test('recovery uses the higher canonical sequence without replaying failure',
+      () async {
+    repository.publishError = const DriverLocationException(
+      DriverLocationFailure.unavailable,
+    );
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final failedFix = _fix(startTime.add(const Duration(seconds: 1)));
+    gps.add(failedFix);
+    await repository.waitForAttempts(1);
+    await flush();
+
+    repository.publishError = null;
+    repository.latest = _saved(10, startTime.add(const Duration(seconds: 2)));
+    await controller.recoverAfterConnectivity();
+    gps.add(_fix(startTime.add(const Duration(seconds: 3))));
+    await repository.waitForPublishes(1);
+
+    expect(repository.published.single.sequence, 11);
+    expect(repository.publishAttempts, 2);
+    expect(gps.listenCount, 2);
+  });
+
+  test('repeated recovery signals coalesce to one canonical restart', () async {
+    repository.publishError = const DriverLocationException(
+      DriverLocationFailure.unavailable,
+    );
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    await repository.waitForAttempts(1);
+    await flush();
+
+    final availability = Completer<DriverAvailability?>();
+    repository.availabilityResult = availability.future;
+    repository.publishError = null;
+    final first = controller.recoverAfterConnectivity();
+    final second = controller.recoverAfterConnectivity();
+    await flush();
+    availability.complete(repository.availability);
+    await Future.wait([first, second]);
+
+    expect(repository.availabilityCount, 2);
+    expect(gps.listenCount, 2);
+  });
+
+  test('Stop during recovery prevents a replacement stream', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final availability = Completer<DriverAvailability?>();
+    repository.availabilityResult = availability.future;
+    final recovery = controller.recoverAfterConnectivity();
+    await flush();
+    await controller.stop();
+    availability.complete(repository.availability);
+    await recovery;
+
+    expect(gps.listenCount, 1);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.stopped);
+  });
 }
 
 Future<void> flush([int count = 1]) async {
