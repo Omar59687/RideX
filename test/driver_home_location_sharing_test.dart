@@ -24,6 +24,7 @@ void main() {
   late FakeGpsService gps;
   late FakeLifecycle lifecycle;
   late FakeConnection connection;
+  late DriverTrackingState trackingState;
 
   Widget buildSubject() => ProviderScope(
         overrides: [
@@ -33,6 +34,9 @@ void main() {
           driverTrackingLifecycleProvider.overrideWithValue(lifecycle),
           driverTrackingConnectionProvider.overrideWithValue(connection),
           driverOnlineProvider.overrideWith((_) => true),
+        ],
+        observers: [
+          _TrackingObserver((state) => trackingState = state),
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
@@ -53,6 +57,7 @@ void main() {
     gps = FakeGpsService();
     lifecycle = FakeLifecycle();
     connection = FakeConnection();
+    trackingState = const DriverTrackingState.initial();
   });
 
   Future<void> tapButton(WidgetTester tester, String label) async {
@@ -65,6 +70,18 @@ void main() {
     await tester.tap(finder);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
+  }
+
+  Future<void> pumpUntil(
+    WidgetTester tester,
+    bool Function() condition,
+  ) async {
+    for (var attempt = 0; attempt < 20; attempt++) {
+      if (condition()) return;
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    fail(
+        'Condition did not become true. Current state: ${trackingState.status}.');
   }
 
   testWidgets('does not request permission until Start sharing is tapped',
@@ -80,14 +97,40 @@ void main() {
     expect(find.text('Sharing'), findsOneWidget);
   });
 
-  testWidgets('sharing control stays separate from demo presence',
+  testWidgets('Stop sharing stops tracking without changing demo presence',
       (tester) async {
     await pumpSubject(tester);
     await tapButton(tester, 'Start sharing');
 
     expect(find.text('Stop sharing'), findsOneWidget);
+    await tapButton(tester, 'Stop sharing');
+    await pumpUntil(
+      tester,
+      () => trackingState.status == DriverTrackingStatus.stopped,
+    );
+
+    expect(trackingState.status, DriverTrackingStatus.stopped);
     expect(find.text('You are online'), findsOneWidget);
     expect(find.text('Mock presence only for this phase.'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+  });
+
+  testWidgets('backgrounding pauses requested location sharing',
+      (tester) async {
+    await pumpSubject(tester);
+    await tapButton(tester, 'Start sharing');
+
+    lifecycle.emit(DriverTrackingLifecycleState.background);
+    await pumpUntil(
+      tester,
+      () => trackingState.status == DriverTrackingStatus.paused,
+    );
+
+    expect(trackingState.status, DriverTrackingStatus.paused);
+    expect(find.text('Paused'), findsOneWidget);
+    expect(find.text('Stop sharing'), findsOneWidget);
   });
 
   testWidgets('shows safe permission failure text', (tester) async {
@@ -127,6 +170,25 @@ void main() {
     expect(find.textContaining('Last server-confirmed location: 2m ago'),
         findsOneWidget);
   });
+}
+
+class _TrackingObserver extends ProviderObserver {
+  _TrackingObserver(this.onState);
+
+  final void Function(DriverTrackingState state) onState;
+
+  @override
+  void didUpdateProvider(
+    ProviderBase<Object?> provider,
+    Object? previousValue,
+    Object? newValue,
+    ProviderContainer container,
+  ) {
+    if (provider == driverTrackingControllerProvider &&
+        newValue is DriverTrackingState) {
+      onState(newValue);
+    }
+  }
 }
 
 class FakeLocationRepository implements LocationRepository {
@@ -179,7 +241,6 @@ class FakeDriverRepository implements DriverLocationRepository {
 class FakeGpsService implements DriverGpsStreamService {
   @override
   Stream<DriverLocationFix> foregroundFixes() => const Stream.empty();
-
 }
 
 class FakeLifecycle implements DriverTrackingLifecycle {
@@ -188,6 +249,8 @@ class FakeLifecycle implements DriverTrackingLifecycle {
 
   @override
   Stream<DriverTrackingLifecycleState> get changes => _controller.stream;
+
+  void emit(DriverTrackingLifecycleState state) => _controller.add(state);
 
   @override
   Future<void> dispose() => _controller.close();

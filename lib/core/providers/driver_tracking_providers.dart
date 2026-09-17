@@ -15,6 +15,7 @@ import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
 
 enum DriverTrackingStatus {
   stopped,
+  paused,
   starting,
   sharing,
   unavailable,
@@ -214,7 +215,9 @@ class DriverTrackingController
     await _stopSession();
   }
 
-  Future<void> _stopSession() async {
+  Future<void> _stopSession({
+    DriverTrackingStatus status = DriverTrackingStatus.stopped,
+  }) async {
     _generation++;
     _startInProgress = false;
     _activeTripId = null;
@@ -222,14 +225,15 @@ class DriverTrackingController
     _connectionFailurePending = false;
     final subscription = _subscription;
     _subscription = null;
-    await subscription?.cancel();
-    await ref.read(driverTrackingConnectionProvider).disconnect();
+    final connection = ref.read(driverTrackingConnectionProvider);
     if (!_disposed) {
       state = DriverTrackingState(
-        status: DriverTrackingStatus.stopped,
+        status: status,
         latestConfirmedAt: _latestConfirmedAt,
       );
     }
+    await subscription?.cancel();
+    await connection.disconnect();
   }
 
   Future<void> stopForSignOut() => stop();
@@ -257,7 +261,9 @@ class DriverTrackingController
     _lifecycleQueue = _lifecycleQueue.then((_) async {
       if (lifecycleState == DriverTrackingLifecycleState.background) {
         _backgrounded = true;
-        if (_trackingRequested) await _stopSession();
+        if (_trackingRequested) {
+          await _stopSession(status: DriverTrackingStatus.paused);
+        }
       } else if (_trackingRequested) {
         _backgrounded = false;
         await _startSession();

@@ -227,8 +227,10 @@ class _DriverLocationSharingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isActive = state.status == DriverTrackingStatus.sharing ||
         state.status == DriverTrackingStatus.starting;
+    final canStop = isActive || state.status == DriverTrackingStatus.paused;
     final status = switch (state.status) {
       DriverTrackingStatus.stopped => 'Stopped',
+      DriverTrackingStatus.paused => 'Paused',
       DriverTrackingStatus.starting => 'Starting',
       DriverTrackingStatus.sharing => 'Sharing',
       DriverTrackingStatus.unavailable => 'Unavailable',
@@ -266,13 +268,13 @@ class _DriverLocationSharingCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             AppButton(
               key: ValueKey(
-                isActive ? 'driver-location-stop' : 'driver-location-start',
+                canStop ? 'driver-location-stop' : 'driver-location-start',
               ),
-              label: isActive ? 'Stop sharing' : 'Start sharing',
-              icon: isActive ? Icons.stop_circle_outlined : Icons.play_arrow,
+              label: canStop ? 'Stop sharing' : 'Start sharing',
+              icon: canStop ? Icons.stop_circle_outlined : Icons.play_arrow,
               onPressed: permissionRequestRunning
                   ? null
-                  : isActive
+                  : canStop
                       ? onStop
                       : onStart,
             ),
@@ -289,6 +291,9 @@ class _DriverLocationSharingCard extends StatelessWidget {
     if (permissionMessage case final message?) return message;
     if (state.status == DriverTrackingStatus.starting) {
       return 'Preparing foreground GPS sharing.';
+    }
+    if (state.status == DriverTrackingStatus.paused) {
+      return 'Sharing is paused while RideX is in the background. It will resume in the foreground.';
     }
     if (state.status == DriverTrackingStatus.sharing) {
       return 'Your current position is being shared securely.';
