@@ -854,7 +854,7 @@ Verification: focused
 `flutter analyze` reported no issues; formatting and `git diff --check` passed.
 The reconnection suite was not rerun.
 
-#### Checkpoint 4D Final approval review — Blocked
+#### Checkpoint 4D Final approval review — Automated blockers corrected; approval pending
 
 Review date: 2026-09-17. Branch `codex/phase-4d-driver-location` began clean.
 The review confirmed RPC-only writes, repository-level canonical availability
@@ -863,32 +863,33 @@ foreground stream/publisher, Stop/sign-out/background cleanup, reconnect
 recovery, and the separate Driver Home sharing status. No 4E or later behavior
 was reviewed or added.
 
-Blocking finding: `lib/core/providers/driver_tracking_providers.dart:297-299`
-rejects only timestamps strictly older than `_latestRecordedAt`. A fix with the
-same `recordedAt` is accepted, assigned a higher sequence, and can become the
-newest canonical row despite not being newer. This does not meet stale and
-out-of-order protection. Small fix: reject timestamps that are not strictly
-after `_latestRecordedAt`, then add an equal-timestamp controller test.
+Correction commit: `0e0a9e6`.
+
+The controller now rejects timestamps that are not strictly after
+`_latestRecordedAt`, so equal and older fixes cannot receive a new sequence or
+replace the canonical latest location. A focused equal-timestamp controller
+test covers the boundary. The obsolete background expectation now checks the
+intentional `paused` state. The Driver Home map regression was test-only: the
+shared map builder remains wired correctly, and the test scrolls the `ListView`
+to the map before asserting the overridden `fake-google-map`.
 
 Automated verification:
 
+- Focused affected suites passed: 35 tests across
+  `test/driver_tracking_controller_test.dart`,
+  `test/current_location_map_test.dart`, and
+  `test/driver_home_location_sharing_test.dart`.
 - `dart format --output=none --set-exit-if-changed lib test`: passed; 183 files
   checked and 0 changed.
 - `flutter analyze`: passed with no issues.
-- Full non-live `flutter test`: failed with 179 passing tests, 2 intentional
-  live-Supabase skips, and 2 failures.
-- `test/driver_tracking_controller_test.dart:212` expects `stopped` after
-  backgrounding, while the corrected controller and UI intentionally produce
-  `paused`. Small fix: update that obsolete expectation to `paused`.
-- `test/current_location_map_test.dart:170` cannot find the overridden
-  `fake-google-map` in `DriverHomeScreen`; isolate the Driver Home map provider
-  path and restore the expected builder before approval.
+- Full non-live `flutter test`: passed 180 tests with 2 intentional live-Supabase
+  skips.
 - The known non-failing `flutter_svg` unsupported `<filter>` warnings appeared.
 
 Physical-device GPS/permission/background verification and authenticated
-Supabase RPC, RLS, canonical-read, and Realtime verification were not performed.
-Checkpoint 4D remains unapproved until the ordering defect and failed regression
-tests are corrected and the complete non-live suite passes.
+Supabase RPC, RLS, canonical-read, and Realtime verification remain outstanding.
+Checkpoint 4D remains unapproved until those physical and authenticated checks
+are completed; automated tests alone do not approve 4D.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
