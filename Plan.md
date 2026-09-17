@@ -808,10 +808,11 @@ Verification: changed Dart files formatted; `flutter test
 test/driver_tracking_controller_test.dart` passed 21 tests; `flutter analyze`
 reported no issues; `git diff --cached --check` passed before the commit.
 
-Review finding before Driver Home UI: an intentional channel close during Stop,
-backgrounding, or disposal can set the controller's reconnect-pending flag.
-The next normal subscription may then trigger an unnecessary recovery. Correct
-the signal/session ownership race with focused tests before starting UI.
+Reconnection review correction: commit `b7e74f7` makes connection events
+generation-bearing, suppresses callbacks from removed Supabase channels, clears
+pending recovery on intentional disconnects, and ignores old-session events.
+Focused tests cover Stop/restart, background/resume, removed-channel callbacks,
+and genuine disconnect/reconnect. Driver Home UI remains next.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 

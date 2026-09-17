@@ -3,6 +3,8 @@
 ## Git Checkpoint
 
 - Active branch: `codex/phase-4d-driver-location`
+- Checkpoint 4D reconnection review correction: `b7e74f7`; documentation updated
+  in the separate commit following it.
 - Checkpoint 4D reconnection signal wiring implementation: `610835f`;
   documentation updated in the separate commit following it.
 - Checkpoint 4D network recovery implementation: `7ddc3f3`; documentation
@@ -141,10 +143,15 @@
   disconnect/reconnect, repeated status events, Stop while disconnected,
   background/resume, cleanup, canonical recovery, and duplicate-stream guards;
   `flutter analyze` reported no issues; staged diff check passed before commit.
-- Reconnection wiring review finding: an intentional channel close during Stop,
-  backgrounding, or disposal can be mistaken for a network failure. A later
-  normal subscription may then trigger an unnecessary recovery. Add a focused
-  correction and regressions before Driver Home UI.
+- Reconnection wiring review correction: **Completed.** Commit `b7e74f7` makes
+  connection events generation-bearing, clears pending recovery on intentional
+  disconnects, and ignores late callbacks from removed channels or old tracking
+  sessions. A new session's initial subscription cannot trigger recovery.
+- Reconnection correction verification: the focused
+  `test/driver_tracking_controller_test.dart` suite passed 22 tests, including
+  Stop/restart, background/resume, late removed-channel status, and genuine
+  disconnect/reconnect; `flutter analyze` reported no issues; staged diff check
+  passed before commit.
 - Reconnection wiring limitation: no Driver Home UI, live Supabase verification,
   background permissions, or matching is implemented. Driver Home tracking UI
   remains unstarted.
