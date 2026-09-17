@@ -726,10 +726,31 @@ Verification: changed Dart files formatted; `flutter test
 test/driver_gps_stream_service_test.dart` passed 4 tests; `flutter analyze`
 reported no issues; `git diff --cached --check` passed before the commit.
 
-Next step: Slice 2B1 adds the Riverpod tracking controller's explicit start/stop,
-single foreground stream, ordered publication, and focused tests. Slice 2B2
-then adds lifecycle, reconnect, and canonical recovery tests. This keeps the
-controller work bounded for Luna.
+#### Checkpoint 4D Slice 2B1 — Tracking controller foundation
+
+Status: Completed and committed locally as `c3e85ee` on 2026-09-17.
+
+Implemented files:
+
+- `lib/core/providers/driver_tracking_providers.dart`
+- `test/driver_tracking_controller_test.dart`
+
+Slice 2B1 adds a Riverpod Driver tracking controller with explicit start/stop,
+canonical availability and latest-location reads before stream ownership,
+single foreground stream ownership, sequential publication, sequence values
+greater than the saved maximum, and filtering for missing-accuracy or older
+device-timestamp fixes. Only one publish is in flight; publish failures stop
+tracking without blindly retrying a rejected sequence. No UI, lifecycle,
+reconnection, Realtime, background tracking, or matching was added.
+
+Verification: changed Dart files formatted; `flutter test
+test/driver_tracking_controller_test.dart` passed 6 tests covering eligibility,
+start/stop, duplicate starts, sequence ordering, invalid/stale fixes, and
+publish failure; `flutter analyze` reported no issues; `git diff --cached --check`
+passed before the commit.
+
+Next step: Slice 2B2 adds only app lifecycle handling, reconnect, and canonical
+recovery tests. Do not start it as part of Slice 2B1.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 

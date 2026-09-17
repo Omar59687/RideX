@@ -3,6 +3,8 @@
 ## Git Checkpoint
 
 - Active branch: `codex/phase-4d-driver-location`
+- Checkpoint 4D slice 2B1 implementation: `c3e85ee`; documentation updated in
+  the separate commit following it.
 - Checkpoint 4D slice 2A implementation: `3669a4d`; documentation:
   `8a2dcf0`. The worktree was clean after both commits.
 - Checkpoint 4D slice 1 implementation: `4694a5e`; its documentation is
@@ -66,9 +68,25 @@
   invalid fixes, stream errors, and cancellation; `flutter analyze` reported no
   issues; staged diff check passed before commit.
 - Slice 2A limitation: no tracking controller, ordering, lifecycle, reconnect,
-  canonical recovery, UI, or live Supabase verification. Slice 2B1 is next:
-  start/stop, one stream, ordered publication, and focused tests. Slice 2B2
-  follows with lifecycle and reconnect recovery.
+-  canonical recovery, UI, or live Supabase verification. Slice 2B1 addressed
+  the controller foundation below; Slice 2B2 remains for lifecycle, reconnect,
+  and canonical recovery.
+- Checkpoint 4D slice 2B1: **Completed.** Commit `c3e85ee` adds the Riverpod
+  Driver tracking controller with explicit start/stop, canonical availability
+  and latest-location reads before owning one foreground stream, ordered
+  sequential publication, sequence values above the saved maximum, and
+  missing-accuracy/older-timestamp filtering. It allows one publish at a time
+  and stops on publish failure without blindly retrying a rejected sequence.
+  No UI, app lifecycle, reconnect, Realtime, background tracking, or matching
+  was added.
+- Slice 2B1 verification: changed Dart files formatted; focused test
+  `test/driver_tracking_controller_test.dart` passed 6 tests covering
+  eligibility, start/stop, duplicate starts, sequence ordering, invalid/stale
+  fixes, and publish failure; `flutter analyze` reported no issues; staged diff
+  check passed before commit.
+- Slice 2B1 limitation: lifecycle handling, reconnect, canonical recovery, UI,
+  and live Supabase verification remain unimplemented. Slice 2B2 is next and
+  remains unstarted.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
