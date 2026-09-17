@@ -3,8 +3,8 @@
 ## Git Checkpoint
 
 - Active branch: `codex/phase-4d-driver-location`
-- Checkpoint 4D slice 2B1 implementation: `c3e85ee`; documentation updated in
-  the separate commit following it.
+- Checkpoint 4D slice 2B1 implementation: `c3e85ee`; review correction:
+  `49d7702`; documentation updated in the separate commit following it.
 - Checkpoint 4D slice 2A implementation: `3669a4d`; documentation:
   `8a2dcf0`. The worktree was clean after both commits.
 - Checkpoint 4D slice 1 implementation: `4694a5e`; its documentation is
@@ -76,18 +76,17 @@
   and latest-location reads before owning one foreground stream, ordered
   sequential publication, sequence values above the saved maximum, and
   missing-accuracy/older-timestamp filtering. It allows one publish at a time
-  and stops on publish failure without blindly retrying a rejected sequence.
-  No UI, app lifecycle, reconnect, Realtime, background tracking, or matching
-  was added.
+   and stops on publish failure without blindly retrying a rejected sequence.
+   No UI, app lifecycle, reconnect, Realtime, background tracking, or matching
+   was added. Review correction commit `49d7702` carries the canonical active
+   Trip ID into `onTrip` samples and invalidates unfinished starts and queued
+   work across Stop, disposal, and later tracking sessions.
 - Slice 2B1 verification: changed Dart files formatted; focused test
-  `test/driver_tracking_controller_test.dart` passed 6 tests covering
-  eligibility, start/stop, duplicate starts, sequence ordering, invalid/stale
-  fixes, and publish failure; `flutter analyze` reported no issues; staged diff
-  check passed before commit.
-- Slice 2B1 review findings: the controller does not pass the canonical active
-  Trip ID for `onTrip` publication. An asynchronous Start can also continue
-  after Stop, and an old queued publish can run during a later session. A focused
-  correction with race regressions is next before Slice 2B2.
+  `test/driver_tracking_controller_test.dart` passed 9 tests covering
+  eligibility, start/stop, `onTrip` publishing, pending-start invalidation,
+  duplicate starts, sequence ordering, invalid/stale fixes, publish failure,
+  and queued-work invalidation across restart; `flutter analyze` reported no
+  issues; staged diff check passed before the correction commit.
 - Slice 2B1 limitation: lifecycle handling, reconnect, canonical recovery, UI,
   and live Supabase verification remain unimplemented. Slice 2B2 remains
   unstarted.

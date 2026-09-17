@@ -728,7 +728,8 @@ reported no issues; `git diff --cached --check` passed before the commit.
 
 #### Checkpoint 4D Slice 2B1 — Tracking controller foundation
 
-Status: Completed and committed locally as `c3e85ee` on 2026-09-17.
+Status: Completed and corrected in follow-up commit `49d7702` after the
+original implementation commit `c3e85ee` on 2026-09-17.
 
 Implemented files:
 
@@ -740,20 +741,20 @@ canonical availability and latest-location reads before stream ownership,
 single foreground stream ownership, sequential publication, sequence values
 greater than the saved maximum, and filtering for missing-accuracy or older
 device-timestamp fixes. Only one publish is in flight; publish failures stop
-tracking without blindly retrying a rejected sequence. No UI, lifecycle,
-reconnection, Realtime, background tracking, or matching was added.
+tracking without blindly retrying a rejected sequence. The correction carries
+the canonical active Trip ID into `onTrip` samples and invalidates unfinished
+starts and queued work across Stop, disposal, and later sessions. No UI,
+lifecycle, reconnection, Realtime, background tracking, or matching was added.
 
 Verification: changed Dart files formatted; `flutter test
-test/driver_tracking_controller_test.dart` passed 6 tests covering eligibility,
-start/stop, duplicate starts, sequence ordering, invalid/stale fixes, and
-publish failure; `flutter analyze` reported no issues; `git diff --cached --check`
-passed before the commit.
+test/driver_tracking_controller_test.dart` passed 9 tests covering eligibility,
+start/stop, `onTrip` publishing, pending-start invalidation, duplicate starts,
+sequence ordering, invalid/stale fixes, publish failure, and queued-work
+invalidation across restart; `flutter analyze` reported no issues;
+`git diff --cached --check` passed before the correction commit.
 
-Review finding before Slice 2B2: the controller must pass the canonical active
-Trip ID when publishing in `onTrip`, and an in-flight `start()` or queued publish
-must not resume after Stop, disposal, or a later tracking session. Add focused
-race regressions and correct these issues in a bounded 2B1 follow-up. Then
-Slice 2B2 adds app lifecycle handling, reconnect, and canonical recovery tests.
+Next step: Slice 2B2 adds only app lifecycle handling, reconnect, and canonical
+recovery tests. Do not start it as part of this 2B1 correction.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
