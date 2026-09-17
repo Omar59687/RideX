@@ -3,6 +3,8 @@
 ## Git Checkpoint
 
 - Active branch: `codex/phase-4d-driver-location`
+- Checkpoint 4D Driver Home UI implementation: `ab5ce59`; documentation for
+  this slice is being committed separately.
 - Checkpoint 4D reconnection review correction: `b7e74f7`; documentation updated
   in the separate commit following it.
 - Checkpoint 4D reconnection signal wiring implementation: `610835f`;
@@ -152,9 +154,26 @@
   Stop/restart, background/resume, late removed-channel status, and genuine
   disconnect/reconnect; `flutter analyze` reported no issues; staged diff check
   passed before commit.
-- Reconnection wiring limitation: no Driver Home UI, live Supabase verification,
-  background permissions, or matching is implemented. Driver Home tracking UI
-  remains unstarted.
+- Reconnection wiring limitation: live Supabase verification, background
+  permissions, and matching remain unimplemented. The Driver Home tracking UI
+  slice is completed below; reconnection behavior was not reworked or
+  re-verified as part of that UI slice.
+- Checkpoint 4D Slice 3: **Completed.** Commit `ab5ce59` adds a separate Driver
+  location-sharing card to `DriverHomeScreen` with Start and Stop controls. The
+  existing foreground permission flow runs only after Start is tapped. The card
+  presents stopped, starting, sharing, and unavailable states, sanitized
+  permission/backend messages, and the age of the last server-confirmed
+  location from the controller's canonical `received_at` value. The existing
+  session-local online switch remains explicitly Mock presence and independent
+  from real location sharing. Focused widget coverage is in
+  `test/driver_home_location_sharing_test.dart`.
+- Slice 3 verification: changed Dart files formatted; focused
+  `test/driver_home_location_sharing_test.dart` passed 4 tests; `flutter analyze`
+  reported no issues; `git diff --check` passed. The completed reconnection
+  suite was intentionally not rerun for this UI-only slice.
+- Slice 3 next step: Checkpoint 4D final security/architecture review, full
+  non-live regression verification, and supported physical/authenticated Driver
+  tracking verification. Checkpoint 4E must not start from this slice.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`

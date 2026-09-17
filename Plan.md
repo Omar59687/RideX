@@ -812,7 +812,29 @@ Reconnection review correction: commit `b7e74f7` makes connection events
 generation-bearing, suppresses callbacks from removed Supabase channels, clears
 pending recovery on intentional disconnects, and ignores old-session events.
 Focused tests cover Stop/restart, background/resume, removed-channel callbacks,
-and genuine disconnect/reconnect. Driver Home UI remains next.
+and genuine disconnect/reconnect. The Driver Home tracking UI is implemented
+below; the reconnection behavior was not reworked or re-verified in that slice.
+
+#### Checkpoint 4D Slice 3 — Driver Home tracking UI
+
+Status: Completed and committed locally as `ab5ce59` on 2026-09-17.
+
+Added a separate Driver location-sharing card with Start and Stop controls. Start
+requests foreground permission only after the Driver taps the control, then uses
+the existing tracking controller. The card presents stopped, starting, sharing,
+and unavailable states, safe permission/backend messages, and the age of the last
+server-confirmed location based on the canonical `received_at` timestamp. The
+existing session-local online switch remains explicitly labeled as Mock presence
+and is independent from location sharing.
+
+Verification: changed Dart files formatted; focused
+`flutter test test/driver_home_location_sharing_test.dart` passed 4 tests;
+`flutter analyze` reported no issues; `git diff --check` passed. Reconnection
+behavior was not re-verified as part of this UI slice.
+
+Next step: Checkpoint 4D final security/architecture review, full non-live
+regression verification, and supported physical/authenticated Driver tracking
+verification. Do not start Checkpoint 4E from this slice.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
