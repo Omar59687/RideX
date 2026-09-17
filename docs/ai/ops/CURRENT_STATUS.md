@@ -186,6 +186,32 @@
   `test/driver_home_location_sharing_test.dart` passed 5 tests; `flutter analyze`
   reported no issues; formatting and `git diff --check` passed. The reconnection
   suite was not rerun.
+- Checkpoint 4D final approval review: **Blocked.** The review began on the
+  clean `codex/phase-4d-driver-location` worktree and confirmed the intended
+  authorization/RPC boundary, canonical availability checks, sequence recovery,
+  single-stream/publisher ownership, Stop/sign-out/background cleanup,
+  reconnect recovery, and separate Driver Home sharing status. No 4E or later
+  scope was added or reviewed. However,
+  `lib/core/providers/driver_tracking_providers.dart:297-299` allows a fix with
+  a `recordedAt` equal to the latest accepted timestamp. It receives a higher
+  sequence and can replace the canonical latest location, violating the required
+  stale/out-of-order protection. The small correction is to reject timestamps
+  that are not strictly after `_latestRecordedAt` and add equal-timestamp test
+  coverage.
+- Final review automated verification: `dart format --output=none
+  --set-exit-if-changed lib test` passed with 183 files checked and 0 changed;
+  `flutter analyze` passed with no issues; full non-live `flutter test` failed
+  with 179 passing tests, 2 intentional live-Supabase skips, and 2 failures.
+  `test/driver_tracking_controller_test.dart:212` still expects `stopped` after
+  backgrounding even though the corrected controller/UI intentionally report
+  `paused`; update that obsolete expectation. `test/current_location_map_test.dart:170`
+  cannot find its overridden `fake-google-map` in `DriverHomeScreen`; restore
+  that Driver Home map test path before approval. Known non-failing `flutter_svg`
+  unsupported `<filter>` warnings appeared.
+- Physical-device GPS/permission/background checks and authenticated Supabase
+  RPC, RLS, canonical-read, and Realtime verification were not performed. 4D is
+  not approved until the ordering defect and regression failures are corrected
+  and the full non-live suite passes.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
