@@ -749,8 +749,11 @@ start/stop, duplicate starts, sequence ordering, invalid/stale fixes, and
 publish failure; `flutter analyze` reported no issues; `git diff --cached --check`
 passed before the commit.
 
-Next step: Slice 2B2 adds only app lifecycle handling, reconnect, and canonical
-recovery tests. Do not start it as part of Slice 2B1.
+Review finding before Slice 2B2: the controller must pass the canonical active
+Trip ID when publishing in `onTrip`, and an in-flight `start()` or queued publish
+must not resume after Stop, disposal, or a later tracking session. Add focused
+race regressions and correct these issues in a bounded 2B1 follow-up. Then
+Slice 2B2 adds app lifecycle handling, reconnect, and canonical recovery tests.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 

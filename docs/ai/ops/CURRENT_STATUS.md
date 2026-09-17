@@ -68,7 +68,7 @@
   invalid fixes, stream errors, and cancellation; `flutter analyze` reported no
   issues; staged diff check passed before commit.
 - Slice 2A limitation: no tracking controller, ordering, lifecycle, reconnect,
--  canonical recovery, UI, or live Supabase verification. Slice 2B1 addressed
+  canonical recovery, UI, or live Supabase verification. Slice 2B1 addressed
   the controller foundation below; Slice 2B2 remains for lifecycle, reconnect,
   and canonical recovery.
 - Checkpoint 4D slice 2B1: **Completed.** Commit `c3e85ee` adds the Riverpod
@@ -84,9 +84,13 @@
   eligibility, start/stop, duplicate starts, sequence ordering, invalid/stale
   fixes, and publish failure; `flutter analyze` reported no issues; staged diff
   check passed before commit.
+- Slice 2B1 review findings: the controller does not pass the canonical active
+  Trip ID for `onTrip` publication. An asynchronous Start can also continue
+  after Stop, and an old queued publish can run during a later session. A focused
+  correction with race regressions is next before Slice 2B2.
 - Slice 2B1 limitation: lifecycle handling, reconnect, canonical recovery, UI,
-  and live Supabase verification remain unimplemented. Slice 2B2 is next and
-  remains unstarted.
+  and live Supabase verification remain unimplemented. Slice 2B2 remains
+  unstarted.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
