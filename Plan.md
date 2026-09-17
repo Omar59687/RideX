@@ -47,7 +47,7 @@ metadata through 2026-09-14:
 
 ## Active Goal
 
-Checkpoints 4A and 4B are approved. Checkpoint 4C is the next planned Phase 4 checkpoint and must not begin without separate explicit approval.
+Checkpoints 4A, 4B, and 4C are approved. Checkpoint 4D is the active Phase 4 design; implementation has not started. Its approved scope and delivery slices are recorded in `docs/superpowers/specs/2026-09-17-checkpoint-4d-driver-location-tracking-design.md`.
 
 ### Problem
 
