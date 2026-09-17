@@ -16,16 +16,19 @@ void main() {
 
   late FakeTrackingRepository repository;
   late FakeDriverGpsStreamService gps;
+  late FakeDriverTrackingLifecycle lifecycle;
   late ProviderContainer container;
   late ProviderSubscription<DriverTrackingState> keepAlive;
 
   setUp(() {
     repository = FakeTrackingRepository();
     gps = FakeDriverGpsStreamService();
+    lifecycle = FakeDriverTrackingLifecycle();
     container = ProviderContainer(
       overrides: [
         driverLocationRepositoryProvider.overrideWithValue(repository),
         driverGpsStreamServiceProvider.overrideWithValue(gps),
+        driverTrackingLifecycleProvider.overrideWithValue(lifecycle),
       ],
     );
     keepAlive = container.listen(driverTrackingControllerProvider, (_, __) {});
@@ -191,6 +194,82 @@ void main() {
     expect(container.read(driverTrackingControllerProvider).status,
         DriverTrackingStatus.sharing);
   });
+
+  test(
+      'background cancels the stream and foreground resumes requested tracking',
+      () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    lifecycle.emit(DriverTrackingLifecycleState.background);
+    await flush();
+    expect(gps.cancelCount, 1);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.stopped);
+
+    lifecycle.emit(DriverTrackingLifecycleState.foreground);
+    await flush(3);
+
+    expect(repository.availabilityCount, 2);
+    expect(repository.latestCount, 2);
+    expect(gps.listenCount, 2);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.sharing);
+  });
+
+  test('repeated foreground events do not create duplicate resumes', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    lifecycle.emit(DriverTrackingLifecycleState.background);
+    await flush();
+
+    lifecycle.emit(DriverTrackingLifecycleState.foreground);
+    lifecycle.emit(DriverTrackingLifecycleState.foreground);
+    await flush(4);
+
+    expect(repository.availabilityCount, 2);
+    expect(gps.listenCount, 2);
+  });
+
+  test('Stop while backgrounded prevents a later foreground resume', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    lifecycle.emit(DriverTrackingLifecycleState.background);
+    await flush();
+    await controller.stop();
+    lifecycle.emit(DriverTrackingLifecycleState.foreground);
+    await flush(3);
+
+    expect(repository.availabilityCount, 1);
+    expect(gps.listenCount, 1);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.stopped);
+  });
+
+  test('sign-out clears tracking intent and prevents auto-resume', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    lifecycle.emit(DriverTrackingLifecycleState.background);
+    await flush();
+    await controller.stopForSignOut();
+    lifecycle.emit(DriverTrackingLifecycleState.foreground);
+    await flush(3);
+
+    expect(repository.availabilityCount, 1);
+    expect(gps.listenCount, 1);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.stopped);
+  });
+}
+
+Future<void> flush([int count = 1]) async {
+  for (var index = 0; index < count; index++) {
+    await Future<void>.delayed(Duration.zero);
+  }
 }
 
 DriverLocationFix _fix(DateTime recordedAt) => DriverLocationFix(
@@ -232,6 +311,19 @@ class FakeDriverGpsStreamService implements DriverGpsStreamService {
   }
 
   void add(DriverLocationFix fix) => _controller!.add(fix);
+}
+
+class FakeDriverTrackingLifecycle implements DriverTrackingLifecycle {
+  final _controller =
+      StreamController<DriverTrackingLifecycleState>.broadcast();
+
+  @override
+  Stream<DriverTrackingLifecycleState> get changes => _controller.stream;
+
+  void emit(DriverTrackingLifecycleState state) => _controller.add(state);
+
+  @override
+  void dispose() {}
 }
 
 class FakeTrackingRepository implements DriverLocationRepository {

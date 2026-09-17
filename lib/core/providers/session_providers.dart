@@ -11,6 +11,7 @@ import 'package:ridex/core/models/mock_trip.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/models/vehicle_type.dart';
+import 'package:ridex/core/providers/driver_tracking_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 
 class SessionState {
@@ -163,6 +164,7 @@ class SessionController extends Notifier<SessionState> {
   }
 
   Future<void> signOut() async {
+    await ref.read(driverTrackingControllerProvider.notifier).stopForSignOut();
     await ref.read(authRepositoryProvider).signOut();
     ref.invalidate(bookingControllerProvider);
     ref.invalidate(activeTripControllerProvider);

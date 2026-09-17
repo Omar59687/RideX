@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/widgets.dart';
 import 'package:ridex/core/errors/driver_location_exception.dart';
 import 'package:ridex/core/models/driver_availability.dart';
 import 'package:ridex/core/models/driver_location.dart';
@@ -14,6 +15,42 @@ enum DriverTrackingStatus {
   starting,
   sharing,
   unavailable,
+}
+
+enum DriverTrackingLifecycleState { foreground, background }
+
+abstract interface class DriverTrackingLifecycle {
+  Stream<DriverTrackingLifecycleState> get changes;
+
+  void dispose();
+}
+
+class WidgetsDriverTrackingLifecycle
+    with WidgetsBindingObserver
+    implements DriverTrackingLifecycle {
+  WidgetsDriverTrackingLifecycle() {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  final _changes = StreamController<DriverTrackingLifecycleState>.broadcast();
+
+  @override
+  Stream<DriverTrackingLifecycleState> get changes => _changes.stream;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _changes.add(
+      state == AppLifecycleState.resumed
+          ? DriverTrackingLifecycleState.foreground
+          : DriverTrackingLifecycleState.background,
+    );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _changes.close();
+  }
 }
 
 class DriverTrackingState extends Equatable {
@@ -40,6 +77,14 @@ final driverGpsStreamServiceProvider = Provider<DriverGpsStreamService>(
   (ref) => GeolocatorDriverGpsStreamService(),
 );
 
+final driverTrackingLifecycleProvider = Provider<DriverTrackingLifecycle>(
+  (ref) {
+    final lifecycle = WidgetsDriverTrackingLifecycle();
+    ref.onDispose(lifecycle.dispose);
+    return lifecycle;
+  },
+);
+
 final driverTrackingControllerProvider =
     NotifierProvider.autoDispose<DriverTrackingController, DriverTrackingState>(
   DriverTrackingController.new,
@@ -48,26 +93,40 @@ final driverTrackingControllerProvider =
 class DriverTrackingController
     extends AutoDisposeNotifier<DriverTrackingState> {
   StreamSubscription<DriverLocationFix>? _subscription;
+  StreamSubscription<DriverTrackingLifecycleState>? _lifecycleSubscription;
   Future<void> _publishQueue = Future<void>.value();
+  Future<void> _lifecycleQueue = Future<void>.value();
   DateTime? _latestRecordedAt;
   String? _activeTripId;
   int _nextSequence = 1;
   bool _startInProgress = false;
+  bool _trackingRequested = false;
   int _generation = 0;
   bool _disposed = false;
 
   @override
   DriverTrackingState build() {
+    _lifecycleSubscription = ref
+        .read(driverTrackingLifecycleProvider)
+        .changes
+        .listen(_handleLifecycleChange);
     ref.onDispose(() {
       _disposed = true;
       _generation++;
       _subscription?.cancel();
       _subscription = null;
+      _lifecycleSubscription?.cancel();
+      _lifecycleSubscription = null;
     });
     return const DriverTrackingState.initial();
   }
 
   Future<void> start() async {
+    _trackingRequested = true;
+    await _startSession();
+  }
+
+  Future<void> _startSession() async {
     if (_startInProgress || _subscription != null) return;
 
     final generation = ++_generation;
@@ -114,6 +173,11 @@ class DriverTrackingController
   }
 
   Future<void> stop() async {
+    _trackingRequested = false;
+    await _stopSession();
+  }
+
+  Future<void> _stopSession() async {
     _generation++;
     _startInProgress = false;
     _activeTripId = null;
@@ -123,6 +187,18 @@ class DriverTrackingController
     if (!_disposed) {
       state = const DriverTrackingState(status: DriverTrackingStatus.stopped);
     }
+  }
+
+  Future<void> stopForSignOut() => stop();
+
+  void _handleLifecycleChange(DriverTrackingLifecycleState lifecycleState) {
+    _lifecycleQueue = _lifecycleQueue.then((_) async {
+      if (lifecycleState == DriverTrackingLifecycleState.background) {
+        if (_trackingRequested) await _stopSession();
+      } else if (_trackingRequested) {
+        await _startSession();
+      }
+    });
   }
 
   void _handleFix(DriverLocationFix fix, int generation) {
