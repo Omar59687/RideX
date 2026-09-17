@@ -698,10 +698,37 @@ subscription, matching, background behavior, lifecycle/reconnect recovery, or li
 Supabase verification is included. The Checkpoint 4D items above remain incomplete
 until the later slices provide those behaviors.
 
-Next step: Slice 2A adds only the foreground GPS stream boundary and
-fake-driven tests. Slice 2B then adds the Riverpod tracking controller with
-ordering, lifecycle, reconnect, and canonical recovery tests. This split keeps
-each OpenCode implementation prompt small.
+Slice 2A then added only the foreground GPS stream boundary and fake-driven
+tests. Slice 2B next adds the Riverpod tracking controller with ordering,
+lifecycle, reconnect, and canonical recovery tests. This split keeps each
+OpenCode implementation prompt small.
+
+#### Checkpoint 4D Slice 2A — Foreground GPS stream boundary
+
+Status: Completed and committed locally as `3669a4d` on 2026-09-17.
+
+Implemented files:
+
+- `lib/core/models/driver_location.dart`
+- `lib/core/services/driver_location/driver_gps_stream_service.dart`
+- `lib/core/services/driver_location/geolocator_driver_gps_stream_service.dart`
+- `test/driver_gps_stream_service_test.dart`
+
+Slice 2A adds the provider-neutral `DriverLocationFix` containing the point,
+device timestamp, and optional heading/speed values; a separate foreground GPS
+stream interface; and a Geolocator adapter. Invalid coordinates are dropped,
+invalid optional measurements are omitted, provider stream errors are sanitized,
+and subscription cancellation reaches the provider stream. The existing
+one-shot Rider location service is unchanged. No controller, UI, backend
+publishing, Realtime, background permissions, or matching was added.
+
+Verification: changed Dart files formatted; `flutter test
+test/driver_gps_stream_service_test.dart` passed 4 tests; `flutter analyze`
+reported no issues; `git diff --cached --check` passed before the commit.
+
+Next step: Slice 2B adds only the Riverpod tracking controller with ordering,
+lifecycle, reconnect, and canonical recovery tests. Do not start it as part of
+Slice 2A.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 

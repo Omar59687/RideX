@@ -3,7 +3,10 @@
 ## Git Checkpoint
 
 - Active branch: `codex/phase-4d-driver-location`
-- Current local documentation commit: `2a37abe`
+- Current local documentation commit: pending after Slice 2A documentation
+  commit
+- Checkpoint 4D slice 2A implementation: pending documentation commit; code
+  commit `3669a4d`
 - Checkpoint 4D slice 1 implementation: `4694a5e`; its documentation is
   committed as `2a37abe`. The worktree was clean after both commits.
 - Current `origin/main` at the start of 4D: `300c8d5`
@@ -49,9 +52,24 @@
   staged `git diff --cached --check` passed before commit.
 - Slice 1 limitations: no GPS stream, tracking controller, Driver Home UI, Realtime
   subscription, matching, background behavior, lifecycle/reconnect recovery, or
-  live Supabase verification. Slice 2A is next: foreground GPS stream boundary
-  and fake-driven tests. Slice 2B follows with the Riverpod tracking controller,
-  ordering, lifecycle, reconnect, and recovery tests.
+  live Supabase verification. Slice 2A addressed the GPS stream boundary below;
+  Slice 2B follows with the Riverpod tracking controller, ordering, lifecycle,
+  reconnect, and recovery tests.
+- Checkpoint 4D slice 2A: **Completed.** Commit `3669a4d` adds the separate
+  provider-neutral foreground `DriverGpsStreamService`, `DriverLocationFix`
+  model, and `GeolocatorDriverGpsStreamService` adapter. The adapter maps point,
+  device timestamp, and available accuracy, heading, and speed; drops invalid
+  coordinates; omits invalid optional measurements; sanitizes provider stream
+  errors; and propagates cancellation. The existing one-shot Rider location
+  service is unchanged. No Riverpod controller, backend publishing, Driver Home
+  UI, Realtime, background permissions, or matching was added.
+- Slice 2A verification: changed Dart files formatted; focused test
+  `test/driver_gps_stream_service_test.dart` passed 4 tests covering mapping,
+  invalid fixes, stream errors, and cancellation; `flutter analyze` reported no
+  issues; staged diff check passed before commit.
+- Slice 2A limitation: no tracking controller, ordering, lifecycle, reconnect,
+  canonical recovery, UI, or live Supabase verification. Slice 2B is next and
+  remains unstarted.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
