@@ -7,8 +7,11 @@ import 'package:ridex/core/errors/driver_location_exception.dart';
 import 'package:ridex/core/models/driver_availability.dart';
 import 'package:ridex/core/models/driver_location.dart';
 import 'package:ridex/core/services/driver_location/driver_gps_stream_service.dart';
+import 'package:ridex/core/services/driver_location/driver_tracking_connection.dart';
 import 'package:ridex/core/services/driver_location/geolocator_driver_gps_stream_service.dart';
+import 'package:ridex/core/services/driver_location/supabase_driver_tracking_connection.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
+import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
 
 enum DriverTrackingStatus {
   stopped,
@@ -85,6 +88,16 @@ final driverTrackingLifecycleProvider = Provider<DriverTrackingLifecycle>(
   },
 );
 
+final driverTrackingConnectionProvider = Provider<DriverTrackingConnection>(
+  (ref) {
+    final client = ref.watch(supabaseClientProvider);
+    if (client == null) return const NoopDriverTrackingConnection();
+    final connection = SupabaseDriverTrackingConnection(client);
+    ref.onDispose(connection.dispose);
+    return connection;
+  },
+);
+
 final driverTrackingControllerProvider =
     NotifierProvider.autoDispose<DriverTrackingController, DriverTrackingState>(
   DriverTrackingController.new,
@@ -94,6 +107,7 @@ class DriverTrackingController
     extends AutoDisposeNotifier<DriverTrackingState> {
   StreamSubscription<DriverLocationFix>? _subscription;
   StreamSubscription<DriverTrackingLifecycleState>? _lifecycleSubscription;
+  StreamSubscription<DriverTrackingConnectionStatus>? _connectionSubscription;
   Future<void> _publishQueue = Future<void>.value();
   Future<void> _lifecycleQueue = Future<void>.value();
   DateTime? _latestRecordedAt;
@@ -103,15 +117,19 @@ class DriverTrackingController
   bool _recoveryInProgress = false;
   bool _trackingRequested = false;
   bool _backgrounded = false;
+  bool _connectionFailurePending = false;
   int _generation = 0;
   bool _disposed = false;
 
   @override
   DriverTrackingState build() {
+    final connection = ref.read(driverTrackingConnectionProvider);
     _lifecycleSubscription = ref
         .read(driverTrackingLifecycleProvider)
         .changes
         .listen(_handleLifecycleChange);
+    _connectionSubscription =
+        connection.statuses.listen(_handleConnectionStatus);
     ref.onDispose(() {
       _disposed = true;
       _generation++;
@@ -119,6 +137,9 @@ class DriverTrackingController
       _subscription = null;
       _lifecycleSubscription?.cancel();
       _lifecycleSubscription = null;
+      _connectionSubscription?.cancel();
+      _connectionSubscription = null;
+      unawaited(connection.dispose());
     });
     return const DriverTrackingState.initial();
   }
@@ -165,6 +186,7 @@ class DriverTrackingController
         await subscription.cancel();
       } else {
         _subscription = subscription;
+        await ref.read(driverTrackingConnectionProvider).connect();
       }
     } catch (error) {
       if (_isCurrent(generation)) {
@@ -187,6 +209,7 @@ class DriverTrackingController
     final subscription = _subscription;
     _subscription = null;
     await subscription?.cancel();
+    await ref.read(driverTrackingConnectionProvider).disconnect();
     if (!_disposed) {
       state = const DriverTrackingState(status: DriverTrackingStatus.stopped);
     }
@@ -225,6 +248,21 @@ class DriverTrackingController
         _backgrounded = false;
       }
     });
+  }
+
+  void _handleConnectionStatus(DriverTrackingConnectionStatus status) {
+    if (status == DriverTrackingConnectionStatus.subscribed) {
+      if (_connectionFailurePending) {
+        _connectionFailurePending = false;
+        unawaited(recoverAfterConnectivity());
+      }
+      return;
+    }
+    if (status == DriverTrackingConnectionStatus.channelError ||
+        status == DriverTrackingConnectionStatus.closed ||
+        status == DriverTrackingConnectionStatus.timedOut) {
+      _connectionFailurePending = true;
+    }
   }
 
   void _handleFix(DriverLocationFix fix, int generation) {

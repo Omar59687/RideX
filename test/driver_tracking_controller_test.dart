@@ -10,6 +10,7 @@ import 'package:ridex/core/providers/driver_tracking_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/repositories/driver_location_repository.dart';
 import 'package:ridex/core/services/driver_location/driver_gps_stream_service.dart';
+import 'package:ridex/core/services/driver_location/driver_tracking_connection.dart';
 
 void main() {
   final startTime = DateTime.utc(2026, 9, 17, 10);
@@ -17,6 +18,7 @@ void main() {
   late FakeTrackingRepository repository;
   late FakeDriverGpsStreamService gps;
   late FakeDriverTrackingLifecycle lifecycle;
+  late FakeDriverTrackingConnection connection;
   late ProviderContainer container;
   late ProviderSubscription<DriverTrackingState> keepAlive;
 
@@ -24,11 +26,13 @@ void main() {
     repository = FakeTrackingRepository();
     gps = FakeDriverGpsStreamService();
     lifecycle = FakeDriverTrackingLifecycle();
+    connection = FakeDriverTrackingConnection();
     container = ProviderContainer(
       overrides: [
         driverLocationRepositoryProvider.overrideWithValue(repository),
         driverGpsStreamServiceProvider.overrideWithValue(gps),
         driverTrackingLifecycleProvider.overrideWithValue(lifecycle),
+        driverTrackingConnectionProvider.overrideWithValue(connection),
       ],
     );
     keepAlive = container.listen(driverTrackingControllerProvider, (_, __) {});
@@ -329,6 +333,87 @@ void main() {
     expect(container.read(driverTrackingControllerProvider).status,
         DriverTrackingStatus.stopped);
   });
+
+  test('disconnect followed by resubscribe recovers once', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    connection.emit(DriverTrackingConnectionStatus.subscribed);
+    await flush();
+    connection.emit(DriverTrackingConnectionStatus.channelError);
+    connection.emit(DriverTrackingConnectionStatus.subscribed);
+    await flush(4);
+
+    expect(repository.availabilityCount, 2);
+    expect(repository.latestCount, 2);
+    expect(gps.listenCount, 2);
+    expect(connection.connectCount, 2);
+  });
+
+  test('repeated connection statuses do not duplicate recovery', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    connection.emit(DriverTrackingConnectionStatus.channelError);
+    connection.emit(DriverTrackingConnectionStatus.subscribed);
+    connection.emit(DriverTrackingConnectionStatus.subscribed);
+    await flush(4);
+
+    expect(repository.availabilityCount, 2);
+    expect(gps.listenCount, 2);
+    expect(connection.connectCount, 2);
+  });
+
+  test('Stop while disconnected prevents recovery on resubscribe', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    connection.emit(DriverTrackingConnectionStatus.channelError);
+    await controller.stop();
+    connection.emit(DriverTrackingConnectionStatus.subscribed);
+    await flush(3);
+
+    expect(repository.availabilityCount, 1);
+    expect(gps.listenCount, 1);
+    expect(connection.disconnectCount, 1);
+  });
+
+  test('background and resume clean up and recreate the connection', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    lifecycle.emit(DriverTrackingLifecycleState.background);
+    await flush();
+    expect(connection.disconnectCount, 1);
+
+    lifecycle.emit(DriverTrackingLifecycleState.foreground);
+    await flush(3);
+
+    expect(connection.connectCount, 2);
+    expect(gps.listenCount, 2);
+  });
+
+  test('disposal cancels the connection subscription and channel', () async {
+    final localContainer = ProviderContainer(
+      overrides: [
+        driverLocationRepositoryProvider.overrideWithValue(repository),
+        driverGpsStreamServiceProvider.overrideWithValue(gps),
+        driverTrackingLifecycleProvider.overrideWithValue(lifecycle),
+        driverTrackingConnectionProvider.overrideWithValue(connection),
+      ],
+    );
+    final keepAlive =
+        localContainer.listen(driverTrackingControllerProvider, (_, __) {});
+    final controller =
+        localContainer.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    keepAlive.close();
+    localContainer.dispose();
+    await flush();
+
+    expect(connection.disposeCount, 1);
+  });
 }
 
 Future<void> flush([int count = 1]) async {
@@ -389,6 +474,35 @@ class FakeDriverTrackingLifecycle implements DriverTrackingLifecycle {
 
   @override
   void dispose() {}
+}
+
+class FakeDriverTrackingConnection implements DriverTrackingConnection {
+  final _controller =
+      StreamController<DriverTrackingConnectionStatus>.broadcast();
+  int connectCount = 0;
+  int disconnectCount = 0;
+  int disposeCount = 0;
+
+  @override
+  Stream<DriverTrackingConnectionStatus> get statuses => _controller.stream;
+
+  @override
+  Future<void> connect() async {
+    connectCount++;
+  }
+
+  @override
+  Future<void> disconnect() async {
+    disconnectCount++;
+  }
+
+  void emit(DriverTrackingConnectionStatus status) => _controller.add(status);
+
+  @override
+  Future<void> dispose() async {
+    disposeCount++;
+    await _controller.close();
+  }
 }
 
 class FakeTrackingRepository implements DriverLocationRepository {
