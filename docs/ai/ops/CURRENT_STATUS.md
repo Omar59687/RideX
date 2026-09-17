@@ -1,18 +1,17 @@
-# Rider V2 Current Status
+# RideX Current Status
 
 ## Git Checkpoint
 
 - Active branch: `codex/phase-4d-driver-location`
-- Current local implementation commit: `4694a5e`
-- Checkpoint 4D slice 1 is committed locally; its documentation update remains
-  uncommitted at this status checkpoint.
-- Current `origin/main`: `eeba67d`
+- Current local documentation commit: `2a37abe`
+- Checkpoint 4D slice 1 implementation: `4694a5e`; its documentation is
+  committed as `2a37abe`. The worktree was clean after both commits.
+- Current `origin/main` at the start of 4D: `300c8d5`
 - Checkpoint 4A implementation: `d65a58a`, merged into `main`
 - Checkpoint 4B implementation: `2359a81`, merged into `main`
-- Checkpoint 4B unresolved map/GPS selection fix: `41dd2f5`, pushed on the
-  active branch but not yet in `origin/main`
-- Checkpoint 4C routing implementation and verification documentation are
-  present but uncommitted. No push, deployment, or approval was performed.
+- Checkpoint 4B unresolved map/GPS selection fix: `41dd2f5`, merged into `main`
+- Checkpoint 4C routing implementation: `a3cdc1c`, merged into `main` through
+  `300c8d5` and approved. Its verification is recorded below.
 
 ## Phase 4 Checkpoint Status
 
