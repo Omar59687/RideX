@@ -836,6 +836,24 @@ Next step: Checkpoint 4D final security/architecture review, full non-live
 regression verification, and supported physical/authenticated Driver tracking
 verification. Do not start Checkpoint 4E from this slice.
 
+#### Checkpoint 4D Slice 3 correction — Paused state and Stop verification
+
+Status: Completed and committed locally as `31bc7c9` on 2026-09-17.
+
+Corrected the Driver Home lifecycle presentation so backgrounding requested
+tracking reports `Paused` rather than `Stopped`, while preserving the deliberate
+tracking intent needed for foreground resume. The Stop path now exposes its
+terminal state before asynchronous stream/connection cleanup and captures the
+connection before awaiting cancellation, preventing provider-disposal races.
+The widget test now taps Stop, waits for the controller to reach `stopped`, and
+confirms demo presence remains online; it also covers the paused background
+state.
+
+Verification: focused
+`flutter test test/driver_home_location_sharing_test.dart` passed 5 tests;
+`flutter analyze` reported no issues; formatting and `git diff --check` passed.
+The reconnection suite was not rerun.
+
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
 - [ ] 4.24 Make GPS updates efficient:

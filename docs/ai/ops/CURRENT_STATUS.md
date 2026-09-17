@@ -3,6 +3,8 @@
 ## Git Checkpoint
 
 - Active branch: `codex/phase-4d-driver-location`
+- Checkpoint 4D Driver Home UI correction: `31bc7c9`; documentation for this
+  correction is being committed separately.
 - Checkpoint 4D Driver Home UI implementation: `ab5ce59`; documentation for
   this slice is being committed separately.
 - Checkpoint 4D reconnection review correction: `b7e74f7`; documentation updated
@@ -174,6 +176,16 @@
 - Slice 3 next step: Checkpoint 4D final security/architecture review, full
   non-live regression verification, and supported physical/authenticated Driver
   tracking verification. Checkpoint 4E must not start from this slice.
+- Slice 3 correction: **Completed.** Commit `31bc7c9` adds the lifecycle-derived
+  `Paused` status when requested tracking is stopped for app backgrounding. Stop
+  now publishes its stopped state before asynchronous cleanup and captures the
+  connection before awaiting cancellation, fixing the provider-disposal race.
+  The widget test taps Stop, waits for the controller to reach `stopped`, checks
+  that demo presence is unchanged, and covers the paused background state.
+- Slice 3 correction verification: focused
+  `test/driver_home_location_sharing_test.dart` passed 5 tests; `flutter analyze`
+  reported no issues; formatting and `git diff --check` passed. The reconnection
+  suite was not rerun.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
