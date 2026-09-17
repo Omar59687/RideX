@@ -3,10 +3,8 @@
 ## Git Checkpoint
 
 - Active branch: `codex/phase-4d-driver-location`
-- Current local documentation commit: pending after Slice 2A documentation
-  commit
-- Checkpoint 4D slice 2A implementation: pending documentation commit; code
-  commit `3669a4d`
+- Checkpoint 4D slice 2A implementation: `3669a4d`; documentation:
+  `8a2dcf0`. The worktree was clean after both commits.
 - Checkpoint 4D slice 1 implementation: `4694a5e`; its documentation is
   committed as `2a37abe`. The worktree was clean after both commits.
 - Current `origin/main` at the start of 4D: `300c8d5`
@@ -68,8 +66,9 @@
   invalid fixes, stream errors, and cancellation; `flutter analyze` reported no
   issues; staged diff check passed before commit.
 - Slice 2A limitation: no tracking controller, ordering, lifecycle, reconnect,
-  canonical recovery, UI, or live Supabase verification. Slice 2B is next and
-  remains unstarted.
+  canonical recovery, UI, or live Supabase verification. Slice 2B1 is next:
+  start/stop, one stream, ordered publication, and focused tests. Slice 2B2
+  follows with lifecycle and reconnect recovery.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`

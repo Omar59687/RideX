@@ -92,7 +92,9 @@ remain explicitly identified as demo behavior.
 2. Foreground GPS stream and Riverpod controller, including ordering,
    lifecycle, reconnect, and recovery tests. Deliver this in two bounded
    steps: 2A adds only the device stream boundary and fake-driven tests;
-   2B adds the controller and its lifecycle/recovery tests.
+   2B adds the controller in two small steps: 2B1 covers explicit start/stop,
+   single-stream ownership, and ordered publication; 2B2 covers app lifecycle,
+   reconnect, and canonical recovery tests.
 3. Driver Home tracking control/status and focused widget tests.
 4. Final security/architecture review, formatting, analysis, full non-live
    regression suite, and supported physical/authenticated verification.

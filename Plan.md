@@ -726,9 +726,10 @@ Verification: changed Dart files formatted; `flutter test
 test/driver_gps_stream_service_test.dart` passed 4 tests; `flutter analyze`
 reported no issues; `git diff --cached --check` passed before the commit.
 
-Next step: Slice 2B adds only the Riverpod tracking controller with ordering,
-lifecycle, reconnect, and canonical recovery tests. Do not start it as part of
-Slice 2A.
+Next step: Slice 2B1 adds the Riverpod tracking controller's explicit start/stop,
+single foreground stream, ordered publication, and focused tests. Slice 2B2
+then adds lifecycle, reconnect, and canonical recovery tests. This keeps the
+controller work bounded for Luna.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
