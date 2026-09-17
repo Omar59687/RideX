@@ -3,6 +3,8 @@
 ## Git Checkpoint
 
 - Active branch: `codex/phase-4d-driver-location`
+- Checkpoint 4D slice 2B2A implementation: `1a2bad3`; documentation updated in
+  the separate commit following it.
 - Checkpoint 4D slice 2B1 implementation: `c3e85ee`; review correction:
   `49d7702`; documentation updated in the separate commit following it.
 - Checkpoint 4D slice 2A implementation: `3669a4d`; documentation:
@@ -68,9 +70,9 @@
   invalid fixes, stream errors, and cancellation; `flutter analyze` reported no
   issues; staged diff check passed before commit.
 - Slice 2A limitation: no tracking controller, ordering, lifecycle, reconnect,
-  canonical recovery, UI, or live Supabase verification. Slice 2B1 addressed
-  the controller foundation below; Slice 2B2 remains for lifecycle, reconnect,
-  and canonical recovery.
+  canonical recovery, UI, or live Supabase verification. Slice 2B1 and 2B2A
+  addressed the controller and foreground lifecycle foundations below; network
+  and Realtime reconnect/recovery remain next.
 - Checkpoint 4D slice 2B1: **Completed.** Commit `c3e85ee` adds the Riverpod
   Driver tracking controller with explicit start/stop, canonical availability
   and latest-location reads before owning one foreground stream, ordered
@@ -88,7 +90,23 @@
   and queued-work invalidation across restart; `flutter analyze` reported no
   issues; staged diff check passed before the correction commit.
 - Slice 2B1 limitation: lifecycle handling, reconnect, canonical recovery, UI,
-  and live Supabase verification remain unimplemented. Slice 2B2 remains
+  and live Supabase verification remain unimplemented. Slice 2B2A addressed
+  lifecycle handling below; network and Realtime reconnect/recovery remain.
+- Checkpoint 4D slice 2B2A: **Completed.** Commit `1a2bad3` adds the testable
+  lifecycle boundary and foreground background/resume handling. Background
+  entry cancels the GPS stream and invalidates pending work while preserving
+  deliberate tracking intent; foreground return re-reads canonical
+  availability/latest location before resuming one stream. Explicit Stop and
+  sign-out clear intent, and repeated resumes do not duplicate streams. Session
+  sign-out now stops tracking before authentication sign-out. No UI, network or
+  Realtime reconnect, background permission, or matching was added.
+- Slice 2B2A verification: changed Dart files formatted; focused test
+  `test/driver_tracking_controller_test.dart` passed 13 tests, including
+  background/resume, repeated resume, Stop while backgrounded, and sign-out;
+  `flutter analyze` reported no issues; staged diff check passed before commit.
+- Slice 2B2A limitation: network and Realtime reconnect/recovery, UI, live
+  Supabase verification, background permissions, and matching remain
+  unimplemented. Network and Realtime reconnect/recovery are next and remain
   unstarted.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`

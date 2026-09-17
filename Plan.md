@@ -753,8 +753,24 @@ sequence ordering, invalid/stale fixes, publish failure, and queued-work
 invalidation across restart; `flutter analyze` reported no issues;
 `git diff --cached --check` passed before the correction commit.
 
-Next step: Slice 2B2 adds only app lifecycle handling, reconnect, and canonical
-recovery tests. Do not start it as part of this 2B1 correction.
+#### Checkpoint 4D Slice 2B2A — Foreground lifecycle handling
+
+Status: Completed and committed locally as `1a2bad3` on 2026-09-17.
+
+Slice 2B2A adds a testable lifecycle boundary. Background entry cancels the
+foreground GPS stream and invalidates pending tracking work while preserving
+deliberate tracking intent. Foreground return resumes only requested tracking
+after fresh canonical availability and latest-location reads. Explicit Stop and
+sign-out clear the resume intent. Repeated resume events remain coalesced to one
+stream. No network/realtime reconnection, UI, background location permission,
+or matching was added.
+
+Verification: changed Dart files formatted; `flutter test
+test/driver_tracking_controller_test.dart` passed 13 tests; `flutter analyze`
+reported no issues; `git diff --cached --check` passed before the commit.
+
+Next step: Network and Realtime reconnect/recovery handling is next. Do not
+start that step as part of Slice 2B2A.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
