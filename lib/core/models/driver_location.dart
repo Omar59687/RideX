@@ -1,6 +1,47 @@
 import 'package:equatable/equatable.dart';
 import 'package:ridex/core/models/location_point.dart';
 
+class DriverLocationFix extends Equatable {
+  DriverLocationFix({
+    required this.point,
+    required DateTime recordedAt,
+    this.headingDegrees,
+    this.speedMetersPerSecond,
+  }) : recordedAt = recordedAt.toUtc() {
+    if (headingDegrees case final heading?) {
+      if (!heading.isFinite || heading < 0 || heading >= 360) {
+        throw ArgumentError.value(
+          headingDegrees,
+          'headingDegrees',
+          'Must be finite and from 0 to 360.',
+        );
+      }
+    }
+    if (speedMetersPerSecond case final speed?) {
+      if (!speed.isFinite || speed < 0) {
+        throw ArgumentError.value(
+          speedMetersPerSecond,
+          'speedMetersPerSecond',
+          'Must be finite and nonnegative.',
+        );
+      }
+    }
+  }
+
+  final LocationPoint point;
+  final DateTime recordedAt;
+  final double? headingDegrees;
+  final double? speedMetersPerSecond;
+
+  @override
+  List<Object?> get props => [
+        point,
+        recordedAt,
+        headingDegrees,
+        speedMetersPerSecond,
+      ];
+}
+
 class DriverLocationSample extends Equatable {
   DriverLocationSample({
     required this.point,
