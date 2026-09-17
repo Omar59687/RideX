@@ -70,6 +70,40 @@ void main() {
         DriverTrackingStatus.stopped);
   });
 
+  test('includes the canonical active trip when publishing onTrip fixes',
+      () async {
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+
+    await controller.start();
+    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    await repository.waitForPublishes(1);
+
+    expect(repository.published.single.tripId, 'trip-1');
+  });
+
+  test('stop invalidates a pending start before it can open a stream',
+      () async {
+    final availability = Completer<DriverAvailability?>();
+    repository.availabilityResult = availability.future;
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+
+    final start = controller.start();
+    await Future<void>.delayed(Duration.zero);
+    await controller.stop();
+    availability.complete(repository.availability);
+    await start;
+
+    expect(gps.listenCount, 0);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.stopped);
+  });
+
   test('ignores duplicate starts and owns one stream', () async {
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
@@ -124,13 +158,38 @@ void main() {
     await controller.start();
 
     gps.add(_fix(startTime.add(const Duration(seconds: 1))));
-    await repository.waitForPublishes(1);
+    await repository.waitForAttempts(1);
     await Future<void>.delayed(Duration.zero);
 
     final state = container.read(driverTrackingControllerProvider);
     expect(state.status, DriverTrackingStatus.unavailable);
     expect(state.failure, DriverLocationFailure.staleSequence);
     expect(gps.cancelCount, 1);
+  });
+
+  test('stop and restart discard queued fixes from the old session', () async {
+    final publishGate = Completer<void>();
+    repository.publishGate = publishGate.future;
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+
+    await controller.start();
+    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    gps.add(_fix(startTime.add(const Duration(seconds: 2))));
+    await repository.waitForAttempts(1);
+    await controller.stop();
+    await controller.start();
+    gps.add(_fix(startTime.add(const Duration(seconds: 3))));
+    publishGate.complete();
+    await repository.waitForPublishes(2);
+
+    expect(repository.publishAttempts, 2);
+    expect(repository.published.map((sample) => sample.recordedAt), [
+      startTime.add(const Duration(seconds: 1)),
+      startTime.add(const Duration(seconds: 3)),
+    ]);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.sharing);
   });
 }
 
@@ -156,21 +215,23 @@ SavedDriverLocation _saved(int sequence, DateTime recordedAt) =>
     );
 
 class FakeDriverGpsStreamService implements DriverGpsStreamService {
-  late final _controller = StreamController<DriverLocationFix>(
-    onCancel: () {
-      cancelCount++;
-    },
-  );
+  StreamController<DriverLocationFix>? _controller;
   int listenCount = 0;
   int cancelCount = 0;
 
   @override
   Stream<DriverLocationFix> foregroundFixes() {
     listenCount++;
-    return _controller.stream;
+    final controller = StreamController<DriverLocationFix>.broadcast(
+      onCancel: () {
+        cancelCount++;
+      },
+    );
+    _controller = controller;
+    return controller.stream;
   }
 
-  void add(DriverLocationFix fix) => _controller.add(fix);
+  void add(DriverLocationFix fix) => _controller!.add(fix);
 }
 
 class FakeTrackingRepository implements DriverLocationRepository {
@@ -179,8 +240,11 @@ class FakeTrackingRepository implements DriverLocationRepository {
   );
   SavedDriverLocation? latest;
   Object? publishError;
+  Future<void>? publishGate;
+  Future<DriverAvailability?>? availabilityResult;
   final published = <DriverLocationSample>[];
   final _publishWaiters = <int, Completer<void>>{};
+  final _attemptWaiters = <int, Completer<void>>{};
   int availabilityCount = 0;
   int latestCount = 0;
   int publishAttempts = 0;
@@ -188,16 +252,23 @@ class FakeTrackingRepository implements DriverLocationRepository {
   int maxConcurrentPublishes = 0;
 
   Future<void> waitForPublishes(int count) {
-    if (publishAttempts >= count) return Future<void>.value();
+    if (published.length >= count) return Future<void>.value();
     final completer = Completer<void>();
     _publishWaiters[count] = completer;
+    return completer.future;
+  }
+
+  Future<void> waitForAttempts(int count) {
+    if (publishAttempts >= count) return Future<void>.value();
+    final completer = Completer<void>();
+    _attemptWaiters[count] = completer;
     return completer.future;
   }
 
   @override
   Future<DriverAvailability?> fetchAvailability() async {
     availabilityCount++;
-    return availability;
+    return availabilityResult ?? availability;
   }
 
   @override
@@ -209,11 +280,17 @@ class FakeTrackingRepository implements DriverLocationRepository {
   @override
   Future<SavedDriverLocation> publish(DriverLocationSample sample) async {
     publishAttempts++;
+    for (final entry in _attemptWaiters.entries) {
+      if (publishAttempts >= entry.key && !entry.value.isCompleted) {
+        entry.value.complete();
+      }
+    }
     activePublishes++;
     if (activePublishes > maxConcurrentPublishes) {
       maxConcurrentPublishes = activePublishes;
     }
     await Future<void>.delayed(Duration.zero);
+    await publishGate;
     activePublishes--;
     for (final entry in _publishWaiters.entries) {
       if (publishAttempts >= entry.key && !entry.value.isCompleted) {
