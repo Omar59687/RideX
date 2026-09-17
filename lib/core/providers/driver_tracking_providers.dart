@@ -61,19 +61,22 @@ class DriverTrackingState extends Equatable {
     required this.status,
     this.failure,
     this.nextSequence,
+    this.latestConfirmedAt,
   });
 
   const DriverTrackingState.initial()
       : status = DriverTrackingStatus.stopped,
         failure = null,
-        nextSequence = null;
+        nextSequence = null,
+        latestConfirmedAt = null;
 
   final DriverTrackingStatus status;
   final DriverLocationFailure? failure;
   final int? nextSequence;
+  final DateTime? latestConfirmedAt;
 
   @override
-  List<Object?> get props => [status, failure, nextSequence];
+  List<Object?> get props => [status, failure, nextSequence, latestConfirmedAt];
 }
 
 final driverGpsStreamServiceProvider = Provider<DriverGpsStreamService>(
@@ -111,6 +114,7 @@ class DriverTrackingController
   Future<void> _publishQueue = Future<void>.value();
   Future<void> _lifecycleQueue = Future<void>.value();
   DateTime? _latestRecordedAt;
+  DateTime? _latestConfirmedAt;
   String? _activeTripId;
   int _nextSequence = 1;
   bool _startInProgress = false;
@@ -157,7 +161,10 @@ class DriverTrackingController
 
     final generation = ++_generation;
     _startInProgress = true;
-    state = const DriverTrackingState(status: DriverTrackingStatus.starting);
+    state = DriverTrackingState(
+      status: DriverTrackingStatus.starting,
+      latestConfirmedAt: _latestConfirmedAt,
+    );
     try {
       final repository = ref.read(driverLocationRepositoryProvider);
       final availability = await repository.fetchAvailability();
@@ -170,6 +177,7 @@ class DriverTrackingController
       final latest = await repository.fetchLatestLocation();
       if (!_isCurrent(generation)) return;
       _latestRecordedAt = latest?.recordedAt;
+      _latestConfirmedAt = latest?.receivedAt;
       _activeTripId = availability.state == DriverAvailabilityState.onTrip
           ? availability.activeTripId
           : null;
@@ -177,6 +185,7 @@ class DriverTrackingController
       state = DriverTrackingState(
         status: DriverTrackingStatus.sharing,
         nextSequence: _nextSequence,
+        latestConfirmedAt: _latestConfirmedAt,
       );
       final subscription =
           ref.read(driverGpsStreamServiceProvider).foregroundFixes().listen(
@@ -216,7 +225,10 @@ class DriverTrackingController
     await subscription?.cancel();
     await ref.read(driverTrackingConnectionProvider).disconnect();
     if (!_disposed) {
-      state = const DriverTrackingState(status: DriverTrackingStatus.stopped);
+      state = DriverTrackingState(
+        status: DriverTrackingStatus.stopped,
+        latestConfirmedAt: _latestConfirmedAt,
+      );
     }
   }
 
@@ -283,17 +295,13 @@ class DriverTrackingController
 
     final sequence = _nextSequence++;
     _latestRecordedAt = fix.recordedAt;
-    state = DriverTrackingState(
-      status: DriverTrackingStatus.sharing,
-      nextSequence: _nextSequence,
-    );
     _publishQueue = _publishQueue.then((_) async {
       if (!_isCurrent(generation) ||
           state.status != DriverTrackingStatus.sharing) {
         return;
       }
       try {
-        await ref.read(driverLocationRepositoryProvider).publish(
+        final saved = await ref.read(driverLocationRepositoryProvider).publish(
               DriverLocationSample(
                 point: fix.point,
                 sequence: sequence,
@@ -303,6 +311,14 @@ class DriverTrackingController
                 speedMetersPerSecond: fix.speedMetersPerSecond,
               ),
             );
+        if (_isCurrent(generation)) {
+          _latestConfirmedAt = saved.receivedAt;
+          state = DriverTrackingState(
+            status: DriverTrackingStatus.sharing,
+            nextSequence: _nextSequence,
+            latestConfirmedAt: _latestConfirmedAt,
+          );
+        }
       } catch (error) {
         if (_isCurrent(generation)) {
           _setUnavailable(_failureFromError(error));
@@ -333,6 +349,7 @@ class DriverTrackingController
     state = DriverTrackingState(
       status: DriverTrackingStatus.unavailable,
       failure: failure,
+      latestConfirmedAt: _latestConfirmedAt,
     );
   }
 
