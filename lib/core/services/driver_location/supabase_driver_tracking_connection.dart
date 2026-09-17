@@ -7,21 +7,26 @@ class SupabaseDriverTrackingConnection implements DriverTrackingConnection {
   SupabaseDriverTrackingConnection(this._client);
 
   final SupabaseClient _client;
-  final _statuses =
-      StreamController<DriverTrackingConnectionStatus>.broadcast();
+  final _statuses = StreamController<DriverTrackingConnectionEvent>.broadcast();
   RealtimeChannel? _channel;
+  int _generation = 0;
 
   @override
-  Stream<DriverTrackingConnectionStatus> get statuses => _statuses.stream;
+  Stream<DriverTrackingConnectionEvent> get events => _statuses.stream;
 
   @override
-  Future<void> connect() async {
-    if (_channel != null) return;
+  Future<int> connect() async {
+    if (_channel != null) return _generation;
+    final generation = ++_generation;
     final channel = _client.channel('ridex:driver-tracking');
     _channel = channel;
     channel.subscribe((status, error) {
-      _statuses.add(_mapStatus(status));
+      if (_channel != channel) return;
+      _statuses.add(
+        DriverTrackingConnectionEvent(_mapStatus(status), generation),
+      );
     });
+    return generation;
   }
 
   @override

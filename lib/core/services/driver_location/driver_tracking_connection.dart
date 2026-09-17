@@ -5,10 +5,17 @@ enum DriverTrackingConnectionStatus {
   timedOut,
 }
 
-abstract interface class DriverTrackingConnection {
-  Stream<DriverTrackingConnectionStatus> get statuses;
+class DriverTrackingConnectionEvent {
+  const DriverTrackingConnectionEvent(this.status, this.generation);
 
-  Future<void> connect();
+  final DriverTrackingConnectionStatus status;
+  final int generation;
+}
+
+abstract interface class DriverTrackingConnection {
+  Stream<DriverTrackingConnectionEvent> get events;
+
+  Future<int> connect();
 
   Future<void> disconnect();
 
@@ -19,10 +26,10 @@ class NoopDriverTrackingConnection implements DriverTrackingConnection {
   const NoopDriverTrackingConnection();
 
   @override
-  Stream<DriverTrackingConnectionStatus> get statuses => const Stream.empty();
+  Stream<DriverTrackingConnectionEvent> get events => const Stream.empty();
 
   @override
-  Future<void> connect() async {}
+  Future<int> connect() async => 0;
 
   @override
   Future<void> disconnect() async {}

@@ -107,7 +107,7 @@ class DriverTrackingController
     extends AutoDisposeNotifier<DriverTrackingState> {
   StreamSubscription<DriverLocationFix>? _subscription;
   StreamSubscription<DriverTrackingLifecycleState>? _lifecycleSubscription;
-  StreamSubscription<DriverTrackingConnectionStatus>? _connectionSubscription;
+  StreamSubscription<DriverTrackingConnectionEvent>? _connectionSubscription;
   Future<void> _publishQueue = Future<void>.value();
   Future<void> _lifecycleQueue = Future<void>.value();
   DateTime? _latestRecordedAt;
@@ -118,6 +118,7 @@ class DriverTrackingController
   bool _trackingRequested = false;
   bool _backgrounded = false;
   bool _connectionFailurePending = false;
+  int? _connectionGeneration;
   int _generation = 0;
   bool _disposed = false;
 
@@ -128,8 +129,7 @@ class DriverTrackingController
         .read(driverTrackingLifecycleProvider)
         .changes
         .listen(_handleLifecycleChange);
-    _connectionSubscription =
-        connection.statuses.listen(_handleConnectionStatus);
+    _connectionSubscription = connection.events.listen(_handleConnectionEvent);
     ref.onDispose(() {
       _disposed = true;
       _generation++;
@@ -139,6 +139,8 @@ class DriverTrackingController
       _lifecycleSubscription = null;
       _connectionSubscription?.cancel();
       _connectionSubscription = null;
+      _connectionGeneration = null;
+      _connectionFailurePending = false;
       unawaited(connection.dispose());
     });
     return const DriverTrackingState.initial();
@@ -186,7 +188,8 @@ class DriverTrackingController
         await subscription.cancel();
       } else {
         _subscription = subscription;
-        await ref.read(driverTrackingConnectionProvider).connect();
+        _connectionGeneration =
+            await ref.read(driverTrackingConnectionProvider).connect();
       }
     } catch (error) {
       if (_isCurrent(generation)) {
@@ -206,6 +209,8 @@ class DriverTrackingController
     _generation++;
     _startInProgress = false;
     _activeTripId = null;
+    _connectionGeneration = null;
+    _connectionFailurePending = false;
     final subscription = _subscription;
     _subscription = null;
     await subscription?.cancel();
@@ -250,7 +255,9 @@ class DriverTrackingController
     });
   }
 
-  void _handleConnectionStatus(DriverTrackingConnectionStatus status) {
+  void _handleConnectionEvent(DriverTrackingConnectionEvent event) {
+    if (event.generation != _connectionGeneration) return;
+    final status = event.status;
     if (status == DriverTrackingConnectionStatus.subscribed) {
       if (_connectionFailurePending) {
         _connectionFailurePending = false;

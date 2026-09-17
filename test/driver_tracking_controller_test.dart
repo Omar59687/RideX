@@ -414,6 +414,24 @@ void main() {
 
     expect(connection.disposeCount, 1);
   });
+
+  test('Stop and restart ignore the removed channel status', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final oldGeneration = connection.generation;
+    await controller.stop();
+    await controller.start();
+    connection.emitFromGeneration(
+      DriverTrackingConnectionStatus.channelError,
+      oldGeneration,
+    );
+    connection.emit(DriverTrackingConnectionStatus.subscribed);
+    await flush(3);
+
+    expect(repository.availabilityCount, 2);
+    expect(gps.listenCount, 2);
+  });
 }
 
 Future<void> flush([int count = 1]) async {
@@ -478,17 +496,20 @@ class FakeDriverTrackingLifecycle implements DriverTrackingLifecycle {
 
 class FakeDriverTrackingConnection implements DriverTrackingConnection {
   final _controller =
-      StreamController<DriverTrackingConnectionStatus>.broadcast();
+      StreamController<DriverTrackingConnectionEvent>.broadcast();
   int connectCount = 0;
   int disconnectCount = 0;
   int disposeCount = 0;
+  int generation = 0;
 
   @override
-  Stream<DriverTrackingConnectionStatus> get statuses => _controller.stream;
+  Stream<DriverTrackingConnectionEvent> get events => _controller.stream;
 
   @override
-  Future<void> connect() async {
+  Future<int> connect() async {
     connectCount++;
+    generation++;
+    return generation;
   }
 
   @override
@@ -496,7 +517,14 @@ class FakeDriverTrackingConnection implements DriverTrackingConnection {
     disconnectCount++;
   }
 
-  void emit(DriverTrackingConnectionStatus status) => _controller.add(status);
+  void emit(DriverTrackingConnectionStatus status) =>
+      emitFromGeneration(status, generation);
+
+  void emitFromGeneration(
+    DriverTrackingConnectionStatus status,
+    int generation,
+  ) =>
+      _controller.add(DriverTrackingConnectionEvent(status, generation));
 
   @override
   Future<void> dispose() async {
