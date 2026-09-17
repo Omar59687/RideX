@@ -141,9 +141,13 @@
   disconnect/reconnect, repeated status events, Stop while disconnected,
   background/resume, cleanup, canonical recovery, and duplicate-stream guards;
   `flutter analyze` reported no issues; staged diff check passed before commit.
+- Reconnection wiring review finding: an intentional channel close during Stop,
+  backgrounding, or disposal can be mistaken for a network failure. A later
+  normal subscription may then trigger an unnecessary recovery. Add a focused
+  correction and regressions before Driver Home UI.
 - Reconnection wiring limitation: no Driver Home UI, live Supabase verification,
   background permissions, or matching is implemented. Driver Home tracking UI
-  and focused widget tests are next and remain unstarted.
+  remains unstarted.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
