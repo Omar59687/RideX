@@ -4,7 +4,9 @@ import 'package:ridex/core/mocks/mock_repositories.dart';
 import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/repositories/auth_repository.dart';
 import 'package:ridex/core/repositories/booking_repository.dart';
+import 'package:ridex/core/repositories/driver_location_repository.dart';
 import 'package:ridex/core/repositories/profile_repository.dart';
+import 'package:ridex/core/repositories/mock_driver_location_repository.dart';
 import 'package:ridex/core/repositories/google_place_repository.dart';
 import 'package:ridex/core/repositories/mock_place_repository.dart';
 import 'package:ridex/core/repositories/mock_route_repository.dart';
@@ -17,6 +19,8 @@ import 'package:ridex/core/repositories/trips_repository.dart';
 import 'package:ridex/core/services/supabase/auth_service.dart';
 import 'package:ridex/core/services/supabase/profile_service.dart';
 import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
+import 'package:ridex/core/services/driver_location/driver_location_service.dart';
+import 'package:ridex/core/services/driver_location/supabase_driver_location_service.dart';
 import 'package:ridex/core/services/places/place_service.dart';
 import 'package:ridex/core/services/places/supabase_place_service.dart';
 import 'package:ridex/core/services/routes/route_service.dart';
@@ -63,6 +67,17 @@ final routeRepositoryProvider = Provider<RouteRepository>((ref) {
 });
 final tripsRepositoryProvider =
     Provider<TripsRepository>((ref) => MockTripsRepository());
+final driverLocationServiceProvider = Provider<DriverLocationService?>((ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return client == null ? null : SupabaseDriverLocationService(client);
+});
+final driverLocationRepositoryProvider =
+    Provider<DriverLocationRepository>((ref) {
+  if (!EnvConfig.hasBackendConfig) return MockDriverLocationRepository();
+  return ServiceDriverLocationRepository(
+    ref.watch(driverLocationServiceProvider)!,
+  );
+});
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   if (!EnvConfig.hasBackendConfig) {
     return MockProfileRepository();
