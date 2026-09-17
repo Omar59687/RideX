@@ -49,8 +49,9 @@
   staged `git diff --cached --check` passed before commit.
 - Slice 1 limitations: no GPS stream, tracking controller, Driver Home UI, Realtime
   subscription, matching, background behavior, lifecycle/reconnect recovery, or
-  live Supabase verification. Slice 2 is next: foreground GPS stream and Riverpod
-  tracking controller with ordering, lifecycle, reconnect, and recovery tests.
+  live Supabase verification. Slice 2A is next: foreground GPS stream boundary
+  and fake-driven tests. Slice 2B follows with the Riverpod tracking controller,
+  ordering, lifecycle, reconnect, and recovery tests.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`

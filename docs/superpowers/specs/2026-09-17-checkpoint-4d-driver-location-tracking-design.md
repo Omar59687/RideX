@@ -90,7 +90,9 @@ remain explicitly identified as demo behavior.
 1. Provider-neutral models, service/repository contracts, Supabase adapter,
    deterministic mock, and focused contract tests. No GPS stream or UI change.
 2. Foreground GPS stream and Riverpod controller, including ordering,
-   lifecycle, reconnect, and recovery tests.
+   lifecycle, reconnect, and recovery tests. Deliver this in two bounded
+   steps: 2A adds only the device stream boundary and fake-driven tests;
+   2B adds the controller and its lifecycle/recovery tests.
 3. Driver Home tracking control/status and focused widget tests.
 4. Final security/architecture review, formatting, analysis, full non-live
    regression suite, and supported physical/authenticated verification.

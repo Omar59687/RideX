@@ -698,8 +698,10 @@ subscription, matching, background behavior, lifecycle/reconnect recovery, or li
 Supabase verification is included. The Checkpoint 4D items above remain incomplete
 until the later slices provide those behaviors.
 
-Next step: Slice 2 adds a foreground GPS stream and Riverpod tracking controller
-with ordering, lifecycle, reconnect, and canonical recovery tests.
+Next step: Slice 2A adds only the foreground GPS stream boundary and
+fake-driven tests. Slice 2B then adds the Riverpod tracking controller with
+ordering, lifecycle, reconnect, and canonical recovery tests. This split keeps
+each OpenCode implementation prompt small.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
