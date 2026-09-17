@@ -156,6 +156,20 @@ void main() {
     expect(repository.published.map((sample) => sample.sequence), [4]);
   });
 
+  test('ignores a fix with the same timestamp as the latest accepted fix',
+      () async {
+    repository.latest = _saved(3, startTime);
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    gps.add(_fix(startTime));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(repository.publishAttempts, 0);
+    expect(repository.published, isEmpty);
+  });
+
   test('stops and exposes a sanitized publish failure', () async {
     repository.publishError = const DriverLocationException(
       DriverLocationFailure.staleSequence,
@@ -210,7 +224,7 @@ void main() {
     await flush();
     expect(gps.cancelCount, 1);
     expect(container.read(driverTrackingControllerProvider).status,
-        DriverTrackingStatus.stopped);
+        DriverTrackingStatus.paused);
 
     lifecycle.emit(DriverTrackingLifecycleState.foreground);
     await flush(3);

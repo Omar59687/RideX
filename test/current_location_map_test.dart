@@ -167,6 +167,11 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('fake-google-map')),
+      500,
+      scrollable: find.byType(Scrollable),
+    );
     expect(find.byKey(const ValueKey('fake-google-map')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

@@ -295,7 +295,7 @@ class DriverTrackingController
         state.status != DriverTrackingStatus.sharing ||
         fix.point.accuracyMeters == null ||
         (_latestRecordedAt != null &&
-            fix.recordedAt.isBefore(_latestRecordedAt!))) {
+            !fix.recordedAt.isAfter(_latestRecordedAt!))) {
       return;
     }
 
