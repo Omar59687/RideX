@@ -2,7 +2,9 @@
 
 ## Git Checkpoint
 
-- Active branch: `codex/phase-4d-driver-location`
+- Active branch: `yousuf/supabase-env-audit`
+- Final 4D audit baseline: `18a6c77`, aligned with `origin/main` before the
+  uncommitted audit corrections.
 - Checkpoint 4D Driver Home UI correction: `31bc7c9`; documentation for this
   correction is being committed separately.
 - Checkpoint 4D final review correction: `0e0a9e6`; documentation for this
@@ -47,7 +49,8 @@
   144 cases with 2 intentional skips. The deployed authenticated Google route,
   physical Android polyline, service-backed distance/duration, selected
   endpoints, and endpoint-change recalculation are verified.
-- Checkpoints 4D through 4G remain incomplete. Phase 4 is not approved.
+- Checkpoint 4D: **Approved on 2026-09-20.** Checkpoints 4E through 4G remain
+  incomplete, so Phase 4 is not approved and Phase 5 must not begin.
 - Checkpoint 4D slice 1: **Completed.** Commit `4694a5e` adds the Driver location
   provider-neutral availability, sample, and saved-location contracts; sanitized
   failure types; canonical Supabase availability/latest-location reads; RPC-only
@@ -188,8 +191,8 @@
   `test/driver_home_location_sharing_test.dart` passed 5 tests; `flutter analyze`
   reported no issues; formatting and `git diff --check` passed. The reconnection
   suite was not rerun.
-- Checkpoint 4D final approval review: **Automated blockers corrected; approval
-  pending.** The review began on the clean
+- Checkpoint 4D final approval review on 2026-09-17: **Automated blockers
+  corrected; physical/live approval was still pending at that time.** The review began on the clean
   `codex/phase-4d-driver-location` worktree and confirmed the intended
   authorization/RPC boundary, canonical availability checks, sequence recovery,
   single-stream/publisher ownership, Stop/sign-out/background cleanup,
@@ -206,10 +209,9 @@
   full non-live `flutter test` passed 180 tests with 2 intentional live-Supabase
   skips. Known non-failing `flutter_svg` unsupported `<filter>` warnings
   appeared.
-- Physical-device GPS/permission/background checks and authenticated Supabase
-  RPC, RLS, canonical-read, and Realtime verification remain outstanding. 4D is
-  not approved based on automated tests alone; those physical and authenticated
-  checks must still be completed.
+- That 2026-09-17 review left physical-device and authenticated Supabase checks
+  outstanding. They were completed later and are recorded in the final approval
+  entry below.
 - Verification attempt on 2026-09-17 found the Android toolchain installed, but
   `flutter devices` listed only Windows, Chrome, and Edge; no physical Android
   device or emulator was available. `adb devices -l` could not run because `adb`
@@ -234,6 +236,23 @@
   The manual sequence is documented in the 4D verification-attempt section of
   `Plan.md`: permission then Start/Stop, canonical sequence/timestamp inspection,
   app background/resume, connectivity recovery, and negative RPC/no-row checks.
+- Checkpoint 4D final approval on 2026-09-20: **Approved.** The project owner
+  reported that all physical/live checks passed: Android startup/login,
+  permission timing, real GPS sharing with canonical sequence/timestamp growth,
+  hosted persistence, Stop, foreground lifecycle recovery, network/reconnection
+  recovery, and Rider rejection with HTTP 403 / SQLSTATE 42501 and no inserted
+  row. The final audit also corrected connection-start stream cleanup and made a
+  stale-sequence rejection automatically re-fetch canonical state before
+  restarting one stream.
+- Final 4D verification: 69 focused 4D/Driver/location/session tests passed;
+  full non-live `flutter test --no-pub` passed 184 tests with 2 intentional live
+  skips; `flutter analyze --no-pub` found no issues; Dart formatting checked 183
+  files with 0 changes; and `git diff --check` passed apart from line-ending
+  warnings on pre-existing generated desktop plugin files. Known non-failing
+  `flutter_svg` `<filter>` warnings appeared.
+- Scope remains narrow: 4D provides foreground Driver location sharing and
+  recovery. GPS effectiveness/efficiency, matching, Rider live-trip tracking,
+  and continuous OS-background location remain later work.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
@@ -373,13 +392,13 @@ Plus Jakarta Sans Regular 400, Medium 500, SemiBold 600, Bold 700, and ExtraBold
 
 ## Known Limitations
 
-Phone OTP, continuous/live Driver location, booking/history persistence,
+Phone OTP, Rider live-trip location, booking/history persistence,
 card payments, promotions, rewards, calls/messages, safety services, saved-place
 persistence, notification delivery/persistence, and rating persistence are not
 production integrations. Google Maps/GPS, place search, and routing foundations
-now exist, and Checkpoints 4A, 4B, and 4C are approved. Trip History remains
-Mock-backed with static sample endpoints; continuous Driver tracking remains
-later Phase 4 work.
+now exist, and Checkpoints 4A through 4D are approved. Trip History remains
+Mock-backed with static sample endpoints; GPS optimization and Rider live-trip
+tracking remain later Phase 4 work.
 Notification read state, preferences, booking drafts, active trips, and driver
 availability are session-local and reset on sign-out. Unsupported behavior must
 remain explicit demo, session-local, disabled, or Coming soon behavior.

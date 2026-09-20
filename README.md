@@ -21,16 +21,18 @@ profile roles, blocked state, driver approval, and sign-out use the real backend
 Without configuration, deterministic mock authentication and profile repositories
 keep local development and tests self-contained.
 
-Phone OTP, continuous Driver tracking, booking/history persistence, card payments,
+Phone OTP, Rider live-trip tracking, booking/history persistence, card payments,
 promotions, rewards, calls/messages, safety services, notification delivery,
 saved-place persistence, and rating persistence are not production integrations.
 The UI presents these as disabled, Coming soon, session-local, or explicit demo
 behavior.
 
 Google Maps/GPS and place-search/geocoding foundations are implemented and
-Checkpoints 4A, 4B, and 4C are approved. Checkpoint 4C verification includes the
+Checkpoints 4A through 4D are approved. Checkpoint 4C verification includes the
 deployed authenticated Google route and physical Android polyline, metrics, and
-recalculation behavior. Continuous Driver tracking remains later Phase 4 work.
+recalculation behavior. Checkpoint 4D provides explicit foreground Driver
+location sharing, canonical hosted persistence, and lifecycle/network recovery.
+GPS optimization, matching, and Rider live-trip tracking remain later work.
 See `docs/ai/ops/CURRENT_STATUS.md`.
 
 ## Setup
@@ -175,6 +177,20 @@ through Dart defines, native app resources, source, logs, or Git.
 The Flutter and Deno suites pass. Routes API/key setup, deployed authenticated
 routing, and physical Android polyline rendering are verified; Checkpoint 4C is
 approved.
+
+### Driver location tracking
+
+Checkpoint 4D adds explicit foreground Driver location sharing through the
+Service -> Repository -> Provider/Controller -> UI boundary. It publishes only
+through the authorized `driver_record_location` RPC, uses canonical timestamps
+and increasing sequences, rejects stale fixes, owns one GPS stream, and
+re-fetches canonical state after lifecycle, connection, or stale-sequence
+recovery. Stop and sign-out clean up tracking ownership.
+
+Physical Android GPS/permission/Start/Stop/lifecycle behavior and authenticated
+hosted Supabase persistence, reconnection, and unauthorized Rider rejection are
+reported verified. This is not continuous OS-background tracking and does not
+include matching, Rider live-trip tracking, or Checkpoint 4E optimization.
 
 ## Verification
 

@@ -204,6 +204,10 @@ class DriverTrackingController
     } catch (error) {
       if (_isCurrent(generation)) {
         _setUnavailable(_failureFromError(error));
+        await _cancelSubscription(generation);
+        _connectionGeneration = null;
+        _connectionFailurePending = false;
+        await ref.read(driverTrackingConnectionProvider).disconnect();
       }
     } finally {
       if (_generation == generation) _startInProgress = false;
@@ -327,8 +331,12 @@ class DriverTrackingController
         }
       } catch (error) {
         if (_isCurrent(generation)) {
-          _setUnavailable(_failureFromError(error));
+          final failure = _failureFromError(error);
+          _setUnavailable(failure);
           await _cancelSubscription(generation);
+          if (failure == DriverLocationFailure.staleSequence) {
+            await recoverAfterConnectivity();
+          }
         }
       }
     });

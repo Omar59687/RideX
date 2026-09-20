@@ -77,6 +77,20 @@ void main() {
         DriverTrackingStatus.stopped);
   });
 
+  test('connection startup failure cancels the foreground stream', () async {
+    connection.connectError = StateError('connection failed');
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+
+    await controller.start();
+
+    final state = container.read(driverTrackingControllerProvider);
+    expect(state.status, DriverTrackingStatus.unavailable);
+    expect(state.failure, DriverLocationFailure.unavailable);
+    expect(gps.cancelCount, 1);
+    expect(connection.disconnectCount, 1);
+  });
+
   test('includes the canonical active trip when publishing onTrip fixes',
       () async {
     repository.availability = const DriverAvailability(
@@ -172,7 +186,7 @@ void main() {
 
   test('stops and exposes a sanitized publish failure', () async {
     repository.publishError = const DriverLocationException(
-      DriverLocationFailure.staleSequence,
+      DriverLocationFailure.unavailable,
     );
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
@@ -184,8 +198,36 @@ void main() {
 
     final state = container.read(driverTrackingControllerProvider);
     expect(state.status, DriverTrackingStatus.unavailable);
-    expect(state.failure, DriverLocationFailure.staleSequence);
+    expect(state.failure, DriverLocationFailure.unavailable);
     expect(gps.cancelCount, 1);
+  });
+
+  test('stale sequence rejection refetches canonical sequence', () async {
+    final publishGate = Completer<void>();
+    repository.publishGate = publishGate.future;
+    repository.publishError = const DriverLocationException(
+      DriverLocationFailure.staleSequence,
+    );
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    await repository.waitForAttempts(1);
+    repository.latest = _saved(10, startTime.add(const Duration(seconds: 2)));
+    publishGate.complete();
+    await flush(5);
+
+    expect(repository.availabilityCount, 2);
+    expect(repository.latestCount, 2);
+    expect(gps.listenCount, 2);
+
+    repository.publishError = null;
+    gps.add(_fix(startTime.add(const Duration(seconds: 3))));
+    await repository.waitForPublishes(1);
+
+    expect(repository.published.single.sequence, 11);
+    expect(repository.publishAttempts, 2);
   });
 
   test('stop and restart discard queued fixes from the old session', () async {
@@ -515,6 +557,7 @@ class FakeDriverTrackingConnection implements DriverTrackingConnection {
   int disconnectCount = 0;
   int disposeCount = 0;
   int generation = 0;
+  Object? connectError;
 
   @override
   Stream<DriverTrackingConnectionEvent> get events => _controller.stream;
@@ -522,6 +565,7 @@ class FakeDriverTrackingConnection implements DriverTrackingConnection {
   @override
   Future<int> connect() async {
     connectCount++;
+    if (connectError case final error?) throw error;
     generation++;
     return generation;
   }

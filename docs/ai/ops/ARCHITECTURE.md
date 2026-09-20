@@ -26,6 +26,9 @@ Feature folders currently emphasize presentation screens and feature-local widge
 - `SessionController`: authenticated user and role state.
 - `BookingController`: pickup, destination, stops, category, distance, ETA, and upfront fare.
 - `CurrentLocationController`: one-shot foreground permission and device-location state through the location repository.
+- `DriverTrackingController`: explicit foreground Driver sharing intent,
+  canonical availability/latest-location recovery, one GPS stream and ordered
+  publisher, lifecycle/reconnection cleanup, and sanitized status for Driver Home.
 - `PlaceSelectionController`: independent pickup/destination search, geocoding, and provisional/committed selection state through the place repository.
 - `RouteController`: session-local trusted route state derived from canonical
   booking endpoints, with coalesced recalculation and stale-response rejection.
@@ -43,8 +46,11 @@ provider-neutral, and hosted place requests pass through the authenticated
 Supabase `places` function. Routing uses provider-neutral `RouteRequest`,
 `RouteResult`, and `RouteState` contracts; configured mode invokes the same
 function's authenticated `route` operation, while only the Google map adapter
-converts geometry to SDK polylines. Checkpoints 4A, 4B, and 4C are approved.
-Continuous Driver tracking remains later work.
+converts geometry to SDK polylines. Driver tracking uses a provider-neutral GPS
+stream service, repository-owned canonical reads/RPC writes, and a Riverpod
+controller that prevents duplicate streams and recovers canonical sequence
+state. Checkpoints 4A through 4D are approved. GPS optimization, matching, Rider
+live-trip tracking, and continuous OS-background tracking remain later work.
 
 ## Router
 

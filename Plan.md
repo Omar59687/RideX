@@ -1,6 +1,6 @@
 # RideX Development Plan
 
-Last updated: 2026-09-17
+Last updated: 2026-09-20
 
 ## Purpose
 
@@ -20,9 +20,9 @@ Task states: `[ ]` planned, `[~]` in progress, `[x]` completed, `[-]` cancelled 
 ## Current State
 
 Verified from the repository, Git, automated tests, and read-only hosted Supabase
-metadata through 2026-09-14:
+metadata and reported physical/live evidence through 2026-09-20:
 
-- The audit was performed on `yousuf/supabase-env-audit` at `41dd2f5`, synchronized with `origin/yousuf/supabase-env-audit`.
+- The final 4D audit was performed on `yousuf/supabase-env-audit` at `18a6c77`, aligned with `origin/main` before the uncommitted audit corrections.
 - Rider UI V2 has already been merged into `main`.
 - Git and the actual project files are the source of truth.
 - Rider UI V2 remains accepted as complete within its original UI-focused scope.
@@ -36,7 +36,7 @@ metadata through 2026-09-14:
 - Checkpoint 4B commit `2359a81` adds pickup/destination place search, geocoding, map selection, and routing-readiness validation. Fix commit `41dd2f5` blocks routing while map/GPS reverse geocoding is unresolved; this fix is pushed on the current branch but is not yet in `origin/main`.
 - The hosted Supabase `places` function is active and the required `GOOGLE_MAPS_WEB_SERVICES_API_KEY` secret name exists. No secret value was read.
 - Checkpoints 4A and 4B are approved. The project owner reports that Omar tested every previously remaining physical/live and configuration requirement successfully. The final 4B replacement-selection routing guard is implemented in the current working tree and passes focused and full regression verification.
-- Real routing, route geometry/distance/duration, continuous Driver location tracking, and later Phase 4 work are not implemented.
+- Real routing and foreground Driver location tracking are implemented and approved through Checkpoints 4C and 4D. GPS optimization, matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
 - Multi-stop data can be represented in the booking draft, but stop management, routing, persistence, and fare integration are not implemented.
 - Current fares are deterministic demo values rather than route-based fixed fares.
 - Cash is displayed in the booking and completion UI, and Phase 3 defines trusted atomic Cash completion/settlement and persistent receipt foundations, but they are not connected to Flutter.
@@ -47,7 +47,7 @@ metadata through 2026-09-14:
 
 ## Active Goal
 
-Checkpoints 4A, 4B, and 4C are approved. Checkpoint 4D implementation slices and automated corrections are complete, but real physical Android and authenticated Supabase verification is still unavailable; it remains unapproved. Its approved scope and delivery slices are recorded in `docs/superpowers/specs/2026-09-17-checkpoint-4d-driver-location-tracking-design.md`.
+Checkpoints 4A through 4D are approved. Checkpoint 4D approval combines the final automated audit with project-owner-reported physical Android and authenticated hosted Supabase verification. Checkpoints 4E through 4G remain incomplete, so Phase 4 is not complete and Phase 5 must not begin. The approved 4D scope is recorded in `docs/superpowers/specs/2026-09-17-checkpoint-4d-driver-location-tracking-design.md`.
 
 ### Problem
 
@@ -498,7 +498,7 @@ At Phase 3 completion, Phase 4 had not started and required separate scope appro
 
 ## Phase 4 — Maps, GPS, Place Search, and Routing
 
-- [~] Implement maps, GPS, location permissions, place search, and routing. Checkpoints 4A, 4B, and 4C are approved; Checkpoints 4D through 4G remain incomplete.
+- [~] Implement maps, GPS, location permissions, place search, and routing. Checkpoints 4A through 4D are approved; Checkpoints 4E through 4G remain incomplete.
 
 ### Checkpoint 4A — Map + GPS Foundation
 
@@ -628,8 +628,8 @@ booking/history persistence limitation is outside Checkpoint 4C.
 
 ### Checkpoint 4D — Driver Location Tracking
 
-- [ ] 4.17 Implement Driver GPS tracking with controlled location updates while location tracking is required.
-- [ ] 4.18 Store/update DriverLocation through the approved architecture:
+- [x] 4.17 Implement Driver GPS tracking with controlled location updates while location tracking is required.
+- [x] 4.18 Store/update DriverLocation through the approved architecture:
 
   ```text
   Service
@@ -641,15 +641,15 @@ booking/history persistence limitation is outside Checkpoint 4C.
   UI
   ```
 
-- [ ] 4.19 Attach an authoritative timestamp to Driver location updates so current and stale locations can be distinguished.
-- [ ] 4.20 Prevent an old/stale Driver GPS position from being treated as the Driver's current location.
-- [ ] 4.21 Recover the latest valid Driver location after:
+- [x] 4.19 Attach an authoritative timestamp to Driver location updates so current and stale locations can be distinguished.
+- [x] 4.20 Prevent an old/stale Driver GPS position from being treated as the Driver's current location.
+- [x] 4.21 Recover the latest valid Driver location after:
   - Temporary network loss.
   - Realtime disconnection.
   - App background/foreground transition.
   - App restart where supported.
-- [ ] 4.22 Implement reconnection logic without producing duplicate or conflicting Driver location streams.
-- [ ] 4.23 After ambiguous connection/reconnection states, re-fetch the canonical latest Driver location instead of relying only on missed Realtime events.
+- [x] 4.22 Implement reconnection logic without producing duplicate or conflicting Driver location streams.
+- [x] 4.23 After ambiguous connection/reconnection states, re-fetch the canonical latest Driver location instead of relying only on missed Realtime events.
 
 Checkpoint goal:
 
@@ -657,15 +657,15 @@ Create the reliable Driver-location foundation required by later Driver matching
 
 Approval gate:
 
-- [ ] Driver location updates successfully.
-- [ ] DriverLocation follows Service -> Repository -> Provider/Controller -> UI.
-- [ ] Stale updates cannot overwrite newer valid locations.
-- [ ] Duplicate tracking streams are prevented.
-- [ ] Reconnection works.
-- [ ] Latest canonical location can be recovered.
-- [ ] App lifecycle transitions do not create conflicting subscriptions.
-- [ ] No Driver matching logic is implemented in Phase 4.
-- [ ] Relevant tests pass.
+- [x] Driver location updates successfully.
+- [x] DriverLocation follows Service -> Repository -> Provider/Controller -> UI.
+- [x] Stale updates cannot overwrite newer valid locations.
+- [x] Duplicate tracking streams are prevented.
+- [x] Reconnection works.
+- [x] Latest canonical location can be recovered.
+- [x] App lifecycle transitions do not create conflicting subscriptions.
+- [x] No Driver matching logic is implemented in Phase 4.
+- [x] Relevant tests pass.
 
 #### Checkpoint 4D Slice 1 — Contracts and adapters
 
@@ -854,7 +854,7 @@ Verification: focused
 `flutter analyze` reported no issues; formatting and `git diff --check` passed.
 The reconnection suite was not rerun.
 
-#### Checkpoint 4D Final approval review — Automated blockers corrected; approval pending
+#### Checkpoint 4D Final approval review — Automated blockers corrected; superseded by final approval
 
 Review date: 2026-09-17. Branch `codex/phase-4d-driver-location` began clean.
 The review confirmed RPC-only writes, repository-level canonical availability
@@ -888,8 +888,8 @@ Automated verification:
 
 Physical-device GPS/permission/background verification and authenticated
 Supabase RPC, RLS, canonical-read, and Realtime verification remain outstanding.
-Checkpoint 4D remains unapproved until those physical and authenticated checks
-are completed; automated tests alone do not approve 4D.
+At this review, Checkpoint 4D remained unapproved until those physical and
+authenticated checks were completed; automated tests alone did not approve 4D.
 
 #### Checkpoint 4D verification attempt — environment blockers
 
@@ -905,7 +905,7 @@ Checks actually performed:
 - `flutter test --no-pub test/live_supabase_auth_test.dart test/live_supabase_role_state_test.dart` completed with both live tests skipped because `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` were not configured.
 - The Android manifest was inspected and contains coarse/fine foreground location permissions only; no background-location permission is configured.
 
-Not performed because the prerequisites were unavailable: Driver permission flow on physical Android; physical Start/Stop; physical app background/resume; canonical availability/latest-location reads and RPC writes; network/reconnection recovery; and unauthorized-write rejection. These checks must not be recorded as passed, and Checkpoint 4D remains unapproved.
+Not performed during this attempt because the prerequisites were unavailable: Driver permission flow on physical Android; physical Start/Stop; physical app background/resume; canonical availability/latest-location reads and RPC writes; network/reconnection recovery; and unauthorized-write rejection. The later final approval record below supersedes this historical blocked state.
 
 Prerequisites and manual verification sequence:
 
@@ -916,6 +916,36 @@ Prerequisites and manual verification sequence:
 5. Tap Stop and verify the UI stops sharing and no later location rows are written. Background the app and return while tracking is requested; verify the foreground stream is recreated once, canonical availability/latest location is re-read, and no duplicate stream or conflicting sequence is produced. Because the current manifest has no background-location permission, do not claim continuous OS-background tracking; this is an app background/resume check only unless that separate capability is implemented and approved.
 6. While tracking is active, interrupt network connectivity, restore it, and verify one recovery stream is created, the latest canonical row is re-read, and the next write uses a sequence greater than the saved maximum without replaying the failed sample.
 7. Sign in as the Rider and separately as a pending/blocked Driver, attempt the location write through the authenticated client path, and verify the RPC is rejected and no `driver_locations` row is created. Record only sanitized status/error categories and row-count/sequence evidence.
+
+#### Checkpoint 4D final approval
+
+Approval date: 2026-09-20. Checkpoint 4D is approved.
+
+The project owner reported that the complete physical/authenticated 4D sequence
+passed on Android and hosted Supabase: startup and Driver login; permission only
+after Start; real GPS sharing with increasing canonical sequence/timestamps;
+hosted persistence; Stop with no later writes; app background/foreground
+recovery; network/reconnection recovery without duplicate streams; and Rider
+write rejection with HTTP 403 / SQLSTATE 42501 and no inserted row. No secret or
+personal value is recorded here.
+
+The final static review found and corrected two controller cleanup/recovery gaps:
+a connection-start failure now cancels the already-open foreground GPS stream,
+and a stale-sequence RPC rejection now re-fetches canonical availability/latest
+location before reopening one stream. Focused regression coverage protects both
+paths.
+
+Final repository verification passed 69 focused 4D/Driver/location/session
+tests; the full non-live Flutter suite passed 184 tests with 2 intentional live
+Supabase skips; `flutter analyze --no-pub` reported no issues; formatting checked
+183 files with 0 changes; and `git diff --check` passed with only line-ending
+warnings on pre-existing generated desktop plugin files. Known non-failing
+`flutter_svg` unsupported `<filter>` warnings appeared.
+
+This approval closes only Checkpoint 4D. It does not approve GPS optimization,
+Driver matching, Rider live-trip tracking, continuous OS-background tracking,
+or Checkpoints 4E through 4G. Phase 4 remains in progress and Phase 5 must not
+begin.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
@@ -1165,3 +1195,4 @@ Add concise notes here while discussing the active goal. Convert final conclusio
 | 2026-08-02 | Reviewed the Phase 3 Supabase implementation and recorded verified scope, blockers, and exact remediation actions. | Static inspection of Phase 3 plans/status, migrations `005`-`013`, all matching pgTAP files, constraints, indexes, functions, RPCs, triggers, grants, and RLS. Existing 628-test result is documented and count-consistent but was not independently rerun under the safe-local-check restriction. | Review blocked - not approved |
 | 2026-09-14 | Performed final repository verification for Checkpoints 4A and 4B and reconciled their documentation. | At `41dd2f5`: 23 focused 4A Flutter cases passed; 25 focused 4B Flutter cases passed; `flutter analyze` found no issues; full `flutter test` passed 124 tests with 2 intentional skips and known non-failing SVG warnings. Read-only Supabase CLI metadata confirmed active `places` function version 1 and the required secret name. Deno, physical Android, live Google API, credential-restriction, and authenticated end-to-end evidence remain incomplete; static audit found the unresolved prediction/forward-geocode replacement guard. | Implemented but not approved |
 | 2026-09-14 | Closed the final 4B replacement-selection routing guard and approved Checkpoints 4A/4B using local automation plus project-owner-reported Omar verification. | Eight new replacement regression cases passed; all 33 focused 4B Flutter cases passed; `flutter analyze` found no issues; full `flutter test` passed 132 tests with 2 intentional skips and known non-failing SVG warnings. The project owner reported every remaining physical/live/configuration requirement passed. Deno was not available for independent local rerun. | Checkpoints 4A and 4B approved; Phase 4 remains in progress |
+| 2026-09-20 | Corrected final 4D stream-cleanup and stale-sequence recovery gaps, reconciled physical/authenticated evidence, and completed the final approval audit. | 69 focused regression tests passed; full non-live Flutter suite passed 184 tests with 2 intentional skips; analyzer, formatting, and diff checks passed. The project owner reported all physical Android and authenticated hosted Supabase checks passed, including unauthorized Rider rejection with no inserted row. | Checkpoint 4D approved; Phase 4 remains in progress because 4E-4G are incomplete |
