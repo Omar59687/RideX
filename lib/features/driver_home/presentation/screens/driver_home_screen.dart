@@ -59,7 +59,6 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final online = ref.watch(driverOnlineProvider);
-    final tracking = ref.watch(driverTrackingControllerProvider);
     return AppScaffold(
       title: 'Driver mode',
       bottomNavigationBar: const MockBottomNavBar(
@@ -123,13 +122,10 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          _DriverLocationSharingCard(
-            state: tracking,
+          _DriverLocationSharingCardConsumer(
             permissionRequestRunning: _permissionRequestRunning,
             permissionMessage: _permissionMessage,
             onStart: _startSharing,
-            onStop: () =>
-                ref.read(driverTrackingControllerProvider.notifier).stop(),
           ),
           const SizedBox(height: AppSpacing.lg),
           const RideCurrentLocationMap(
@@ -204,6 +200,30 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
           const SizedBox(height: 92),
         ],
       ),
+    );
+  }
+}
+
+class _DriverLocationSharingCardConsumer extends ConsumerWidget {
+  const _DriverLocationSharingCardConsumer({
+    required this.permissionRequestRunning,
+    required this.permissionMessage,
+    required this.onStart,
+  });
+
+  final bool permissionRequestRunning;
+  final String? permissionMessage;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tracking = ref.watch(driverTrackingControllerProvider);
+    return _DriverLocationSharingCard(
+      state: tracking,
+      permissionRequestRunning: permissionRequestRunning,
+      permissionMessage: permissionMessage,
+      onStart: onStart,
+      onStop: () => ref.read(driverTrackingControllerProvider.notifier).stop(),
     );
   }
 }

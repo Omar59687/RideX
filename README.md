@@ -32,7 +32,10 @@ Checkpoints 4A through 4D are approved. Checkpoint 4C verification includes the
 deployed authenticated Google route and physical Android polyline, metrics, and
 recalculation behavior. Checkpoint 4D provides explicit foreground Driver
 location sharing, canonical hosted persistence, and lifecycle/network recovery.
-GPS optimization, matching, and Rider live-trip tracking remain later work.
+Task 4.24 adds a 10-meter movement filter, redundant-write suppression,
+latest-pending write coalescing, single-subscription verification, and isolated
+tracking-card rebuilds. Tasks 4.25 through 4.30, matching, and Rider live-trip
+tracking remain later work.
 See `docs/ai/ops/CURRENT_STATUS.md`.
 
 ## Setup
@@ -187,10 +190,18 @@ and increasing sequences, rejects stale fixes, owns one GPS stream, and
 re-fetches canonical state after lifecycle, connection, or stale-sequence
 recovery. Stop and sign-out clean up tracking ownership.
 
+Task 4.24 keeps that boundary and canonical state intact while reducing device
+callbacks with a static 10-meter movement filter, skipping unchanged location
+content, and retaining only the latest pending meaningful fix during an
+in-flight write. The sharing card alone watches confirmed tracking updates, so
+the rest of Driver Home and its map do not rebuild for each write. State-based
+update cadence remains deferred to task 4.25.
+
 Physical Android GPS/permission/Start/Stop/lifecycle behavior and authenticated
 hosted Supabase persistence, reconnection, and unauthorized Rider rejection are
 reported verified. This is not continuous OS-background tracking and does not
-include matching, Rider live-trip tracking, or Checkpoint 4E optimization.
+include matching or Rider live-trip tracking. Checkpoint 4E remains incomplete
+because tasks 4.25 through 4.30 are not implemented.
 
 ## Verification
 

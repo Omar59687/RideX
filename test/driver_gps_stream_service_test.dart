@@ -49,6 +49,21 @@ void main() {
     expect(fix.speedMetersPerSecond, 4.5);
   });
 
+  test('uses a movement filter for foreground position requests', () async {
+    LocationSettings? requestedSettings;
+    final service = GeolocatorDriverGpsStreamService(
+      positionStream: (settings) {
+        requestedSettings = settings;
+        return Stream.value(position());
+      },
+    );
+
+    await service.foregroundFixes().drain<void>();
+
+    expect(requestedSettings?.accuracy, LocationAccuracy.high);
+    expect(requestedSettings?.distanceFilter, 10);
+  });
+
   test('drops invalid coordinates and omits invalid optional measurements',
       () async {
     final controller = StreamController<Position>();

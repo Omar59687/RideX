@@ -27,8 +27,9 @@ Feature folders currently emphasize presentation screens and feature-local widge
 - `BookingController`: pickup, destination, stops, category, distance, ETA, and upfront fare.
 - `CurrentLocationController`: one-shot foreground permission and device-location state through the location repository.
 - `DriverTrackingController`: explicit foreground Driver sharing intent,
-  canonical availability/latest-location recovery, one GPS stream and ordered
-  publisher, lifecycle/reconnection cleanup, and sanitized status for Driver Home.
+  canonical availability/latest-location recovery, one GPS stream, exact-content
+  deduplication, latest-pending write coalescing, ordered publication,
+  lifecycle/reconnection cleanup, and sanitized status for Driver Home.
 - `PlaceSelectionController`: independent pickup/destination search, geocoding, and provisional/committed selection state through the place repository.
 - `RouteController`: session-local trusted route state derived from canonical
   booking endpoints, with coalesced recalculation and stale-response rejection.
@@ -49,8 +50,11 @@ function's authenticated `route` operation, while only the Google map adapter
 converts geometry to SDK polylines. Driver tracking uses a provider-neutral GPS
 stream service, repository-owned canonical reads/RPC writes, and a Riverpod
 controller that prevents duplicate streams and recovers canonical sequence
-state. Checkpoints 4A through 4D are approved. GPS optimization, matching, Rider
-live-trip tracking, and continuous OS-background tracking remain later work.
+state. Task 4.24 adds a static 10-meter device movement filter, redundant-write
+suppression, latest-pending coalescing, and a tracking-card-local UI watch.
+Checkpoints 4A through 4D are approved; tasks 4.25 through 4.30, matching,
+Rider live-trip tracking, and continuous OS-background tracking remain later
+work.
 
 ## Router
 

@@ -36,7 +36,7 @@ metadata and reported physical/live evidence through 2026-09-20:
 - Checkpoint 4B commit `2359a81` adds pickup/destination place search, geocoding, map selection, and routing-readiness validation. Fix commit `41dd2f5` blocks routing while map/GPS reverse geocoding is unresolved; this fix is pushed on the current branch but is not yet in `origin/main`.
 - The hosted Supabase `places` function is active and the required `GOOGLE_MAPS_WEB_SERVICES_API_KEY` secret name exists. No secret value was read.
 - Checkpoints 4A and 4B are approved. The project owner reports that Omar tested every previously remaining physical/live and configuration requirement successfully. The final 4B replacement-selection routing guard is implemented in the current working tree and passes focused and full regression verification.
-- Real routing and foreground Driver location tracking are implemented and approved through Checkpoints 4C and 4D. GPS optimization, matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
+- Real routing and foreground Driver location tracking are implemented and approved through Checkpoints 4C and 4D. GPS update efficiency task 4.24 is complete; the rest of Checkpoint 4E, matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
 - Multi-stop data can be represented in the booking draft, but stop management, routing, persistence, and fare integration are not implemented.
 - Current fares are deterministic demo values rather than route-based fixed fares.
 - Cash is displayed in the booking and completion UI, and Phase 3 defines trusted atomic Cash completion/settlement and persistent receipt foundations, but they are not connected to Flutter.
@@ -949,7 +949,7 @@ begin.
 
 ### Checkpoint 4E — GPS Effectiveness + Efficiency
 
-- [ ] 4.24 Make GPS updates efficient:
+- [x] 4.24 Make GPS updates efficient:
   - Avoid unnecessary location requests.
   - Avoid unnecessary database/network writes.
   - Avoid unnecessary map rebuilds.
@@ -969,6 +969,31 @@ begin.
   - Route unavailable.
   - Network failure.
 - [ ] 4.30 Never expose raw map-provider/GPS errors directly to the user.
+
+#### Checkpoint 4E Task 4.24 — GPS update efficiency
+
+Status: Completed and verified on 2026-09-22. Tasks 4.25 through 4.30 remain
+unimplemented, so Checkpoint 4E and its approval gate remain incomplete.
+
+The existing foreground Driver-location architecture is preserved. The
+Geolocator adapter now requests updates only after 10 meters of movement. The
+tracking controller suppresses fixes whose location content is unchanged from
+the latest accepted/canonical fix and, while one ordered publish is in flight,
+retains only the newest pending meaningful fix instead of writing every
+intermediate callback. Canonical timestamps, monotonic sequences, one-publisher
+ordering, lifecycle/reconnection recovery, and the 4D state remain intact.
+
+Driver Home now watches tracking state only inside the location-sharing card,
+so each confirmed publish does not rebuild the whole screen or its map. Active
+subscription instrumentation in focused tests verifies that duplicate starts
+and reconnect recovery never exceed one simultaneous GPS subscription.
+
+Verification: `test/driver_gps_stream_service_test.dart` and
+`test/driver_tracking_controller_test.dart` passed 32 tests;
+`test/driver_home_location_sharing_test.dart` passed 5 tests; and `flutter
+analyze --no-pub` reported no issues. No state-dependent cadence, automatic
+state-based tracking stop, broader battery policy, GPS-accuracy resilience,
+new UI states, or error-policy behavior from tasks 4.25 through 4.30 was added.
 
 Checkpoint goal:
 

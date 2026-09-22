@@ -11,7 +11,7 @@ class GeolocatorDriverGpsStreamService implements DriverGpsStreamService {
     Stream<Position> Function(LocationSettings settings)? positionStream,
     this.locationSettings = const LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 0,
+      distanceFilter: 10,
     ),
   }) : _positionStream = positionStream ??
             ((settings) =>

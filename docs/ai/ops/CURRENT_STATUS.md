@@ -251,8 +251,23 @@
   warnings on pre-existing generated desktop plugin files. Known non-failing
   `flutter_svg` `<filter>` warnings appeared.
 - Scope remains narrow: 4D provides foreground Driver location sharing and
-  recovery. GPS effectiveness/efficiency, matching, Rider live-trip tracking,
-  and continuous OS-background location remain later work.
+  recovery. Task 4.24 GPS update efficiency is complete as recorded below;
+  tasks 4.25 through 4.30, matching, Rider live-trip tracking, and continuous
+  OS-background location remain later work.
+- Checkpoint 4E task 4.24: **Completed and verified on 2026-09-22.** The existing
+  4D architecture and canonical Driver-location state are preserved. The
+  Geolocator adapter uses a static 10-meter movement filter; the controller
+  suppresses unchanged location content and coalesces queued callbacks to the
+  latest pending meaningful fix while retaining one ordered publisher; and the
+  Driver Home tracking watch is isolated to the sharing card so confirmed
+  writes do not rebuild the whole screen/map. Focused fakes assert a maximum of
+  one active GPS subscription across duplicate starts and reconnect recovery.
+- Task 4.24 verification: the GPS service/controller suites passed 32 tests,
+  the Driver Home sharing suite passed 5 tests, and `flutter analyze --no-pub`
+  found no issues. Tasks 4.25 through 4.30 and the Checkpoint 4E approval gate
+  remain incomplete. No state-dependent cadence, automatic state-based stop,
+  broader battery policy, accuracy-resilience, UI-state, or error-policy work
+  was implemented.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`

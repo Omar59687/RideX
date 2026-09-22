@@ -67,6 +67,7 @@ void main() {
     expect(repository.availabilityCount, 1);
     expect(repository.latestCount, 1);
     expect(gps.listenCount, 1);
+    expect(gps.maxActiveSubscriptions, 1);
     expect(container.read(driverTrackingControllerProvider).status,
         DriverTrackingStatus.sharing);
 
@@ -134,6 +135,7 @@ void main() {
     expect(repository.availabilityCount, 1);
     expect(repository.latestCount, 1);
     expect(gps.listenCount, 1);
+    expect(gps.maxActiveSubscriptions, 1);
   });
 
   test('publishes valid fixes sequentially after the saved maximum', () async {
@@ -141,10 +143,17 @@ void main() {
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
     await controller.start();
-    final first = _fix(startTime.add(const Duration(seconds: 1)));
-    final second = _fix(startTime.add(const Duration(seconds: 2)));
+    final first = _fix(
+      startTime.add(const Duration(seconds: 1)),
+      latitude: 31.963258,
+    );
+    final second = _fix(
+      startTime.add(const Duration(seconds: 2)),
+      latitude: 31.963358,
+    );
 
     gps.add(first);
+    await repository.waitForAttempts(1);
     gps.add(second);
     await repository.waitForPublishes(2);
 
@@ -164,7 +173,10 @@ void main() {
 
     gps.add(missingAccuracy);
     gps.add(_fix(startTime));
-    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 1)),
+      latitude: 31.963258,
+    ));
     await repository.waitForPublishes(1);
 
     expect(repository.published.map((sample) => sample.sequence), [4]);
@@ -182,6 +194,53 @@ void main() {
 
     expect(repository.publishAttempts, 0);
     expect(repository.published, isEmpty);
+  });
+
+  test('does not publish duplicate location content', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    await repository.waitForPublishes(1);
+    gps.add(_fix(startTime.add(const Duration(seconds: 2))));
+    await flush(2);
+
+    expect(repository.publishAttempts, 1);
+    expect(repository.published, hasLength(1));
+  });
+
+  test('coalesces queued fixes to the latest location', () async {
+    final publishGate = Completer<void>();
+    repository.publishGate = publishGate.future;
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    final first = _fix(
+      startTime.add(const Duration(seconds: 1)),
+      latitude: 31.963158,
+    );
+    final second = _fix(
+      startTime.add(const Duration(seconds: 2)),
+      latitude: 31.963258,
+    );
+    final latest = _fix(
+      startTime.add(const Duration(seconds: 3)),
+      latitude: 31.963358,
+    );
+    gps.add(first);
+    await repository.waitForAttempts(1);
+    gps.add(second);
+    gps.add(latest);
+    publishGate.complete();
+    await repository.waitForPublishes(2);
+
+    expect(repository.publishAttempts, 2);
+    expect(repository.published.map((sample) => sample.recordedAt), [
+      first.recordedAt,
+      latest.recordedAt,
+    ]);
   });
 
   test('stops and exposes a sanitized publish failure', () async {
@@ -223,7 +282,10 @@ void main() {
     expect(gps.listenCount, 2);
 
     repository.publishError = null;
-    gps.add(_fix(startTime.add(const Duration(seconds: 3))));
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 3)),
+      latitude: 31.963258,
+    ));
     await repository.waitForPublishes(1);
 
     expect(repository.published.single.sequence, 11);
@@ -238,11 +300,17 @@ void main() {
 
     await controller.start();
     gps.add(_fix(startTime.add(const Duration(seconds: 1))));
-    gps.add(_fix(startTime.add(const Duration(seconds: 2))));
     await repository.waitForAttempts(1);
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 2)),
+      latitude: 31.963258,
+    ));
     await controller.stop();
     await controller.start();
-    gps.add(_fix(startTime.add(const Duration(seconds: 3))));
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 3)),
+      latitude: 31.963358,
+    ));
     publishGate.complete();
     await repository.waitForPublishes(2);
 
@@ -341,7 +409,10 @@ void main() {
     repository.publishError = null;
     repository.latest = _saved(10, startTime.add(const Duration(seconds: 2)));
     await controller.recoverAfterConnectivity();
-    gps.add(_fix(startTime.add(const Duration(seconds: 3))));
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 3)),
+      latitude: 31.963258,
+    ));
     await repository.waitForPublishes(1);
 
     expect(repository.published.single.sequence, 11);
@@ -404,6 +475,7 @@ void main() {
     expect(repository.latestCount, 2);
     expect(gps.listenCount, 2);
     expect(connection.connectCount, 2);
+    expect(gps.maxActiveSubscriptions, 1);
   });
 
   test('repeated connection statuses do not duplicate recovery', () async {
@@ -496,9 +568,13 @@ Future<void> flush([int count = 1]) async {
   }
 }
 
-DriverLocationFix _fix(DateTime recordedAt) => DriverLocationFix(
+DriverLocationFix _fix(
+  DateTime recordedAt, {
+  double latitude = 31.963158,
+}) =>
+    DriverLocationFix(
       point: LocationPoint(
-        latitude: 31.963158,
+        latitude: latitude,
         longitude: 35.930359,
         accuracyMeters: 6,
       ),
@@ -521,13 +597,22 @@ class FakeDriverGpsStreamService implements DriverGpsStreamService {
   StreamController<DriverLocationFix>? _controller;
   int listenCount = 0;
   int cancelCount = 0;
+  int activeSubscriptions = 0;
+  int maxActiveSubscriptions = 0;
 
   @override
   Stream<DriverLocationFix> foregroundFixes() {
     listenCount++;
     final controller = StreamController<DriverLocationFix>.broadcast(
+      onListen: () {
+        activeSubscriptions++;
+        if (activeSubscriptions > maxActiveSubscriptions) {
+          maxActiveSubscriptions = activeSubscriptions;
+        }
+      },
       onCancel: () {
         cancelCount++;
+        activeSubscriptions--;
       },
     );
     _controller = controller;

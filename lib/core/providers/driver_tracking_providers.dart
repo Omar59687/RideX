@@ -114,6 +114,8 @@ class DriverTrackingController
   StreamSubscription<DriverTrackingConnectionEvent>? _connectionSubscription;
   Future<void> _publishQueue = Future<void>.value();
   Future<void> _lifecycleQueue = Future<void>.value();
+  ({DriverLocationFix fix, int generation})? _pendingPublish;
+  DriverLocationFix? _latestAcceptedFix;
   DateTime? _latestRecordedAt;
   DateTime? _latestConfirmedAt;
   String? _activeTripId;
@@ -123,6 +125,7 @@ class DriverTrackingController
   bool _trackingRequested = false;
   bool _backgrounded = false;
   bool _connectionFailurePending = false;
+  bool _publishDrainScheduled = false;
   int? _connectionGeneration;
   int _generation = 0;
   bool _disposed = false;
@@ -179,6 +182,14 @@ class DriverTrackingController
       if (!_isCurrent(generation)) return;
       _latestRecordedAt = latest?.recordedAt;
       _latestConfirmedAt = latest?.receivedAt;
+      _latestAcceptedFix = latest == null
+          ? null
+          : DriverLocationFix(
+              point: latest.point,
+              recordedAt: latest.recordedAt,
+              headingDegrees: latest.headingDegrees,
+              speedMetersPerSecond: latest.speedMetersPerSecond,
+            );
       _activeTripId = availability.state == DriverAvailabilityState.onTrip
           ? availability.activeTripId
           : null;
@@ -225,6 +236,7 @@ class DriverTrackingController
     _generation++;
     _startInProgress = false;
     _activeTripId = null;
+    _pendingPublish = null;
     _connectionGeneration = null;
     _connectionFailurePending = false;
     final subscription = _subscription;
@@ -299,47 +311,78 @@ class DriverTrackingController
         state.status != DriverTrackingStatus.sharing ||
         fix.point.accuracyMeters == null ||
         (_latestRecordedAt != null &&
-            !fix.recordedAt.isAfter(_latestRecordedAt!))) {
+            !fix.recordedAt.isAfter(_latestRecordedAt!)) ||
+        _hasSameLocationContent(fix, _latestAcceptedFix)) {
       return;
     }
 
-    final sequence = _nextSequence++;
     _latestRecordedAt = fix.recordedAt;
-    _publishQueue = _publishQueue.then((_) async {
-      if (!_isCurrent(generation) ||
-          state.status != DriverTrackingStatus.sharing) {
-        return;
-      }
-      try {
-        final saved = await ref.read(driverLocationRepositoryProvider).publish(
-              DriverLocationSample(
-                point: fix.point,
-                sequence: sequence,
-                recordedAt: fix.recordedAt,
-                tripId: _activeTripId,
-                headingDegrees: fix.headingDegrees,
-                speedMetersPerSecond: fix.speedMetersPerSecond,
-              ),
-            );
-        if (_isCurrent(generation)) {
-          _latestConfirmedAt = saved.receivedAt;
-          state = DriverTrackingState(
-            status: DriverTrackingStatus.sharing,
-            nextSequence: _nextSequence,
-            latestConfirmedAt: _latestConfirmedAt,
-          );
+    _latestAcceptedFix = fix;
+    _pendingPublish = (fix: fix, generation: generation);
+    if (_publishDrainScheduled) return;
+
+    _publishDrainScheduled = true;
+    _publishQueue = _publishQueue.then((_) => _drainPublishes());
+  }
+
+  Future<void> _drainPublishes() async {
+    try {
+      while (true) {
+        final pending = _pendingPublish;
+        if (pending == null) break;
+        _pendingPublish = null;
+        final generation = pending.generation;
+        if (!_isCurrent(generation) ||
+            state.status != DriverTrackingStatus.sharing) {
+          continue;
         }
-      } catch (error) {
-        if (_isCurrent(generation)) {
-          final failure = _failureFromError(error);
-          _setUnavailable(failure);
-          await _cancelSubscription(generation);
-          if (failure == DriverLocationFailure.staleSequence) {
-            await recoverAfterConnectivity();
+
+        final fix = pending.fix;
+        final sequence = _nextSequence++;
+        try {
+          final saved =
+              await ref.read(driverLocationRepositoryProvider).publish(
+                    DriverLocationSample(
+                      point: fix.point,
+                      sequence: sequence,
+                      recordedAt: fix.recordedAt,
+                      tripId: _activeTripId,
+                      headingDegrees: fix.headingDegrees,
+                      speedMetersPerSecond: fix.speedMetersPerSecond,
+                    ),
+                  );
+          if (_isCurrent(generation)) {
+            _latestConfirmedAt = saved.receivedAt;
+            state = DriverTrackingState(
+              status: DriverTrackingStatus.sharing,
+              nextSequence: _nextSequence,
+              latestConfirmedAt: _latestConfirmedAt,
+            );
+          }
+        } catch (error) {
+          if (_isCurrent(generation)) {
+            final failure = _failureFromError(error);
+            _setUnavailable(failure);
+            await _cancelSubscription(generation);
+            if (failure == DriverLocationFailure.staleSequence) {
+              await recoverAfterConnectivity();
+            }
           }
         }
       }
-    });
+    } finally {
+      _publishDrainScheduled = false;
+    }
+  }
+
+  bool _hasSameLocationContent(
+    DriverLocationFix fix,
+    DriverLocationFix? previous,
+  ) {
+    if (previous == null) return false;
+    return fix.point == previous.point &&
+        fix.headingDegrees == previous.headingDegrees &&
+        fix.speedMetersPerSecond == previous.speedMetersPerSecond;
   }
 
   void _handleStreamError(Object error, StackTrace stackTrace, int generation) {
