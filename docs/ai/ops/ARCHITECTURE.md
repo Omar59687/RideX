@@ -28,8 +28,9 @@ Feature folders currently emphasize presentation screens and feature-local widge
 - `CurrentLocationController`: one-shot foreground permission and device-location state through the location repository.
 - `DriverTrackingController`: explicit foreground Driver sharing intent,
   canonical availability/latest-location recovery, one GPS stream, exact-content
-  deduplication, latest-pending write coalescing, ordered publication,
-  lifecycle/reconnection cleanup, and sanitized status for Driver Home.
+  deduplication, latest-pending write coalescing, canonical-state profile
+  synchronization, ordered publication, lifecycle/reconnection cleanup, and
+  sanitized status for Driver Home.
 - `PlaceSelectionController`: independent pickup/destination search, geocoding, and provisional/committed selection state through the place repository.
 - `RouteController`: session-local trusted route state derived from canonical
   booking endpoints, with coalesced recalculation and stale-response rejection.
@@ -50,11 +51,19 @@ function's authenticated `route` operation, while only the Google map adapter
 converts geometry to SDK polylines. Driver tracking uses a provider-neutral GPS
 stream service, repository-owned canonical reads/RPC writes, and a Riverpod
 controller that prevents duplicate streams and recovers canonical sequence
-state. Task 4.24 adds a static 10-meter device movement filter, redundant-write
-suppression, latest-pending coalescing, and a tracking-card-local UI watch.
-Checkpoints 4A through 4D are approved; tasks 4.25 through 4.30, matching,
-Rider live-trip tracking, and continuous OS-background tracking remain later
-work.
+state. Task 4.24 adds movement filtering, redundant-write suppression,
+latest-pending coalescing, and a tracking-card-local UI watch. Task 4.25 adds the
+provider-neutral `DriverGpsTrackingConfig`: canonical `onTrip` state selects a
+high-accuracy 10-meter/5-second profile, while canonical `available` and
+`reserved` select a medium-accuracy 25-meter/20-second profile. The controller
+can re-read canonical availability and replace a changed profile only after the
+old stream is cancelled. Concurrent requests produce at most one trailing read,
+and reconnect recovery is deferred until synchronization completes. The sync
+request is retained when start or recovery is still reading canonical state. The
+sync entry point reconfigures eligible profiles only; automatic ineligible-state
+stopping remains task 4.26. Checkpoints 4A through 4D are approved; tasks 4.26
+through 4.30, matching, Rider live-trip tracking, and continuous OS-background
+tracking remain later work.
 
 ## Router
 

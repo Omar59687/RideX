@@ -240,7 +240,8 @@ class FakeDriverRepository implements DriverLocationRepository {
 
 class FakeGpsService implements DriverGpsStreamService {
   @override
-  Stream<DriverLocationFix> foregroundFixes() => const Stream.empty();
+  Stream<DriverLocationFix> foregroundFixes(DriverGpsTrackingConfig config) =>
+      const Stream.empty();
 }
 
 class FakeLifecycle implements DriverTrackingLifecycle {

@@ -114,8 +114,10 @@ class DriverTrackingController
   StreamSubscription<DriverTrackingConnectionEvent>? _connectionSubscription;
   Future<void> _publishQueue = Future<void>.value();
   Future<void> _lifecycleQueue = Future<void>.value();
+  Future<void>? _configurationSyncFuture;
   ({DriverLocationFix fix, int generation})? _pendingPublish;
   DriverLocationFix? _latestAcceptedFix;
+  DriverGpsTrackingConfig? _trackingConfig;
   DateTime? _latestRecordedAt;
   DateTime? _latestConfirmedAt;
   String? _activeTripId;
@@ -125,6 +127,9 @@ class DriverTrackingController
   bool _trackingRequested = false;
   bool _backgrounded = false;
   bool _connectionFailurePending = false;
+  bool _configurationSyncPending = false;
+  bool _configurationSyncRequested = false;
+  bool _recoveryRequested = false;
   bool _publishDrainScheduled = false;
   int? _connectionGeneration;
   int _generation = 0;
@@ -177,6 +182,8 @@ class DriverTrackingController
         _setUnavailable(DriverLocationFailure.ineligible);
         return;
       }
+      final trackingConfig =
+          DriverGpsTrackingConfig.forAvailability(availability.state)!;
 
       final latest = await repository.fetchLatestLocation();
       if (!_isCurrent(generation)) return;
@@ -193,18 +200,21 @@ class DriverTrackingController
       _activeTripId = availability.state == DriverAvailabilityState.onTrip
           ? availability.activeTripId
           : null;
+      _trackingConfig = trackingConfig;
       _nextSequence = (latest?.sequence ?? 0) + 1;
       state = DriverTrackingState(
         status: DriverTrackingStatus.sharing,
         nextSequence: _nextSequence,
         latestConfirmedAt: _latestConfirmedAt,
       );
-      final subscription =
-          ref.read(driverGpsStreamServiceProvider).foregroundFixes().listen(
-                (fix) => _handleFix(fix, generation),
-                onError: (error, stackTrace) =>
-                    _handleStreamError(error, stackTrace, generation),
-              );
+      final subscription = ref
+          .read(driverGpsStreamServiceProvider)
+          .foregroundFixes(trackingConfig)
+          .listen(
+            (fix) => _handleFix(fix, generation),
+            onError: (error, stackTrace) =>
+                _handleStreamError(error, stackTrace, generation),
+          );
       if (!_isCurrent(generation)) {
         await subscription.cancel();
       } else {
@@ -222,11 +232,13 @@ class DriverTrackingController
       }
     } finally {
       if (_generation == generation) _startInProgress = false;
+      _runPendingCanonicalSync();
     }
   }
 
   Future<void> stop() async {
     _trackingRequested = false;
+    _configurationSyncPending = false;
     await _stopSession();
   }
 
@@ -236,6 +248,7 @@ class DriverTrackingController
     _generation++;
     _startInProgress = false;
     _activeTripId = null;
+    _trackingConfig = null;
     _pendingPublish = null;
     _connectionGeneration = null;
     _connectionFailurePending = false;
@@ -254,7 +267,150 @@ class DriverTrackingController
 
   Future<void> stopForSignOut() => stop();
 
+  Future<void> synchronizeCanonicalState() {
+    if (!_trackingRequested || _backgrounded || _disposed) {
+      return Future<void>.value();
+    }
+
+    if (_configurationSyncFuture case final sync?) {
+      _configurationSyncRequested = true;
+      return sync;
+    }
+
+    if (_recoveryInProgress || _startInProgress) {
+      _configurationSyncPending = true;
+      return Future<void>.value();
+    }
+    if (_connectionGeneration == null) return Future<void>.value();
+
+    final sync = _synchronizeCanonicalStateLoop();
+    _configurationSyncFuture = sync;
+    return sync;
+  }
+
+  Future<void> _synchronizeCanonicalStateLoop() async {
+    try {
+      do {
+        _configurationSyncRequested = false;
+        await _synchronizeCanonicalStateOnce();
+      } while (_configurationSyncRequested &&
+          _trackingRequested &&
+          !_backgrounded &&
+          !_disposed &&
+          _connectionGeneration != null);
+    } finally {
+      _configurationSyncFuture = null;
+      if (_recoveryRequested) {
+        _recoveryRequested = false;
+        unawaited(recoverAfterConnectivity());
+      }
+    }
+  }
+
+  void _runPendingCanonicalSync() {
+    if (!_configurationSyncPending) return;
+    if (!_trackingRequested || _backgrounded || _disposed) {
+      _configurationSyncPending = false;
+      return;
+    }
+    if (_startInProgress ||
+        _recoveryInProgress ||
+        _connectionGeneration == null) {
+      return;
+    }
+
+    _configurationSyncPending = false;
+    unawaited(synchronizeCanonicalState());
+  }
+
+  Future<void> _synchronizeCanonicalStateOnce() async {
+    final generation = _generation;
+    DriverAvailability? availability;
+    try {
+      availability =
+          await ref.read(driverLocationRepositoryProvider).fetchAvailability();
+    } catch (_) {
+      return;
+    }
+    if (!_isCurrent(generation) ||
+        availability == null ||
+        !availability.canShareLocation) {
+      return;
+    }
+
+    final trackingConfig =
+        DriverGpsTrackingConfig.forAvailability(availability.state)!;
+    final activeTripId = availability.state == DriverAvailabilityState.onTrip
+        ? availability.activeTripId
+        : null;
+    if (trackingConfig == _trackingConfig &&
+        activeTripId == _activeTripId &&
+        _subscription != null) {
+      return;
+    }
+
+    await _replaceGpsSubscription(trackingConfig, activeTripId);
+  }
+
+  Future<void> _replaceGpsSubscription(
+    DriverGpsTrackingConfig trackingConfig,
+    String? activeTripId,
+  ) async {
+    final generation = ++_generation;
+    _pendingPublish = null;
+    final subscription = _subscription;
+    _subscription = null;
+    try {
+      await subscription?.cancel();
+    } catch (error) {
+      if (_isCurrent(generation)) {
+        _trackingConfig = null;
+        _activeTripId = null;
+        _setUnavailable(_failureFromError(error));
+      }
+      return;
+    }
+    if (!_isCurrent(generation) || !_trackingRequested || _backgrounded) return;
+
+    _trackingConfig = trackingConfig;
+    _activeTripId = activeTripId;
+    late final StreamSubscription<DriverLocationFix> replacement;
+    try {
+      replacement = ref
+          .read(driverGpsStreamServiceProvider)
+          .foregroundFixes(trackingConfig)
+          .listen(
+            (fix) => _handleFix(fix, generation),
+            onError: (error, stackTrace) =>
+                _handleStreamError(error, stackTrace, generation),
+          );
+    } catch (error) {
+      if (_isCurrent(generation)) {
+        _trackingConfig = null;
+        _activeTripId = null;
+        _setUnavailable(_failureFromError(error));
+      }
+      return;
+    }
+    if (!_isCurrent(generation)) {
+      await replacement.cancel();
+    } else {
+      _subscription = replacement;
+      if (state.status != DriverTrackingStatus.sharing) {
+        state = DriverTrackingState(
+          status: DriverTrackingStatus.sharing,
+          nextSequence: _nextSequence,
+          latestConfirmedAt: _latestConfirmedAt,
+        );
+      }
+    }
+  }
+
   Future<void> recoverAfterConnectivity() async {
+    if (_configurationSyncFuture != null) {
+      _recoveryRequested = true;
+      return;
+    }
     if (!_trackingRequested ||
         _backgrounded ||
         _disposed ||
@@ -270,6 +426,7 @@ class DriverTrackingController
       }
     } finally {
       _recoveryInProgress = false;
+      _runPendingCanonicalSync();
     }
   }
 
@@ -277,6 +434,7 @@ class DriverTrackingController
     _lifecycleQueue = _lifecycleQueue.then((_) async {
       if (lifecycleState == DriverTrackingLifecycleState.background) {
         _backgrounded = true;
+        _configurationSyncPending = false;
         if (_trackingRequested) {
           await _stopSession(status: DriverTrackingStatus.paused);
         }
@@ -307,11 +465,16 @@ class DriverTrackingController
   }
 
   void _handleFix(DriverLocationFix fix, int generation) {
+    final trackingConfig = _trackingConfig;
     if (!_isCurrent(generation) ||
         state.status != DriverTrackingStatus.sharing ||
+        trackingConfig == null ||
         fix.point.accuracyMeters == null ||
         (_latestRecordedAt != null &&
             !fix.recordedAt.isAfter(_latestRecordedAt!)) ||
+        (_latestRecordedAt != null &&
+            fix.recordedAt.difference(_latestRecordedAt!) <
+                trackingConfig.minimumUpdateInterval) ||
         _hasSameLocationContent(fix, _latestAcceptedFix)) {
       return;
     }

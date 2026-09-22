@@ -9,20 +9,23 @@ import 'package:ridex/core/services/driver_location/driver_gps_stream_service.da
 class GeolocatorDriverGpsStreamService implements DriverGpsStreamService {
   GeolocatorDriverGpsStreamService({
     Stream<Position> Function(LocationSettings settings)? positionStream,
-    this.locationSettings = const LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10,
-    ),
   }) : _positionStream = positionStream ??
             ((settings) =>
                 Geolocator.getPositionStream(locationSettings: settings));
 
   final Stream<Position> Function(LocationSettings settings) _positionStream;
-  final LocationSettings locationSettings;
 
   @override
-  Stream<DriverLocationFix> foregroundFixes() =>
-      _positionStream(locationSettings).transform(
+  Stream<DriverLocationFix> foregroundFixes(DriverGpsTrackingConfig config) =>
+      _positionStream(
+        LocationSettings(
+          accuracy: switch (config.accuracy) {
+            DriverGpsAccuracy.reduced => LocationAccuracy.medium,
+            DriverGpsAccuracy.high => LocationAccuracy.high,
+          },
+          distanceFilter: config.distanceFilterMeters,
+        ),
+      ).transform(
         StreamTransformer<Position, DriverLocationFix>.fromHandlers(
           handleData: (position, sink) {
             final fix = _mapPosition(position);

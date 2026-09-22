@@ -32,9 +32,10 @@ Checkpoints 4A through 4D are approved. Checkpoint 4C verification includes the
 deployed authenticated Google route and physical Android polyline, metrics, and
 recalculation behavior. Checkpoint 4D provides explicit foreground Driver
 location sharing, canonical hosted persistence, and lifecycle/network recovery.
-Task 4.24 adds a 10-meter movement filter, redundant-write suppression,
-latest-pending write coalescing, single-subscription verification, and isolated
-tracking-card rebuilds. Tasks 4.25 through 4.30, matching, and Rider live-trip
+Task 4.24 adds movement filtering, redundant-write suppression, latest-pending
+write coalescing, single-subscription verification, and isolated tracking-card
+rebuilds. Task 4.25 makes the request profile and accepted-update cadence
+canonical-state-aware. Tasks 4.26 through 4.30, matching, and Rider live-trip
 tracking remain later work.
 See `docs/ai/ops/CURRENT_STATUS.md`.
 
@@ -191,17 +192,25 @@ re-fetches canonical state after lifecycle, connection, or stale-sequence
 recovery. Stop and sign-out clean up tracking ownership.
 
 Task 4.24 keeps that boundary and canonical state intact while reducing device
-callbacks with a static 10-meter movement filter, skipping unchanged location
-content, and retaining only the latest pending meaningful fix during an
-in-flight write. The sharing card alone watches confirmed tracking updates, so
-the rest of Driver Home and its map do not rebuild for each write. State-based
-update cadence remains deferred to task 4.25.
+callbacks, skipping unchanged location content, and retaining only the latest
+pending meaningful fix during an in-flight write. The sharing card alone
+watches confirmed tracking updates, so the rest of Driver Home and its map do
+not rebuild for each write.
+
+Task 4.25 derives provider-neutral GPS configuration only from canonical
+`DriverAvailabilityState`. `onTrip` uses high accuracy, a 10-meter movement
+filter, and a 5-second minimum accepted-update interval. `available` and
+`reserved` use medium accuracy, a 25-meter movement filter, and a 20-second
+minimum interval. Canonical synchronization cancels an old profile before
+opening its replacement and never owns two GPS subscriptions. No polling or
+Realtime availability subscription was added, and ineligible state handling is
+left to task 4.26.
 
 Physical Android GPS/permission/Start/Stop/lifecycle behavior and authenticated
 hosted Supabase persistence, reconnection, and unauthorized Rider rejection are
 reported verified. This is not continuous OS-background tracking and does not
 include matching or Rider live-trip tracking. Checkpoint 4E remains incomplete
-because tasks 4.25 through 4.30 are not implemented.
+because tasks 4.26 through 4.30 are not implemented.
 
 ## Verification
 
