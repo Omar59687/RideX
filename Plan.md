@@ -36,7 +36,7 @@ metadata and reported physical/live evidence through 2026-09-20:
 - Checkpoint 4B commit `2359a81` adds pickup/destination place search, geocoding, map selection, and routing-readiness validation. Fix commit `41dd2f5` blocks routing while map/GPS reverse geocoding is unresolved; this fix is pushed on the current branch but is not yet in `origin/main`.
 - The hosted Supabase `places` function is active and the required `GOOGLE_MAPS_WEB_SERVICES_API_KEY` secret name exists. No secret value was read.
 - Checkpoints 4A and 4B are approved. The project owner reports that Omar tested every previously remaining physical/live and configuration requirement successfully. The final 4B replacement-selection routing guard is implemented in the current working tree and passes focused and full regression verification.
-- Real routing and foreground Driver location tracking are implemented and approved through Checkpoints 4C and 4D. GPS efficiency tasks 4.24 through 4.26 are complete; tasks 4.27 through 4.30, matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
+- Real routing and foreground Driver location tracking are implemented and approved through Checkpoints 4C and 4D. GPS efficiency tasks 4.24 through 4.27 are complete; tasks 4.28 through 4.30, matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
 - Multi-stop data can be represented in the booking draft, but stop management, routing, persistence, and fare integration are not implemented.
 - Current fares are deterministic demo values rather than route-based fixed fares.
 - Cash is displayed in the booking and completion UI, and Phase 3 defines trusted atomic Cash completion/settlement and persistent receipt foundations, but they are not connected to Flutter.
@@ -956,7 +956,7 @@ begin.
   - Avoid multiple simultaneous GPS subscriptions.
 - [x] 4.25 Configure location-update behavior according to RideX state so high-frequency tracking is used only when operationally necessary.
 - [x] 4.26 Stop unnecessary Driver location tracking when the Driver is in a state that does not require active tracking.
-- [ ] 4.27 Ensure GPS tracking does not unnecessarily consume:
+- [x] 4.27 Ensure GPS tracking does not unnecessarily consume:
   - Battery.
   - Mobile data.
   - Backend resources.
@@ -972,8 +972,8 @@ begin.
 
 #### Checkpoint 4E Task 4.24 — GPS update efficiency
 
-Status: Completed and verified on 2026-09-22. Tasks 4.25 and 4.26 are now
-recorded below; tasks 4.27 through 4.30 remain unimplemented, so Checkpoint 4E
+Status: Completed and verified on 2026-09-22. Tasks 4.25 through 4.27 are now
+recorded below; tasks 4.28 through 4.30 remain unimplemented, so Checkpoint 4E
 and its approval gate remain incomplete.
 
 The existing foreground Driver-location architecture is preserved. Task 4.24
@@ -1000,9 +1000,9 @@ behavior from tasks 4.26 through 4.30 was added.
 
 #### Checkpoint 4E Task 4.25 — State-based GPS frequency
 
-Status: Completed and verified on 2026-09-22. Task 4.26 is recorded below;
-tasks 4.27 through 4.30 remain unimplemented, so Checkpoint 4E and its approval
-gate remain incomplete.
+Status: Completed and verified on 2026-09-22. Tasks 4.26 and 4.27 are recorded
+below; tasks 4.28 through 4.30 remain unimplemented, so Checkpoint 4E and its
+approval gate remain incomplete.
 
 The provider-neutral `DriverGpsTrackingConfig` centralizes the policy derived
 only from canonical `DriverAvailabilityState`. `onTrip` uses high accuracy, a
@@ -1036,8 +1036,9 @@ UI-state, or error-policy behavior from tasks 4.26 through 4.30 was added.
 
 #### Checkpoint 4E Task 4.26 — Stop unnecessary Driver tracking
 
-Status: Completed and verified on 2026-09-24. Tasks 4.27 through 4.30 remain
-unimplemented, so Checkpoint 4E and its approval gate remain incomplete.
+Status: Completed and verified on 2026-09-24. Task 4.27 is recorded below;
+tasks 4.28 through 4.30 remain unimplemented, so Checkpoint 4E and its approval
+gate remain incomplete.
 
 Explicit canonical synchronization now treats `offline`, missing, and otherwise
 ineligible availability as a stop boundary. The controller invalidates queued
@@ -1059,7 +1060,45 @@ offline-to-eligible transitions.
 Verification: the GPS service/controller and Driver Home sharing suites passed
 58 tests; `flutter analyze --no-pub` reported no issues; `flutter test --no-pub`
 passed 208 tests with 2 intentional live-test skips; and `git diff --check`
-passed. No behavior from tasks 4.27 through 4.30 was added.
+passed. At that task boundary, no behavior from tasks 4.27 through 4.30 was
+added.
+
+#### Checkpoint 4E Task 4.27 — GPS resource consumption
+
+Status: Completed and verified on 2026-09-24. Tasks 4.28 through 4.30 remain
+unimplemented, so Checkpoint 4E and its approval gate remain incomplete.
+
+The provider-neutral `DriverGpsTrackingConfig` now centralizes both device and
+backend resource policy. Canonical `available` uses low accuracy, a 50-meter
+device filter, a 30-second minimum accepted interval, a 50-meter meaningful
+write threshold, and a two-minute maximum silence interval. `reserved` uses
+medium accuracy, 25 meters, 20 seconds, 25 meters, and one minute respectively.
+`onTrip` preserves high accuracy, a 10-meter device/write threshold, and a
+5-second minimum interval, with a 15-second maximum silence interval so active
+ride correctness is not traded away for savings.
+
+After the minimum cadence is met, the controller publishes only when
+provider-neutral great-circle distance reaches the profile threshold or the
+profile's maximum silence interval has elapsed. Coordinate jitter and changes
+only to accuracy, heading, or speed therefore do not create premature writes.
+The maximum interval is not a timer: it only admits a fix already delivered by
+the owned stream, so no polling, extra canonical reads, new subscription, or
+forced stationary GPS request was added. Existing latest-pending coalescing,
+ordered sequence writes, stale rejection, canonical recovery, state-based
+profile replacement, and ineligible-state shutdown remain intact.
+
+Rationale: idle available Drivers receive the strongest battery reduction;
+reserved Drivers retain balanced approach tracking; and active trips retain the
+existing high-fidelity request/cadence profile. Device-side filters reduce GPS
+callbacks, while app-side distance and silence bounds reduce mobile-data and
+backend writes even if a platform/provider emits noisier callbacks than
+requested.
+
+Verification: the GPS service/controller and Driver Home sharing suites passed
+62 tests; `flutter analyze --no-pub` reported no issues; `flutter test --no-pub`
+passed 212 tests with 2 intentional live-test skips; and `git diff --check`
+passed. No accuracy-resilience, UI-state, or error-policy behavior from tasks
+4.28 through 4.30 was added.
 
 Checkpoint goal:
 

@@ -67,7 +67,7 @@ void main() {
     expect(repository.availabilityCount, 1);
     expect(repository.latestCount, 1);
     expect(gps.listenCount, 1);
-    expect(gps.configurations.single, same(DriverGpsTrackingConfig.reduced));
+    expect(gps.configurations.single, same(DriverGpsTrackingConfig.available));
     expect(gps.maxActiveSubscriptions, 1);
     expect(container.read(driverTrackingControllerProvider).status,
         DriverTrackingStatus.sharing);
@@ -143,7 +143,7 @@ void main() {
     expect(gps.maxActiveSubscriptions, 1);
   });
 
-  test('uses reduced tracking while canonically reserved', () async {
+  test('uses reserved tracking while canonically reserved', () async {
     repository.availability = const DriverAvailability(
       state: DriverAvailabilityState.reserved,
     );
@@ -152,21 +152,21 @@ void main() {
 
     await controller.start();
 
-    expect(gps.configurations.single, same(DriverGpsTrackingConfig.reduced));
+    expect(gps.configurations.single, same(DriverGpsTrackingConfig.reserved));
   });
 
-  test('accepts available fixes no more often than every 20 seconds', () async {
+  test('accepts available fixes no more often than every 30 seconds', () async {
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
     await controller.start();
     final first = _fix(startTime.add(const Duration(seconds: 1)));
     final tooSoon = _fix(
-      startTime.add(const Duration(seconds: 20)),
-      latitude: 31.963258,
+      startTime.add(const Duration(seconds: 30)),
+      latitude: 31.964158,
     );
     final due = _fix(
-      startTime.add(const Duration(seconds: 21)),
-      latitude: 31.963358,
+      startTime.add(const Duration(seconds: 31)),
+      latitude: 31.965158,
     );
 
     gps.add(first);
@@ -215,7 +215,7 @@ void main() {
     ]);
   });
 
-  test('keeps one reduced stream across available to reserved sync', () async {
+  test('replaces available tracking with one reserved stream', () async {
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
     await controller.start();
@@ -226,8 +226,12 @@ void main() {
     await controller.synchronizeCanonicalState();
 
     expect(repository.availabilityCount, 2);
-    expect(gps.listenCount, 1);
-    expect(gps.cancelCount, 0);
+    expect(gps.configurations, [
+      DriverGpsTrackingConfig.available,
+      DriverGpsTrackingConfig.reserved,
+    ]);
+    expect(gps.listenCount, 2);
+    expect(gps.cancelCount, 1);
     expect(gps.maxActiveSubscriptions, 1);
   });
 
@@ -258,13 +262,13 @@ void main() {
 
     expect(repository.availabilityCount, 2);
     expect(gps.configurations, [
-      DriverGpsTrackingConfig.reduced,
+      DriverGpsTrackingConfig.available,
       DriverGpsTrackingConfig.activeTrip,
     ]);
     expect(gps.maxActiveSubscriptions, 1);
   });
 
-  test('replaces reduced tracking with one active-trip stream', () async {
+  test('replaces available tracking with one active-trip stream', () async {
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
     await controller.start();
@@ -276,7 +280,7 @@ void main() {
     await controller.synchronizeCanonicalState();
 
     expect(gps.configurations, [
-      same(DriverGpsTrackingConfig.reduced),
+      same(DriverGpsTrackingConfig.available),
       same(DriverGpsTrackingConfig.activeTrip),
     ]);
     expect(gps.cancelCount, 1);
@@ -288,7 +292,7 @@ void main() {
     expect(repository.published.single.tripId, 'trip-1');
   });
 
-  test('replaces active-trip tracking with one reduced stream', () async {
+  test('replaces active-trip tracking with one available stream', () async {
     repository.availability = const DriverAvailability(
       state: DriverAvailabilityState.onTrip,
       activeTripId: 'trip-1',
@@ -304,7 +308,7 @@ void main() {
 
     expect(gps.configurations, [
       same(DriverGpsTrackingConfig.activeTrip),
-      same(DriverGpsTrackingConfig.reduced),
+      same(DriverGpsTrackingConfig.available),
     ]);
     expect(gps.cancelCount, 1);
     expect(gps.maxActiveSubscriptions, 1);
@@ -335,9 +339,9 @@ void main() {
 
     expect(repository.availabilityCount, 3);
     expect(gps.configurations, [
-      DriverGpsTrackingConfig.reduced,
+      DriverGpsTrackingConfig.available,
       DriverGpsTrackingConfig.activeTrip,
-      DriverGpsTrackingConfig.reduced,
+      DriverGpsTrackingConfig.reserved,
     ]);
     expect(gps.listenCount, 3);
     expect(gps.maxActiveSubscriptions, 1);
@@ -365,9 +369,9 @@ void main() {
 
     expect(repository.availabilityCount, 3);
     expect(gps.configurations, [
-      DriverGpsTrackingConfig.reduced,
+      DriverGpsTrackingConfig.available,
       DriverGpsTrackingConfig.activeTrip,
-      DriverGpsTrackingConfig.reduced,
+      DriverGpsTrackingConfig.reserved,
     ]);
     expect(gps.maxActiveSubscriptions, 1);
   });
@@ -420,8 +424,8 @@ void main() {
     expect(repository.availabilityCount, 3);
     expect(repository.latestCount, 2);
     expect(gps.configurations, [
-      DriverGpsTrackingConfig.reduced,
-      DriverGpsTrackingConfig.reduced,
+      DriverGpsTrackingConfig.available,
+      DriverGpsTrackingConfig.available,
       DriverGpsTrackingConfig.activeTrip,
     ]);
     expect(gps.maxActiveSubscriptions, 1);
@@ -636,12 +640,12 @@ void main() {
         container.read(driverTrackingControllerProvider.notifier);
     await controller.start();
     final first = _fix(
-      startTime.add(const Duration(seconds: 20)),
-      latitude: 31.963258,
+      startTime.add(const Duration(seconds: 30)),
+      latitude: 31.964158,
     );
     final second = _fix(
-      startTime.add(const Duration(seconds: 40)),
-      latitude: 31.963358,
+      startTime.add(const Duration(seconds: 60)),
+      latitude: 31.965158,
     );
 
     gps.add(first);
@@ -666,8 +670,8 @@ void main() {
     gps.add(missingAccuracy);
     gps.add(_fix(startTime));
     gps.add(_fix(
-      startTime.add(const Duration(seconds: 20)),
-      latitude: 31.963258,
+      startTime.add(const Duration(seconds: 30)),
+      latitude: 31.964158,
     ));
     await repository.waitForPublishes(1);
 
@@ -695,11 +699,77 @@ void main() {
 
     gps.add(_fix(startTime.add(const Duration(seconds: 1))));
     await repository.waitForPublishes(1);
-    gps.add(_fix(startTime.add(const Duration(seconds: 21))));
+    gps.add(_fix(startTime.add(const Duration(seconds: 31))));
     await flush(2);
 
     expect(repository.publishAttempts, 1);
     expect(repository.published, hasLength(1));
+  });
+
+  test('suppresses available jitter but permits a bounded heartbeat', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final first = _fix(startTime.add(const Duration(seconds: 1)));
+    final heartbeat = _fix(startTime.add(const Duration(seconds: 121)));
+
+    gps.add(first);
+    await repository.waitForPublishes(1);
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 31)),
+      accuracyMeters: 12,
+      headingDegrees: 180,
+      speedMetersPerSecond: 8,
+    ));
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 61)),
+      latitude: 31.963358,
+    ));
+    await flush(2);
+
+    expect(repository.publishAttempts, 1);
+    expect(repository.availabilityCount, 1);
+    expect(repository.latestCount, 1);
+
+    gps.add(heartbeat);
+    await repository.waitForPublishes(2);
+
+    expect(repository.published.map((sample) => sample.recordedAt), [
+      first.recordedAt,
+      heartbeat.recordedAt,
+    ]);
+  });
+
+  test('preserves meaningful active-trip movement updates', () async {
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final first = _fix(startTime.add(const Duration(seconds: 1)));
+    final moved = _fix(
+      startTime.add(const Duration(seconds: 11)),
+      latitude: 31.963258,
+    );
+
+    gps.add(first);
+    await repository.waitForPublishes(1);
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 6)),
+      latitude: 31.963208,
+    ));
+    await flush(2);
+    expect(repository.publishAttempts, 1);
+    gps.add(moved);
+    await repository.waitForPublishes(2);
+
+    expect(repository.published.map((sample) => sample.recordedAt), [
+      first.recordedAt,
+      moved.recordedAt,
+    ]);
+    expect(repository.published.last.tripId, 'trip-1');
   });
 
   test('coalesces queued fixes to the latest location', () async {
@@ -714,12 +784,12 @@ void main() {
       latitude: 31.963158,
     );
     final second = _fix(
-      startTime.add(const Duration(seconds: 21)),
-      latitude: 31.963258,
+      startTime.add(const Duration(seconds: 31)),
+      latitude: 31.964158,
     );
     final latest = _fix(
-      startTime.add(const Duration(seconds: 41)),
-      latitude: 31.963358,
+      startTime.add(const Duration(seconds: 61)),
+      latitude: 31.965158,
     );
     gps.add(first);
     await repository.waitForAttempts(1);
@@ -775,8 +845,8 @@ void main() {
 
     repository.publishError = null;
     gps.add(_fix(
-      startTime.add(const Duration(seconds: 22)),
-      latitude: 31.963258,
+      startTime.add(const Duration(seconds: 32)),
+      latitude: 31.964158,
     ));
     await repository.waitForPublishes(1);
 
@@ -902,8 +972,8 @@ void main() {
     repository.latest = _saved(10, startTime.add(const Duration(seconds: 2)));
     await controller.recoverAfterConnectivity();
     gps.add(_fix(
-      startTime.add(const Duration(seconds: 22)),
-      latitude: 31.963258,
+      startTime.add(const Duration(seconds: 32)),
+      latitude: 31.964158,
     ));
     await repository.waitForPublishes(1);
 
@@ -1063,14 +1133,19 @@ Future<void> flush([int count = 1]) async {
 DriverLocationFix _fix(
   DateTime recordedAt, {
   double latitude = 31.963158,
+  double accuracyMeters = 6,
+  double? headingDegrees,
+  double? speedMetersPerSecond,
 }) =>
     DriverLocationFix(
       point: LocationPoint(
         latitude: latitude,
         longitude: 35.930359,
-        accuracyMeters: 6,
+        accuracyMeters: accuracyMeters,
       ),
       recordedAt: recordedAt,
+      headingDegrees: headingDegrees,
+      speedMetersPerSecond: speedMetersPerSecond,
     );
 
 SavedDriverLocation _saved(int sequence, DateTime recordedAt) =>

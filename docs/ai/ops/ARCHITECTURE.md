@@ -66,9 +66,17 @@ ineligible availability as a stop boundary: it invalidates queued work, cancels
 GPS, and disconnects tracking while retaining explicit sharing intent and latest
 canonical metadata. A later explicit eligible sync re-reads canonical sequence
 state, reconnects, and starts the appropriate profile. There is no polling or
-Realtime availability subscription. Checkpoints 4A through 4D are approved;
-tasks 4.27 through 4.30, matching, Rider live-trip tracking, and continuous
-OS-background tracking remain later work.
+Realtime availability subscription. Task 4.27 extends the same centralized
+configuration with device and write-efficiency policy. `available` uses low
+accuracy, 50-meter filtering/significance, 30-second minimum cadence, and a
+two-minute maximum silence bound; `reserved` uses medium accuracy, 25 meters, 20
+seconds, and one minute; `onTrip` preserves high accuracy, 10 meters, and five
+seconds, with a 15-second maximum silence bound. The controller computes
+provider-neutral great-circle movement and suppresses sub-threshold callbacks
+until meaningful movement or the stream-driven silence bound. It adds no timer,
+polling, canonical read, or subscription. Checkpoints 4A through 4D are
+approved; tasks 4.28 through 4.30, matching, Rider live-trip tracking, and
+continuous OS-background tracking remain later work.
 
 ## Router
 

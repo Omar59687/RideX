@@ -20,7 +20,8 @@ class GeolocatorDriverGpsStreamService implements DriverGpsStreamService {
       _positionStream(
         LocationSettings(
           accuracy: switch (config.accuracy) {
-            DriverGpsAccuracy.reduced => LocationAccuracy.medium,
+            DriverGpsAccuracy.low => LocationAccuracy.low,
+            DriverGpsAccuracy.medium => LocationAccuracy.medium,
             DriverGpsAccuracy.high => LocationAccuracy.high,
           },
           distanceFilter: config.distanceFilterMeters,

@@ -251,7 +251,7 @@
   warnings on pre-existing generated desktop plugin files. Known non-failing
   `flutter_svg` `<filter>` warnings appeared.
 - Scope remains narrow: 4D provides foreground Driver location sharing and
-  recovery. Tasks 4.24 through 4.26 are complete as recorded below; tasks 4.27
+  recovery. Tasks 4.24 through 4.27 are complete as recorded below; tasks 4.28
   through 4.30, matching, Rider live-trip tracking, and continuous OS-background
   location remain later work.
 - Checkpoint 4E task 4.24: **Completed and verified on 2026-09-22.** The existing
@@ -298,7 +298,24 @@
 - Task 4.26 verification: the GPS service/controller and Driver Home sharing
   suites passed 58 tests; `flutter analyze --no-pub` found no issues; the full
   `flutter test --no-pub` suite passed 208 tests with 2 intentional live-test
-  skips; and `git diff --check` passed. Tasks 4.27 through 4.30 and the Checkpoint
+  skips; and `git diff --check` passed. At that task boundary, tasks 4.27 through
+  4.30 and the Checkpoint 4E approval gate remained incomplete.
+- Checkpoint 4E task 4.27: **Completed and verified on 2026-09-24.** The
+  provider-neutral tracking configuration now owns the complete device/write
+  resource policy. `available` uses low accuracy, a 50-meter device/write
+  threshold, a 30-second minimum cadence, and a two-minute maximum silence;
+  `reserved` uses medium accuracy, 25 meters, 20 seconds, and one minute;
+  `onTrip` preserves high accuracy, 10 meters, and five seconds, with a
+  15-second maximum silence. The controller suppresses sub-threshold movement
+  and measurement-only jitter using provider-neutral great-circle distance.
+  Maximum-silence updates consume only fixes emitted by the existing stream, so
+  no timer, polling, extra canonical read, or additional subscription was added.
+  Existing write coalescing, ordering, recovery, and shutdown behavior remains
+  intact.
+- Task 4.27 verification: the GPS service/controller and Driver Home sharing
+  suites passed 62 tests; `flutter analyze --no-pub` found no issues; the full
+  `flutter test --no-pub` suite passed 212 tests with 2 intentional live-test
+  skips; and `git diff --check` passed. Tasks 4.28 through 4.30 and the Checkpoint
   4E approval gate remain incomplete.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`

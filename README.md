@@ -36,8 +36,10 @@ Task 4.24 adds movement filtering, redundant-write suppression, latest-pending
 write coalescing, single-subscription verification, and isolated tracking-card
 rebuilds. Task 4.25 makes the request profile and accepted-update cadence
 canonical-state-aware. Task 4.26 stops GPS and tracking connections in
-ineligible canonical states and permits a safe explicit-sync restart. Tasks 4.27
-through 4.30, matching, and Rider live-trip tracking remain later work.
+ineligible canonical states and permits a safe explicit-sync restart. Task 4.27
+adds state-specific device and write thresholds so idle tracking consumes fewer
+resources without reducing active-trip fidelity. Tasks 4.28 through 4.30,
+matching, and Rider live-trip tracking remain later work.
 See `docs/ai/ops/CURRENT_STATUS.md`.
 
 ## Setup
@@ -214,11 +216,20 @@ A later explicit synchronization in `available`, `reserved`, or `onTrip`
 re-reads canonical sequence state and restarts the appropriate profile without
 creating a duplicate subscription.
 
+Task 4.27 separates idle and operational resource policy. `available` uses low
+accuracy, a 50-meter device/write threshold, a 30-second minimum interval, and a
+two-minute stream-driven freshness bound. `reserved` uses medium accuracy, 25
+meters, 20 seconds, and one minute. `onTrip` preserves high accuracy, 10 meters,
+and five seconds, with a 15-second freshness bound. Sub-threshold movement and
+measurement-only jitter do not cause premature writes. A freshness update can
+only use a fix already emitted by the existing stream; there is no timer,
+polling, extra canonical read, or additional subscription.
+
 Physical Android GPS/permission/Start/Stop/lifecycle behavior and authenticated
 hosted Supabase persistence, reconnection, and unauthorized Rider rejection are
 reported verified. This is not continuous OS-background tracking and does not
 include matching or Rider live-trip tracking. Checkpoint 4E remains incomplete
-because tasks 4.27 through 4.30 are not implemented.
+because tasks 4.28 through 4.30 are not implemented.
 
 ## Verification
 

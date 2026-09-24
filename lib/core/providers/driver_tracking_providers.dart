@@ -508,7 +508,7 @@ class DriverTrackingController
         (_latestRecordedAt != null &&
             fix.recordedAt.difference(_latestRecordedAt!) <
                 trackingConfig.minimumUpdateInterval) ||
-        _hasSameLocationContent(fix, _latestAcceptedFix)) {
+        !trackingConfig.isMeaningfulUpdate(fix, _latestAcceptedFix)) {
       return;
     }
 
@@ -569,16 +569,6 @@ class DriverTrackingController
     } finally {
       _publishDrainScheduled = false;
     }
-  }
-
-  bool _hasSameLocationContent(
-    DriverLocationFix fix,
-    DriverLocationFix? previous,
-  ) {
-    if (previous == null) return false;
-    return fix.point == previous.point &&
-        fix.headingDegrees == previous.headingDegrees &&
-        fix.speedMetersPerSecond == previous.speedMetersPerSecond;
   }
 
   void _handleStreamError(Object error, StackTrace stackTrace, int generation) {

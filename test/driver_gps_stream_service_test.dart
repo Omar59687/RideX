@@ -59,13 +59,13 @@ void main() {
       DriverGpsTrackingConfig.forAvailability(
         DriverAvailabilityState.available,
       ),
-      same(DriverGpsTrackingConfig.reduced),
+      same(DriverGpsTrackingConfig.available),
     );
     expect(
       DriverGpsTrackingConfig.forAvailability(
         DriverAvailabilityState.reserved,
       ),
-      same(DriverGpsTrackingConfig.reduced),
+      same(DriverGpsTrackingConfig.reserved),
     );
     expect(
       DriverGpsTrackingConfig.forAvailability(DriverAvailabilityState.onTrip),
@@ -95,8 +95,7 @@ void main() {
     expect(requestedSettings?.distanceFilter, 10);
   });
 
-  test('maps reduced configuration to lower-frequency provider settings',
-      () async {
+  test('maps available configuration to low-power provider settings', () async {
     LocationSettings? requestedSettings;
     final service = GeolocatorDriverGpsStreamService(
       positionStream: (settings) {
@@ -106,11 +105,42 @@ void main() {
     );
 
     await service
-        .foregroundFixes(DriverGpsTrackingConfig.reduced)
+        .foregroundFixes(DriverGpsTrackingConfig.available)
+        .drain<void>();
+
+    expect(requestedSettings?.accuracy, LocationAccuracy.low);
+    expect(requestedSettings?.distanceFilter, 50);
+  });
+
+  test('maps reserved configuration to balanced provider settings', () async {
+    LocationSettings? requestedSettings;
+    final service = GeolocatorDriverGpsStreamService(
+      positionStream: (settings) {
+        requestedSettings = settings;
+        return Stream.value(position());
+      },
+    );
+
+    await service
+        .foregroundFixes(DriverGpsTrackingConfig.reserved)
         .drain<void>();
 
     expect(requestedSettings?.accuracy, LocationAccuracy.medium);
     expect(requestedSettings?.distanceFilter, 25);
+  });
+
+  test('centralizes state-specific write and heartbeat thresholds', () {
+    expect(DriverGpsTrackingConfig.available.minimumUpdateInterval,
+        const Duration(seconds: 30));
+    expect(DriverGpsTrackingConfig.available.minimumPublishDistanceMeters, 50);
+    expect(DriverGpsTrackingConfig.available.maximumPublishInterval,
+        const Duration(minutes: 2));
+    expect(DriverGpsTrackingConfig.reserved.minimumPublishDistanceMeters, 25);
+    expect(DriverGpsTrackingConfig.reserved.maximumPublishInterval,
+        const Duration(minutes: 1));
+    expect(DriverGpsTrackingConfig.activeTrip.minimumPublishDistanceMeters, 10);
+    expect(DriverGpsTrackingConfig.activeTrip.maximumPublishInterval,
+        const Duration(seconds: 15));
   });
 
   test('drops invalid coordinates and omits invalid optional measurements',
