@@ -29,13 +29,14 @@ class SupabaseRouteService implements RouteService {
       throw RouteException(switch (error.status) {
         401 || 403 => RouteFailure.unauthorized,
         404 => RouteFailure.notFound,
+        502 || 503 => RouteFailure.networkFailure,
         504 => RouteFailure.timedOut,
         _ => RouteFailure.unavailable,
       });
     } on RouteException {
       rethrow;
     } catch (_) {
-      throw const RouteException(RouteFailure.unavailable);
+      throw const RouteException(RouteFailure.networkFailure);
     }
   }
 

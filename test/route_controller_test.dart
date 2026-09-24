@@ -76,11 +76,74 @@ void main() {
     repository.fail(request);
     await _flush();
     expect(container.read(routeControllerProvider).status, RouteStatus.failure);
+    expect(
+        container.read(routeControllerProvider).failure, RouteFailure.timedOut);
 
     container.read(routeControllerProvider.notifier).retry();
     await _flush();
     expect(repository.requests, [request, request]);
     expect(container.read(routeControllerProvider).status, RouteStatus.loading);
+  });
+
+  test('retains a valid route through network failure and retry', () async {
+    final repository = _ControlledRouteRepository();
+    final container = ProviderContainer(
+      overrides: [routeRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    container.read(routeControllerProvider);
+    container.read(bookingControllerProvider.notifier)
+      ..setPickup(_location(31.95, 35.91))
+      ..setDestination(_location(31.98, 35.95));
+    await _flush();
+    final request = repository.requests.single;
+    repository.complete(request);
+    await _flush();
+    final readyResult = container.read(routeControllerProvider).result;
+
+    container.read(routeControllerProvider.notifier).retry();
+    await _flush();
+    final loading = container.read(routeControllerProvider);
+    expect(loading.status, RouteStatus.loading);
+    expect(loading.result, readyResult);
+    expect(
+      loading.isReadyFor(container.read(bookingControllerProvider)),
+      isFalse,
+    );
+
+    repository.fail(request, RouteFailure.networkFailure);
+    await _flush();
+    final failed = container.read(routeControllerProvider);
+    expect(failed.status, RouteStatus.failure);
+    expect(failed.failure, RouteFailure.networkFailure);
+    expect(failed.result, readyResult);
+    expect(
+      failed.resultFor(container.read(bookingControllerProvider)),
+      readyResult,
+    );
+    expect(
+      failed.isReadyFor(container.read(bookingControllerProvider)),
+      isFalse,
+    );
+
+    container.read(routeControllerProvider.notifier).retry();
+    await _flush();
+    repository.complete(request);
+    await _flush();
+
+    expect(
+      container
+          .read(routeControllerProvider)
+          .isReadyFor(container.read(bookingControllerProvider)),
+      isTrue,
+    );
+
+    container
+        .read(bookingControllerProvider.notifier)
+        .setDestination(_location(32.02, 36.01));
+    final changedEndpoint = container.read(routeControllerProvider);
+    expect(changedEndpoint.status, RouteStatus.loading);
+    expect(changedEndpoint.result, isNull);
   });
 }
 
@@ -119,8 +182,11 @@ class _ControlledRouteRepository implements RouteRepository {
     );
   }
 
-  void fail(RouteRequest request) {
-    _take(request).completeError(const RouteException(RouteFailure.timedOut));
+  void fail(
+    RouteRequest request, [
+    RouteFailure failure = RouteFailure.timedOut,
+  ]) {
+    _take(request).completeError(RouteException(failure));
   }
 
   Completer<RouteResult> _take(RouteRequest request) =>

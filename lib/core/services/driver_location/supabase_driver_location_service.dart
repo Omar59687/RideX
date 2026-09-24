@@ -168,9 +168,9 @@ class SupabaseDriverLocationService implements DriverLocationService {
         '42501' || 'PGRST301' => DriverLocationFailure.unauthorized,
         '23505' => DriverLocationFailure.staleSequence,
         '22023' || '55000' => DriverLocationFailure.ineligible,
-        _ => DriverLocationFailure.unavailable,
+        _ => DriverLocationFailure.networkFailure,
       };
     }
-    return DriverLocationFailure.unavailable;
+    return DriverLocationFailure.networkFailure;
   }
 }

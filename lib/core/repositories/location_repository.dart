@@ -125,7 +125,7 @@ class DeviceLocationRepository implements LocationRepository {
       return CurrentLocationState(
         status: CurrentLocationStatus.unavailable,
         permission: permission,
-        failure: LocationFailure.timeout,
+        failure: LocationFailure.locationNotFound,
       );
     } on Object {
       return _unavailable(permission);
@@ -136,7 +136,7 @@ class DeviceLocationRepository implements LocationRepository {
     return CurrentLocationState(
       status: CurrentLocationStatus.unavailable,
       permission: permission,
-      failure: LocationFailure.unavailable,
+      failure: LocationFailure.gpsUnavailable,
     );
   }
 

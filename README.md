@@ -40,8 +40,9 @@ ineligible canonical states and permits a safe explicit-sync restart. Task 4.27
 adds state-specific device and write thresholds so idle tracking consumes fewer
 resources without reducing active-trip fidelity. Task 4.28 rejects unusable,
 expired, future, and out-of-order fixes without replacing the last valid
-canonical reference. Tasks 4.29 and 4.30, matching, and Rider live-trip tracking
-remain later work.
+canonical reference. Task 4.29 adds typed, recoverable loading, GPS unavailable,
+permission denied, location not found, route unavailable, and network failure
+states. Task 4.30, matching, and Rider live-trip tracking remain later work.
 See `docs/ai/ops/CURRENT_STATUS.md`.
 
 ## Setup
@@ -238,11 +239,21 @@ write, so later valid data recovers normally. The RPC also rejects a newer
 sequence carrying non-advancing `recorded_at`, protecting canonical order across
 sessions.
 
+Task 4.29 keeps the existing location, route, and Driver tracking state owners.
+One-shot location failures distinguish unavailable GPS from a location that
+could not be found, while permission and disabled-service states retain their
+settings actions. Temporary retries preserve a last valid point; denial clears
+it. Route state carries typed failures instead of display strings and retains a
+same-request result during retry without treating it as booking-ready. Driver
+tracking distinguishes GPS from network loss, preserves the last confirmed
+server timestamp, stops GPS on connection loss, and resumes through the existing
+canonical reconnect path. User-facing states provide retry or settings actions.
+
 Physical Android GPS/permission/Start/Stop/lifecycle behavior and authenticated
 hosted Supabase persistence, reconnection, and unauthorized Rider rejection are
 reported verified. This is not continuous OS-background tracking and does not
 include matching or Rider live-trip tracking. Checkpoint 4E remains incomplete
-because tasks 4.29 and 4.30 are not implemented.
+because task 4.30 and the approval gate remain incomplete.
 
 ## Verification
 

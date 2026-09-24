@@ -122,6 +122,7 @@ class DriverTrackingController
   Future<void> _publishQueue = Future<void>.value();
   Future<void> _lifecycleQueue = Future<void>.value();
   Future<void>? _configurationSyncFuture;
+  Future<void>? _subscriptionCancellation;
   ({DriverLocationFix fix, int generation})? _pendingPublish;
   DriverLocationFix? _latestAcceptedFix;
   DriverGpsTrackingConfig? _trackingConfig;
@@ -169,6 +170,11 @@ class DriverTrackingController
   Future<void> start() async {
     _trackingRequested = true;
     if (_backgrounded) return;
+    if (state.status == DriverTrackingStatus.unavailable ||
+        _subscriptionCancellation != null) {
+      await recoverAfterConnectivity();
+      return;
+    }
     await _startSession();
   }
 
@@ -233,7 +239,10 @@ class DriverTrackingController
       }
     } catch (error) {
       if (_isCurrent(generation)) {
-        _setUnavailable(_failureFromError(error));
+        _setUnavailable(_failureFromError(
+          error,
+          fallback: DriverLocationFailure.networkFailure,
+        ));
         await _cancelSubscription(generation);
         _connectionGeneration = null;
         _connectionFailurePending = false;
@@ -263,6 +272,7 @@ class DriverTrackingController
     _connectionFailurePending = false;
     final subscription = _subscription;
     _subscription = null;
+    final pendingCancellation = _subscriptionCancellation;
     final connection = ref.read(driverTrackingConnectionProvider);
     if (!_disposed) {
       state = DriverTrackingState(
@@ -270,8 +280,12 @@ class DriverTrackingController
         latestConfirmedAt: _latestConfirmedAt,
       );
     }
-    await subscription?.cancel();
-    await connection.disconnect();
+    try {
+      await subscription?.cancel();
+      await pendingCancellation;
+    } finally {
+      await connection.disconnect();
+    }
   }
 
   Future<void> stopForSignOut() => stop();
@@ -343,6 +357,7 @@ class DriverTrackingController
       await _stopForCanonicalState(generation);
       return;
     }
+    if (_connectionFailurePending || _recoveryRequested) return;
 
     if (_subscription == null && _connectionGeneration == null) {
       await _startSession(canonicalAvailability: availability);
@@ -381,10 +396,12 @@ class DriverTrackingController
     _recoveryRequested = false;
     final subscription = _subscription;
     _subscription = null;
+    final pendingCancellation = _subscriptionCancellation;
     final connection = ref.read(driverTrackingConnectionProvider);
     _setUnavailable(DriverLocationFailure.ineligible);
     try {
       await subscription?.cancel();
+      await pendingCancellation;
     } finally {
       if (_isCurrent(stopGeneration)) {
         await connection.disconnect();
@@ -406,7 +423,10 @@ class DriverTrackingController
       if (_isCurrent(generation)) {
         _trackingConfig = null;
         _activeTripId = null;
-        _setUnavailable(_failureFromError(error));
+        _setUnavailable(_failureFromError(
+          error,
+          fallback: DriverLocationFailure.gpsUnavailable,
+        ));
       }
       return;
     }
@@ -428,7 +448,10 @@ class DriverTrackingController
       if (_isCurrent(generation)) {
         _trackingConfig = null;
         _activeTripId = null;
-        _setUnavailable(_failureFromError(error));
+        _setUnavailable(_failureFromError(
+          error,
+          fallback: DriverLocationFailure.gpsUnavailable,
+        ));
       }
       return;
     }
@@ -501,6 +524,8 @@ class DriverTrackingController
         status == DriverTrackingConnectionStatus.closed ||
         status == DriverTrackingConnectionStatus.timedOut) {
       _connectionFailurePending = true;
+      _setUnavailable(DriverLocationFailure.networkFailure);
+      unawaited(_cancelSubscription(_generation));
     }
   }
 
@@ -571,7 +596,10 @@ class DriverTrackingController
           }
         } catch (error) {
           if (_isCurrent(generation)) {
-            final failure = _failureFromError(error);
+            final failure = _failureFromError(
+              error,
+              fallback: DriverLocationFailure.networkFailure,
+            );
             _setUnavailable(failure);
             await _cancelSubscription(generation);
             if (failure == DriverLocationFailure.staleSequence) {
@@ -587,7 +615,10 @@ class DriverTrackingController
 
   void _handleStreamError(Object error, StackTrace stackTrace, int generation) {
     if (!_isCurrent(generation)) return;
-    _setUnavailable(_failureFromError(error));
+    _setUnavailable(_failureFromError(
+      error,
+      fallback: DriverLocationFailure.gpsUnavailable,
+    ));
     unawaited(_cancelSubscription(generation));
   }
 
@@ -597,7 +628,19 @@ class DriverTrackingController
     }
     final subscription = _subscription;
     _subscription = null;
-    await subscription?.cancel();
+    if (subscription == null) {
+      await _subscriptionCancellation;
+      return;
+    }
+    final cancellation = subscription.cancel();
+    _subscriptionCancellation = cancellation;
+    try {
+      await cancellation;
+    } finally {
+      if (identical(_subscriptionCancellation, cancellation)) {
+        _subscriptionCancellation = null;
+      }
+    }
   }
 
   bool _isCurrent(int generation) => !_disposed && generation == _generation;
@@ -610,8 +653,9 @@ class DriverTrackingController
     );
   }
 
-  DriverLocationFailure _failureFromError(Object error) =>
-      error is DriverLocationException
-          ? error.failure
-          : DriverLocationFailure.unavailable;
+  DriverLocationFailure _failureFromError(
+    Object error, {
+    required DriverLocationFailure fallback,
+  }) =>
+      error is DriverLocationException ? error.failure : fallback;
 }

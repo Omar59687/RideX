@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:ridex/app/theme/app_theme.dart';
+import 'package:ridex/core/errors/route_exception.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/route_models.dart';
 import 'package:ridex/core/widgets/google_location_selection_map.dart';
@@ -57,5 +58,31 @@ void main() {
 
     expect(find.text('5.4 km | 13 min'), findsOneWidget);
     expect(find.text('Traffic-aware driving route'), findsOneWidget);
+  });
+
+  testWidgets('distinguishes a recoverable network failure', (tester) async {
+    final request = RouteRequest(
+      origin: LocationPoint(latitude: 31.95, longitude: 35.91),
+      destination: LocationPoint(latitude: 31.98, longitude: 35.95),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: RouteStatusPanel(
+            state: RouteState.failure(
+              request,
+              RouteFailure.networkFailure,
+            ),
+            onRetry: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('route-network-failure')), findsOneWidget);
+    expect(find.text('Network failure'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
   });
 }

@@ -36,7 +36,7 @@ metadata and reported physical/live evidence through 2026-09-20:
 - Checkpoint 4B commit `2359a81` adds pickup/destination place search, geocoding, map selection, and routing-readiness validation. Fix commit `41dd2f5` blocks routing while map/GPS reverse geocoding is unresolved; this fix is pushed on the current branch but is not yet in `origin/main`.
 - The hosted Supabase `places` function is active and the required `GOOGLE_MAPS_WEB_SERVICES_API_KEY` secret name exists. No secret value was read.
 - Checkpoints 4A and 4B are approved. The project owner reports that Omar tested every previously remaining physical/live and configuration requirement successfully. The final 4B replacement-selection routing guard is implemented in the current working tree and passes focused and full regression verification.
-- Real routing and foreground Driver location tracking are implemented and approved through Checkpoints 4C and 4D. GPS efficiency and resilience tasks 4.24 through 4.28 are complete; tasks 4.29 and 4.30, matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
+- Real routing and foreground Driver location tracking are implemented and approved through Checkpoints 4C and 4D. GPS efficiency and resilience tasks 4.24 through 4.29 are complete; task 4.30, matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
 - Multi-stop data can be represented in the booking draft, but stop management, routing, persistence, and fare integration are not implemented.
 - Current fares are deterministic demo values rather than route-based fixed fares.
 - Cash is displayed in the booking and completion UI, and Phase 3 defines trusted atomic Cash completion/settlement and persistent receipt foundations, but they are not connected to Flutter.
@@ -961,7 +961,7 @@ begin.
   - Mobile data.
   - Backend resources.
 - [x] 4.28 Make location updates resilient to temporary GPS inaccuracies and prevent obviously stale/invalid updates from replacing a newer valid location.
-- [ ] 4.29 Provide clear application states for:
+- [x] 4.29 Provide clear application states for:
   - Loading.
   - GPS unavailable.
   - Permission denied.
@@ -1137,6 +1137,37 @@ suite, but local execution was blocked because no Docker engine or Docker
 Desktop executable is available; `npx supabase test db` and local stack startup
 were both attempted. No UI-state or error-policy behavior from tasks 4.29 or
 4.30 was added.
+
+#### Checkpoint 4E Task 4.29 — Recoverable location and route states
+
+Status: Completed and verified on 2026-09-24. Task 4.30 and the Checkpoint 4E
+approval gate remain incomplete.
+
+The existing provider-neutral state owners now distinguish loading, GPS
+unavailable, permission denied, location not found, route unavailable, and
+network failure without introducing a parallel application state. One-shot
+location refresh keeps a prior granted point during a temporary GPS/not-found
+failure and replaces it on recovery, but clears it when permission is denied.
+Map and pickup feedback provides retry, permission, or settings actions.
+
+`RouteState` now carries `RouteFailure` instead of a display string. A retry for
+the same endpoints retains the last valid result for map context while remaining
+strictly non-ready, and an endpoint change clears it. Route-unavailable and
+network-failure panels remain distinct and retry the current request. Driver
+tracking separately reports GPS and network loss, retains the last
+server-confirmed timestamp, stops its foreground GPS stream when the tracking
+connection fails, and uses the existing canonical reconnect path to recover one
+stream without duplicating state ownership.
+
+No task 4.30-wide raw-error policy refactor, matching, Rider live-trip tracking,
+continuous OS-background tracking, new polling, or additional canonical
+subscription was added.
+
+Verification: 95 focused location/route/GPS/tracking/Driver Home tests passed;
+`flutter analyze --no-pub` reported no issues; `flutter test --no-pub` passed
+225 tests with 2 intentional live-test skips; formatting checked 185 Dart files;
+and `git diff --check` passed with line-ending warnings only. Known non-failing
+`flutter_svg` `<filter>` warnings appeared.
 
 Checkpoint goal:
 

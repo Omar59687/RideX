@@ -177,7 +177,7 @@ void main() {
         isA<DriverLocationException>().having(
           (error) => error.failure,
           'failure',
-          DriverLocationFailure.unavailable,
+          DriverLocationFailure.gpsUnavailable,
         ),
       ),
     );

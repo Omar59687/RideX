@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:ridex/core/errors/route_exception.dart';
 import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/location_point.dart';
 
@@ -64,11 +65,15 @@ class RouteState extends Equatable {
     this.status = RouteStatus.idle,
     this.request,
     this.result,
-    this.message,
+    this.failure,
   });
 
-  const RouteState.loading(RouteRequest request)
-      : this(status: RouteStatus.loading, request: request);
+  const RouteState.loading(RouteRequest request, {RouteResult? previousResult})
+      : this(
+          status: RouteStatus.loading,
+          request: request,
+          result: previousResult,
+        );
 
   RouteState.ready(RouteResult result)
       : this(
@@ -77,25 +82,31 @@ class RouteState extends Equatable {
           result: result,
         );
 
-  const RouteState.failure(RouteRequest request, String message)
-      : this(
+  const RouteState.failure(
+    RouteRequest request,
+    RouteFailure failure, {
+    RouteResult? previousResult,
+  }) : this(
           status: RouteStatus.failure,
           request: request,
-          message: message,
+          result: previousResult,
+          failure: failure,
         );
 
   final RouteStatus status;
   final RouteRequest? request;
   final RouteResult? result;
-  final String? message;
+  final RouteFailure? failure;
+
+  RouteResult? resultFor(BookingDraft draft) {
+    final current = RouteRequest.fromDraft(draft);
+    return result?.request == current ? result : null;
+  }
 
   bool isReadyFor(BookingDraft draft) {
-    final current = RouteRequest.fromDraft(draft);
-    return status == RouteStatus.ready &&
-        result != null &&
-        result!.request == current;
+    return status == RouteStatus.ready && resultFor(draft) != null;
   }
 
   @override
-  List<Object?> get props => [status, request, result, message];
+  List<Object?> get props => [status, request, result, failure];
 }

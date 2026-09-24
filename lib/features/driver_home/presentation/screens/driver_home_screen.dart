@@ -51,6 +51,10 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
         'Location permission was denied. Allow it to start sharing.',
       LocationFailure.serviceDisabled =>
         'Device location services are off. Turn them on and retry.',
+      LocationFailure.locationNotFound =>
+        'Current location was not found. Move to an open area and retry.',
+      LocationFailure.gpsUnavailable =>
+        'GPS is unavailable. Check device settings and retry.',
       _ =>
         'Foreground location is unavailable. Check device settings and retry.',
     };
@@ -326,8 +330,11 @@ class _DriverLocationSharingCard extends StatelessWidget {
           'Your session cannot share location. Sign in again and retry.',
         DriverLocationFailure.staleSequence =>
           'Location sharing needs to resync. Try starting again.',
-        _ =>
-          'Location sharing is unavailable. Check GPS and network, then retry.',
+        DriverLocationFailure.networkFailure =>
+          'Network connection was lost. Your last confirmed location is safe; retry when connected.',
+        DriverLocationFailure.gpsUnavailable =>
+          'GPS is unavailable. Check device location and retry.',
+        _ => 'Location sharing is unavailable. Please retry.',
       };
     }
     return 'Share foreground GPS only when Driver operations require it.';

@@ -251,8 +251,8 @@
   warnings on pre-existing generated desktop plugin files. Known non-failing
   `flutter_svg` `<filter>` warnings appeared.
 - Scope remains narrow: 4D provides foreground Driver location sharing and
-  recovery. Tasks 4.24 through 4.28 are complete as recorded below; tasks 4.29
-  and 4.30, matching, Rider live-trip tracking, and continuous OS-background
+  recovery. Tasks 4.24 through 4.29 are complete as recorded below; task 4.30,
+  matching, Rider live-trip tracking, and continuous OS-background
   location remain later work.
 - Checkpoint 4E task 4.24: **Completed and verified on 2026-09-22.** The existing
   4D architecture and canonical Driver-location state are preserved. It adds
@@ -334,7 +334,28 @@
   skips; and `git diff --check` passed. The pgTAP ordering regression could not
   run locally because no Docker engine or Docker Desktop executable is
   available; both `npx supabase test db` and local stack startup were attempted.
-  Tasks 4.29 and 4.30 and the Checkpoint 4E approval gate remain incomplete.
+  Task 4.29 is completed below; task 4.30 and the Checkpoint 4E approval gate
+  remain incomplete.
+- Checkpoint 4E task 4.29: **Completed and verified on 2026-09-24.** Existing
+  `CurrentLocationState`, `RouteState`, and `DriverTrackingState` authorities now
+  expose typed loading, GPS unavailable, permission denied, location not found,
+  route unavailable, and network failure outcomes. Temporary one-shot GPS
+  failures preserve a previously granted point, same-request route retries
+  retain their prior result as non-ready map context, and Driver network loss
+  preserves the last confirmed server timestamp. Permission denial and changed
+  route endpoints still invalidate unusable prior data.
+- Task 4.29 recovery behavior: connection failure exposes a network state,
+  cancels foreground GPS, and reuses the existing canonical reconnect path.
+  Recovery still owns at most one GPS subscription. Map, pickup, route, and
+  Driver Home feedback provides clear retry or settings actions. No parallel
+  state owner, polling, new canonical subscription, task 4.30-wide error-policy
+  refactor, matching, Rider live-trip tracking, or background tracking was
+  added. Task 4.30 and the Checkpoint 4E approval gate remain incomplete.
+- Task 4.29 verification: 95 focused location/route/GPS/tracking/Driver Home
+  tests passed; `flutter analyze --no-pub` found no issues; the full `flutter
+  test --no-pub` suite passed 225 tests with 2 intentional live-test skips; Dart
+  formatting checked 185 files; and `git diff --check` passed with line-ending
+  warnings only. Known non-failing `flutter_svg` `<filter>` warnings appeared.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`

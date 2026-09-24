@@ -91,7 +91,7 @@ void main() {
 
     final state = container.read(driverTrackingControllerProvider);
     expect(state.status, DriverTrackingStatus.unavailable);
-    expect(state.failure, DriverLocationFailure.unavailable);
+    expect(state.failure, DriverLocationFailure.networkFailure);
     expect(gps.cancelCount, 1);
     expect(connection.disconnectCount, 1);
   });
@@ -900,7 +900,7 @@ void main() {
 
   test('stops and exposes a sanitized publish failure', () async {
     repository.publishError = const DriverLocationException(
-      DriverLocationFailure.unavailable,
+      DriverLocationFailure.networkFailure,
     );
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
@@ -912,7 +912,7 @@ void main() {
 
     final state = container.read(driverTrackingControllerProvider);
     expect(state.status, DriverTrackingStatus.unavailable);
-    expect(state.failure, DriverLocationFailure.unavailable);
+    expect(state.failure, DriverLocationFailure.networkFailure);
     expect(gps.cancelCount, 1);
   });
 
@@ -1051,7 +1051,7 @@ void main() {
   test('recovery uses the higher canonical sequence without replaying failure',
       () async {
     repository.publishError = const DriverLocationException(
-      DriverLocationFailure.unavailable,
+      DriverLocationFailure.networkFailure,
     );
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
@@ -1077,7 +1077,7 @@ void main() {
 
   test('repeated recovery signals coalesce to one canonical restart', () async {
     repository.publishError = const DriverLocationException(
-      DriverLocationFailure.unavailable,
+      DriverLocationFailure.networkFailure,
     );
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
@@ -1117,13 +1117,27 @@ void main() {
   });
 
   test('disconnect followed by resubscribe recovers once', () async {
+    repository.latest = _saved(7, startTime);
+    final cancellation = Completer<void>();
+    gps.cancelGate = cancellation.future;
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
     await controller.start();
     connection.emit(DriverTrackingConnectionStatus.subscribed);
     await flush();
     connection.emit(DriverTrackingConnectionStatus.channelError);
+    await flush(2);
+
+    final disconnected = container.read(driverTrackingControllerProvider);
+    expect(disconnected.status, DriverTrackingStatus.unavailable);
+    expect(disconnected.failure, DriverLocationFailure.networkFailure);
+    expect(disconnected.latestConfirmedAt, repository.latest!.receivedAt);
+
     connection.emit(DriverTrackingConnectionStatus.subscribed);
+    await flush(2);
+    expect(gps.listenCount, 1);
+
+    cancellation.complete();
     await flush(4);
 
     expect(repository.availabilityCount, 2);
@@ -1131,6 +1145,25 @@ void main() {
     expect(gps.listenCount, 2);
     expect(connection.connectCount, 2);
     expect(gps.maxActiveSubscriptions, 1);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.sharing);
+  });
+
+  test('manual retry replaces an unavailable connection once', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    connection.emit(DriverTrackingConnectionStatus.channelError);
+    await flush(2);
+
+    await controller.start();
+
+    expect(connection.disconnectCount, 1);
+    expect(connection.connectCount, 2);
+    expect(gps.listenCount, 2);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.sharing);
   });
 
   test('repeated connection statuses do not duplicate recovery', () async {
@@ -1275,17 +1308,78 @@ class FakeDriverGpsStreamService implements DriverGpsStreamService {
           maxActiveSubscriptions = activeSubscriptions;
         }
       },
-      onCancel: () async {
-        cancelCount++;
-        activeSubscriptions--;
-        await cancelGate;
-      },
     );
     _controller = controller;
-    return controller.stream;
+    return _CancelAwareStream(controller.stream, () async {
+      cancelCount++;
+      await cancelGate;
+      activeSubscriptions--;
+    });
   }
 
   void add(DriverLocationFix fix) => _controller!.add(fix);
+}
+
+class _CancelAwareStream<T> extends Stream<T> {
+  _CancelAwareStream(this._source, this._onCancel);
+
+  final Stream<T> _source;
+  final Future<void> Function() _onCancel;
+
+  @override
+  StreamSubscription<T> listen(
+    void Function(T event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    return _CancelAwareSubscription(
+      _source.listen(
+        onData,
+        onError: onError,
+        onDone: onDone,
+        cancelOnError: cancelOnError,
+      ),
+      _onCancel,
+    );
+  }
+}
+
+class _CancelAwareSubscription<T> implements StreamSubscription<T> {
+  _CancelAwareSubscription(this._source, this._onCancel);
+
+  final StreamSubscription<T> _source;
+  final Future<void> Function() _onCancel;
+  Future<void>? _cancellation;
+
+  @override
+  Future<void> cancel() => _cancellation ??= _cancel();
+
+  Future<void> _cancel() async {
+    await _onCancel();
+    await _source.cancel();
+  }
+
+  @override
+  bool get isPaused => _source.isPaused;
+
+  @override
+  void onData(void Function(T data)? handleData) => _source.onData(handleData);
+
+  @override
+  void onDone(void Function()? handleDone) => _source.onDone(handleDone);
+
+  @override
+  void onError(Function? handleError) => _source.onError(handleError);
+
+  @override
+  void pause([Future<void>? resumeSignal]) => _source.pause(resumeSignal);
+
+  @override
+  void resume() => _source.resume();
+
+  @override
+  Future<E> asFuture<E>([E? futureValue]) => _source.asFuture(futureValue);
 }
 
 class FakeDriverTrackingLifecycle implements DriverTrackingLifecycle {

@@ -35,7 +35,7 @@ class GeolocatorDriverGpsStreamService implements DriverGpsStreamService {
           handleError: (error, stackTrace, sink) {
             sink.addError(
               const DriverLocationException(
-                DriverLocationFailure.unavailable,
+                DriverLocationFailure.gpsUnavailable,
               ),
             );
           },

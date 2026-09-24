@@ -35,6 +35,72 @@ void main() {
     expect(repository.inspectCount, 1);
   });
 
+  test('preserves the last point through a temporary failure and recovers',
+      () async {
+    final firstPoint = LocationPoint(latitude: 31.95, longitude: 35.91);
+    final recoveredPoint = LocationPoint(latitude: 31.96, longitude: 35.92);
+    final repository = FakeLocationRepository(
+      inspectedState: CurrentLocationState(
+        status: CurrentLocationStatus.available,
+        permission: LocationPermissionStatus.granted,
+        point: firstPoint,
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [locationRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    final subscription = container.listen(
+      currentLocationControllerProvider,
+      (_, __) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+    await flushLocationTasks();
+
+    final failure = Completer<CurrentLocationState>();
+    repository.inspectResult = failure.future;
+    final controller =
+        container.read(currentLocationControllerProvider.notifier);
+    final refresh = controller.refresh();
+
+    expect(container.read(currentLocationControllerProvider).status,
+        CurrentLocationStatus.checking);
+    expect(container.read(currentLocationControllerProvider).point, firstPoint);
+
+    failure.complete(const CurrentLocationState(
+      status: CurrentLocationStatus.unavailable,
+      permission: LocationPermissionStatus.granted,
+      failure: LocationFailure.locationNotFound,
+    ));
+    await refresh;
+
+    final failed = container.read(currentLocationControllerProvider);
+    expect(failed.failure, LocationFailure.locationNotFound);
+    expect(failed.point, firstPoint);
+
+    repository.inspectResult = Future.value(CurrentLocationState(
+      status: CurrentLocationStatus.available,
+      permission: LocationPermissionStatus.granted,
+      point: recoveredPoint,
+    ));
+    await controller.refresh();
+
+    final recovered = container.read(currentLocationControllerProvider);
+    expect(recovered.status, CurrentLocationStatus.available);
+    expect(recovered.point, recoveredPoint);
+    expect(recovered.failure, isNull);
+
+    repository.inspectResult = Future.value(const CurrentLocationState(
+      status: CurrentLocationStatus.unavailable,
+      permission: LocationPermissionStatus.denied,
+      failure: LocationFailure.permissionDenied,
+    ));
+    await controller.refresh();
+
+    expect(container.read(currentLocationControllerProvider).point, isNull);
+  });
+
   test('deduplicates simultaneous permission requests', () async {
     final requestCompleter = Completer<CurrentLocationState>();
     final repository = FakeLocationRepository()

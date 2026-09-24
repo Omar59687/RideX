@@ -97,15 +97,21 @@ class CurrentLocationController
 
     _operationRunning = true;
     final operationGeneration = ++_generation;
+    final previousPoint = state.point;
     state = state.copyWith(
       status: loadingStatus,
-      clearPoint: true,
       clearFailure: true,
     );
 
     final nextState = await operation();
     if (operationGeneration == _generation) {
-      state = nextState;
+      final preservePoint = previousPoint != null &&
+          nextState.point == null &&
+          nextState.permission == LocationPermissionStatus.granted &&
+          (nextState.failure == LocationFailure.locationNotFound ||
+              nextState.failure == LocationFailure.gpsUnavailable);
+      state =
+          preservePoint ? nextState.copyWith(point: previousPoint) : nextState;
       _operationRunning = false;
     }
   }

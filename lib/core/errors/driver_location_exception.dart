@@ -1,5 +1,6 @@
 enum DriverLocationFailure {
-  unavailable,
+  gpsUnavailable,
+  networkFailure,
   unauthorized,
   ineligible,
   invalidData,

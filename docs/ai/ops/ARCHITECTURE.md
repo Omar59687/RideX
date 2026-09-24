@@ -84,8 +84,16 @@ its own reported uncertainty radius; there is no arbitrary global accuracy cap.
 Rejected fixes preserve the last accepted fix, recorded time, pending write,
 sequence, and confirmed timestamp. Migration `024` adds a matching
 non-advancing-`recorded_at` RPC rejection under the existing per-Driver row lock,
-protecting canonical order across sessions. Tasks 4.29 and 4.30, matching, Rider
-live-trip tracking, and continuous OS-background tracking remain later work.
+protecting canonical order across sessions. Task 4.29 extends the existing state
+owners rather than adding a parallel failure layer: `CurrentLocationState`
+distinguishes permission, GPS, and location-not-found outcomes;
+`RouteState` owns typed route/network failures and can retain only a
+same-request result while remaining non-ready; and `DriverTrackingState`
+distinguishes GPS from network loss while preserving the last canonical
+confirmation timestamp. Temporary connection loss stops foreground GPS and
+recovers through the existing canonical reconnect path. Task 4.30, matching,
+Rider live-trip tracking, and continuous OS-background tracking remain later
+work.
 
 ## Router
 

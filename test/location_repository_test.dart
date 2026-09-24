@@ -87,7 +87,7 @@ void main() {
     final state = await repository.inspectCurrentLocation();
 
     expect(state.status, CurrentLocationStatus.unavailable);
-    expect(state.failure, LocationFailure.timeout);
+    expect(state.failure, LocationFailure.locationNotFound);
   });
 
   test('sanitizes provider errors', () async {
@@ -97,7 +97,7 @@ void main() {
     final state = await repository.inspectCurrentLocation();
 
     expect(state.status, CurrentLocationStatus.unavailable);
-    expect(state.failure, LocationFailure.unavailable);
+    expect(state.failure, LocationFailure.gpsUnavailable);
   });
 
   test('sanitizes settings launch errors', () async {
