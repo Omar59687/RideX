@@ -3,12 +3,17 @@ import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/place_prediction.dart';
 import 'package:ridex/core/repositories/place_repository.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 import 'package:ridex/core/services/places/place_service.dart';
 
 class GooglePlaceRepository implements PlaceRepository {
-  const GooglePlaceRepository(this._service);
+  const GooglePlaceRepository(
+    this._service, {
+    AppErrorReporter errorReporter = const NoopAppErrorReporter(),
+  }) : _errorReporter = errorReporter;
 
   final PlaceService _service;
+  final AppErrorReporter _errorReporter;
 
   @override
   Future<List<PlacePrediction>> autocomplete({
@@ -16,14 +21,19 @@ class GooglePlaceRepository implements PlaceRepository {
     required String sessionToken,
     LocationPoint? bias,
   }) async {
-    final data = await _service.autocomplete(
-      query: query,
-      sessionToken: sessionToken,
-      bias: bias,
-    );
-    final suggestions = data['suggestions'];
-    if (suggestions is! List) throw _invalidResponse();
-    return suggestions.map(_prediction).toList(growable: false);
+    try {
+      final data = await _service.autocomplete(
+        query: query,
+        sessionToken: sessionToken,
+        bias: bias,
+      );
+      final suggestions = data['suggestions'];
+      if (suggestions is! List) throw _invalidResponse();
+      return suggestions.map(_prediction).toList(growable: false);
+    } on PlaceException catch (error, stackTrace) {
+      _reportInvalidResponse(error, stackTrace);
+      rethrow;
+    }
   }
 
   @override
@@ -31,16 +41,21 @@ class GooglePlaceRepository implements PlaceRepository {
     required PlacePrediction prediction,
     required String sessionToken,
   }) async {
-    final data = await _service.placeDetails(
-      placeId: prediction.placeId,
-      sessionToken: sessionToken,
-    );
-    final place = _record(data['place']);
-    return _location(
-      place,
-      source: LocationSelectionSource.search,
-      fallbackLabel: prediction.primaryText,
-    );
+    try {
+      final data = await _service.placeDetails(
+        placeId: prediction.placeId,
+        sessionToken: sessionToken,
+      );
+      final place = _record(data['place']);
+      return _location(
+        place,
+        source: LocationSelectionSource.search,
+        fallbackLabel: prediction.primaryText,
+      );
+    } on PlaceException catch (error, stackTrace) {
+      _reportInvalidResponse(error, stackTrace);
+      rethrow;
+    }
   }
 
   @override
@@ -48,18 +63,23 @@ class GooglePlaceRepository implements PlaceRepository {
     required String address,
     LocationPoint? bias,
   }) async {
-    final data = await _service.forwardGeocode(address: address, bias: bias);
-    final results = data['results'];
-    if (results is! List) throw _invalidResponse();
-    return results
-        .map(
-          (result) => _location(
-            _record(result),
-            source: LocationSelectionSource.search,
-            fallbackLabel: address,
-          ),
-        )
-        .toList(growable: false);
+    try {
+      final data = await _service.forwardGeocode(address: address, bias: bias);
+      final results = data['results'];
+      if (results is! List) throw _invalidResponse();
+      return results
+          .map(
+            (result) => _location(
+              _record(result),
+              source: LocationSelectionSource.search,
+              fallbackLabel: address,
+            ),
+          )
+          .toList(growable: false);
+    } on PlaceException catch (error, stackTrace) {
+      _reportInvalidResponse(error, stackTrace);
+      rethrow;
+    }
   }
 
   @override
@@ -67,26 +87,31 @@ class GooglePlaceRepository implements PlaceRepository {
     required LocationPoint point,
     required LocationSelectionSource source,
   }) async {
-    final data = await _service.reverseGeocode(point);
-    final results = data['results'];
-    if (results is! List) throw _invalidResponse();
-    if (results.isEmpty) return null;
-    final result = _record(results.first);
-    final resolved = _location(
-      result,
-      source: source,
-      fallbackLabel: source == LocationSelectionSource.gps
-          ? 'Current location'
-          : 'Dropped pin',
-    );
-    return RideLocation(
-      point: point,
-      label: resolved.label,
-      address: resolved.address,
-      source: source,
-      providerName: resolved.providerName,
-      providerPlaceReference: resolved.providerPlaceReference,
-    );
+    try {
+      final data = await _service.reverseGeocode(point);
+      final results = data['results'];
+      if (results is! List) throw _invalidResponse();
+      if (results.isEmpty) return null;
+      final result = _record(results.first);
+      final resolved = _location(
+        result,
+        source: source,
+        fallbackLabel: source == LocationSelectionSource.gps
+            ? 'Current location'
+            : 'Dropped pin',
+      );
+      return RideLocation(
+        point: point,
+        label: resolved.label,
+        address: resolved.address,
+        source: source,
+        providerName: resolved.providerName,
+        providerPlaceReference: resolved.providerPlaceReference,
+      );
+    } on PlaceException catch (error, stackTrace) {
+      _reportInvalidResponse(error, stackTrace);
+      rethrow;
+    }
   }
 
   static PlacePrediction _prediction(Object? value) {
@@ -144,4 +169,13 @@ class GooglePlaceRepository implements PlaceRepository {
 
   static PlaceException _invalidResponse() =>
       const PlaceException(PlaceFailure.invalidResponse);
+
+  void _reportInvalidResponse(PlaceException error, StackTrace stackTrace) {
+    if (error.failure != PlaceFailure.invalidResponse) return;
+    _errorReporter.report(
+      operation: 'parsing a place-service response',
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
 }

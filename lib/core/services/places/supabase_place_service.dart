@@ -1,12 +1,14 @@
 import 'package:ridex/core/errors/place_exception.dart';
 import 'package:ridex/core/models/location_point.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 import 'package:ridex/core/services/places/place_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabasePlaceService implements PlaceService {
-  const SupabasePlaceService(this._client);
+  const SupabasePlaceService(this._client, this._errorReporter);
 
   final SupabaseClient _client;
+  final AppErrorReporter _errorReporter;
 
   @override
   Future<Map<String, dynamic>> autocomplete({
@@ -59,7 +61,8 @@ class SupabasePlaceService implements PlaceService {
       final response = await _client.functions.invoke('places', body: body);
       final envelope = _map(response.data);
       return _map(envelope['data']);
-    } on FunctionException catch (error) {
+    } on FunctionException catch (error, stackTrace) {
+      _report(error, stackTrace);
       throw PlaceException(switch (error.status) {
         401 || 403 => PlaceFailure.unauthorized,
         504 => PlaceFailure.timedOut,
@@ -67,7 +70,8 @@ class SupabasePlaceService implements PlaceService {
       });
     } on PlaceException {
       rethrow;
-    } catch (_) {
+    } on Object catch (error, stackTrace) {
+      _report(error, stackTrace);
       throw const PlaceException(PlaceFailure.unavailable);
     }
   }
@@ -83,4 +87,12 @@ class SupabasePlaceService implements PlaceService {
         'latitude': point.latitude,
         'longitude': point.longitude,
       };
+
+  void _report(Object error, StackTrace stackTrace) {
+    _errorReporter.report(
+      operation: 'calling the place service',
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
 }

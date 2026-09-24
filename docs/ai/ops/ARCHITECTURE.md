@@ -91,9 +91,15 @@ distinguishes permission, GPS, and location-not-found outcomes;
 same-request result while remaining non-ready; and `DriverTrackingState`
 distinguishes GPS from network loss while preserving the last canonical
 confirmation timestamp. Temporary connection loss stops foreground GPS and
-recovers through the existing canonical reconnect path. Task 4.30, matching,
-Rider live-trip tracking, and continuous OS-background tracking remain later
-work.
+recovers through the existing canonical reconnect path. Task 4.30 adds an
+injectable provider-neutral `AppErrorReporter`. Adapters and owning controllers
+report raw location, place, route, Driver, Realtime, map, and navigation failures
+once before mapping them to existing typed state and fixed UI copy. The default
+reporter uses Flutter diagnostics in debug builds and is a release no-op; raw
+errors are not stored in application state. Map camera and Driver cleanup futures
+are contained, and late auto-dispose failures use a reporter captured during
+provider construction. Checkpoint 4E is approved. Matching, Rider live-trip
+tracking, and continuous OS-background tracking remain later work.
 
 ## Router
 
@@ -114,7 +120,7 @@ Shared components live in `lib/core/widgets/`. Rider-specific compositions live 
 
 ## Tests
 
-Tests live under `test/`, with shared repository overrides in `test/helpers/test_app.dart`. Existing coverage includes launch, onboarding, roles, auth V2, booking, provider fares, trip lifecycle, driver acceptance, transition rules, route/session state, route recalculation and rendering conversion, location permissions, map fallbacks, place selection/geocoding with fakes, and conditional live Supabase checks. See `CURRENT_STATUS.md` for the latest exact verification results.
+Tests live under `test/`, with shared repository overrides in `test/helpers/test_app.dart`. Existing coverage includes launch, onboarding, roles, auth V2, booking, provider fares, trip lifecycle, driver acceptance, transition rules, route/session state, route recalculation and rendering conversion, location permissions, map fallbacks, place selection/geocoding with fakes, raw-error non-leakage canaries, and conditional live Supabase checks. See `CURRENT_STATUS.md` for the latest exact verification results.
 
 ## Do Not Rewrite
 

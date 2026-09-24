@@ -6,11 +6,13 @@ import 'package:flutter/widgets.dart';
 import 'package:ridex/core/errors/driver_location_exception.dart';
 import 'package:ridex/core/models/driver_availability.dart';
 import 'package:ridex/core/models/driver_location.dart';
+import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/services/driver_location/driver_gps_stream_service.dart';
 import 'package:ridex/core/services/driver_location/driver_location_validation_policy.dart';
 import 'package:ridex/core/services/driver_location/driver_tracking_connection.dart';
 import 'package:ridex/core/services/driver_location/geolocator_driver_gps_stream_service.dart';
 import 'package:ridex/core/services/driver_location/supabase_driver_tracking_connection.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
 
@@ -82,7 +84,9 @@ class DriverTrackingState extends Equatable {
 }
 
 final driverGpsStreamServiceProvider = Provider<DriverGpsStreamService>(
-  (ref) => GeolocatorDriverGpsStreamService(),
+  (ref) => GeolocatorDriverGpsStreamService(
+    errorReporter: ref.watch(appErrorReporterProvider),
+  ),
 );
 
 final driverTrackingLifecycleProvider = Provider<DriverTrackingLifecycle>(
@@ -97,7 +101,10 @@ final driverTrackingConnectionProvider = Provider<DriverTrackingConnection>(
   (ref) {
     final client = ref.watch(supabaseClientProvider);
     if (client == null) return const NoopDriverTrackingConnection();
-    final connection = SupabaseDriverTrackingConnection(client);
+    final connection = SupabaseDriverTrackingConnection(
+      client,
+      ref.watch(appErrorReporterProvider),
+    );
     ref.onDispose(connection.dispose);
     return connection;
   },
@@ -142,9 +149,11 @@ class DriverTrackingController
   int? _connectionGeneration;
   int _generation = 0;
   bool _disposed = false;
+  late final AppErrorReporter _errorReporter;
 
   @override
   DriverTrackingState build() {
+    _errorReporter = ref.read(appErrorReporterProvider);
     final connection = ref.read(driverTrackingConnectionProvider);
     _lifecycleSubscription = ref
         .read(driverTrackingLifecycleProvider)
@@ -154,15 +163,36 @@ class DriverTrackingController
     ref.onDispose(() {
       _disposed = true;
       _generation++;
-      _subscription?.cancel();
+      final subscription = _subscription;
       _subscription = null;
-      _lifecycleSubscription?.cancel();
+      final lifecycleSubscription = _lifecycleSubscription;
       _lifecycleSubscription = null;
-      _connectionSubscription?.cancel();
+      final connectionSubscription = _connectionSubscription;
       _connectionSubscription = null;
       _connectionGeneration = null;
       _connectionFailurePending = false;
-      unawaited(connection.dispose());
+      if (subscription != null) {
+        unawaited(_containCleanup(
+          'disposing the driver GPS stream',
+          subscription.cancel,
+        ));
+      }
+      if (lifecycleSubscription != null) {
+        unawaited(_containCleanup(
+          'disposing the driver lifecycle subscription',
+          lifecycleSubscription.cancel,
+        ));
+      }
+      if (connectionSubscription != null) {
+        unawaited(_containCleanup(
+          'disposing the driver connection subscription',
+          connectionSubscription.cancel,
+        ));
+      }
+      unawaited(_containCleanup(
+        'disposing the driver tracking connection',
+        connection.dispose,
+      ));
     });
     return const DriverTrackingState.initial();
   }
@@ -231,22 +261,30 @@ class DriverTrackingController
                 _handleStreamError(error, stackTrace, generation),
           );
       if (!_isCurrent(generation)) {
-        await subscription.cancel();
+        await _containCleanup(
+          'discarding a stale driver GPS stream',
+          subscription.cancel,
+        );
       } else {
         _subscription = subscription;
         _connectionGeneration =
             await ref.read(driverTrackingConnectionProvider).connect();
       }
-    } catch (error) {
+    } on Object catch (error, stackTrace) {
       if (_isCurrent(generation)) {
         _setUnavailable(_failureFromError(
           error,
+          stackTrace: stackTrace,
+          operation: 'starting driver location sharing',
           fallback: DriverLocationFailure.networkFailure,
         ));
         await _cancelSubscription(generation);
         _connectionGeneration = null;
         _connectionFailurePending = false;
-        await ref.read(driverTrackingConnectionProvider).disconnect();
+        await _disconnectSafely(
+          ref.read(driverTrackingConnectionProvider),
+          'disconnecting after driver tracking startup failed',
+        );
       }
     } finally {
       if (_generation == generation) _startInProgress = false;
@@ -280,12 +318,14 @@ class DriverTrackingController
         latestConfirmedAt: _latestConfirmedAt,
       );
     }
-    try {
-      await subscription?.cancel();
-      await pendingCancellation;
-    } finally {
-      await connection.disconnect();
+    if (subscription != null) {
+      await _containCleanup(
+        'stopping the driver GPS stream',
+        subscription.cancel,
+      );
     }
+    await pendingCancellation;
+    await _disconnectSafely(connection, 'stopping driver location sharing');
   }
 
   Future<void> stopForSignOut() => stop();
@@ -347,7 +387,12 @@ class DriverTrackingController
     try {
       availability =
           await ref.read(driverLocationRepositoryProvider).fetchAvailability();
-    } catch (_) {
+    } on Object catch (error, stackTrace) {
+      _reportUnexpected(
+        'synchronizing driver availability',
+        error,
+        stackTrace,
+      );
       return;
     }
     if (!_isCurrent(generation)) {
@@ -399,13 +444,18 @@ class DriverTrackingController
     final pendingCancellation = _subscriptionCancellation;
     final connection = ref.read(driverTrackingConnectionProvider);
     _setUnavailable(DriverLocationFailure.ineligible);
-    try {
-      await subscription?.cancel();
-      await pendingCancellation;
-    } finally {
-      if (_isCurrent(stopGeneration)) {
-        await connection.disconnect();
-      }
+    if (subscription != null) {
+      await _containCleanup(
+        'stopping GPS for canonical driver state',
+        subscription.cancel,
+      );
+    }
+    await pendingCancellation;
+    if (_isCurrent(stopGeneration)) {
+      await _disconnectSafely(
+        connection,
+        'disconnecting for canonical driver state',
+      );
     }
   }
 
@@ -419,12 +469,14 @@ class DriverTrackingController
     _subscription = null;
     try {
       await subscription?.cancel();
-    } catch (error) {
+    } on Object catch (error, stackTrace) {
       if (_isCurrent(generation)) {
         _trackingConfig = null;
         _activeTripId = null;
         _setUnavailable(_failureFromError(
           error,
+          stackTrace: stackTrace,
+          operation: 'stopping the driver GPS stream',
           fallback: DriverLocationFailure.gpsUnavailable,
         ));
       }
@@ -444,19 +496,24 @@ class DriverTrackingController
             onError: (error, stackTrace) =>
                 _handleStreamError(error, stackTrace, generation),
           );
-    } catch (error) {
+    } on Object catch (error, stackTrace) {
       if (_isCurrent(generation)) {
         _trackingConfig = null;
         _activeTripId = null;
         _setUnavailable(_failureFromError(
           error,
+          stackTrace: stackTrace,
+          operation: 'restarting the driver GPS stream',
           fallback: DriverLocationFailure.gpsUnavailable,
         ));
       }
       return;
     }
     if (!_isCurrent(generation)) {
-      await replacement.cancel();
+      await _containCleanup(
+        'discarding a stale replacement GPS stream',
+        replacement.cancel,
+      );
     } else {
       _subscription = replacement;
       if (state.status != DriverTrackingStatus.sharing) {
@@ -507,6 +564,12 @@ class DriverTrackingController
       } else {
         _backgrounded = false;
       }
+    }).onError((Object error, StackTrace stackTrace) {
+      _reportUnexpected(
+        'handling the driver tracking lifecycle',
+        error,
+        stackTrace,
+      );
     });
   }
 
@@ -594,10 +657,12 @@ class DriverTrackingController
               latestConfirmedAt: _latestConfirmedAt,
             );
           }
-        } catch (error) {
+        } on Object catch (error, stackTrace) {
           if (_isCurrent(generation)) {
             final failure = _failureFromError(
               error,
+              stackTrace: stackTrace,
+              operation: 'publishing driver location',
               fallback: DriverLocationFailure.networkFailure,
             );
             _setUnavailable(failure);
@@ -617,6 +682,8 @@ class DriverTrackingController
     if (!_isCurrent(generation)) return;
     _setUnavailable(_failureFromError(
       error,
+      stackTrace: stackTrace,
+      operation: 'reading the driver GPS stream',
       fallback: DriverLocationFailure.gpsUnavailable,
     ));
     unawaited(_cancelSubscription(generation));
@@ -632,7 +699,10 @@ class DriverTrackingController
       await _subscriptionCancellation;
       return;
     }
-    final cancellation = subscription.cancel();
+    final cancellation = _containCleanup(
+      'cancelling the driver GPS stream',
+      subscription.cancel,
+    );
     _subscriptionCancellation = cancellation;
     try {
       await cancellation;
@@ -655,7 +725,43 @@ class DriverTrackingController
 
   DriverLocationFailure _failureFromError(
     Object error, {
+    required StackTrace stackTrace,
+    required String operation,
     required DriverLocationFailure fallback,
-  }) =>
-      error is DriverLocationException ? error.failure : fallback;
+  }) {
+    if (error case DriverLocationException(:final failure)) return failure;
+    _reportUnexpected(operation, error, stackTrace);
+    return fallback;
+  }
+
+  void _reportUnexpected(
+    String operation,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    if (error is DriverLocationException) return;
+    _errorReporter.report(
+      operation: operation,
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
+
+  Future<void> _disconnectSafely(
+    DriverTrackingConnection connection,
+    String operation,
+  ) {
+    return _containCleanup(operation, connection.disconnect);
+  }
+
+  Future<void> _containCleanup(
+    String operation,
+    Future<void> Function() cleanup,
+  ) async {
+    try {
+      await cleanup();
+    } on Object catch (error, stackTrace) {
+      _reportUnexpected(operation, error, stackTrace);
+    }
+  }
 }

@@ -13,6 +13,7 @@ import 'package:ridex/features/driver_home/presentation/screens/driver_home_scre
 import 'package:ridex/features/rider_home/presentation/widgets/home_map_header.dart';
 
 import 'helpers/fake_location.dart';
+import 'helpers/recording_error_reporter.dart';
 
 void main() {
   testWidgets('keeps the map surface usable without configuration',
@@ -58,6 +59,7 @@ void main() {
         findsOneWidget);
     expect(find.text('App settings'), findsOneWidget);
     expect(find.textContaining('raw'), findsNothing);
+    expect(find.textContaining(rawErrorCanary), findsNothing);
 
     await tester.tap(find.text('App settings'));
     await tester.pump();

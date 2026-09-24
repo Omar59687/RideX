@@ -7,9 +7,11 @@ import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/place_prediction.dart';
 import 'package:ridex/core/models/place_selection_state.dart';
+import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/providers/location_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 
 class PlaceSelectionController
     extends AutoDisposeFamilyNotifier<PlaceSelectionState, LocationEndpoint> {
@@ -18,9 +20,11 @@ class PlaceSelectionController
   late String _sessionToken;
   late LocationEndpoint _endpoint;
   String? _lastRequestedQuery;
+  late final AppErrorReporter _errorReporter;
 
   @override
   PlaceSelectionState build(LocationEndpoint arg) {
+    _errorReporter = ref.read(appErrorReporterProvider);
     _endpoint = arg;
     _sessionToken = _newSessionToken();
     ref.onDispose(() {
@@ -92,7 +96,8 @@ class PlaceSelectionController
       _finishSelection(location);
     } on PlaceException catch (error) {
       if (generation == _generation) _fail(_messageFor(error.failure));
-    } catch (_) {
+    } on Object catch (error, stackTrace) {
+      _report('resolving a place prediction', error, stackTrace);
       if (generation == _generation) _fail(_unavailableMessage);
     }
   }
@@ -126,7 +131,8 @@ class PlaceSelectionController
       _finishSelection(results.first);
     } on PlaceException catch (error) {
       if (generation == _generation) _fail(_messageFor(error.failure));
-    } catch (_) {
+    } on Object catch (error, stackTrace) {
+      _report('geocoding an address', error, stackTrace);
       if (generation == _generation) _fail(_unavailableMessage);
     }
   }
@@ -175,7 +181,8 @@ class PlaceSelectionController
             ? 'Address unavailable. The selected pin is still valid.'
             : 'Address lookup failed. The selected pin is still valid.',
       );
-    } catch (_) {
+    } on Object catch (error, stackTrace) {
+      _report('reverse geocoding a map point', error, stackTrace);
       if (generation != _generation || state.selected?.point != point) return;
       _commit(fallback);
       state = state.copyWith(
@@ -233,7 +240,8 @@ class PlaceSelectionController
       );
     } on PlaceException catch (error) {
       if (generation == _generation) _fail(_messageFor(error.failure));
-    } catch (_) {
+    } on Object catch (error, stackTrace) {
+      _report('loading place predictions', error, stackTrace);
       if (generation == _generation) _fail(_unavailableMessage);
     }
   }
@@ -257,6 +265,14 @@ class PlaceSelectionController
     );
     _lastRequestedQuery = null;
     _sessionToken = _newSessionToken();
+  }
+
+  void _report(String operation, Object error, StackTrace stackTrace) {
+    _errorReporter.report(
+      operation: operation,
+      error: error,
+      stackTrace: stackTrace,
+    );
   }
 
   void _fail(String message) {

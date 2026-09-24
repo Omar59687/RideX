@@ -2,12 +2,17 @@ import 'package:ridex/core/errors/route_exception.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/route_models.dart';
 import 'package:ridex/core/repositories/route_repository.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 import 'package:ridex/core/services/routes/route_service.dart';
 
 class GoogleRouteRepository implements RouteRepository {
-  const GoogleRouteRepository(this._service);
+  const GoogleRouteRepository(
+    this._service, {
+    AppErrorReporter errorReporter = const NoopAppErrorReporter(),
+  }) : _errorReporter = errorReporter;
 
   final RouteService _service;
+  final AppErrorReporter _errorReporter;
 
   @override
   Future<RouteResult> calculateRoute(RouteRequest request) async {
@@ -18,27 +23,41 @@ class GoogleRouteRepository implements RouteRepository {
       throw const RouteException(RouteFailure.notFound);
     }
 
-    final data = await _service.calculateRoute(request);
-    final encoded = data['encodedPolyline'];
-    final distance = data['distanceMeters'];
-    final duration = data['durationSeconds'];
-    if (encoded is! String ||
-        distance is! int ||
-        duration is! int ||
-        distance <= 0 ||
-        duration <= 0) {
-      throw const RouteException(RouteFailure.invalidResponse);
-    }
-
     try {
+      final data = await _service.calculateRoute(request);
+      final encoded = data['encodedPolyline'];
+      final distance = data['distanceMeters'];
+      final duration = data['durationSeconds'];
+      if (encoded is! String ||
+          distance is! int ||
+          duration is! int ||
+          distance <= 0 ||
+          duration <= 0) {
+        throw const RouteException(RouteFailure.invalidResponse);
+      }
       return RouteResult(
         request: request,
         geometry: decodeGooglePolyline(encoded),
         distanceMeters: distance,
         durationSeconds: duration,
       );
-    } on ArgumentError {
-      throw const RouteException(RouteFailure.invalidResponse);
+    } on ArgumentError catch (error, stackTrace) {
+      final failure = const RouteException(RouteFailure.invalidResponse);
+      _errorReporter.report(
+        operation: 'parsing a route-service response',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      throw failure;
+    } on RouteException catch (error, stackTrace) {
+      if (error.failure == RouteFailure.invalidResponse) {
+        _errorReporter.report(
+          operation: 'parsing a route-service response',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+      rethrow;
     }
   }
 }

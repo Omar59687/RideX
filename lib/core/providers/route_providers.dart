@@ -3,16 +3,20 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/core/errors/route_exception.dart';
 import 'package:ridex/core/models/route_models.dart';
+import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 
 class RouteController extends Notifier<RouteState> {
   int _generation = 0;
   RouteRequest? _pendingRequest;
   bool _syncScheduled = false;
+  late final AppErrorReporter _errorReporter;
 
   @override
   RouteState build() {
+    _errorReporter = ref.read(appErrorReporterProvider);
     ref.onDispose(() => _generation++);
     ref.listen<RouteRequest?>(
       bookingControllerProvider.select(RouteRequest.fromDraft),
@@ -77,7 +81,12 @@ class RouteController extends Notifier<RouteState> {
         error.failure,
         previousResult: state.result,
       );
-    } catch (_) {
+    } on Object catch (error, stackTrace) {
+      _errorReporter.report(
+        operation: 'calculating a route',
+        error: error,
+        stackTrace: stackTrace,
+      );
       if (!_isCurrent(request, generation)) return;
       state = RouteState.failure(
         request,

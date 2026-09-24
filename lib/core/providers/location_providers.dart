@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/app/config/env_config.dart';
 import 'package:ridex/core/models/current_location_state.dart';
 import 'package:ridex/core/models/location_point.dart';
+import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/repositories/location_repository.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 import 'package:ridex/core/services/location/location_permission_store.dart';
 import 'package:ridex/core/services/location/location_service.dart';
 import 'package:ridex/core/services/maps/ride_map_service.dart';
@@ -31,12 +33,14 @@ final locationRepositoryProvider = Provider<LocationRepository>((ref) {
   return DeviceLocationRepository(
     service: ref.watch(locationServiceProvider),
     permissionStore: ref.watch(locationPermissionStoreProvider),
+    errorReporter: ref.watch(appErrorReporterProvider),
   );
 });
 
 final rideMapServiceProvider = Provider<RideMapService>((ref) {
   return GoogleRideMapService(
     enabled: EnvConfig.hasMapsConfig,
+    errorReporter: ref.watch(appErrorReporterProvider),
   );
 });
 
@@ -51,16 +55,24 @@ final mapPlatformSupportedProvider = Provider<bool>((ref) {
 });
 
 final currentLocationMapBuilderProvider = Provider<CurrentLocationMapBuilder>(
-  (ref) => (context, point) => GoogleCurrentLocationMap(point: point),
+  (ref) {
+    final errorReporter = ref.watch(appErrorReporterProvider);
+    return (context, point) => GoogleCurrentLocationMap(
+          point: point,
+          errorReporter: errorReporter,
+        );
+  },
 );
 
 class CurrentLocationController
     extends AutoDisposeNotifier<CurrentLocationState> {
   bool _operationRunning = false;
   int _generation = 0;
+  late final AppErrorReporter _errorReporter;
 
   @override
   CurrentLocationState build() {
+    _errorReporter = ref.read(appErrorReporterProvider);
     ref.onDispose(() => _generation++);
     Future<void>.microtask(refresh);
     return const CurrentLocationState.initial();
@@ -98,12 +110,27 @@ class CurrentLocationController
     _operationRunning = true;
     final operationGeneration = ++_generation;
     final previousPoint = state.point;
+    final previousPermission = state.permission;
     state = state.copyWith(
       status: loadingStatus,
       clearFailure: true,
     );
 
-    final nextState = await operation();
+    late final CurrentLocationState nextState;
+    try {
+      nextState = await operation();
+    } on Object catch (error, stackTrace) {
+      _errorReporter.report(
+        operation: 'loading current location state',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      nextState = CurrentLocationState(
+        status: CurrentLocationStatus.unavailable,
+        permission: previousPermission,
+        failure: LocationFailure.gpsUnavailable,
+      );
+    }
     if (operationGeneration == _generation) {
       final preservePoint = previousPoint != null &&
           nextState.point == null &&

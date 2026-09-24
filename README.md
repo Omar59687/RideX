@@ -28,7 +28,7 @@ The UI presents these as disabled, Coming soon, session-local, or explicit demo
 behavior.
 
 Google Maps/GPS and place-search/geocoding foundations are implemented and
-Checkpoints 4A through 4D are approved. Checkpoint 4C verification includes the
+Checkpoints 4A through 4E are approved. Checkpoint 4C verification includes the
 deployed authenticated Google route and physical Android polyline, metrics, and
 recalculation behavior. Checkpoint 4D provides explicit foreground Driver
 location sharing, canonical hosted persistence, and lifecycle/network recovery.
@@ -42,7 +42,9 @@ resources without reducing active-trip fidelity. Task 4.28 rejects unusable,
 expired, future, and out-of-order fixes without replacing the last valid
 canonical reference. Task 4.29 adds typed, recoverable loading, GPS unavailable,
 permission denied, location not found, route unavailable, and network failure
-states. Task 4.30, matching, and Rider live-trip tracking remain later work.
+states. Task 4.30 keeps raw provider, SDK, HTTP, backend, and exception details
+in debug-only internal diagnostics while rendering only typed failures and fixed
+RideX copy. Matching and Rider live-trip tracking remain later work.
 See `docs/ai/ops/CURRENT_STATUS.md`.
 
 ## Setup
@@ -249,11 +251,18 @@ tracking distinguishes GPS from network loss, preserves the last confirmed
 server timestamp, stops GPS on connection loss, and resumes through the existing
 canonical reconnect path. User-facing states provide retry or settings actions.
 
+Task 4.30 adds an injectable internal error reporter across location, place,
+route, Driver tracking, map, and navigation boundaries. Raw technical details
+are available to Flutter diagnostics in debug builds only; release builds do not
+print them, and application state/UI retains typed failures and fixed RideX
+messages. Map camera and Driver cleanup failures are contained rather than
+escaping as unhandled asynchronous errors.
+
 Physical Android GPS/permission/Start/Stop/lifecycle behavior and authenticated
 hosted Supabase persistence, reconnection, and unauthorized Rider rejection are
 reported verified. This is not continuous OS-background tracking and does not
-include matching or Rider live-trip tracking. Checkpoint 4E remains incomplete
-because task 4.30 and the approval gate remain incomplete.
+include matching or Rider live-trip tracking. Checkpoint 4E is approved from the
+combined task 4.24 through 4.30 implementation and regression evidence.
 
 ## Verification
 

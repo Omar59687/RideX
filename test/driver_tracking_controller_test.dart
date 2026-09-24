@@ -7,10 +7,13 @@ import 'package:ridex/core/models/driver_availability.dart';
 import 'package:ridex/core/models/driver_location.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/providers/driver_tracking_providers.dart';
+import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/repositories/driver_location_repository.dart';
 import 'package:ridex/core/services/driver_location/driver_gps_stream_service.dart';
 import 'package:ridex/core/services/driver_location/driver_tracking_connection.dart';
+
+import 'helpers/recording_error_reporter.dart';
 
 void main() {
   final startTime = DateTime.utc(2026, 9, 17, 10);
@@ -19,6 +22,7 @@ void main() {
   late FakeDriverGpsStreamService gps;
   late FakeDriverTrackingLifecycle lifecycle;
   late FakeDriverTrackingConnection connection;
+  late RecordingAppErrorReporter reporter;
   late ProviderContainer container;
   late ProviderSubscription<DriverTrackingState> keepAlive;
 
@@ -27,12 +31,14 @@ void main() {
     gps = FakeDriverGpsStreamService();
     lifecycle = FakeDriverTrackingLifecycle();
     connection = FakeDriverTrackingConnection();
+    reporter = RecordingAppErrorReporter();
     container = ProviderContainer(
       overrides: [
         driverLocationRepositoryProvider.overrideWithValue(repository),
         driverGpsStreamServiceProvider.overrideWithValue(gps),
         driverTrackingLifecycleProvider.overrideWithValue(lifecycle),
         driverTrackingConnectionProvider.overrideWithValue(connection),
+        appErrorReporterProvider.overrideWithValue(reporter),
         driverTrackingClockProvider.overrideWithValue(
           () => startTime.add(const Duration(minutes: 2)),
         ),
@@ -82,6 +88,20 @@ void main() {
         DriverTrackingStatus.stopped);
   });
 
+  test('cleanup failures are reported without breaking Stop state', () async {
+    final error = StateError(rawErrorCanary);
+    connection.disconnectError = error;
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    await controller.stop();
+
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.stopped);
+    expect(reporter.reports.single.error, same(error));
+  });
+
   test('connection startup failure cancels the foreground stream', () async {
     connection.connectError = StateError('connection failed');
     final controller =
@@ -94,6 +114,21 @@ void main() {
     expect(state.failure, DriverLocationFailure.networkFailure);
     expect(gps.cancelCount, 1);
     expect(connection.disconnectCount, 1);
+  });
+
+  test('raw tracking failures are reported but never exposed in state',
+      () async {
+    final error = StateError(rawErrorCanary);
+    connection.connectError = error;
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+
+    await controller.start();
+
+    final state = container.read(driverTrackingControllerProvider);
+    expect(state.failure, DriverLocationFailure.networkFailure);
+    expect(state.toString(), isNot(contains(rawErrorCanary)));
+    expect(reporter.reports.single.error, same(error));
   });
 
   test('includes the canonical active trip when publishing onTrip fixes',
@@ -1403,6 +1438,7 @@ class FakeDriverTrackingConnection implements DriverTrackingConnection {
   int disposeCount = 0;
   int generation = 0;
   Object? connectError;
+  Object? disconnectError;
 
   @override
   Stream<DriverTrackingConnectionEvent> get events => _controller.stream;
@@ -1418,6 +1454,7 @@ class FakeDriverTrackingConnection implements DriverTrackingConnection {
   @override
   Future<void> disconnect() async {
     disconnectCount++;
+    if (disconnectError case final error?) throw error;
   }
 
   void emit(DriverTrackingConnectionStatus status) =>

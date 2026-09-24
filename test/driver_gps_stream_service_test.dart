@@ -7,6 +7,9 @@ import 'package:ridex/core/models/driver_availability.dart';
 import 'package:ridex/core/models/driver_location.dart';
 import 'package:ridex/core/services/driver_location/driver_gps_stream_service.dart';
 import 'package:ridex/core/services/driver_location/geolocator_driver_gps_stream_service.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
+
+import 'helpers/recording_error_reporter.dart';
 
 void main() {
   final timestamp = DateTime.utc(2026, 9, 17, 10);
@@ -37,6 +40,7 @@ void main() {
   test('maps a provider position to a provider-neutral fix', () async {
     final stream = Stream.value(position());
     final service = GeolocatorDriverGpsStreamService(
+      errorReporter: const NoopAppErrorReporter(),
       positionStream: (_) => stream,
     );
 
@@ -81,6 +85,7 @@ void main() {
       () async {
     LocationSettings? requestedSettings;
     final service = GeolocatorDriverGpsStreamService(
+      errorReporter: const NoopAppErrorReporter(),
       positionStream: (settings) {
         requestedSettings = settings;
         return Stream.value(position());
@@ -98,6 +103,7 @@ void main() {
   test('maps available configuration to low-power provider settings', () async {
     LocationSettings? requestedSettings;
     final service = GeolocatorDriverGpsStreamService(
+      errorReporter: const NoopAppErrorReporter(),
       positionStream: (settings) {
         requestedSettings = settings;
         return Stream.value(position());
@@ -115,6 +121,7 @@ void main() {
   test('maps reserved configuration to balanced provider settings', () async {
     LocationSettings? requestedSettings;
     final service = GeolocatorDriverGpsStreamService(
+      errorReporter: const NoopAppErrorReporter(),
       positionStream: (settings) {
         requestedSettings = settings;
         return Stream.value(position());
@@ -147,6 +154,7 @@ void main() {
       () async {
     final controller = StreamController<Position>();
     final service = GeolocatorDriverGpsStreamService(
+      errorReporter: const NoopAppErrorReporter(),
       positionStream: (_) => controller.stream,
     );
     final fixes = <DriverLocationFix>[];
@@ -167,8 +175,11 @@ void main() {
   });
 
   test('sanitizes provider stream errors', () async {
+    final error = StateError(rawErrorCanary);
+    final reporter = RecordingAppErrorReporter();
     final service = GeolocatorDriverGpsStreamService(
-      positionStream: (_) => Stream<Position>.error(StateError('provider')),
+      errorReporter: reporter,
+      positionStream: (_) => Stream<Position>.error(error),
     );
 
     await expectLater(
@@ -181,6 +192,7 @@ void main() {
         ),
       ),
     );
+    expect(reporter.reports.single.error, same(error));
   });
 
   test('cancelling the foreground stream cancels the provider stream',
@@ -192,6 +204,7 @@ void main() {
       },
     );
     final service = GeolocatorDriverGpsStreamService(
+      errorReporter: const NoopAppErrorReporter(),
       positionStream: (_) => controller.stream,
     );
     final subscription = service

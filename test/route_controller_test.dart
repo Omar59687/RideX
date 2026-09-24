@@ -7,9 +7,12 @@ import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/route_models.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
+import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/providers/route_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/repositories/route_repository.dart';
+
+import 'helpers/recording_error_reporter.dart';
 
 void main() {
   test('coalesces endpoint writes into one route request', () async {
@@ -145,6 +148,33 @@ void main() {
     expect(changedEndpoint.status, RouteStatus.loading);
     expect(changedEndpoint.result, isNull);
   });
+
+  test('unexpected route errors are reported but never exposed in state',
+      () async {
+    final error = StateError(rawErrorCanary);
+    final reporter = RecordingAppErrorReporter();
+    final repository = _ControlledRouteRepository();
+    final container = ProviderContainer(
+      overrides: [
+        routeRepositoryProvider.overrideWithValue(repository),
+        appErrorReporterProvider.overrideWithValue(reporter),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(routeControllerProvider);
+    container.read(bookingControllerProvider.notifier)
+      ..setPickup(_location(31.95, 35.91))
+      ..setDestination(_location(31.98, 35.95));
+    await _flush();
+
+    repository.failRaw(repository.requests.single, error);
+    await _flush();
+
+    final state = container.read(routeControllerProvider);
+    expect(state.failure, RouteFailure.unavailable);
+    expect(state.toString(), isNot(contains(rawErrorCanary)));
+    expect(reporter.reports.single.error, same(error));
+  });
 }
 
 RideLocation _location(double latitude, double longitude) => RideLocation(
@@ -187,6 +217,13 @@ class _ControlledRouteRepository implements RouteRepository {
     RouteFailure failure = RouteFailure.timedOut,
   ]) {
     _take(request).completeError(RouteException(failure));
+  }
+
+  void failRaw(RouteRequest request, Object error) {
+    _take(request).completeError(
+      error,
+      StackTrace.fromString(rawErrorCanary),
+    );
   }
 
   Completer<RouteResult> _take(RouteRequest request) =>

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/app/config/env_config.dart';
 import 'package:ridex/core/mocks/mock_repositories.dart';
 import 'package:ridex/core/models/app_user.dart';
+import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/repositories/auth_repository.dart';
 import 'package:ridex/core/repositories/booking_repository.dart';
 import 'package:ridex/core/repositories/driver_location_repository.dart';
@@ -51,25 +52,46 @@ final bookingRepositoryProvider =
     Provider<BookingRepository>((ref) => MockBookingRepository());
 final placeServiceProvider = Provider<PlaceService?>((ref) {
   final client = ref.watch(supabaseClientProvider);
-  return client == null ? null : SupabasePlaceService(client);
+  return client == null
+      ? null
+      : SupabasePlaceService(
+          client,
+          ref.watch(appErrorReporterProvider),
+        );
 });
 final placeRepositoryProvider = Provider<PlaceRepository>((ref) {
   if (!EnvConfig.hasBackendConfig) return MockPlaceRepository();
-  return GooglePlaceRepository(ref.watch(placeServiceProvider)!);
+  return GooglePlaceRepository(
+    ref.watch(placeServiceProvider)!,
+    errorReporter: ref.watch(appErrorReporterProvider),
+  );
 });
 final routeServiceProvider = Provider<RouteService?>((ref) {
   final client = ref.watch(supabaseClientProvider);
-  return client == null ? null : SupabaseRouteService(client);
+  return client == null
+      ? null
+      : SupabaseRouteService(
+          client,
+          ref.watch(appErrorReporterProvider),
+        );
 });
 final routeRepositoryProvider = Provider<RouteRepository>((ref) {
   if (!EnvConfig.hasBackendConfig) return const MockRouteRepository();
-  return GoogleRouteRepository(ref.watch(routeServiceProvider)!);
+  return GoogleRouteRepository(
+    ref.watch(routeServiceProvider)!,
+    errorReporter: ref.watch(appErrorReporterProvider),
+  );
 });
 final tripsRepositoryProvider =
     Provider<TripsRepository>((ref) => MockTripsRepository());
 final driverLocationServiceProvider = Provider<DriverLocationService?>((ref) {
   final client = ref.watch(supabaseClientProvider);
-  return client == null ? null : SupabaseDriverLocationService(client);
+  return client == null
+      ? null
+      : SupabaseDriverLocationService(
+          client,
+          ref.watch(appErrorReporterProvider),
+        );
 });
 final driverLocationRepositoryProvider =
     Provider<DriverLocationRepository>((ref) {

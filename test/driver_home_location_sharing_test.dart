@@ -19,6 +19,8 @@ import 'package:ridex/core/services/driver_location/driver_gps_stream_service.da
 import 'package:ridex/core/services/driver_location/driver_tracking_connection.dart';
 import 'package:ridex/features/driver_home/presentation/screens/driver_home_screen.dart';
 
+import 'helpers/recording_error_reporter.dart';
+
 void main() {
   late FakeLocationRepository location;
   late FakeDriverRepository driver;
@@ -209,6 +211,7 @@ void main() {
     expect(
         find.textContaining('Last server-confirmed location:'), findsOneWidget);
     expect(find.text('Start sharing'), findsOneWidget);
+    expect(find.textContaining(rawErrorCanary), findsNothing);
   });
 }
 

@@ -36,7 +36,7 @@ metadata and reported physical/live evidence through 2026-09-20:
 - Checkpoint 4B commit `2359a81` adds pickup/destination place search, geocoding, map selection, and routing-readiness validation. Fix commit `41dd2f5` blocks routing while map/GPS reverse geocoding is unresolved; this fix is pushed on the current branch but is not yet in `origin/main`.
 - The hosted Supabase `places` function is active and the required `GOOGLE_MAPS_WEB_SERVICES_API_KEY` secret name exists. No secret value was read.
 - Checkpoints 4A and 4B are approved. The project owner reports that Omar tested every previously remaining physical/live and configuration requirement successfully. The final 4B replacement-selection routing guard is implemented in the current working tree and passes focused and full regression verification.
-- Real routing and foreground Driver location tracking are implemented and approved through Checkpoints 4C and 4D. GPS efficiency and resilience tasks 4.24 through 4.29 are complete; task 4.30, matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
+- Real routing, foreground Driver location tracking, and GPS efficiency/resilience are implemented and approved through Checkpoint 4E. Matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
 - Multi-stop data can be represented in the booking draft, but stop management, routing, persistence, and fare integration are not implemented.
 - Current fares are deterministic demo values rather than route-based fixed fares.
 - Cash is displayed in the booking and completion UI, and Phase 3 defines trusted atomic Cash completion/settlement and persistent receipt foundations, but they are not connected to Flutter.
@@ -968,7 +968,7 @@ begin.
   - Location not found.
   - Route unavailable.
   - Network failure.
-- [ ] 4.30 Never expose raw map-provider/GPS errors directly to the user.
+- [x] 4.30 Never expose raw map-provider/GPS errors directly to the user.
 
 #### Checkpoint 4E Task 4.24 — GPS update efficiency
 
@@ -1140,8 +1140,9 @@ were both attempted. No UI-state or error-policy behavior from tasks 4.29 or
 
 #### Checkpoint 4E Task 4.29 — Recoverable location and route states
 
-Status: Completed and verified on 2026-09-24. Task 4.30 and the Checkpoint 4E
-approval gate remain incomplete.
+Status: Completed and verified on 2026-09-24. At this task boundary, task 4.30
+and the Checkpoint 4E approval gate remained incomplete; both are completed
+below.
 
 The existing provider-neutral state owners now distinguish loading, GPS
 unavailable, permission denied, location not found, route unavailable, and
@@ -1169,21 +1170,48 @@ Verification: 95 focused location/route/GPS/tracking/Driver Home tests passed;
 and `git diff --check` passed with line-ending warnings only. Known non-failing
 `flutter_svg` `<filter>` warnings appeared.
 
+#### Checkpoint 4E Task 4.30 — Sanitized GPS and map errors
+
+Status: Completed and verified on 2026-09-24. Checkpoint 4E is approved.
+
+An injectable provider-neutral `AppErrorReporter` now separates internal
+diagnostics from user-facing state. The default implementation sends the raw
+error and available stack trace to Flutter diagnostics only in debug builds and
+is a release no-op. Location, place, route, Driver GPS/location/Realtime, map
+configuration/camera, cleanup, and navigation boundaries report technical
+failures once at the earliest owning boundary, then retain existing typed
+failures and fixed RideX copy. Late auto-dispose failures use the reporter
+captured during provider construction instead of reading a disposed Riverpod
+reference.
+
+Map camera futures and Driver cancellation/disconnect work are contained so SDK
+or cleanup failures cannot escape as unhandled asynchronous errors. The GoRouter
+error page no longer interpolates `GoRouterState.error`; it renders fixed RideX
+copy. Canary tests include provider URLs, key-like tokens, HTTP payload text, SDK
+names, exception text, and stack-like content, and verify those details reach the
+test reporter but not location/place/route/Driver state or rendered navigation,
+map, search, route, and Driver feedback.
+
+Verification: 143 focused location/place/route/map/GPS/tracking/navigation tests
+passed; `flutter analyze --no-pub` reported no issues; `flutter test --no-pub`
+passed 235 tests with 2 intentional live-test skips; and formatting completed.
+Known non-failing `flutter_svg` `<filter>` warnings appeared.
+
 Checkpoint goal:
 
 Make RideX GPS effective, efficient, resilient, and suitable for continuous smart-mobility use.
 
 Approval gate:
 
-- [ ] No duplicate GPS subscriptions.
-- [ ] Update frequency is controlled.
-- [ ] Tracking stops when not required.
-- [ ] Unnecessary network/database writes are minimized.
-- [ ] Unnecessary map rebuilds are minimized.
-- [ ] Stale/out-of-order location updates are handled.
-- [ ] Temporary GPS/network failures do not break canonical state.
-- [ ] User-facing errors are clear and safe.
-- [ ] Relevant tests pass.
+- [x] No duplicate GPS subscriptions.
+- [x] Update frequency is controlled.
+- [x] Tracking stops when not required.
+- [x] Unnecessary network/database writes are minimized.
+- [x] Unnecessary map rebuilds are minimized.
+- [x] Stale/out-of-order location updates are handled.
+- [x] Temporary GPS/network failures do not break canonical state.
+- [x] User-facing errors are clear and safe.
+- [x] Relevant tests pass.
 
 ### Checkpoint 4F — Architecture + Smart City Readiness
 

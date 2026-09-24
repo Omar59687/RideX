@@ -8,6 +8,8 @@ import 'package:ridex/core/models/route_models.dart';
 import 'package:ridex/core/widgets/google_location_selection_map.dart';
 import 'package:ridex/core/widgets/route_status_panel.dart';
 
+import 'helpers/recording_error_reporter.dart';
+
 void main() {
   test('builds route halo and live polylines from provider-neutral geometry',
       () {
@@ -84,5 +86,6 @@ void main() {
     expect(find.byKey(const ValueKey('route-network-failure')), findsOneWidget);
     expect(find.text('Network failure'), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
+    expect(find.textContaining(rawErrorCanary), findsNothing);
   });
 }

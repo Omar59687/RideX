@@ -251,8 +251,8 @@
   warnings on pre-existing generated desktop plugin files. Known non-failing
   `flutter_svg` `<filter>` warnings appeared.
 - Scope remains narrow: 4D provides foreground Driver location sharing and
-  recovery. Tasks 4.24 through 4.29 are complete as recorded below; task 4.30,
-  matching, Rider live-trip tracking, and continuous OS-background
+  recovery. Tasks 4.24 through 4.30 and the Checkpoint 4E approval are recorded
+  below; matching, Rider live-trip tracking, and continuous OS-background
   location remain later work.
 - Checkpoint 4E task 4.24: **Completed and verified on 2026-09-22.** The existing
   4D architecture and canonical Driver-location state are preserved. It adds
@@ -350,12 +350,39 @@
   Driver Home feedback provides clear retry or settings actions. No parallel
   state owner, polling, new canonical subscription, task 4.30-wide error-policy
   refactor, matching, Rider live-trip tracking, or background tracking was
-  added. Task 4.30 and the Checkpoint 4E approval gate remain incomplete.
+  added. At this task boundary, task 4.30 and the Checkpoint 4E approval gate
+  remained incomplete; both are completed below.
 - Task 4.29 verification: 95 focused location/route/GPS/tracking/Driver Home
   tests passed; `flutter analyze --no-pub` found no issues; the full `flutter
   test --no-pub` suite passed 225 tests with 2 intentional live-test skips; Dart
   formatting checked 185 files; and `git diff --check` passed with line-ending
   warnings only. Known non-failing `flutter_svg` `<filter>` warnings appeared.
+- Checkpoint 4E task 4.30: **Completed and verified on 2026-09-24.** An
+  injectable provider-neutral `AppErrorReporter` now keeps internal diagnostics
+  separate from application state and UI. Its default implementation reports
+  raw errors and available stacks only in debug builds and is a release no-op.
+  Location, place, route, Driver GPS/location/Realtime, map configuration and
+  camera, cleanup, and navigation boundaries report technical failures before
+  retaining existing typed failures and fixed RideX copy. Reporter references
+  are captured during provider construction so late auto-dispose failures remain
+  diagnosable without reading a disposed Riverpod reference.
+- Task 4.30 containment: map camera futures, Driver stream cancellation, and
+  Realtime disconnect/disposal failures are contained. Navigation no longer
+  renders raw `GoRouterState.error`. Canary tests containing a provider URL,
+  key-like token, HTTP payload, SDK/exception names, and stack-like content
+  verify raw details reach only the injected test reporter and do not enter
+  current-location, place, route, or Driver state or rendered error feedback.
+- Task 4.30 verification: 143 focused location/place/route/map/GPS/tracking/
+  navigation tests passed; `flutter analyze --no-pub` found no issues; the full
+  `flutter test --no-pub` suite passed 235 tests with 2 intentional live-test
+  skips; and Dart formatting completed. Known non-failing `flutter_svg`
+  `<filter>` warnings appeared.
+- Checkpoint 4E: **Approved on 2026-09-24.** Focused and full regression evidence
+  confirms one active GPS subscription, canonical-state frequency control and
+  shutdown, reduced device/network/backend work, isolated map rebuilds,
+  stale/out-of-order rejection, canonical-state preservation through temporary
+  failures, safe user-facing errors, and passing relevant tests. Matching, Rider
+  live-trip tracking, and continuous OS-background location remain later work.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`

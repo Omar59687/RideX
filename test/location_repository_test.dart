@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/core/models/current_location_state.dart';
 import 'package:ridex/core/repositories/location_repository.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 
 import 'helpers/fake_location.dart';
 
@@ -17,6 +18,7 @@ void main() {
     repository = DeviceLocationRepository(
       service: service,
       permissionStore: permissionStore,
+      errorReporter: const NoopAppErrorReporter(),
       locationTimeout: const Duration(milliseconds: 10),
     );
   });
