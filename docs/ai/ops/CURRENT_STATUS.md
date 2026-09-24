@@ -2,7 +2,9 @@
 
 ## Git Checkpoint
 
-- Active branch: `codex/phase-4d-driver-location`
+- Active branch: `yousuf/supabase-env-audit`
+- Final 4D audit baseline: `18a6c77`, aligned with `origin/main` before the
+  uncommitted audit corrections.
 - Checkpoint 4D Driver Home UI correction: `31bc7c9`; documentation for this
   correction is being committed separately.
 - Checkpoint 4D final review correction: `0e0a9e6`; documentation for this
@@ -47,7 +49,8 @@
   144 cases with 2 intentional skips. The deployed authenticated Google route,
   physical Android polyline, service-backed distance/duration, selected
   endpoints, and endpoint-change recalculation are verified.
-- Checkpoints 4D through 4G remain incomplete. Phase 4 is not approved.
+- Checkpoint 4D: **Approved on 2026-09-20.** Checkpoints 4E through 4G remain
+  incomplete, so Phase 4 is not approved and Phase 5 must not begin.
 - Checkpoint 4D slice 1: **Completed.** Commit `4694a5e` adds the Driver location
   provider-neutral availability, sample, and saved-location contracts; sanitized
   failure types; canonical Supabase availability/latest-location reads; RPC-only
@@ -188,8 +191,8 @@
   `test/driver_home_location_sharing_test.dart` passed 5 tests; `flutter analyze`
   reported no issues; formatting and `git diff --check` passed. The reconnection
   suite was not rerun.
-- Checkpoint 4D final approval review: **Automated blockers corrected; approval
-  pending.** The review began on the clean
+- Checkpoint 4D final approval review on 2026-09-17: **Automated blockers
+  corrected; physical/live approval was still pending at that time.** The review began on the clean
   `codex/phase-4d-driver-location` worktree and confirmed the intended
   authorization/RPC boundary, canonical availability checks, sequence recovery,
   single-stream/publisher ownership, Stop/sign-out/background cleanup,
@@ -206,10 +209,9 @@
   full non-live `flutter test` passed 180 tests with 2 intentional live-Supabase
   skips. Known non-failing `flutter_svg` unsupported `<filter>` warnings
   appeared.
-- Physical-device GPS/permission/background checks and authenticated Supabase
-  RPC, RLS, canonical-read, and Realtime verification remain outstanding. 4D is
-  not approved based on automated tests alone; those physical and authenticated
-  checks must still be completed.
+- That 2026-09-17 review left physical-device and authenticated Supabase checks
+  outstanding. They were completed later and are recorded in the final approval
+  entry below.
 - Verification attempt on 2026-09-17 found the Android toolchain installed, but
   `flutter devices` listed only Windows, Chrome, and Edge; no physical Android
   device or emulator was available. `adb devices -l` could not run because `adb`
@@ -234,6 +236,153 @@
   The manual sequence is documented in the 4D verification-attempt section of
   `Plan.md`: permission then Start/Stop, canonical sequence/timestamp inspection,
   app background/resume, connectivity recovery, and negative RPC/no-row checks.
+- Checkpoint 4D final approval on 2026-09-20: **Approved.** The project owner
+  reported that all physical/live checks passed: Android startup/login,
+  permission timing, real GPS sharing with canonical sequence/timestamp growth,
+  hosted persistence, Stop, foreground lifecycle recovery, network/reconnection
+  recovery, and Rider rejection with HTTP 403 / SQLSTATE 42501 and no inserted
+  row. The final audit also corrected connection-start stream cleanup and made a
+  stale-sequence rejection automatically re-fetch canonical state before
+  restarting one stream.
+- Final 4D verification: 69 focused 4D/Driver/location/session tests passed;
+  full non-live `flutter test --no-pub` passed 184 tests with 2 intentional live
+  skips; `flutter analyze --no-pub` found no issues; Dart formatting checked 183
+  files with 0 changes; and `git diff --check` passed apart from line-ending
+  warnings on pre-existing generated desktop plugin files. Known non-failing
+  `flutter_svg` `<filter>` warnings appeared.
+- Scope remains narrow: 4D provides foreground Driver location sharing and
+  recovery. Tasks 4.24 through 4.30 and the Checkpoint 4E approval are recorded
+  below; matching, Rider live-trip tracking, and continuous OS-background
+  location remain later work.
+- Checkpoint 4E task 4.24: **Completed and verified on 2026-09-22.** The existing
+  4D architecture and canonical Driver-location state are preserved. It adds
+  movement filtering; the controller suppresses unchanged location content and
+  coalesces queued callbacks to the latest pending meaningful fix while
+  retaining one ordered publisher; and the Driver Home tracking watch is
+  isolated to the sharing card so confirmed writes do not rebuild the whole
+  screen/map. Focused fakes assert a maximum of one active GPS subscription
+  across duplicate starts and reconnect recovery.
+- Task 4.24 verification: the GPS service/controller suites passed 32 tests,
+  the Driver Home sharing suite passed 5 tests, and `flutter analyze --no-pub`
+  found no issues. At that task boundary, state-dependent cadence and tasks 4.25
+  through 4.30 remained incomplete.
+- Checkpoint 4E task 4.25: **Completed and verified on 2026-09-22.** A centralized
+  provider-neutral policy maps canonical `DriverAvailabilityState`: `onTrip`
+  selects high accuracy, a 10-meter movement filter, and a 5-second minimum
+  accepted-update interval; `available` and `reserved` select medium accuracy,
+  a 25-meter movement filter, and a 20-second minimum interval. Start, resume,
+  and recovery use existing canonical reads. Explicit canonical synchronization
+  coalesces concurrent requests into at most one trailing read, retains an
+  unchanged profile, and cancels a changed stream before opening one replacement
+  without reconnecting or duplicating subscriptions. Reconnect recovery is
+  deferred until synchronization completes, and sync requests arriving during
+  start/recovery run after that canonical setup finishes. Explicit sync ignores
+  ineligible states, leaving automatic offline-state stopping to task 4.26.
+- Task 4.25 verification: the GPS service/controller suites passed 47 tests, the
+  Driver Home sharing suite passed 5 tests, and `flutter analyze --no-pub` found
+  no issues. At that task boundary, tasks 4.26 through 4.30 and the Checkpoint 4E
+  approval gate remained incomplete. No polling, Realtime availability
+  subscription, automatic offline-state monitoring, state-based stopping,
+  broader resource policy, accuracy-resilience, UI-state, or error-policy work
+  was implemented.
+- Checkpoint 4E task 4.26: **Completed and verified on 2026-09-24.** Explicit
+  canonical synchronization now stops all owned tracking resources for
+  `offline`, missing, or otherwise ineligible availability. It invalidates
+  queued location work, cancels GPS, disconnects the tracking channel, and
+  reports a sanitized ineligible state while preserving explicit sharing intent
+  and latest canonical location metadata. A later explicit eligible sync
+  re-reads canonical sequence state, reconnects, and starts the existing
+  state-appropriate profile. Lifecycle, explicit Stop/sign-out, recovery
+  ordering, write coalescing, and the one-active-subscription invariant remain
+  intact. No polling or Realtime availability subscription was added.
+- Task 4.26 verification: the GPS service/controller and Driver Home sharing
+  suites passed 58 tests; `flutter analyze --no-pub` found no issues; the full
+  `flutter test --no-pub` suite passed 208 tests with 2 intentional live-test
+  skips; and `git diff --check` passed. At that task boundary, tasks 4.27 through
+  4.30 and the Checkpoint 4E approval gate remained incomplete.
+- Checkpoint 4E task 4.27: **Completed and verified on 2026-09-24.** The
+  provider-neutral tracking configuration now owns the complete device/write
+  resource policy. `available` uses low accuracy, a 50-meter device/write
+  threshold, a 30-second minimum cadence, and a two-minute maximum silence;
+  `reserved` uses medium accuracy, 25 meters, 20 seconds, and one minute;
+  `onTrip` preserves high accuracy, 10 meters, and five seconds, with a
+  15-second maximum silence. The controller suppresses sub-threshold movement
+  and measurement-only jitter using provider-neutral great-circle distance.
+  Maximum-silence updates consume only fixes emitted by the existing stream, so
+  no timer, polling, extra canonical read, or additional subscription was added.
+  Existing write coalescing, ordering, recovery, and shutdown behavior remains
+  intact.
+- Task 4.27 verification: the GPS service/controller and Driver Home sharing
+  suites passed 62 tests; `flutter analyze --no-pub` found no issues; the full
+  `flutter test --no-pub` suite passed 212 tests with 2 intentional live-test
+  skips; and `git diff --check` passed. At that task boundary, tasks 4.28 through
+  4.30 and the Checkpoint 4E approval gate remained incomplete.
+- Checkpoint 4E task 4.28: **Completed and verified on 2026-09-24.** A
+  provider-neutral validation policy now rejects missing accuracy, readings
+  outside the existing 15-minute-old/5-minute-future RPC window, non-advancing
+  source timestamps, and relative accuracy regressions that cannot establish
+  movement beyond their own uncertainty radius. No global accuracy cutoff was
+  introduced. Rejected fixes do not mutate the last valid accepted/canonical
+  reference or queued work, and later valid fixes recover normally. Ordered,
+  generation-scoped publishing prevents an older callback from replacing a
+  newer queued fix. Additive migration `024` rejects non-advancing
+  `recorded_at` under the existing per-Driver RPC lock, closing cross-session
+  ordering races without changing the RPC signature.
+- Task 4.28 verification: 74 focused validation/GPS/controller/repository/Driver
+  Home tests passed; `flutter analyze --no-pub` found no issues; the full
+  `flutter test --no-pub` suite passed 218 tests with 2 intentional live-test
+  skips; and `git diff --check` passed. The pgTAP ordering regression could not
+  run locally because no Docker engine or Docker Desktop executable is
+  available; both `npx supabase test db` and local stack startup were attempted.
+  Task 4.29 is completed below; task 4.30 and the Checkpoint 4E approval gate
+  remain incomplete.
+- Checkpoint 4E task 4.29: **Completed and verified on 2026-09-24.** Existing
+  `CurrentLocationState`, `RouteState`, and `DriverTrackingState` authorities now
+  expose typed loading, GPS unavailable, permission denied, location not found,
+  route unavailable, and network failure outcomes. Temporary one-shot GPS
+  failures preserve a previously granted point, same-request route retries
+  retain their prior result as non-ready map context, and Driver network loss
+  preserves the last confirmed server timestamp. Permission denial and changed
+  route endpoints still invalidate unusable prior data.
+- Task 4.29 recovery behavior: connection failure exposes a network state,
+  cancels foreground GPS, and reuses the existing canonical reconnect path.
+  Recovery still owns at most one GPS subscription. Map, pickup, route, and
+  Driver Home feedback provides clear retry or settings actions. No parallel
+  state owner, polling, new canonical subscription, task 4.30-wide error-policy
+  refactor, matching, Rider live-trip tracking, or background tracking was
+  added. At this task boundary, task 4.30 and the Checkpoint 4E approval gate
+  remained incomplete; both are completed below.
+- Task 4.29 verification: 95 focused location/route/GPS/tracking/Driver Home
+  tests passed; `flutter analyze --no-pub` found no issues; the full `flutter
+  test --no-pub` suite passed 225 tests with 2 intentional live-test skips; Dart
+  formatting checked 185 files; and `git diff --check` passed with line-ending
+  warnings only. Known non-failing `flutter_svg` `<filter>` warnings appeared.
+- Checkpoint 4E task 4.30: **Completed and verified on 2026-09-24.** An
+  injectable provider-neutral `AppErrorReporter` now keeps internal diagnostics
+  separate from application state and UI. Its default implementation reports
+  raw errors and available stacks only in debug builds and is a release no-op.
+  Location, place, route, Driver GPS/location/Realtime, map configuration and
+  camera, cleanup, and navigation boundaries report technical failures before
+  retaining existing typed failures and fixed RideX copy. Reporter references
+  are captured during provider construction so late auto-dispose failures remain
+  diagnosable without reading a disposed Riverpod reference.
+- Task 4.30 containment: map camera futures, Driver stream cancellation, and
+  Realtime disconnect/disposal failures are contained. Navigation no longer
+  renders raw `GoRouterState.error`. Canary tests containing a provider URL,
+  key-like token, HTTP payload, SDK/exception names, and stack-like content
+  verify raw details reach only the injected test reporter and do not enter
+  current-location, place, route, or Driver state or rendered error feedback.
+- Task 4.30 verification: 143 focused location/place/route/map/GPS/tracking/
+  navigation tests passed; `flutter analyze --no-pub` found no issues; the full
+  `flutter test --no-pub` suite passed 235 tests with 2 intentional live-test
+  skips; and Dart formatting completed. Known non-failing `flutter_svg`
+  `<filter>` warnings appeared.
+- Checkpoint 4E: **Approved on 2026-09-24.** Focused and full regression evidence
+  confirms one active GPS subscription, canonical-state frequency control and
+  shutdown, reduced device/network/backend work, isolated map rebuilds,
+  stale/out-of-order rejection, canonical-state preservation through temporary
+  failures, safe user-facing errors, and passing relevant tests. Matching, Rider
+  live-trip tracking, and continuous OS-background location remain later work.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
@@ -373,13 +522,13 @@ Plus Jakarta Sans Regular 400, Medium 500, SemiBold 600, Bold 700, and ExtraBold
 
 ## Known Limitations
 
-Phone OTP, continuous/live Driver location, booking/history persistence,
+Phone OTP, Rider live-trip location, booking/history persistence,
 card payments, promotions, rewards, calls/messages, safety services, saved-place
 persistence, notification delivery/persistence, and rating persistence are not
 production integrations. Google Maps/GPS, place search, and routing foundations
-now exist, and Checkpoints 4A, 4B, and 4C are approved. Trip History remains
-Mock-backed with static sample endpoints; continuous Driver tracking remains
-later Phase 4 work.
+now exist, and Checkpoints 4A through 4D are approved. Trip History remains
+Mock-backed with static sample endpoints; GPS optimization and Rider live-trip
+tracking remain later Phase 4 work.
 Notification read state, preferences, booking drafts, active trips, and driver
 availability are session-local and reset on sign-out. Unsupported behavior must
 remain explicit demo, session-local, disabled, or Coming soon behavior.

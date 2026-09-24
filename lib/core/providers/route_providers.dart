@@ -3,16 +3,20 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/core/errors/route_exception.dart';
 import 'package:ridex/core/models/route_models.dart';
+import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 
 class RouteController extends Notifier<RouteState> {
   int _generation = 0;
   RouteRequest? _pendingRequest;
   bool _syncScheduled = false;
+  late final AppErrorReporter _errorReporter;
 
   @override
   RouteState build() {
+    _errorReporter = ref.read(appErrorReporterProvider);
     ref.onDispose(() => _generation++);
     ref.listen<RouteRequest?>(
       bookingControllerProvider.select(RouteRequest.fromDraft),
@@ -30,7 +34,7 @@ class RouteController extends Notifier<RouteState> {
       _clear();
       return;
     }
-    _start(request);
+    _start(request, previousResult: state.result);
   }
 
   void _queue(RouteRequest? request) {
@@ -50,10 +54,14 @@ class RouteController extends Notifier<RouteState> {
     });
   }
 
-  void _start(RouteRequest request, {bool preserveGeneration = false}) {
+  void _start(
+    RouteRequest request, {
+    bool preserveGeneration = false,
+    RouteResult? previousResult,
+  }) {
     final generation = preserveGeneration ? _generation : ++_generation;
     _pendingRequest = request;
-    state = RouteState.loading(request);
+    state = RouteState.loading(request, previousResult: previousResult);
     unawaited(_load(request, generation));
   }
 
@@ -68,12 +76,22 @@ class RouteController extends Notifier<RouteState> {
       state = RouteState.ready(result);
     } on RouteException catch (error) {
       if (!_isCurrent(request, generation)) return;
-      state = RouteState.failure(request, _messageFor(error.failure));
-    } catch (_) {
+      state = RouteState.failure(
+        request,
+        error.failure,
+        previousResult: state.result,
+      );
+    } on Object catch (error, stackTrace) {
+      _errorReporter.report(
+        operation: 'calculating a route',
+        error: error,
+        stackTrace: stackTrace,
+      );
       if (!_isCurrent(request, generation)) return;
       state = RouteState.failure(
         request,
-        'Route calculation is unavailable. Please try again.',
+        RouteFailure.unavailable,
+        previousResult: state.result,
       );
     }
   }
@@ -89,16 +107,6 @@ class RouteController extends Notifier<RouteState> {
     _pendingRequest = null;
     state = const RouteState();
   }
-
-  static String _messageFor(RouteFailure failure) => switch (failure) {
-        RouteFailure.notFound =>
-          'No driving route was found for these locations.',
-        RouteFailure.timedOut =>
-          'Route calculation timed out. Please try again.',
-        RouteFailure.unsupportedStops =>
-          'Intermediate stops are not available yet.',
-        _ => 'Route calculation is unavailable. Please try again.',
-      };
 }
 
 final routeControllerProvider =

@@ -57,6 +57,7 @@ select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4
 select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4, null, -1, now())$$, '23514', null, 'negative speed is rejected');
 select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4, null, null, now() - interval '16 minutes')$$, '22023', 'Location timestamp is outside the accepted time window.', 'stale timestamp is rejected');
 select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4, null, null, now() + interval '6 minutes')$$, '22023', 'Location timestamp is outside the accepted time window.', 'future timestamp is rejected');
+select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4, null, null, now() - interval '1 second')$$, '23505', 'Location timestamp must increase for this Driver.', 'newer sequence with older timestamp is rejected');
 reset role;
 
 insert into public.pricing_configurations (id, vehicle_type_code, pricing_version, base_fare_fils, per_kilometer_fils, per_minute_fils, per_stop_fils, minimum_fare_fils, is_active)

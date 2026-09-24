@@ -26,6 +26,12 @@ Feature folders currently emphasize presentation screens and feature-local widge
 - `SessionController`: authenticated user and role state.
 - `BookingController`: pickup, destination, stops, category, distance, ETA, and upfront fare.
 - `CurrentLocationController`: one-shot foreground permission and device-location state through the location repository.
+- `DriverTrackingController`: explicit foreground Driver sharing intent,
+  canonical availability/latest-location recovery, one GPS stream, exact-content
+  deduplication, latest-pending write coalescing, canonical-state profile
+  synchronization, ineligible-state resource shutdown and eligible-state
+  restart, ordered publication, lifecycle/reconnection cleanup, and sanitized
+  status for Driver Home.
 - `PlaceSelectionController`: independent pickup/destination search, geocoding, and provisional/committed selection state through the place repository.
 - `RouteController`: session-local trusted route state derived from canonical
   booking endpoints, with coalesced recalculation and stale-response rejection.
@@ -43,8 +49,57 @@ provider-neutral, and hosted place requests pass through the authenticated
 Supabase `places` function. Routing uses provider-neutral `RouteRequest`,
 `RouteResult`, and `RouteState` contracts; configured mode invokes the same
 function's authenticated `route` operation, while only the Google map adapter
-converts geometry to SDK polylines. Checkpoints 4A, 4B, and 4C are approved.
-Continuous Driver tracking remains later work.
+converts geometry to SDK polylines. Driver tracking uses a provider-neutral GPS
+stream service, repository-owned canonical reads/RPC writes, and a Riverpod
+controller that prevents duplicate streams and recovers canonical sequence
+state. Task 4.24 adds movement filtering, redundant-write suppression,
+latest-pending coalescing, and a tracking-card-local UI watch. Task 4.25 adds the
+provider-neutral `DriverGpsTrackingConfig`: canonical `onTrip` state selects a
+high-accuracy 10-meter/5-second profile, while canonical `available` and
+`reserved` select a medium-accuracy 25-meter/20-second profile. The controller
+can re-read canonical availability and replace a changed profile only after the
+old stream is cancelled. Concurrent requests produce at most one trailing read,
+and reconnect recovery is deferred until synchronization completes. The sync
+request is retained when start or recovery is still reading canonical state. The
+sync entry point also treats canonical `offline`, missing, or otherwise
+ineligible availability as a stop boundary: it invalidates queued work, cancels
+GPS, and disconnects tracking while retaining explicit sharing intent and latest
+canonical metadata. A later explicit eligible sync re-reads canonical sequence
+state, reconnects, and starts the appropriate profile. There is no polling or
+Realtime availability subscription. Task 4.27 extends the same centralized
+configuration with device and write-efficiency policy. `available` uses low
+accuracy, 50-meter filtering/significance, 30-second minimum cadence, and a
+two-minute maximum silence bound; `reserved` uses medium accuracy, 25 meters, 20
+seconds, and one minute; `onTrip` preserves high accuracy, 10 meters, and five
+seconds, with a 15-second maximum silence bound. The controller computes
+provider-neutral great-circle movement and suppresses sub-threshold callbacks
+until meaningful movement or the stream-driven silence bound. It adds no timer,
+polling, canonical read, or subscription. Checkpoints 4A through 4D are
+approved. Task 4.28 adds the provider-neutral
+`DriverLocationValidationPolicy` before cadence/significance filtering and
+state mutation. It requires usable accuracy, the existing
+15-minute-old/5-minute-future RPC window, and strictly advancing source time. A
+worse-accuracy candidate is rejected only when its displacement remains within
+its own reported uncertainty radius; there is no arbitrary global accuracy cap.
+Rejected fixes preserve the last accepted fix, recorded time, pending write,
+sequence, and confirmed timestamp. Migration `024` adds a matching
+non-advancing-`recorded_at` RPC rejection under the existing per-Driver row lock,
+protecting canonical order across sessions. Task 4.29 extends the existing state
+owners rather than adding a parallel failure layer: `CurrentLocationState`
+distinguishes permission, GPS, and location-not-found outcomes;
+`RouteState` owns typed route/network failures and can retain only a
+same-request result while remaining non-ready; and `DriverTrackingState`
+distinguishes GPS from network loss while preserving the last canonical
+confirmation timestamp. Temporary connection loss stops foreground GPS and
+recovers through the existing canonical reconnect path. Task 4.30 adds an
+injectable provider-neutral `AppErrorReporter`. Adapters and owning controllers
+report raw location, place, route, Driver, Realtime, map, and navigation failures
+once before mapping them to existing typed state and fixed UI copy. The default
+reporter uses Flutter diagnostics in debug builds and is a release no-op; raw
+errors are not stored in application state. Map camera and Driver cleanup futures
+are contained, and late auto-dispose failures use a reporter captured during
+provider construction. Checkpoint 4E is approved. Matching, Rider live-trip
+tracking, and continuous OS-background tracking remain later work.
 
 ## Router
 
@@ -65,7 +120,7 @@ Shared components live in `lib/core/widgets/`. Rider-specific compositions live 
 
 ## Tests
 
-Tests live under `test/`, with shared repository overrides in `test/helpers/test_app.dart`. Existing coverage includes launch, onboarding, roles, auth V2, booking, provider fares, trip lifecycle, driver acceptance, transition rules, route/session state, route recalculation and rendering conversion, location permissions, map fallbacks, place selection/geocoding with fakes, and conditional live Supabase checks. See `CURRENT_STATUS.md` for the latest exact verification results.
+Tests live under `test/`, with shared repository overrides in `test/helpers/test_app.dart`. Existing coverage includes launch, onboarding, roles, auth V2, booking, provider fares, trip lifecycle, driver acceptance, transition rules, route/session state, route recalculation and rendering conversion, location permissions, map fallbacks, place selection/geocoding with fakes, raw-error non-leakage canaries, and conditional live Supabase checks. See `CURRENT_STATUS.md` for the latest exact verification results.
 
 ## Do Not Rewrite
 

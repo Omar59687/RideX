@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 
 abstract class RideMapService {
   Future<bool> isConfigured();
@@ -7,10 +8,12 @@ abstract class RideMapService {
 class GoogleRideMapService implements RideMapService {
   const GoogleRideMapService({
     required this.enabled,
+    required this.errorReporter,
     this.channel = const MethodChannel('ridex/maps_configuration'),
   });
 
   final bool enabled;
+  final AppErrorReporter errorReporter;
   final MethodChannel channel;
 
   @override
@@ -18,9 +21,12 @@ class GoogleRideMapService implements RideMapService {
     if (!enabled) return false;
     try {
       return await channel.invokeMethod<bool>('isConfigured') ?? false;
-    } on PlatformException {
-      return false;
-    } on MissingPluginException {
+    } on Object catch (error, stackTrace) {
+      errorReporter.report(
+        operation: 'checking map configuration',
+        error: error,
+        stackTrace: stackTrace,
+      );
       return false;
     }
   }
@@ -33,4 +39,20 @@ class MockRideMapService implements RideMapService {
 
   @override
   Future<bool> isConfigured() async => configured;
+}
+
+Future<void> runMapCameraOperation({
+  required String operation,
+  required AppErrorReporter errorReporter,
+  required Future<void> Function() action,
+}) async {
+  try {
+    await action();
+  } on Object catch (error, stackTrace) {
+    errorReporter.report(
+      operation: operation,
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
 }

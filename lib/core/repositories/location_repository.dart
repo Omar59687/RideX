@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:ridex/core/models/current_location_state.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 import 'package:ridex/core/services/location/location_permission_store.dart';
 import 'package:ridex/core/services/location/location_service.dart';
 
@@ -18,12 +19,15 @@ class DeviceLocationRepository implements LocationRepository {
   DeviceLocationRepository({
     required LocationService service,
     required LocationPermissionStore permissionStore,
+    required AppErrorReporter errorReporter,
     this.locationTimeout = const Duration(seconds: 15),
   })  : _service = service,
-        _permissionStore = permissionStore;
+        _permissionStore = permissionStore,
+        _errorReporter = errorReporter;
 
   final LocationService _service;
   final LocationPermissionStore _permissionStore;
+  final AppErrorReporter _errorReporter;
   final Duration locationTimeout;
 
   @override
@@ -46,7 +50,8 @@ class DeviceLocationRepository implements LocationRepository {
         LocationPermissionStatus.notRequested =>
           Future.value(const CurrentLocationState.initial()),
       };
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      _report('inspecting current location', error, stackTrace);
       return _unavailable(LocationPermissionStatus.notRequested);
     }
   }
@@ -55,7 +60,8 @@ class DeviceLocationRepository implements LocationRepository {
   Future<bool> openAppSettings() async {
     try {
       return await _service.openAppSettings();
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      _report('opening app settings', error, stackTrace);
       return false;
     }
   }
@@ -64,7 +70,8 @@ class DeviceLocationRepository implements LocationRepository {
   Future<bool> openLocationSettings() async {
     try {
       return await _service.openLocationSettings();
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      _report('opening location settings', error, stackTrace);
       return false;
     }
   }
@@ -86,7 +93,8 @@ class DeviceLocationRepository implements LocationRepository {
         permission = await _service.requestPermission();
         try {
           await _permissionStore.markPermissionRequested();
-        } on Object {
+        } on Object catch (error, stackTrace) {
+          _report('saving location permission state', error, stackTrace);
           // OS permission remains authoritative if local preference storage fails.
         }
       }
@@ -99,7 +107,8 @@ class DeviceLocationRepository implements LocationRepository {
         LocationPermissionStatus.notRequested =>
           Future.value(_denied),
       };
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      _report('requesting current location', error, stackTrace);
       return _unavailable(LocationPermissionStatus.notRequested);
     }
   }
@@ -121,13 +130,15 @@ class DeviceLocationRepository implements LocationRepository {
         permission: permission,
         point: point,
       );
-    } on TimeoutException {
+    } on TimeoutException catch (error, stackTrace) {
+      _report('finding current location', error, stackTrace);
       return CurrentLocationState(
         status: CurrentLocationStatus.unavailable,
         permission: permission,
-        failure: LocationFailure.timeout,
+        failure: LocationFailure.locationNotFound,
       );
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      _report('finding current location', error, stackTrace);
       return _unavailable(permission);
     }
   }
@@ -136,7 +147,7 @@ class DeviceLocationRepository implements LocationRepository {
     return CurrentLocationState(
       status: CurrentLocationStatus.unavailable,
       permission: permission,
-      failure: LocationFailure.unavailable,
+      failure: LocationFailure.gpsUnavailable,
     );
   }
 
@@ -151,4 +162,12 @@ class DeviceLocationRepository implements LocationRepository {
     permission: LocationPermissionStatus.permanentlyDenied,
     failure: LocationFailure.permissionPermanentlyDenied,
   );
+
+  void _report(String operation, Object error, StackTrace stackTrace) {
+    _errorReporter.report(
+      operation: operation,
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
 }

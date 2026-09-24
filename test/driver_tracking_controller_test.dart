@@ -7,10 +7,13 @@ import 'package:ridex/core/models/driver_availability.dart';
 import 'package:ridex/core/models/driver_location.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/providers/driver_tracking_providers.dart';
+import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/repositories/driver_location_repository.dart';
 import 'package:ridex/core/services/driver_location/driver_gps_stream_service.dart';
 import 'package:ridex/core/services/driver_location/driver_tracking_connection.dart';
+
+import 'helpers/recording_error_reporter.dart';
 
 void main() {
   final startTime = DateTime.utc(2026, 9, 17, 10);
@@ -19,6 +22,7 @@ void main() {
   late FakeDriverGpsStreamService gps;
   late FakeDriverTrackingLifecycle lifecycle;
   late FakeDriverTrackingConnection connection;
+  late RecordingAppErrorReporter reporter;
   late ProviderContainer container;
   late ProviderSubscription<DriverTrackingState> keepAlive;
 
@@ -27,12 +31,17 @@ void main() {
     gps = FakeDriverGpsStreamService();
     lifecycle = FakeDriverTrackingLifecycle();
     connection = FakeDriverTrackingConnection();
+    reporter = RecordingAppErrorReporter();
     container = ProviderContainer(
       overrides: [
         driverLocationRepositoryProvider.overrideWithValue(repository),
         driverGpsStreamServiceProvider.overrideWithValue(gps),
         driverTrackingLifecycleProvider.overrideWithValue(lifecycle),
         driverTrackingConnectionProvider.overrideWithValue(connection),
+        appErrorReporterProvider.overrideWithValue(reporter),
+        driverTrackingClockProvider.overrideWithValue(
+          () => startTime.add(const Duration(minutes: 2)),
+        ),
       ],
     );
     keepAlive = container.listen(driverTrackingControllerProvider, (_, __) {});
@@ -67,6 +76,8 @@ void main() {
     expect(repository.availabilityCount, 1);
     expect(repository.latestCount, 1);
     expect(gps.listenCount, 1);
+    expect(gps.configurations.single, same(DriverGpsTrackingConfig.available));
+    expect(gps.maxActiveSubscriptions, 1);
     expect(container.read(driverTrackingControllerProvider).status,
         DriverTrackingStatus.sharing);
 
@@ -75,6 +86,49 @@ void main() {
     expect(gps.cancelCount, 1);
     expect(container.read(driverTrackingControllerProvider).status,
         DriverTrackingStatus.stopped);
+  });
+
+  test('cleanup failures are reported without breaking Stop state', () async {
+    final error = StateError(rawErrorCanary);
+    connection.disconnectError = error;
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    await controller.stop();
+
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.stopped);
+    expect(reporter.reports.single.error, same(error));
+  });
+
+  test('connection startup failure cancels the foreground stream', () async {
+    connection.connectError = StateError('connection failed');
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+
+    await controller.start();
+
+    final state = container.read(driverTrackingControllerProvider);
+    expect(state.status, DriverTrackingStatus.unavailable);
+    expect(state.failure, DriverLocationFailure.networkFailure);
+    expect(gps.cancelCount, 1);
+    expect(connection.disconnectCount, 1);
+  });
+
+  test('raw tracking failures are reported but never exposed in state',
+      () async {
+    final error = StateError(rawErrorCanary);
+    connection.connectError = error;
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+
+    await controller.start();
+
+    final state = container.read(driverTrackingControllerProvider);
+    expect(state.failure, DriverLocationFailure.networkFailure);
+    expect(state.toString(), isNot(contains(rawErrorCanary)));
+    expect(reporter.reports.single.error, same(error));
   });
 
   test('includes the canonical active trip when publishing onTrip fixes',
@@ -87,6 +141,10 @@ void main() {
         container.read(driverTrackingControllerProvider.notifier);
 
     await controller.start();
+    expect(
+      gps.configurations.single,
+      same(DriverGpsTrackingConfig.activeTrip),
+    );
     gps.add(_fix(startTime.add(const Duration(seconds: 1))));
     await repository.waitForPublishes(1);
 
@@ -120,6 +178,498 @@ void main() {
     expect(repository.availabilityCount, 1);
     expect(repository.latestCount, 1);
     expect(gps.listenCount, 1);
+    expect(gps.maxActiveSubscriptions, 1);
+  });
+
+  test('uses reserved tracking while canonically reserved', () async {
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.reserved,
+    );
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+
+    await controller.start();
+
+    expect(gps.configurations.single, same(DriverGpsTrackingConfig.reserved));
+  });
+
+  test('accepts available fixes no more often than every 30 seconds', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final first = _fix(startTime.add(const Duration(seconds: 1)));
+    final tooSoon = _fix(
+      startTime.add(const Duration(seconds: 30)),
+      latitude: 31.964158,
+    );
+    final due = _fix(
+      startTime.add(const Duration(seconds: 31)),
+      latitude: 31.965158,
+    );
+
+    gps.add(first);
+    await repository.waitForPublishes(1);
+    gps.add(tooSoon);
+    await flush(2);
+    expect(repository.publishAttempts, 1);
+    gps.add(due);
+    await repository.waitForPublishes(2);
+
+    expect(repository.published.map((sample) => sample.recordedAt), [
+      first.recordedAt,
+      due.recordedAt,
+    ]);
+  });
+
+  test('accepts onTrip fixes no more often than every 5 seconds', () async {
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final first = _fix(startTime.add(const Duration(seconds: 1)));
+    final tooSoon = _fix(
+      startTime.add(const Duration(seconds: 5)),
+      latitude: 31.963258,
+    );
+    final due = _fix(
+      startTime.add(const Duration(seconds: 6)),
+      latitude: 31.963358,
+    );
+
+    gps.add(first);
+    await repository.waitForPublishes(1);
+    gps.add(tooSoon);
+    await flush(2);
+    expect(repository.publishAttempts, 1);
+    gps.add(due);
+    await repository.waitForPublishes(2);
+
+    expect(repository.published.map((sample) => sample.recordedAt), [
+      first.recordedAt,
+      due.recordedAt,
+    ]);
+  });
+
+  test('replaces available tracking with one reserved stream', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.reserved,
+    );
+
+    await controller.synchronizeCanonicalState();
+
+    expect(repository.availabilityCount, 2);
+    expect(gps.configurations, [
+      DriverGpsTrackingConfig.available,
+      DriverGpsTrackingConfig.reserved,
+    ]);
+    expect(gps.listenCount, 2);
+    expect(gps.cancelCount, 1);
+    expect(gps.maxActiveSubscriptions, 1);
+  });
+
+  test('runs a pending canonical sync after initial start completes', () async {
+    final availability = Completer<DriverAvailability?>();
+    final latest = Completer<SavedDriverLocation?>();
+    repository.availabilityResult = availability.future;
+    repository.latestResult = latest.future;
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    final start = controller.start();
+    await flush();
+    availability.complete(
+      const DriverAvailability(state: DriverAvailabilityState.available),
+    );
+    await flush(2);
+    repository.availabilityResult = null;
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+
+    await controller.synchronizeCanonicalState();
+    repository.latestResult = null;
+    latest.complete(null);
+    await start;
+    await flush(4);
+
+    expect(repository.availabilityCount, 2);
+    expect(gps.configurations, [
+      DriverGpsTrackingConfig.available,
+      DriverGpsTrackingConfig.activeTrip,
+    ]);
+    expect(gps.maxActiveSubscriptions, 1);
+  });
+
+  test('replaces available tracking with one active-trip stream', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+
+    await controller.synchronizeCanonicalState();
+
+    expect(gps.configurations, [
+      same(DriverGpsTrackingConfig.available),
+      same(DriverGpsTrackingConfig.activeTrip),
+    ]);
+    expect(gps.cancelCount, 1);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(connection.connectCount, 1);
+
+    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    await repository.waitForPublishes(1);
+    expect(repository.published.single.tripId, 'trip-1');
+  });
+
+  test('replaces active-trip tracking with one available stream', () async {
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.available,
+    );
+
+    await controller.synchronizeCanonicalState();
+
+    expect(gps.configurations, [
+      same(DriverGpsTrackingConfig.activeTrip),
+      same(DriverGpsTrackingConfig.available),
+    ]);
+    expect(gps.cancelCount, 1);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(connection.connectCount, 1);
+  });
+
+  test('coalesces concurrent syncs with one trailing canonical read', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final availability = Completer<DriverAvailability?>();
+    repository.availabilityResult = availability.future;
+
+    final first = controller.synchronizeCanonicalState();
+    final second = controller.synchronizeCanonicalState();
+    await flush();
+    availability.complete(
+      const DriverAvailability(
+        state: DriverAvailabilityState.onTrip,
+        activeTripId: 'trip-1',
+      ),
+    );
+    repository.availabilityResult = null;
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.reserved,
+    );
+    await Future.wait([first, second]);
+
+    expect(repository.availabilityCount, 3);
+    expect(gps.configurations, [
+      DriverGpsTrackingConfig.available,
+      DriverGpsTrackingConfig.activeTrip,
+      DriverGpsTrackingConfig.reserved,
+    ]);
+    expect(gps.listenCount, 3);
+    expect(gps.maxActiveSubscriptions, 1);
+  });
+
+  test('queues a trailing canonical sync while replacing the stream', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+    final cancellation = Completer<void>();
+    gps.cancelGate = cancellation.future;
+
+    final first = controller.synchronizeCanonicalState();
+    await flush(2);
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.reserved,
+    );
+    final second = controller.synchronizeCanonicalState();
+    cancellation.complete();
+    await Future.wait([first, second]);
+
+    expect(repository.availabilityCount, 3);
+    expect(gps.configurations, [
+      DriverGpsTrackingConfig.available,
+      DriverGpsTrackingConfig.activeTrip,
+      DriverGpsTrackingConfig.reserved,
+    ]);
+    expect(gps.maxActiveSubscriptions, 1);
+  });
+
+  test('defers reconnect recovery until canonical sync completes', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final availability = Completer<DriverAvailability?>();
+    repository.availabilityResult = availability.future;
+    final synchronization = controller.synchronizeCanonicalState();
+    await flush();
+
+    connection.emit(DriverTrackingConnectionStatus.channelError);
+    connection.emit(DriverTrackingConnectionStatus.subscribed);
+    await flush(2);
+    repository.availabilityResult = null;
+    availability.complete(repository.availability);
+    await synchronization;
+    await flush(5);
+
+    expect(repository.availabilityCount, 3);
+    expect(repository.latestCount, 2);
+    expect(gps.listenCount, 2);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(connection.connectCount, 2);
+  });
+
+  test('runs a pending canonical sync after recovery completes', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final availability = Completer<DriverAvailability?>();
+    repository.availabilityResult = availability.future;
+    final recovery = controller.recoverAfterConnectivity();
+    await flush(2);
+
+    await controller.synchronizeCanonicalState();
+    repository.availabilityResult = null;
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+    availability.complete(
+      const DriverAvailability(state: DriverAvailabilityState.available),
+    );
+    await recovery;
+    await flush(4);
+
+    expect(repository.availabilityCount, 3);
+    expect(repository.latestCount, 2);
+    expect(gps.configurations, [
+      DriverGpsTrackingConfig.available,
+      DriverGpsTrackingConfig.available,
+      DriverGpsTrackingConfig.activeTrip,
+    ]);
+    expect(gps.maxActiveSubscriptions, 1);
+  });
+
+  test('offline canonical state stops all tracking resources', () async {
+    repository.latest = _saved(4, startTime);
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.offline,
+    );
+
+    await controller.synchronizeCanonicalState();
+
+    expect(gps.listenCount, 1);
+    expect(gps.cancelCount, 1);
+    expect(gps.activeSubscriptions, 0);
+    expect(connection.disconnectCount, 1);
+    final state = container.read(driverTrackingControllerProvider);
+    expect(state.status, DriverTrackingStatus.unavailable);
+    expect(state.failure, DriverLocationFailure.ineligible);
+    expect(state.latestConfirmedAt, startTime);
+  });
+
+  test('missing canonical state stops all tracking resources', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = null;
+
+    await controller.synchronizeCanonicalState();
+
+    expect(gps.cancelCount, 1);
+    expect(gps.activeSubscriptions, 0);
+    expect(connection.disconnectCount, 1);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.unavailable);
+  });
+
+  test('eligible canonical state restarts after offline stop', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.offline,
+    );
+    await controller.synchronizeCanonicalState();
+    repository.latest = _saved(4, startTime.add(const Duration(seconds: 1)));
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.available,
+    );
+
+    await controller.synchronizeCanonicalState();
+
+    expect(repository.availabilityCount, 3);
+    expect(repository.latestCount, 2);
+    expect(gps.listenCount, 2);
+    expect(gps.cancelCount, 1);
+    expect(gps.activeSubscriptions, 1);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(connection.connectCount, 2);
+    expect(connection.disconnectCount, 1);
+    final state = container.read(driverTrackingControllerProvider);
+    expect(state.status, DriverTrackingStatus.sharing);
+    expect(state.nextSequence, 5);
+    expect(
+      state.latestConfirmedAt,
+      startTime.add(const Duration(seconds: 1)),
+    );
+  });
+
+  test('onTrip state restarts with active-trip publishing after offline stop',
+      () async {
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.offline,
+    );
+    await controller.synchronizeCanonicalState();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-2',
+    );
+
+    await controller.synchronizeCanonicalState();
+    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    await repository.waitForPublishes(1);
+
+    expect(gps.configurations, [
+      DriverGpsTrackingConfig.activeTrip,
+      DriverGpsTrackingConfig.activeTrip,
+    ]);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(repository.published.single.tripId, 'trip-2');
+  });
+
+  test('foreground return stays stopped while canonical state is offline',
+      () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.offline,
+    );
+    await controller.synchronizeCanonicalState();
+
+    lifecycle.emit(DriverTrackingLifecycleState.background);
+    await flush();
+    lifecycle.emit(DriverTrackingLifecycleState.foreground);
+    await flush(3);
+
+    expect(gps.listenCount, 1);
+    expect(gps.activeSubscriptions, 0);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.unavailable);
+
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.reserved,
+    );
+    await controller.synchronizeCanonicalState();
+
+    expect(gps.listenCount, 2);
+    expect(gps.activeSubscriptions, 1);
+    expect(gps.maxActiveSubscriptions, 1);
+  });
+
+  test('explicit Stop prevents canonical state from restarting tracking',
+      () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    await controller.stop();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+
+    await controller.synchronizeCanonicalState();
+
+    expect(gps.listenCount, 1);
+    expect(gps.activeSubscriptions, 0);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.stopped);
+  });
+
+  test('rapid offline to eligible sync restarts only one stream', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.offline,
+    );
+    final cancellation = Completer<void>();
+    gps.cancelGate = cancellation.future;
+
+    final offline = controller.synchronizeCanonicalState();
+    await flush(2);
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+    final eligible = controller.synchronizeCanonicalState();
+    cancellation.complete();
+    await Future.wait([offline, eligible]);
+
+    expect(repository.availabilityCount, 3);
+    expect(gps.listenCount, 2);
+    expect(gps.activeSubscriptions, 1);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(connection.connectCount, 2);
+    expect(connection.disconnectCount, 1);
+    expect(gps.configurations.last, same(DriverGpsTrackingConfig.activeTrip));
+  });
+
+  test('exposes replacement failure and allows a later canonical retry',
+      () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+    gps.foregroundError = StateError('provider');
+
+    await controller.synchronizeCanonicalState();
+
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.unavailable);
+    expect(gps.activeSubscriptions, 0);
+
+    gps.foregroundError = null;
+    await controller.synchronizeCanonicalState();
+
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.sharing);
+    expect(gps.activeSubscriptions, 1);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(gps.configurations.last, same(DriverGpsTrackingConfig.activeTrip));
   });
 
   test('publishes valid fixes sequentially after the saved maximum', () async {
@@ -127,10 +677,17 @@ void main() {
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
     await controller.start();
-    final first = _fix(startTime.add(const Duration(seconds: 1)));
-    final second = _fix(startTime.add(const Duration(seconds: 2)));
+    final first = _fix(
+      startTime.add(const Duration(seconds: 30)),
+      latitude: 31.964158,
+    );
+    final second = _fix(
+      startTime.add(const Duration(seconds: 60)),
+      latitude: 31.965158,
+    );
 
     gps.add(first);
+    await repository.waitForAttempts(1);
     gps.add(second);
     await repository.waitForPublishes(2);
 
@@ -150,10 +707,74 @@ void main() {
 
     gps.add(missingAccuracy);
     gps.add(_fix(startTime));
-    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    await flush(2);
+
+    expect(repository.publishAttempts, 0);
+    expect(container.read(driverTrackingControllerProvider).latestConfirmedAt,
+        startTime);
+
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 30)),
+      latitude: 31.964158,
+    ));
     await repository.waitForPublishes(1);
 
     expect(repository.published.map((sample) => sample.sequence), [4]);
+  });
+
+  test('expired and future readings preserve canonical state until recovery',
+      () async {
+    repository.latest = _saved(4, startTime);
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    gps.add(_fix(startTime.subtract(const Duration(minutes: 14))));
+    gps.add(_fix(startTime.add(const Duration(minutes: 8))));
+    await flush(2);
+
+    expect(repository.publishAttempts, 0);
+    expect(container.read(driverTrackingControllerProvider).latestConfirmedAt,
+        startTime);
+
+    final recovered = _fix(
+      startTime.add(const Duration(minutes: 3)),
+      latitude: 31.964158,
+    );
+    gps.add(recovered);
+    await repository.waitForPublishes(1);
+
+    expect(repository.published.single.recordedAt, recovered.recordedAt);
+    expect(repository.published.single.sequence, 5);
+  });
+
+  test('temporary inaccuracy cannot replace the last valid canonical fix',
+      () async {
+    repository.latest = _saved(4, startTime);
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 30)),
+      latitude: 31.964158,
+      accuracyMeters: 500,
+    ));
+    await flush(2);
+
+    expect(repository.publishAttempts, 0);
+    expect(container.read(driverTrackingControllerProvider).latestConfirmedAt,
+        startTime);
+
+    final recovered = _fix(
+      startTime.add(const Duration(seconds: 60)),
+      latitude: 31.964158,
+    );
+    gps.add(recovered);
+    await repository.waitForPublishes(1);
+
+    expect(repository.published.single.recordedAt, recovered.recordedAt);
+    expect(repository.published.single.point.accuracyMeters, 6);
   });
 
   test('ignores a fix with the same timestamp as the latest accepted fix',
@@ -170,9 +791,151 @@ void main() {
     expect(repository.published, isEmpty);
   });
 
+  test('does not publish duplicate location content', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    await repository.waitForPublishes(1);
+    gps.add(_fix(startTime.add(const Duration(seconds: 31))));
+    await flush(2);
+
+    expect(repository.publishAttempts, 1);
+    expect(repository.published, hasLength(1));
+  });
+
+  test('suppresses available jitter but permits a bounded heartbeat', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final first = _fix(startTime.add(const Duration(seconds: 1)));
+    final heartbeat = _fix(startTime.add(const Duration(seconds: 121)));
+
+    gps.add(first);
+    await repository.waitForPublishes(1);
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 31)),
+      accuracyMeters: 12,
+      headingDegrees: 180,
+      speedMetersPerSecond: 8,
+    ));
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 61)),
+      latitude: 31.963358,
+    ));
+    await flush(2);
+
+    expect(repository.publishAttempts, 1);
+    expect(repository.availabilityCount, 1);
+    expect(repository.latestCount, 1);
+
+    gps.add(heartbeat);
+    await repository.waitForPublishes(2);
+
+    expect(repository.published.map((sample) => sample.recordedAt), [
+      first.recordedAt,
+      heartbeat.recordedAt,
+    ]);
+  });
+
+  test('preserves meaningful active-trip movement updates', () async {
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final first = _fix(startTime.add(const Duration(seconds: 1)));
+    final moved = _fix(
+      startTime.add(const Duration(seconds: 11)),
+      latitude: 31.963258,
+    );
+
+    gps.add(first);
+    await repository.waitForPublishes(1);
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 6)),
+      latitude: 31.963208,
+    ));
+    await flush(2);
+    expect(repository.publishAttempts, 1);
+    gps.add(moved);
+    await repository.waitForPublishes(2);
+
+    expect(repository.published.map((sample) => sample.recordedAt), [
+      first.recordedAt,
+      moved.recordedAt,
+    ]);
+    expect(repository.published.last.tripId, 'trip-1');
+  });
+
+  test('coalesces queued fixes to the latest location', () async {
+    final publishGate = Completer<void>();
+    repository.publishGate = publishGate.future;
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    final first = _fix(
+      startTime.add(const Duration(seconds: 1)),
+      latitude: 31.963158,
+    );
+    final second = _fix(
+      startTime.add(const Duration(seconds: 31)),
+      latitude: 31.964158,
+    );
+    final latest = _fix(
+      startTime.add(const Duration(seconds: 61)),
+      latitude: 31.965158,
+    );
+    gps.add(first);
+    await repository.waitForAttempts(1);
+    gps.add(second);
+    gps.add(latest);
+    publishGate.complete();
+    await repository.waitForPublishes(2);
+
+    expect(repository.publishAttempts, 2);
+    expect(repository.published.map((sample) => sample.recordedAt), [
+      first.recordedAt,
+      latest.recordedAt,
+    ]);
+  });
+
+  test('out-of-order callback cannot replace a newer queued fix', () async {
+    final publishGate = Completer<void>();
+    repository.publishGate = publishGate.future;
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final first = _fix(startTime.add(const Duration(seconds: 1)));
+    final newer = _fix(
+      startTime.add(const Duration(seconds: 61)),
+      latitude: 31.964158,
+    );
+
+    gps.add(first);
+    await repository.waitForAttempts(1);
+    gps.add(newer);
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 31)),
+      latitude: 31.965158,
+    ));
+    publishGate.complete();
+    await repository.waitForPublishes(2);
+
+    expect(repository.publishAttempts, 2);
+    expect(repository.published.map((sample) => sample.recordedAt), [
+      first.recordedAt,
+      newer.recordedAt,
+    ]);
+  });
+
   test('stops and exposes a sanitized publish failure', () async {
     repository.publishError = const DriverLocationException(
-      DriverLocationFailure.staleSequence,
+      DriverLocationFailure.networkFailure,
     );
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
@@ -184,8 +947,39 @@ void main() {
 
     final state = container.read(driverTrackingControllerProvider);
     expect(state.status, DriverTrackingStatus.unavailable);
-    expect(state.failure, DriverLocationFailure.staleSequence);
+    expect(state.failure, DriverLocationFailure.networkFailure);
     expect(gps.cancelCount, 1);
+  });
+
+  test('stale sequence rejection refetches canonical sequence', () async {
+    final publishGate = Completer<void>();
+    repository.publishGate = publishGate.future;
+    repository.publishError = const DriverLocationException(
+      DriverLocationFailure.staleSequence,
+    );
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    await repository.waitForAttempts(1);
+    repository.latest = _saved(10, startTime.add(const Duration(seconds: 2)));
+    publishGate.complete();
+    await flush(5);
+
+    expect(repository.availabilityCount, 2);
+    expect(repository.latestCount, 2);
+    expect(gps.listenCount, 2);
+
+    repository.publishError = null;
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 32)),
+      latitude: 31.964158,
+    ));
+    await repository.waitForPublishes(1);
+
+    expect(repository.published.single.sequence, 11);
+    expect(repository.publishAttempts, 2);
   });
 
   test('stop and restart discard queued fixes from the old session', () async {
@@ -196,18 +990,24 @@ void main() {
 
     await controller.start();
     gps.add(_fix(startTime.add(const Duration(seconds: 1))));
-    gps.add(_fix(startTime.add(const Duration(seconds: 2))));
     await repository.waitForAttempts(1);
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 21)),
+      latitude: 31.963258,
+    ));
     await controller.stop();
     await controller.start();
-    gps.add(_fix(startTime.add(const Duration(seconds: 3))));
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 41)),
+      latitude: 31.963358,
+    ));
     publishGate.complete();
     await repository.waitForPublishes(2);
 
     expect(repository.publishAttempts, 2);
     expect(repository.published.map((sample) => sample.recordedAt), [
       startTime.add(const Duration(seconds: 1)),
-      startTime.add(const Duration(seconds: 3)),
+      startTime.add(const Duration(seconds: 41)),
     ]);
     expect(container.read(driverTrackingControllerProvider).status,
         DriverTrackingStatus.sharing);
@@ -286,7 +1086,7 @@ void main() {
   test('recovery uses the higher canonical sequence without replaying failure',
       () async {
     repository.publishError = const DriverLocationException(
-      DriverLocationFailure.unavailable,
+      DriverLocationFailure.networkFailure,
     );
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
@@ -299,7 +1099,10 @@ void main() {
     repository.publishError = null;
     repository.latest = _saved(10, startTime.add(const Duration(seconds: 2)));
     await controller.recoverAfterConnectivity();
-    gps.add(_fix(startTime.add(const Duration(seconds: 3))));
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 32)),
+      latitude: 31.964158,
+    ));
     await repository.waitForPublishes(1);
 
     expect(repository.published.single.sequence, 11);
@@ -309,7 +1112,7 @@ void main() {
 
   test('repeated recovery signals coalesce to one canonical restart', () async {
     repository.publishError = const DriverLocationException(
-      DriverLocationFailure.unavailable,
+      DriverLocationFailure.networkFailure,
     );
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
@@ -349,19 +1152,53 @@ void main() {
   });
 
   test('disconnect followed by resubscribe recovers once', () async {
+    repository.latest = _saved(7, startTime);
+    final cancellation = Completer<void>();
+    gps.cancelGate = cancellation.future;
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
     await controller.start();
     connection.emit(DriverTrackingConnectionStatus.subscribed);
     await flush();
     connection.emit(DriverTrackingConnectionStatus.channelError);
+    await flush(2);
+
+    final disconnected = container.read(driverTrackingControllerProvider);
+    expect(disconnected.status, DriverTrackingStatus.unavailable);
+    expect(disconnected.failure, DriverLocationFailure.networkFailure);
+    expect(disconnected.latestConfirmedAt, repository.latest!.receivedAt);
+
     connection.emit(DriverTrackingConnectionStatus.subscribed);
+    await flush(2);
+    expect(gps.listenCount, 1);
+
+    cancellation.complete();
     await flush(4);
 
     expect(repository.availabilityCount, 2);
     expect(repository.latestCount, 2);
     expect(gps.listenCount, 2);
     expect(connection.connectCount, 2);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.sharing);
+  });
+
+  test('manual retry replaces an unavailable connection once', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    connection.emit(DriverTrackingConnectionStatus.channelError);
+    await flush(2);
+
+    await controller.start();
+
+    expect(connection.disconnectCount, 1);
+    expect(connection.connectCount, 2);
+    expect(gps.listenCount, 2);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.sharing);
   });
 
   test('repeated connection statuses do not duplicate recovery', () async {
@@ -454,13 +1291,22 @@ Future<void> flush([int count = 1]) async {
   }
 }
 
-DriverLocationFix _fix(DateTime recordedAt) => DriverLocationFix(
+DriverLocationFix _fix(
+  DateTime recordedAt, {
+  double latitude = 31.963158,
+  double accuracyMeters = 6,
+  double? headingDegrees,
+  double? speedMetersPerSecond,
+}) =>
+    DriverLocationFix(
       point: LocationPoint(
-        latitude: 31.963158,
+        latitude: latitude,
         longitude: 35.930359,
-        accuracyMeters: 6,
+        accuracyMeters: accuracyMeters,
       ),
       recordedAt: recordedAt,
+      headingDegrees: headingDegrees,
+      speedMetersPerSecond: speedMetersPerSecond,
     );
 
 SavedDriverLocation _saved(int sequence, DateTime recordedAt) =>
@@ -477,22 +1323,98 @@ SavedDriverLocation _saved(int sequence, DateTime recordedAt) =>
 
 class FakeDriverGpsStreamService implements DriverGpsStreamService {
   StreamController<DriverLocationFix>? _controller;
+  final configurations = <DriverGpsTrackingConfig>[];
+  Object? foregroundError;
+  Future<void>? cancelGate;
   int listenCount = 0;
   int cancelCount = 0;
+  int activeSubscriptions = 0;
+  int maxActiveSubscriptions = 0;
 
   @override
-  Stream<DriverLocationFix> foregroundFixes() {
+  Stream<DriverLocationFix> foregroundFixes(DriverGpsTrackingConfig config) {
+    configurations.add(config);
     listenCount++;
+    if (foregroundError case final error?) throw error;
     final controller = StreamController<DriverLocationFix>.broadcast(
-      onCancel: () {
-        cancelCount++;
+      onListen: () {
+        activeSubscriptions++;
+        if (activeSubscriptions > maxActiveSubscriptions) {
+          maxActiveSubscriptions = activeSubscriptions;
+        }
       },
     );
     _controller = controller;
-    return controller.stream;
+    return _CancelAwareStream(controller.stream, () async {
+      cancelCount++;
+      await cancelGate;
+      activeSubscriptions--;
+    });
   }
 
   void add(DriverLocationFix fix) => _controller!.add(fix);
+}
+
+class _CancelAwareStream<T> extends Stream<T> {
+  _CancelAwareStream(this._source, this._onCancel);
+
+  final Stream<T> _source;
+  final Future<void> Function() _onCancel;
+
+  @override
+  StreamSubscription<T> listen(
+    void Function(T event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    return _CancelAwareSubscription(
+      _source.listen(
+        onData,
+        onError: onError,
+        onDone: onDone,
+        cancelOnError: cancelOnError,
+      ),
+      _onCancel,
+    );
+  }
+}
+
+class _CancelAwareSubscription<T> implements StreamSubscription<T> {
+  _CancelAwareSubscription(this._source, this._onCancel);
+
+  final StreamSubscription<T> _source;
+  final Future<void> Function() _onCancel;
+  Future<void>? _cancellation;
+
+  @override
+  Future<void> cancel() => _cancellation ??= _cancel();
+
+  Future<void> _cancel() async {
+    await _onCancel();
+    await _source.cancel();
+  }
+
+  @override
+  bool get isPaused => _source.isPaused;
+
+  @override
+  void onData(void Function(T data)? handleData) => _source.onData(handleData);
+
+  @override
+  void onDone(void Function()? handleDone) => _source.onDone(handleDone);
+
+  @override
+  void onError(Function? handleError) => _source.onError(handleError);
+
+  @override
+  void pause([Future<void>? resumeSignal]) => _source.pause(resumeSignal);
+
+  @override
+  void resume() => _source.resume();
+
+  @override
+  Future<E> asFuture<E>([E? futureValue]) => _source.asFuture(futureValue);
 }
 
 class FakeDriverTrackingLifecycle implements DriverTrackingLifecycle {
@@ -515,6 +1437,8 @@ class FakeDriverTrackingConnection implements DriverTrackingConnection {
   int disconnectCount = 0;
   int disposeCount = 0;
   int generation = 0;
+  Object? connectError;
+  Object? disconnectError;
 
   @override
   Stream<DriverTrackingConnectionEvent> get events => _controller.stream;
@@ -522,6 +1446,7 @@ class FakeDriverTrackingConnection implements DriverTrackingConnection {
   @override
   Future<int> connect() async {
     connectCount++;
+    if (connectError case final error?) throw error;
     generation++;
     return generation;
   }
@@ -529,6 +1454,7 @@ class FakeDriverTrackingConnection implements DriverTrackingConnection {
   @override
   Future<void> disconnect() async {
     disconnectCount++;
+    if (disconnectError case final error?) throw error;
   }
 
   void emit(DriverTrackingConnectionStatus status) =>
@@ -555,6 +1481,7 @@ class FakeTrackingRepository implements DriverLocationRepository {
   Object? publishError;
   Future<void>? publishGate;
   Future<DriverAvailability?>? availabilityResult;
+  Future<SavedDriverLocation?>? latestResult;
   final published = <DriverLocationSample>[];
   final _publishWaiters = <int, Completer<void>>{};
   final _attemptWaiters = <int, Completer<void>>{};
@@ -587,7 +1514,7 @@ class FakeTrackingRepository implements DriverLocationRepository {
   @override
   Future<SavedDriverLocation?> fetchLatestLocation() async {
     latestCount++;
-    return latest;
+    return latestResult ?? latest;
   }
 
   @override

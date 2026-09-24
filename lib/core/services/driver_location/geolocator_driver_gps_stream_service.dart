@@ -4,39 +4,64 @@ import 'package:geolocator/geolocator.dart';
 import 'package:ridex/core/errors/driver_location_exception.dart';
 import 'package:ridex/core/models/driver_location.dart';
 import 'package:ridex/core/models/location_point.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 import 'package:ridex/core/services/driver_location/driver_gps_stream_service.dart';
 
 class GeolocatorDriverGpsStreamService implements DriverGpsStreamService {
   GeolocatorDriverGpsStreamService({
+    required AppErrorReporter errorReporter,
     Stream<Position> Function(LocationSettings settings)? positionStream,
-    this.locationSettings = const LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 0,
-    ),
-  }) : _positionStream = positionStream ??
+  })  : _errorReporter = errorReporter,
+        _positionStream = positionStream ??
             ((settings) =>
                 Geolocator.getPositionStream(locationSettings: settings));
 
   final Stream<Position> Function(LocationSettings settings) _positionStream;
-  final LocationSettings locationSettings;
+  final AppErrorReporter _errorReporter;
 
   @override
-  Stream<DriverLocationFix> foregroundFixes() =>
-      _positionStream(locationSettings).transform(
+  Stream<DriverLocationFix> foregroundFixes(DriverGpsTrackingConfig config) {
+    try {
+      return _positionStream(
+        LocationSettings(
+          accuracy: switch (config.accuracy) {
+            DriverGpsAccuracy.low => LocationAccuracy.low,
+            DriverGpsAccuracy.medium => LocationAccuracy.medium,
+            DriverGpsAccuracy.high => LocationAccuracy.high,
+          },
+          distanceFilter: config.distanceFilterMeters,
+        ),
+      ).transform(
         StreamTransformer<Position, DriverLocationFix>.fromHandlers(
           handleData: (position, sink) {
             final fix = _mapPosition(position);
             if (fix != null) sink.add(fix);
           },
           handleError: (error, stackTrace, sink) {
+            _errorReporter.report(
+              operation: 'reading the driver GPS stream',
+              error: error,
+              stackTrace: stackTrace,
+            );
             sink.addError(
               const DriverLocationException(
-                DriverLocationFailure.unavailable,
+                DriverLocationFailure.gpsUnavailable,
               ),
             );
           },
         ),
       );
+    } on Object catch (error, stackTrace) {
+      _errorReporter.report(
+        operation: 'starting the driver GPS stream',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return Stream<DriverLocationFix>.error(
+        const DriverLocationException(DriverLocationFailure.gpsUnavailable),
+      );
+    }
+  }
 
   DriverLocationFix? _mapPosition(Position position) {
     try {

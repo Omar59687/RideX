@@ -69,8 +69,7 @@ class _DestinationSelectionScreenState
             pickup: draft.pickup,
             destination: draft.destination,
             currentLocation: current,
-            routeGeometry:
-                route.isReadyFor(draft) ? route.result!.geometry : const [],
+            routeGeometry: route.resultFor(draft)?.geometry ?? const [],
             onPointSelected: (point) => selectionController.selectPoint(
               point,
               source: LocationSelectionSource.map,

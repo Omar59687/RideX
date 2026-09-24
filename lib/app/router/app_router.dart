@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:ridex/app/router/route_guards.dart';
 import 'package:ridex/app/router/route_names.dart';
 import 'package:ridex/app/theme/app_motion.dart';
+import 'package:ridex/core/providers/diagnostics_providers.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/account_blocked_screen.dart';
@@ -168,11 +170,68 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/driver/completed',
           builder: (_, __) => const TripCompletionScreen(isDriverView: true)),
     ],
-    errorBuilder: (context, state) => Scaffold(
-      body: Center(child: Text('Route error: ${state.error}')),
+    errorBuilder: (context, state) => NavigationErrorScreen(
+      error: state.error,
+      errorReporter: ref.read(appErrorReporterProvider),
     ),
   );
 });
+
+class NavigationErrorScreen extends StatefulWidget {
+  const NavigationErrorScreen({
+    super.key,
+    required this.error,
+    required this.errorReporter,
+  });
+
+  final Object? error;
+  final AppErrorReporter errorReporter;
+
+  @override
+  State<NavigationErrorScreen> createState() => _NavigationErrorScreenState();
+}
+
+class _NavigationErrorScreenState extends State<NavigationErrorScreen> {
+  @override
+  void initState() {
+    super.initState();
+    final error = widget.error;
+    if (error != null) {
+      widget.errorReporter.report(
+        operation: 'opening an application route',
+        error: error,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "We couldn't open this page",
+                  style: Theme.of(context).textTheme.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Return to the previous screen and try again.',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 String? _otpPhoneFromState(GoRouterState state) {
   final extra = state.extra;

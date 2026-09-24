@@ -5,6 +5,8 @@ import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/repositories/google_place_repository.dart';
 import 'package:ridex/core/services/places/place_service.dart';
 
+import 'helpers/recording_error_reporter.dart';
+
 void main() {
   test('parses predictions and selected place coordinates', () async {
     final service = _FakeService();
@@ -53,6 +55,7 @@ void main() {
   });
 
   test('rejects invalid provider coordinates with sanitized failure', () async {
+    final reporter = RecordingAppErrorReporter();
     final service = _FakeService()
       ..details = {
         'place': {
@@ -62,14 +65,17 @@ void main() {
           'location': {'latitude': 100, 'longitude': 0},
         }
       };
-    final repository = GooglePlaceRepository(service);
+    final repository = GooglePlaceRepository(
+      service,
+      errorReporter: reporter,
+    );
     final prediction = (await repository.autocomplete(
       query: 'Invalid',
       sessionToken: 'session-token-1234567890',
     ))
         .single;
-    expect(
-      () => repository.resolvePrediction(
+    await expectLater(
+      repository.resolvePrediction(
         prediction: prediction,
         sessionToken: 'session-token-1234567890',
       ),
@@ -81,6 +87,8 @@ void main() {
         ),
       ),
     );
+    expect(reporter.reports, hasLength(1));
+    expect(reporter.reports.single.error, isA<PlaceException>());
   });
 }
 

@@ -4,6 +4,7 @@ import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/place_selection_state.dart';
 import 'package:ridex/core/providers/location_providers.dart';
+import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/widgets/google_location_selection_map.dart';
 import 'package:ridex/core/widgets/map_placeholder.dart';
 
@@ -19,6 +20,7 @@ typedef LocationSelectionMapBuilder = Widget Function(
 
 final locationSelectionMapBuilderProvider =
     Provider<LocationSelectionMapBuilder>((ref) {
+  final errorReporter = ref.watch(appErrorReporterProvider);
   return (
     context, {
     required activeEndpoint,
@@ -35,6 +37,7 @@ final locationSelectionMapBuilderProvider =
       currentLocation: currentLocation,
       routeGeometry: routeGeometry,
       onPointSelected: onPointSelected,
+      errorReporter: errorReporter,
     );
   };
 });

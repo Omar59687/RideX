@@ -6,6 +6,8 @@ import 'package:ridex/core/models/route_models.dart';
 import 'package:ridex/core/repositories/google_route_repository.dart';
 import 'package:ridex/core/services/routes/route_service.dart';
 
+import 'helpers/recording_error_reporter.dart';
+
 void main() {
   final origin = LocationPoint(latitude: 38.5, longitude: -120.2);
   final destination = LocationPoint(latitude: 43.252, longitude: -126.453);
@@ -98,12 +100,14 @@ void main() {
   });
 
   test('rejects malformed provider responses', () async {
+    final reporter = RecordingAppErrorReporter();
     final repository = GoogleRouteRepository(
       _FakeRouteService(const {
         'encodedPolyline': '_',
         'distanceMeters': 0,
         'durationSeconds': 10,
       }),
+      errorReporter: reporter,
     );
 
     await expectLater(
@@ -118,6 +122,7 @@ void main() {
         ),
       ),
     );
+    expect(reporter.reports, hasLength(1));
   });
 }
 

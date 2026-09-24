@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/app/theme/app_theme.dart';
+import 'package:ridex/core/errors/driver_location_exception.dart';
 import 'package:ridex/core/models/current_location_state.dart';
 import 'package:ridex/core/models/driver_availability.dart';
 import 'package:ridex/core/models/driver_location.dart';
@@ -17,6 +18,8 @@ import 'package:ridex/core/repositories/location_repository.dart';
 import 'package:ridex/core/services/driver_location/driver_gps_stream_service.dart';
 import 'package:ridex/core/services/driver_location/driver_tracking_connection.dart';
 import 'package:ridex/features/driver_home/presentation/screens/driver_home_screen.dart';
+
+import 'helpers/recording_error_reporter.dart';
 
 void main() {
   late FakeLocationRepository location;
@@ -170,6 +173,46 @@ void main() {
     expect(find.textContaining('Last server-confirmed location: 2m ago'),
         findsOneWidget);
   });
+
+  testWidgets('shows a recoverable network failure without losing metadata',
+      (tester) async {
+    final now = DateTime.now().toUtc();
+    driver
+      ..latest = SavedDriverLocation(
+        point: LocationPoint(
+          latitude: 31.9,
+          longitude: 35.9,
+          accuracyMeters: 5,
+        ),
+        sequence: 1,
+        recordedAt: now.subtract(const Duration(minutes: 1)),
+        receivedAt: now.subtract(const Duration(seconds: 10)),
+      )
+      ..publishError = const DriverLocationException(
+        DriverLocationFailure.networkFailure,
+      );
+    await pumpSubject(tester);
+    await tapButton(tester, 'Start sharing');
+
+    gps.add(DriverLocationFix(
+      point: LocationPoint(
+        latitude: 31.91,
+        longitude: 35.91,
+        accuracyMeters: 5,
+      ),
+      recordedAt: now,
+    ));
+    await pumpUntil(
+      tester,
+      () => trackingState.failure == DriverLocationFailure.networkFailure,
+    );
+
+    expect(find.textContaining('Network connection was lost'), findsOneWidget);
+    expect(
+        find.textContaining('Last server-confirmed location:'), findsOneWidget);
+    expect(find.text('Start sharing'), findsOneWidget);
+    expect(find.textContaining(rawErrorCanary), findsNothing);
+  });
 }
 
 class _TrackingObserver extends ProviderObserver {
@@ -220,6 +263,7 @@ class FakeDriverRepository implements DriverLocationRepository {
     state: DriverAvailabilityState.available,
   );
   SavedDriverLocation? latest;
+  Object? publishError;
 
   @override
   Future<DriverAvailability?> fetchAvailability() async => availability;
@@ -229,6 +273,7 @@ class FakeDriverRepository implements DriverLocationRepository {
 
   @override
   Future<SavedDriverLocation> publish(DriverLocationSample sample) async {
+    if (publishError case final error?) throw error;
     return SavedDriverLocation(
       point: sample.point,
       sequence: sample.sequence,
@@ -239,8 +284,13 @@ class FakeDriverRepository implements DriverLocationRepository {
 }
 
 class FakeGpsService implements DriverGpsStreamService {
+  final _controller = StreamController<DriverLocationFix>.broadcast();
+
   @override
-  Stream<DriverLocationFix> foregroundFixes() => const Stream.empty();
+  Stream<DriverLocationFix> foregroundFixes(DriverGpsTrackingConfig config) =>
+      _controller.stream;
+
+  void add(DriverLocationFix fix) => _controller.add(fix);
 }
 
 class FakeLifecycle implements DriverTrackingLifecycle {

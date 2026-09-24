@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:ridex/core/models/location_point.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
+import 'package:ridex/core/services/maps/ride_map_service.dart';
 
 class GoogleCurrentLocationMap extends StatefulWidget {
-  const GoogleCurrentLocationMap({super.key, required this.point});
+  const GoogleCurrentLocationMap({
+    super.key,
+    required this.point,
+    required this.errorReporter,
+  });
 
   final LocationPoint? point;
+  final AppErrorReporter errorReporter;
 
   @override
   State<GoogleCurrentLocationMap> createState() =>
@@ -69,11 +76,17 @@ class _GoogleCurrentLocationMapState extends State<GoogleCurrentLocationMap> {
   }
 
   Future<void> _moveTo(LocationPoint point) async {
-    await _controller?.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(
-          target: LatLng(point.latitude, point.longitude),
-          zoom: 16,
+    final controller = _controller;
+    if (controller == null) return;
+    await runMapCameraOperation(
+      operation: 'moving the current-location map camera',
+      errorReporter: widget.errorReporter,
+      action: () => controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(point.latitude, point.longitude),
+            zoom: 16,
+          ),
         ),
       ),
     );

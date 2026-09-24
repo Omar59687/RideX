@@ -2,13 +2,15 @@ import 'package:ridex/core/errors/driver_location_exception.dart';
 import 'package:ridex/core/models/driver_availability.dart';
 import 'package:ridex/core/models/driver_location.dart';
 import 'package:ridex/core/models/location_point.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 import 'package:ridex/core/services/driver_location/driver_location_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseDriverLocationService implements DriverLocationService {
-  const SupabaseDriverLocationService(this._client);
+  const SupabaseDriverLocationService(this._client, this._errorReporter);
 
   final SupabaseClient _client;
+  final AppErrorReporter _errorReporter;
 
   @override
   Future<DriverAvailability?> fetchAvailability() async {
@@ -19,9 +21,11 @@ class SupabaseDriverLocationService implements DriverLocationService {
           .eq('driver_id', _driverId)
           .maybeSingle();
       return row == null ? null : availabilityFromRow(row);
-    } on DriverLocationException {
+    } on DriverLocationException catch (error, stackTrace) {
+      _reportInvalidData(error, stackTrace);
       rethrow;
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
+      _report('loading driver availability', error, stackTrace);
       throw DriverLocationException(_failureFor(error));
     }
   }
@@ -40,9 +44,11 @@ class SupabaseDriverLocationService implements DriverLocationService {
           .limit(1)
           .maybeSingle();
       return row == null ? null : savedLocationFromRow(row);
-    } on DriverLocationException {
+    } on DriverLocationException catch (error, stackTrace) {
+      _reportInvalidData(error, stackTrace);
       rethrow;
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
+      _report('loading the latest driver location', error, stackTrace);
       throw DriverLocationException(_failureFor(error));
     }
   }
@@ -59,9 +65,11 @@ class SupabaseDriverLocationService implements DriverLocationService {
         throw const DriverLocationException(DriverLocationFailure.invalidData);
       }
       return savedLocationFromRow(row);
-    } on DriverLocationException {
+    } on DriverLocationException catch (error, stackTrace) {
+      _reportInvalidData(error, stackTrace);
       rethrow;
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
+      _report('publishing driver location', error, stackTrace);
       throw DriverLocationException(_failureFor(error));
     }
   }
@@ -168,9 +176,25 @@ class SupabaseDriverLocationService implements DriverLocationService {
         '42501' || 'PGRST301' => DriverLocationFailure.unauthorized,
         '23505' => DriverLocationFailure.staleSequence,
         '22023' || '55000' => DriverLocationFailure.ineligible,
-        _ => DriverLocationFailure.unavailable,
+        _ => DriverLocationFailure.networkFailure,
       };
     }
-    return DriverLocationFailure.unavailable;
+    return DriverLocationFailure.networkFailure;
+  }
+
+  void _report(String operation, Object error, StackTrace stackTrace) {
+    _errorReporter.report(
+      operation: operation,
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
+
+  void _reportInvalidData(
+    DriverLocationException error,
+    StackTrace stackTrace,
+  ) {
+    if (error.failure != DriverLocationFailure.invalidData) return;
+    _report('parsing driver location data', error, stackTrace);
   }
 }

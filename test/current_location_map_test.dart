@@ -8,10 +8,12 @@ import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/providers/location_providers.dart';
 import 'package:ridex/core/services/maps/ride_map_service.dart';
 import 'package:ridex/core/widgets/ride_current_location_map.dart';
+import 'package:ridex/features/booking/presentation/screens/pickup_selection_screen.dart';
 import 'package:ridex/features/driver_home/presentation/screens/driver_home_screen.dart';
 import 'package:ridex/features/rider_home/presentation/widgets/home_map_header.dart';
 
 import 'helpers/fake_location.dart';
+import 'helpers/recording_error_reporter.dart';
 
 void main() {
   testWidgets('keeps the map surface usable without configuration',
@@ -57,6 +59,7 @@ void main() {
         findsOneWidget);
     expect(find.text('App settings'), findsOneWidget);
     expect(find.textContaining('raw'), findsNothing);
+    expect(find.textContaining(rawErrorCanary), findsNothing);
 
     await tester.tap(find.text('App settings'));
     await tester.pump();
@@ -96,9 +99,18 @@ void main() {
       const CurrentLocationState(
         status: CurrentLocationStatus.unavailable,
         permission: LocationPermissionStatus.granted,
-        failure: LocationFailure.unavailable,
+        failure: LocationFailure.gpsUnavailable,
       ),
-      const ValueKey('current-location-unavailable'),
+      const ValueKey('current-location-gps-unavailable'),
+    ),
+    (
+      'location not found',
+      const CurrentLocationState(
+        status: CurrentLocationStatus.unavailable,
+        permission: LocationPermissionStatus.granted,
+        failure: LocationFailure.locationNotFound,
+      ),
+      const ValueKey('current-location-not-found'),
     ),
   ];
 
@@ -117,6 +129,46 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('pickup distinguishes not-found and last-known location states',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    final notFound = FakeLocationRepository(
+      inspectedState: const CurrentLocationState(
+        status: CurrentLocationStatus.unavailable,
+        permission: LocationPermissionStatus.granted,
+        failure: LocationFailure.locationNotFound,
+      ),
+    );
+
+    await tester.pumpWidget(_testPickupApp(notFound));
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      find.text('Current location not found. Search or select manually.'),
+      findsOneWidget,
+    );
+    expect(find.text('Try again'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    final lastKnown = FakeLocationRepository(
+      inspectedState: CurrentLocationState(
+        status: CurrentLocationStatus.unavailable,
+        permission: LocationPermissionStatus.granted,
+        point: LocationPoint(latitude: 31.95, longitude: 35.91),
+        failure: LocationFailure.gpsUnavailable,
+      ),
+    );
+
+    await tester.pumpWidget(_testPickupApp(lastKnown));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Use last known location'), findsOneWidget);
+  });
 
   testWidgets('Rider and Driver home use the shared current-location map',
       (tester) async {
@@ -188,6 +240,16 @@ Widget _testMapApp(FakeLocationRepository repository) {
           semanticLabel: 'Test map',
         ),
       ),
+    ),
+  );
+}
+
+Widget _testPickupApp(FakeLocationRepository repository) {
+  return ProviderScope(
+    overrides: _mapOverrides(repository),
+    child: MaterialApp(
+      theme: AppTheme.light(),
+      home: const PickupSelectionScreen(),
     ),
   );
 }

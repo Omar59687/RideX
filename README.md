@@ -21,16 +21,30 @@ profile roles, blocked state, driver approval, and sign-out use the real backend
 Without configuration, deterministic mock authentication and profile repositories
 keep local development and tests self-contained.
 
-Phone OTP, continuous Driver tracking, booking/history persistence, card payments,
+Phone OTP, Rider live-trip tracking, booking/history persistence, card payments,
 promotions, rewards, calls/messages, safety services, notification delivery,
 saved-place persistence, and rating persistence are not production integrations.
 The UI presents these as disabled, Coming soon, session-local, or explicit demo
 behavior.
 
 Google Maps/GPS and place-search/geocoding foundations are implemented and
-Checkpoints 4A, 4B, and 4C are approved. Checkpoint 4C verification includes the
+Checkpoints 4A through 4E are approved. Checkpoint 4C verification includes the
 deployed authenticated Google route and physical Android polyline, metrics, and
-recalculation behavior. Continuous Driver tracking remains later Phase 4 work.
+recalculation behavior. Checkpoint 4D provides explicit foreground Driver
+location sharing, canonical hosted persistence, and lifecycle/network recovery.
+Task 4.24 adds movement filtering, redundant-write suppression, latest-pending
+write coalescing, single-subscription verification, and isolated tracking-card
+rebuilds. Task 4.25 makes the request profile and accepted-update cadence
+canonical-state-aware. Task 4.26 stops GPS and tracking connections in
+ineligible canonical states and permits a safe explicit-sync restart. Task 4.27
+adds state-specific device and write thresholds so idle tracking consumes fewer
+resources without reducing active-trip fidelity. Task 4.28 rejects unusable,
+expired, future, and out-of-order fixes without replacing the last valid
+canonical reference. Task 4.29 adds typed, recoverable loading, GPS unavailable,
+permission denied, location not found, route unavailable, and network failure
+states. Task 4.30 keeps raw provider, SDK, HTTP, backend, and exception details
+in debug-only internal diagnostics while rendering only typed failures and fixed
+RideX copy. Matching and Rider live-trip tracking remain later work.
 See `docs/ai/ops/CURRENT_STATUS.md`.
 
 ## Setup
@@ -175,6 +189,80 @@ through Dart defines, native app resources, source, logs, or Git.
 The Flutter and Deno suites pass. Routes API/key setup, deployed authenticated
 routing, and physical Android polyline rendering are verified; Checkpoint 4C is
 approved.
+
+### Driver location tracking
+
+Checkpoint 4D adds explicit foreground Driver location sharing through the
+Service -> Repository -> Provider/Controller -> UI boundary. It publishes only
+through the authorized `driver_record_location` RPC, uses canonical timestamps
+and increasing sequences, rejects stale fixes, owns one GPS stream, and
+re-fetches canonical state after lifecycle, connection, or stale-sequence
+recovery. Stop and sign-out clean up tracking ownership.
+
+Task 4.24 keeps that boundary and canonical state intact while reducing device
+callbacks, skipping unchanged location content, and retaining only the latest
+pending meaningful fix during an in-flight write. The sharing card alone
+watches confirmed tracking updates, so the rest of Driver Home and its map do
+not rebuild for each write.
+
+Task 4.25 derives provider-neutral GPS configuration only from canonical
+`DriverAvailabilityState`. `onTrip` uses high accuracy, a 10-meter movement
+filter, and a 5-second minimum accepted-update interval. `available` and
+`reserved` use medium accuracy, a 25-meter movement filter, and a 20-second
+minimum interval. Canonical synchronization cancels an old profile before
+opening its replacement and never owns two GPS subscriptions. No polling or
+Realtime availability subscription was added.
+
+Task 4.26 makes canonical `offline`, missing, or otherwise ineligible state a
+tracking stop boundary. Explicit synchronization cancels GPS, disconnects the
+tracking channel, invalidates queued work, and reports a sanitized ineligible
+state while preserving explicit sharing intent and canonical location metadata.
+A later explicit synchronization in `available`, `reserved`, or `onTrip`
+re-reads canonical sequence state and restarts the appropriate profile without
+creating a duplicate subscription.
+
+Task 4.27 separates idle and operational resource policy. `available` uses low
+accuracy, a 50-meter device/write threshold, a 30-second minimum interval, and a
+two-minute stream-driven freshness bound. `reserved` uses medium accuracy, 25
+meters, 20 seconds, and one minute. `onTrip` preserves high accuracy, 10 meters,
+and five seconds, with a 15-second freshness bound. Sub-threshold movement and
+measurement-only jitter do not cause premature writes. A freshness update can
+only use a fix already emitted by the existing stream; there is no timer,
+polling, extra canonical read, or additional subscription.
+
+Task 4.28 centralizes fix admission in `DriverLocationValidationPolicy`.
+Coordinates must survive provider-neutral model validation, accuracy must be
+present, timestamps must stay inside the existing RPC window of 15 minutes old
+through 5 minutes future, and source time must advance strictly. RideX does not
+use an arbitrary global accuracy cap: a worse-accuracy fix is rejected only when
+its displacement remains inside its own uncertainty radius relative to the last
+valid fix. Rejection preserves the last accepted/canonical location and pending
+write, so later valid data recovers normally. The RPC also rejects a newer
+sequence carrying non-advancing `recorded_at`, protecting canonical order across
+sessions.
+
+Task 4.29 keeps the existing location, route, and Driver tracking state owners.
+One-shot location failures distinguish unavailable GPS from a location that
+could not be found, while permission and disabled-service states retain their
+settings actions. Temporary retries preserve a last valid point; denial clears
+it. Route state carries typed failures instead of display strings and retains a
+same-request result during retry without treating it as booking-ready. Driver
+tracking distinguishes GPS from network loss, preserves the last confirmed
+server timestamp, stops GPS on connection loss, and resumes through the existing
+canonical reconnect path. User-facing states provide retry or settings actions.
+
+Task 4.30 adds an injectable internal error reporter across location, place,
+route, Driver tracking, map, and navigation boundaries. Raw technical details
+are available to Flutter diagnostics in debug builds only; release builds do not
+print them, and application state/UI retains typed failures and fixed RideX
+messages. Map camera and Driver cleanup failures are contained rather than
+escaping as unhandled asynchronous errors.
+
+Physical Android GPS/permission/Start/Stop/lifecycle behavior and authenticated
+hosted Supabase persistence, reconnection, and unauthorized Rider rejection are
+reported verified. This is not continuous OS-background tracking and does not
+include matching or Rider live-trip tracking. Checkpoint 4E is approved from the
+combined task 4.24 through 4.30 implementation and regression evidence.
 
 ## Verification
 

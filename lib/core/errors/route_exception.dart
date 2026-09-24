@@ -1,5 +1,6 @@
 enum RouteFailure {
   unavailable,
+  networkFailure,
   timedOut,
   unauthorized,
   invalidResponse,

@@ -11,13 +11,16 @@ import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/place_prediction.dart';
 import 'package:ridex/core/models/place_selection_state.dart';
 import 'package:ridex/core/providers/place_providers.dart';
+import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/providers/location_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/features/booking/presentation/screens/vehicle_type_selection_screen.dart';
+import 'package:ridex/features/booking/presentation/widgets/location_search_panel.dart';
 
 import 'helpers/fake_places.dart';
 import 'helpers/fake_location.dart';
+import 'helpers/recording_error_reporter.dart';
 
 void main() {
   const predictionA = PlacePrediction(
@@ -148,6 +151,79 @@ void main() {
 
     expect(container.read(provider).status, PlaceSearchStatus.failure);
     expect(container.read(provider).message, contains('unavailable'));
+  });
+
+  test('unexpected place errors are reported but never exposed in state',
+      () async {
+    final error = StateError(rawErrorCanary);
+    final reporter = RecordingAppErrorReporter();
+    final fake = FakePlaceRepository()..autocompleteError = error;
+    final container = _container(fake, reporter: reporter);
+    addTearDown(container.dispose);
+    final provider =
+        placeSelectionControllerProvider(LocationEndpoint.destination);
+    container.listen(provider, (_, __) {});
+
+    container.read(provider.notifier).search('Abdali');
+    await Future<void>.delayed(const Duration(milliseconds: 370));
+
+    final state = container.read(provider);
+    expect(state.status, PlaceSearchStatus.failure);
+    expect(
+      state.message,
+      'Place search is unavailable right now. Please try again.',
+    );
+    expect(state.toString(), isNot(contains(rawErrorCanary)));
+    expect(reporter.reports.single.error, same(error));
+  });
+
+  testWidgets('place failure panel contains only fixed RideX copy',
+      (tester) async {
+    final searchController = TextEditingController(text: 'Abdali');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: LocationSearchPanel(
+            endpoint: LocationEndpoint.destination,
+            state: const PlaceSelectionState(
+              query: 'Abdali',
+              status: PlaceSearchStatus.failure,
+              message:
+                  'Place search is unavailable right now. Please try again.',
+            ),
+            controller: searchController,
+            onChanged: (_) {},
+            onSubmitted: () {},
+            onPredictionSelected: (_) {},
+            onRetry: () {},
+            onRetryAddress: () {},
+          ),
+        ),
+      ),
+    );
+    expect(find.textContaining(rawErrorCanary), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    searchController.dispose();
+  });
+
+  test('late place failures remain reportable after auto-dispose', () async {
+    final reporter = RecordingAppErrorReporter();
+    final result = Completer<List<PlacePrediction>>();
+    final error = StateError(rawErrorCanary);
+    final fake = FakePlaceRepository()..autocompleteResult = result.future;
+    final container = _container(fake, reporter: reporter);
+    final provider =
+        placeSelectionControllerProvider(LocationEndpoint.destination);
+    final subscription = container.listen(provider, (_, __) {});
+    container.read(provider.notifier).search('Abdali');
+    await Future<void>.delayed(const Duration(milliseconds: 370));
+
+    subscription.close();
+    container.dispose();
+    result.completeError(error, StackTrace.fromString(rawErrorCanary));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(reporter.reports.single.error, same(error));
   });
 
   test('editing a confirmed endpoint makes the selection uncommitted', () {
@@ -580,11 +656,16 @@ void main() {
   });
 }
 
-ProviderContainer _container(FakePlaceRepository fake) {
+ProviderContainer _container(
+  FakePlaceRepository fake, {
+  RecordingAppErrorReporter? reporter,
+}) {
   return ProviderContainer(
     overrides: [
       placeRepositoryProvider.overrideWithValue(fake),
       locationRepositoryProvider.overrideWithValue(FakeLocationRepository()),
+      if (reporter != null)
+        appErrorReporterProvider.overrideWithValue(reporter),
     ],
   );
 }

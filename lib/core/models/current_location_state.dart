@@ -22,8 +22,8 @@ enum LocationFailure {
   permissionDenied,
   permissionPermanentlyDenied,
   serviceDisabled,
-  timeout,
-  unavailable,
+  locationNotFound,
+  gpsUnavailable,
 }
 
 class CurrentLocationState extends Equatable {

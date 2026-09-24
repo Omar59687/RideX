@@ -5,6 +5,8 @@ import 'package:ridex/app/theme/ridex_theme.dart';
 import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/place_selection_state.dart';
+import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
+import 'package:ridex/core/services/maps/ride_map_service.dart';
 
 class GoogleLocationSelectionMap extends StatefulWidget {
   const GoogleLocationSelectionMap({
@@ -15,6 +17,7 @@ class GoogleLocationSelectionMap extends StatefulWidget {
     required this.currentLocation,
     required this.routeGeometry,
     required this.onPointSelected,
+    required this.errorReporter,
   });
 
   final LocationEndpoint activeEndpoint;
@@ -23,6 +26,7 @@ class GoogleLocationSelectionMap extends StatefulWidget {
   final LocationPoint? currentLocation;
   final List<LocationPoint> routeGeometry;
   final ValueChanged<LocationPoint> onPointSelected;
+  final AppErrorReporter errorReporter;
 
   @override
   State<GoogleLocationSelectionMap> createState() =>
@@ -161,9 +165,15 @@ class _GoogleLocationSelectionMapState
   }
 
   Future<void> _moveTo(LocationPoint point) async {
-    await _controller?.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: _latLng(point), zoom: 16),
+    final controller = _controller;
+    if (controller == null) return;
+    await runMapCameraOperation(
+      operation: 'moving the location-selection map camera',
+      errorReporter: widget.errorReporter,
+      action: () => controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: _latLng(point), zoom: 16),
+        ),
       ),
     );
   }
@@ -176,8 +186,15 @@ class _GoogleLocationSelectionMapState
 
   Future<void> _fitRoute() async {
     final bounds = routeBounds(widget.routeGeometry);
-    if (bounds == null) return;
-    await _controller?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 44));
+    final controller = _controller;
+    if (bounds == null || controller == null) return;
+    await runMapCameraOperation(
+      operation: 'fitting the route on the map',
+      errorReporter: widget.errorReporter,
+      action: () => controller.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, 44),
+      ),
+    );
   }
 
   static LatLng _latLng(LocationPoint point) =>

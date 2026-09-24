@@ -51,6 +51,10 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
         'Location permission was denied. Allow it to start sharing.',
       LocationFailure.serviceDisabled =>
         'Device location services are off. Turn them on and retry.',
+      LocationFailure.locationNotFound =>
+        'Current location was not found. Move to an open area and retry.',
+      LocationFailure.gpsUnavailable =>
+        'GPS is unavailable. Check device settings and retry.',
       _ =>
         'Foreground location is unavailable. Check device settings and retry.',
     };
@@ -59,7 +63,6 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final online = ref.watch(driverOnlineProvider);
-    final tracking = ref.watch(driverTrackingControllerProvider);
     return AppScaffold(
       title: 'Driver mode',
       bottomNavigationBar: const MockBottomNavBar(
@@ -123,13 +126,10 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          _DriverLocationSharingCard(
-            state: tracking,
+          _DriverLocationSharingCardConsumer(
             permissionRequestRunning: _permissionRequestRunning,
             permissionMessage: _permissionMessage,
             onStart: _startSharing,
-            onStop: () =>
-                ref.read(driverTrackingControllerProvider.notifier).stop(),
           ),
           const SizedBox(height: AppSpacing.lg),
           const RideCurrentLocationMap(
@@ -204,6 +204,30 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
           const SizedBox(height: 92),
         ],
       ),
+    );
+  }
+}
+
+class _DriverLocationSharingCardConsumer extends ConsumerWidget {
+  const _DriverLocationSharingCardConsumer({
+    required this.permissionRequestRunning,
+    required this.permissionMessage,
+    required this.onStart,
+  });
+
+  final bool permissionRequestRunning;
+  final String? permissionMessage;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tracking = ref.watch(driverTrackingControllerProvider);
+    return _DriverLocationSharingCard(
+      state: tracking,
+      permissionRequestRunning: permissionRequestRunning,
+      permissionMessage: permissionMessage,
+      onStart: onStart,
+      onStop: () => ref.read(driverTrackingControllerProvider.notifier).stop(),
     );
   }
 }
@@ -306,8 +330,11 @@ class _DriverLocationSharingCard extends StatelessWidget {
           'Your session cannot share location. Sign in again and retry.',
         DriverLocationFailure.staleSequence =>
           'Location sharing needs to resync. Try starting again.',
-        _ =>
-          'Location sharing is unavailable. Check GPS and network, then retry.',
+        DriverLocationFailure.networkFailure =>
+          'Network connection was lost. Your last confirmed location is safe; retry when connected.',
+        DriverLocationFailure.gpsUnavailable =>
+          'GPS is unavailable. Check device location and retry.',
+        _ => 'Location sharing is unavailable. Please retry.',
       };
     }
     return 'Share foreground GPS only when Driver operations require it.';

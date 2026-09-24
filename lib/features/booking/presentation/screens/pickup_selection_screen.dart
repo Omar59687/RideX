@@ -98,8 +98,7 @@ class _PickupSelectionScreenState extends ConsumerState<PickupSelectionScreen> {
             pickup: draft.pickup,
             destination: draft.destination,
             currentLocation: current.point,
-            routeGeometry:
-                route.isReadyFor(draft) ? route.result!.geometry : const [],
+            routeGeometry: route.resultFor(draft)?.geometry ?? const [],
             onPointSelected: (point) => selectionController.selectPoint(
               point,
               source: LocationSelectionSource.map,
@@ -174,14 +173,6 @@ class _CurrentLocationAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (state.point != null) {
-      return OutlinedButton.icon(
-        key: const ValueKey('use-current-location'),
-        onPressed: onUse,
-        icon: const Icon(Icons.my_location_rounded),
-        label: const Text('Use current GPS location'),
-      );
-    }
     final isBusy = state.status == CurrentLocationStatus.checking ||
         state.status == CurrentLocationStatus.requestingPermission ||
         state.status == CurrentLocationStatus.loading;
@@ -197,6 +188,17 @@ class _CurrentLocationAction extends StatelessWidget {
         ],
       );
     }
+    if (state.point != null) {
+      final current = state.status == CurrentLocationStatus.available;
+      return OutlinedButton.icon(
+        key: const ValueKey('use-current-location'),
+        onPressed: onUse,
+        icon: const Icon(Icons.my_location_rounded),
+        label: Text(
+          current ? 'Use current GPS location' : 'Use last known location',
+        ),
+      );
+    }
     final (message, action, actionLabel) = switch (state.status) {
       CurrentLocationStatus.serviceDisabled => (
           'Location services are disabled. Search still works.',
@@ -209,7 +211,9 @@ class _CurrentLocationAction extends StatelessWidget {
           'App settings',
         ),
       CurrentLocationStatus.unavailable => (
-          'GPS is unavailable. Search or select manually.',
+          state.failure == LocationFailure.locationNotFound
+              ? 'Current location not found. Search or select manually.'
+              : 'GPS is unavailable. Search or select manually.',
           onRetry,
           'Try again',
         ),

@@ -131,7 +131,7 @@ void main() {
         isA<DriverLocationException>().having(
           (error) => error.failure,
           'failure',
-          DriverLocationFailure.unavailable,
+          DriverLocationFailure.networkFailure,
         ),
       ),
     );
@@ -185,7 +185,7 @@ class _FakeDriverLocationService implements DriverLocationService {
 class _FailingDriverLocationService implements DriverLocationService {
   @override
   Future<DriverAvailability?> fetchAvailability() {
-    throw const DriverLocationException(DriverLocationFailure.unavailable);
+    throw const DriverLocationException(DriverLocationFailure.networkFailure);
   }
 
   @override

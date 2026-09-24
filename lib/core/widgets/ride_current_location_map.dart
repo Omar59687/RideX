@@ -163,13 +163,22 @@ class _LocationNotice extends ConsumerWidget {
       );
     }
 
-    return _MapNotice(
-      key: const ValueKey('current-location-unavailable'),
-      message:
-          'Your current location could not be found. You can continue without GPS.',
-      actionLabel: 'Try again',
-      onAction: controller.refresh,
-    );
+    return switch (location.failure) {
+      LocationFailure.locationNotFound => _MapNotice(
+          key: const ValueKey('current-location-not-found'),
+          message:
+              'Your current location could not be found. You can continue without it.',
+          actionLabel: 'Try again',
+          onAction: controller.refresh,
+        ),
+      _ => _MapNotice(
+          key: const ValueKey('current-location-gps-unavailable'),
+          message:
+              'GPS is temporarily unavailable. You can continue without it.',
+          actionLabel: 'Try again',
+          onAction: controller.refresh,
+        ),
+    };
   }
 }
 
