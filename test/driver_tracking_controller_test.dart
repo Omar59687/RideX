@@ -427,7 +427,8 @@ void main() {
     expect(gps.maxActiveSubscriptions, 1);
   });
 
-  test('does not automatically stop tracking for an offline sync', () async {
+  test('offline canonical state stops all tracking resources', () async {
+    repository.latest = _saved(4, startTime);
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
     await controller.start();
@@ -438,10 +439,168 @@ void main() {
     await controller.synchronizeCanonicalState();
 
     expect(gps.listenCount, 1);
-    expect(gps.cancelCount, 0);
-    expect(gps.activeSubscriptions, 1);
+    expect(gps.cancelCount, 1);
+    expect(gps.activeSubscriptions, 0);
+    expect(connection.disconnectCount, 1);
+    final state = container.read(driverTrackingControllerProvider);
+    expect(state.status, DriverTrackingStatus.unavailable);
+    expect(state.failure, DriverLocationFailure.ineligible);
+    expect(state.latestConfirmedAt, startTime);
+  });
+
+  test('missing canonical state stops all tracking resources', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = null;
+
+    await controller.synchronizeCanonicalState();
+
+    expect(gps.cancelCount, 1);
+    expect(gps.activeSubscriptions, 0);
+    expect(connection.disconnectCount, 1);
     expect(container.read(driverTrackingControllerProvider).status,
-        DriverTrackingStatus.sharing);
+        DriverTrackingStatus.unavailable);
+  });
+
+  test('eligible canonical state restarts after offline stop', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.offline,
+    );
+    await controller.synchronizeCanonicalState();
+    repository.latest = _saved(4, startTime.add(const Duration(seconds: 1)));
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.available,
+    );
+
+    await controller.synchronizeCanonicalState();
+
+    expect(repository.availabilityCount, 3);
+    expect(repository.latestCount, 2);
+    expect(gps.listenCount, 2);
+    expect(gps.cancelCount, 1);
+    expect(gps.activeSubscriptions, 1);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(connection.connectCount, 2);
+    expect(connection.disconnectCount, 1);
+    final state = container.read(driverTrackingControllerProvider);
+    expect(state.status, DriverTrackingStatus.sharing);
+    expect(state.nextSequence, 5);
+    expect(
+      state.latestConfirmedAt,
+      startTime.add(const Duration(seconds: 1)),
+    );
+  });
+
+  test('onTrip state restarts with active-trip publishing after offline stop',
+      () async {
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.offline,
+    );
+    await controller.synchronizeCanonicalState();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-2',
+    );
+
+    await controller.synchronizeCanonicalState();
+    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    await repository.waitForPublishes(1);
+
+    expect(gps.configurations, [
+      DriverGpsTrackingConfig.activeTrip,
+      DriverGpsTrackingConfig.activeTrip,
+    ]);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(repository.published.single.tripId, 'trip-2');
+  });
+
+  test('foreground return stays stopped while canonical state is offline',
+      () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.offline,
+    );
+    await controller.synchronizeCanonicalState();
+
+    lifecycle.emit(DriverTrackingLifecycleState.background);
+    await flush();
+    lifecycle.emit(DriverTrackingLifecycleState.foreground);
+    await flush(3);
+
+    expect(gps.listenCount, 1);
+    expect(gps.activeSubscriptions, 0);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.unavailable);
+
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.reserved,
+    );
+    await controller.synchronizeCanonicalState();
+
+    expect(gps.listenCount, 2);
+    expect(gps.activeSubscriptions, 1);
+    expect(gps.maxActiveSubscriptions, 1);
+  });
+
+  test('explicit Stop prevents canonical state from restarting tracking',
+      () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    await controller.stop();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+
+    await controller.synchronizeCanonicalState();
+
+    expect(gps.listenCount, 1);
+    expect(gps.activeSubscriptions, 0);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.stopped);
+  });
+
+  test('rapid offline to eligible sync restarts only one stream', () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.offline,
+    );
+    final cancellation = Completer<void>();
+    gps.cancelGate = cancellation.future;
+
+    final offline = controller.synchronizeCanonicalState();
+    await flush(2);
+    repository.availability = const DriverAvailability(
+      state: DriverAvailabilityState.onTrip,
+      activeTripId: 'trip-1',
+    );
+    final eligible = controller.synchronizeCanonicalState();
+    cancellation.complete();
+    await Future.wait([offline, eligible]);
+
+    expect(repository.availabilityCount, 3);
+    expect(gps.listenCount, 2);
+    expect(gps.activeSubscriptions, 1);
+    expect(gps.maxActiveSubscriptions, 1);
+    expect(connection.connectCount, 2);
+    expect(connection.disconnectCount, 1);
+    expect(gps.configurations.last, same(DriverGpsTrackingConfig.activeTrip));
   });
 
   test('exposes replacement failure and allows a later canonical retry',

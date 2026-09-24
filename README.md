@@ -35,8 +35,9 @@ location sharing, canonical hosted persistence, and lifecycle/network recovery.
 Task 4.24 adds movement filtering, redundant-write suppression, latest-pending
 write coalescing, single-subscription verification, and isolated tracking-card
 rebuilds. Task 4.25 makes the request profile and accepted-update cadence
-canonical-state-aware. Tasks 4.26 through 4.30, matching, and Rider live-trip
-tracking remain later work.
+canonical-state-aware. Task 4.26 stops GPS and tracking connections in
+ineligible canonical states and permits a safe explicit-sync restart. Tasks 4.27
+through 4.30, matching, and Rider live-trip tracking remain later work.
 See `docs/ai/ops/CURRENT_STATUS.md`.
 
 ## Setup
@@ -203,14 +204,21 @@ filter, and a 5-second minimum accepted-update interval. `available` and
 `reserved` use medium accuracy, a 25-meter movement filter, and a 20-second
 minimum interval. Canonical synchronization cancels an old profile before
 opening its replacement and never owns two GPS subscriptions. No polling or
-Realtime availability subscription was added, and ineligible state handling is
-left to task 4.26.
+Realtime availability subscription was added.
+
+Task 4.26 makes canonical `offline`, missing, or otherwise ineligible state a
+tracking stop boundary. Explicit synchronization cancels GPS, disconnects the
+tracking channel, invalidates queued work, and reports a sanitized ineligible
+state while preserving explicit sharing intent and canonical location metadata.
+A later explicit synchronization in `available`, `reserved`, or `onTrip`
+re-reads canonical sequence state and restarts the appropriate profile without
+creating a duplicate subscription.
 
 Physical Android GPS/permission/Start/Stop/lifecycle behavior and authenticated
 hosted Supabase persistence, reconnection, and unauthorized Rider rejection are
 reported verified. This is not continuous OS-background tracking and does not
 include matching or Rider live-trip tracking. Checkpoint 4E remains incomplete
-because tasks 4.26 through 4.30 are not implemented.
+because tasks 4.27 through 4.30 are not implemented.
 
 ## Verification
 

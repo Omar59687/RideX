@@ -29,8 +29,9 @@ Feature folders currently emphasize presentation screens and feature-local widge
 - `DriverTrackingController`: explicit foreground Driver sharing intent,
   canonical availability/latest-location recovery, one GPS stream, exact-content
   deduplication, latest-pending write coalescing, canonical-state profile
-  synchronization, ordered publication, lifecycle/reconnection cleanup, and
-  sanitized status for Driver Home.
+  synchronization, ineligible-state resource shutdown and eligible-state
+  restart, ordered publication, lifecycle/reconnection cleanup, and sanitized
+  status for Driver Home.
 - `PlaceSelectionController`: independent pickup/destination search, geocoding, and provisional/committed selection state through the place repository.
 - `RouteController`: session-local trusted route state derived from canonical
   booking endpoints, with coalesced recalculation and stale-response rejection.
@@ -60,10 +61,14 @@ can re-read canonical availability and replace a changed profile only after the
 old stream is cancelled. Concurrent requests produce at most one trailing read,
 and reconnect recovery is deferred until synchronization completes. The sync
 request is retained when start or recovery is still reading canonical state. The
-sync entry point reconfigures eligible profiles only; automatic ineligible-state
-stopping remains task 4.26. Checkpoints 4A through 4D are approved; tasks 4.26
-through 4.30, matching, Rider live-trip tracking, and continuous OS-background
-tracking remain later work.
+sync entry point also treats canonical `offline`, missing, or otherwise
+ineligible availability as a stop boundary: it invalidates queued work, cancels
+GPS, and disconnects tracking while retaining explicit sharing intent and latest
+canonical metadata. A later explicit eligible sync re-reads canonical sequence
+state, reconnects, and starts the appropriate profile. There is no polling or
+Realtime availability subscription. Checkpoints 4A through 4D are approved;
+tasks 4.27 through 4.30, matching, Rider live-trip tracking, and continuous
+OS-background tracking remain later work.
 
 ## Router
 

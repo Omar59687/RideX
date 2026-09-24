@@ -36,7 +36,7 @@ metadata and reported physical/live evidence through 2026-09-20:
 - Checkpoint 4B commit `2359a81` adds pickup/destination place search, geocoding, map selection, and routing-readiness validation. Fix commit `41dd2f5` blocks routing while map/GPS reverse geocoding is unresolved; this fix is pushed on the current branch but is not yet in `origin/main`.
 - The hosted Supabase `places` function is active and the required `GOOGLE_MAPS_WEB_SERVICES_API_KEY` secret name exists. No secret value was read.
 - Checkpoints 4A and 4B are approved. The project owner reports that Omar tested every previously remaining physical/live and configuration requirement successfully. The final 4B replacement-selection routing guard is implemented in the current working tree and passes focused and full regression verification.
-- Real routing and foreground Driver location tracking are implemented and approved through Checkpoints 4C and 4D. GPS efficiency tasks 4.24 and 4.25 are complete; tasks 4.26 through 4.30, matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
+- Real routing and foreground Driver location tracking are implemented and approved through Checkpoints 4C and 4D. GPS efficiency tasks 4.24 through 4.26 are complete; tasks 4.27 through 4.30, matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
 - Multi-stop data can be represented in the booking draft, but stop management, routing, persistence, and fare integration are not implemented.
 - Current fares are deterministic demo values rather than route-based fixed fares.
 - Cash is displayed in the booking and completion UI, and Phase 3 defines trusted atomic Cash completion/settlement and persistent receipt foundations, but they are not connected to Flutter.
@@ -955,7 +955,7 @@ begin.
   - Avoid unnecessary map rebuilds.
   - Avoid multiple simultaneous GPS subscriptions.
 - [x] 4.25 Configure location-update behavior according to RideX state so high-frequency tracking is used only when operationally necessary.
-- [ ] 4.26 Stop unnecessary Driver location tracking when the Driver is in a state that does not require active tracking.
+- [x] 4.26 Stop unnecessary Driver location tracking when the Driver is in a state that does not require active tracking.
 - [ ] 4.27 Ensure GPS tracking does not unnecessarily consume:
   - Battery.
   - Mobile data.
@@ -972,9 +972,9 @@ begin.
 
 #### Checkpoint 4E Task 4.24 — GPS update efficiency
 
-Status: Completed and verified on 2026-09-22. Task 4.25 is now recorded below;
-tasks 4.26 through 4.30 remain unimplemented, so Checkpoint 4E and its approval
-gate remain incomplete.
+Status: Completed and verified on 2026-09-22. Tasks 4.25 and 4.26 are now
+recorded below; tasks 4.27 through 4.30 remain unimplemented, so Checkpoint 4E
+and its approval gate remain incomplete.
 
 The existing foreground Driver-location architecture is preserved. Task 4.24
 introduced nonzero movement filtering; task 4.25 now selects its exact value by
@@ -1000,8 +1000,9 @@ behavior from tasks 4.26 through 4.30 was added.
 
 #### Checkpoint 4E Task 4.25 — State-based GPS frequency
 
-Status: Completed and verified on 2026-09-22. Tasks 4.26 through 4.30 remain
-unimplemented, so Checkpoint 4E and its approval gate remain incomplete.
+Status: Completed and verified on 2026-09-22. Task 4.26 is recorded below;
+tasks 4.27 through 4.30 remain unimplemented, so Checkpoint 4E and its approval
+gate remain incomplete.
 
 The provider-neutral `DriverGpsTrackingConfig` centralizes the policy derived
 only from canonical `DriverAvailabilityState`. `onTrip` uses high accuracy, a
@@ -1020,17 +1021,45 @@ coalesces concurrent requests with one trailing canonical read. Reconnect
 recovery waits for synchronization and then runs rather than losing its signal.
 Synchronization requested during start or recovery is retained and runs after
 that canonical session setup completes.
-The explicit synchronization entry point ignores ineligible states so automatic
-offline-state stopping remains task 4.26. UI screens contain no cadence values
-or duplicate Driver/Ride state.
+At the task 4.25 boundary, the explicit synchronization entry point ignored
+ineligible states so automatic offline-state stopping remained task 4.26. Task
+4.26 now supersedes that behavior as recorded below. UI screens contain no
+cadence values or duplicate Driver/Ride state.
 
 Verification: `test/driver_gps_stream_service_test.dart` and
 `test/driver_tracking_controller_test.dart` passed 47 tests;
 `test/driver_home_location_sharing_test.dart` passed 5 tests; and `flutter
-analyze --no-pub` reported no issues. No polling, Realtime availability
-subscription, automatic offline-state monitoring, unnecessary-state stopping,
-broader resource policy, accuracy-resilience, UI-state, or error-policy behavior
-from tasks 4.26 through 4.30 was added.
+analyze --no-pub` reported no issues. At that task boundary, no polling,
+Realtime availability subscription, automatic offline-state monitoring,
+unnecessary-state stopping, broader resource policy, accuracy-resilience,
+UI-state, or error-policy behavior from tasks 4.26 through 4.30 was added.
+
+#### Checkpoint 4E Task 4.26 — Stop unnecessary Driver tracking
+
+Status: Completed and verified on 2026-09-24. Tasks 4.27 through 4.30 remain
+unimplemented, so Checkpoint 4E and its approval gate remain incomplete.
+
+Explicit canonical synchronization now treats `offline`, missing, and otherwise
+ineligible availability as a stop boundary. The controller invalidates queued
+location work, cancels its foreground GPS subscription, clears the active
+tracking profile/trip, disconnects the tracking channel, and exposes the
+sanitized ineligible state. It preserves the Driver's explicit sharing intent
+and latest canonical location metadata, so a later explicit synchronization in
+`available`, `reserved`, or `onTrip` can re-read canonical sequence state,
+reconnect, and start the existing state-appropriate profile safely.
+
+No polling or Realtime availability subscription was added; the canonical state
+owner remains responsible for requesting synchronization. Background/foreground
+lifecycle handling, explicit Stop/sign-out, recovery ordering, write
+coalescing, and the one-active-subscription invariant remain intact. Focused
+coverage includes offline and missing-state stops, available/onTrip restarts,
+foreground return while offline, explicit Stop, preserved metadata, and rapid
+offline-to-eligible transitions.
+
+Verification: the GPS service/controller and Driver Home sharing suites passed
+58 tests; `flutter analyze --no-pub` reported no issues; `flutter test --no-pub`
+passed 208 tests with 2 intentional live-test skips; and `git diff --check`
+passed. No behavior from tasks 4.27 through 4.30 was added.
 
 Checkpoint goal:
 

@@ -165,7 +165,8 @@ class DriverTrackingController
     await _startSession();
   }
 
-  Future<void> _startSession() async {
+  Future<void> _startSession(
+      {DriverAvailability? canonicalAvailability}) async {
     if (_backgrounded || _startInProgress || _subscription != null) return;
 
     final generation = ++_generation;
@@ -176,7 +177,8 @@ class DriverTrackingController
     );
     try {
       final repository = ref.read(driverLocationRepositoryProvider);
-      final availability = await repository.fetchAvailability();
+      final availability =
+          canonicalAvailability ?? await repository.fetchAvailability();
       if (!_isCurrent(generation)) return;
       if (availability == null || !availability.canShareLocation) {
         _setUnavailable(DriverLocationFailure.ineligible);
@@ -281,8 +283,6 @@ class DriverTrackingController
       _configurationSyncPending = true;
       return Future<void>.value();
     }
-    if (_connectionGeneration == null) return Future<void>.value();
-
     final sync = _synchronizeCanonicalStateLoop();
     _configurationSyncFuture = sync;
     return sync;
@@ -296,8 +296,7 @@ class DriverTrackingController
       } while (_configurationSyncRequested &&
           _trackingRequested &&
           !_backgrounded &&
-          !_disposed &&
-          _connectionGeneration != null);
+          !_disposed);
     } finally {
       _configurationSyncFuture = null;
       if (_recoveryRequested) {
@@ -313,9 +312,7 @@ class DriverTrackingController
       _configurationSyncPending = false;
       return;
     }
-    if (_startInProgress ||
-        _recoveryInProgress ||
-        _connectionGeneration == null) {
+    if (_startInProgress || _recoveryInProgress) {
       return;
     }
 
@@ -332,9 +329,16 @@ class DriverTrackingController
     } catch (_) {
       return;
     }
-    if (!_isCurrent(generation) ||
-        availability == null ||
-        !availability.canShareLocation) {
+    if (!_isCurrent(generation)) {
+      return;
+    }
+    if (availability == null || !availability.canShareLocation) {
+      await _stopForCanonicalState(generation);
+      return;
+    }
+
+    if (_subscription == null && _connectionGeneration == null) {
+      await _startSession(canonicalAvailability: availability);
       return;
     }
 
@@ -350,6 +354,35 @@ class DriverTrackingController
     }
 
     await _replaceGpsSubscription(trackingConfig, activeTripId);
+  }
+
+  Future<void> _stopForCanonicalState(int generation) async {
+    if (!_isCurrent(generation)) return;
+    if (_subscription == null &&
+        _connectionGeneration == null &&
+        state.status == DriverTrackingStatus.unavailable &&
+        state.failure == DriverLocationFailure.ineligible) {
+      return;
+    }
+
+    final stopGeneration = ++_generation;
+    _activeTripId = null;
+    _trackingConfig = null;
+    _pendingPublish = null;
+    _connectionGeneration = null;
+    _connectionFailurePending = false;
+    _recoveryRequested = false;
+    final subscription = _subscription;
+    _subscription = null;
+    final connection = ref.read(driverTrackingConnectionProvider);
+    _setUnavailable(DriverLocationFailure.ineligible);
+    try {
+      await subscription?.cancel();
+    } finally {
+      if (_isCurrent(stopGeneration)) {
+        await connection.disconnect();
+      }
+    }
   }
 
   Future<void> _replaceGpsSubscription(

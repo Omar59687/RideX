@@ -251,7 +251,7 @@
   warnings on pre-existing generated desktop plugin files. Known non-failing
   `flutter_svg` `<filter>` warnings appeared.
 - Scope remains narrow: 4D provides foreground Driver location sharing and
-  recovery. Tasks 4.24 and 4.25 are complete as recorded below; tasks 4.26
+  recovery. Tasks 4.24 through 4.26 are complete as recorded below; tasks 4.27
   through 4.30, matching, Rider live-trip tracking, and continuous OS-background
   location remain later work.
 - Checkpoint 4E task 4.24: **Completed and verified on 2026-09-22.** The existing
@@ -280,10 +280,26 @@
   ineligible states, leaving automatic offline-state stopping to task 4.26.
 - Task 4.25 verification: the GPS service/controller suites passed 47 tests, the
   Driver Home sharing suite passed 5 tests, and `flutter analyze --no-pub` found
-  no issues. Tasks 4.26 through 4.30 and the Checkpoint 4E approval gate remain
-  incomplete. No polling, Realtime availability subscription, automatic
-  offline-state monitoring, state-based stopping, broader resource policy,
-  accuracy-resilience, UI-state, or error-policy work was implemented.
+  no issues. At that task boundary, tasks 4.26 through 4.30 and the Checkpoint 4E
+  approval gate remained incomplete. No polling, Realtime availability
+  subscription, automatic offline-state monitoring, state-based stopping,
+  broader resource policy, accuracy-resilience, UI-state, or error-policy work
+  was implemented.
+- Checkpoint 4E task 4.26: **Completed and verified on 2026-09-24.** Explicit
+  canonical synchronization now stops all owned tracking resources for
+  `offline`, missing, or otherwise ineligible availability. It invalidates
+  queued location work, cancels GPS, disconnects the tracking channel, and
+  reports a sanitized ineligible state while preserving explicit sharing intent
+  and latest canonical location metadata. A later explicit eligible sync
+  re-reads canonical sequence state, reconnects, and starts the existing
+  state-appropriate profile. Lifecycle, explicit Stop/sign-out, recovery
+  ordering, write coalescing, and the one-active-subscription invariant remain
+  intact. No polling or Realtime availability subscription was added.
+- Task 4.26 verification: the GPS service/controller and Driver Home sharing
+  suites passed 58 tests; `flutter analyze --no-pub` found no issues; the full
+  `flutter test --no-pub` suite passed 208 tests with 2 intentional live-test
+  skips; and `git diff --check` passed. Tasks 4.27 through 4.30 and the Checkpoint
+  4E approval gate remain incomplete.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
