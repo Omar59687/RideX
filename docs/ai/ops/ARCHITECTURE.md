@@ -75,8 +75,17 @@ seconds, with a 15-second maximum silence bound. The controller computes
 provider-neutral great-circle movement and suppresses sub-threshold callbacks
 until meaningful movement or the stream-driven silence bound. It adds no timer,
 polling, canonical read, or subscription. Checkpoints 4A through 4D are
-approved; tasks 4.28 through 4.30, matching, Rider live-trip tracking, and
-continuous OS-background tracking remain later work.
+approved. Task 4.28 adds the provider-neutral
+`DriverLocationValidationPolicy` before cadence/significance filtering and
+state mutation. It requires usable accuracy, the existing
+15-minute-old/5-minute-future RPC window, and strictly advancing source time. A
+worse-accuracy candidate is rejected only when its displacement remains within
+its own reported uncertainty radius; there is no arbitrary global accuracy cap.
+Rejected fixes preserve the last accepted fix, recorded time, pending write,
+sequence, and confirmed timestamp. Migration `024` adds a matching
+non-advancing-`recorded_at` RPC rejection under the existing per-Driver row lock,
+protecting canonical order across sessions. Tasks 4.29 and 4.30, matching, Rider
+live-trip tracking, and continuous OS-background tracking remain later work.
 
 ## Router
 

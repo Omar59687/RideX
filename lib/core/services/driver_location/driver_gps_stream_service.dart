@@ -1,7 +1,6 @@
-import 'dart:math' as math;
-
 import 'package:ridex/core/models/driver_availability.dart';
 import 'package:ridex/core/models/driver_location.dart';
+import 'package:ridex/core/services/driver_location/driver_location_validation_policy.dart';
 
 enum DriverGpsAccuracy { low, medium, high }
 
@@ -64,28 +63,12 @@ class DriverGpsTrackingConfig {
       return true;
     }
 
-    const earthRadiusMeters = 6371000.0;
-    final latitudeDelta = _radians(
-      current.point.latitude - previous.point.latitude,
+    final distanceMeters = DriverLocationValidationPolicy.distanceMeters(
+      previous.point,
+      current.point,
     );
-    final longitudeDelta = _radians(
-      current.point.longitude - previous.point.longitude,
-    );
-    final previousLatitude = _radians(previous.point.latitude);
-    final currentLatitude = _radians(current.point.latitude);
-    final latitudeSin = math.sin(latitudeDelta / 2);
-    final longitudeSin = math.sin(longitudeDelta / 2);
-    final haversine = latitudeSin * latitudeSin +
-        math.cos(previousLatitude) *
-            math.cos(currentLatitude) *
-            longitudeSin *
-            longitudeSin;
-    final distanceMeters =
-        2 * earthRadiusMeters * math.asin(math.min(1, math.sqrt(haversine)));
     return distanceMeters >= minimumPublishDistanceMeters;
   }
-
-  static double _radians(double degrees) => degrees * math.pi / 180;
 }
 
 abstract interface class DriverGpsStreamService {

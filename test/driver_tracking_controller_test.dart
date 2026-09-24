@@ -33,6 +33,9 @@ void main() {
         driverGpsStreamServiceProvider.overrideWithValue(gps),
         driverTrackingLifecycleProvider.overrideWithValue(lifecycle),
         driverTrackingConnectionProvider.overrideWithValue(connection),
+        driverTrackingClockProvider.overrideWithValue(
+          () => startTime.add(const Duration(minutes: 2)),
+        ),
       ],
     );
     keepAlive = container.listen(driverTrackingControllerProvider, (_, __) {});
@@ -669,6 +672,12 @@ void main() {
 
     gps.add(missingAccuracy);
     gps.add(_fix(startTime));
+    await flush(2);
+
+    expect(repository.publishAttempts, 0);
+    expect(container.read(driverTrackingControllerProvider).latestConfirmedAt,
+        startTime);
+
     gps.add(_fix(
       startTime.add(const Duration(seconds: 30)),
       latitude: 31.964158,
@@ -676,6 +685,61 @@ void main() {
     await repository.waitForPublishes(1);
 
     expect(repository.published.map((sample) => sample.sequence), [4]);
+  });
+
+  test('expired and future readings preserve canonical state until recovery',
+      () async {
+    repository.latest = _saved(4, startTime);
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    gps.add(_fix(startTime.subtract(const Duration(minutes: 14))));
+    gps.add(_fix(startTime.add(const Duration(minutes: 8))));
+    await flush(2);
+
+    expect(repository.publishAttempts, 0);
+    expect(container.read(driverTrackingControllerProvider).latestConfirmedAt,
+        startTime);
+
+    final recovered = _fix(
+      startTime.add(const Duration(minutes: 3)),
+      latitude: 31.964158,
+    );
+    gps.add(recovered);
+    await repository.waitForPublishes(1);
+
+    expect(repository.published.single.recordedAt, recovered.recordedAt);
+    expect(repository.published.single.sequence, 5);
+  });
+
+  test('temporary inaccuracy cannot replace the last valid canonical fix',
+      () async {
+    repository.latest = _saved(4, startTime);
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 30)),
+      latitude: 31.964158,
+      accuracyMeters: 500,
+    ));
+    await flush(2);
+
+    expect(repository.publishAttempts, 0);
+    expect(container.read(driverTrackingControllerProvider).latestConfirmedAt,
+        startTime);
+
+    final recovered = _fix(
+      startTime.add(const Duration(seconds: 60)),
+      latitude: 31.964158,
+    );
+    gps.add(recovered);
+    await repository.waitForPublishes(1);
+
+    expect(repository.published.single.recordedAt, recovered.recordedAt);
+    expect(repository.published.single.point.accuracyMeters, 6);
   });
 
   test('ignores a fix with the same timestamp as the latest accepted fix',
@@ -802,6 +866,35 @@ void main() {
     expect(repository.published.map((sample) => sample.recordedAt), [
       first.recordedAt,
       latest.recordedAt,
+    ]);
+  });
+
+  test('out-of-order callback cannot replace a newer queued fix', () async {
+    final publishGate = Completer<void>();
+    repository.publishGate = publishGate.future;
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    final first = _fix(startTime.add(const Duration(seconds: 1)));
+    final newer = _fix(
+      startTime.add(const Duration(seconds: 61)),
+      latitude: 31.964158,
+    );
+
+    gps.add(first);
+    await repository.waitForAttempts(1);
+    gps.add(newer);
+    gps.add(_fix(
+      startTime.add(const Duration(seconds: 31)),
+      latitude: 31.965158,
+    ));
+    publishGate.complete();
+    await repository.waitForPublishes(2);
+
+    expect(repository.publishAttempts, 2);
+    expect(repository.published.map((sample) => sample.recordedAt), [
+      first.recordedAt,
+      newer.recordedAt,
     ]);
   });
 

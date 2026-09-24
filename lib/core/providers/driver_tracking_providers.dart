@@ -7,6 +7,7 @@ import 'package:ridex/core/errors/driver_location_exception.dart';
 import 'package:ridex/core/models/driver_availability.dart';
 import 'package:ridex/core/models/driver_location.dart';
 import 'package:ridex/core/services/driver_location/driver_gps_stream_service.dart';
+import 'package:ridex/core/services/driver_location/driver_location_validation_policy.dart';
 import 'package:ridex/core/services/driver_location/driver_tracking_connection.dart';
 import 'package:ridex/core/services/driver_location/geolocator_driver_gps_stream_service.dart';
 import 'package:ridex/core/services/driver_location/supabase_driver_tracking_connection.dart';
@@ -102,6 +103,10 @@ final driverTrackingConnectionProvider = Provider<DriverTrackingConnection>(
   },
 );
 
+final driverTrackingClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
+
 final driverTrackingControllerProvider =
     NotifierProvider.autoDispose<DriverTrackingController, DriverTrackingState>(
   DriverTrackingController.new,
@@ -109,6 +114,8 @@ final driverTrackingControllerProvider =
 
 class DriverTrackingController
     extends AutoDisposeNotifier<DriverTrackingState> {
+  static const _validationPolicy = DriverLocationValidationPolicy();
+
   StreamSubscription<DriverLocationFix>? _subscription;
   StreamSubscription<DriverTrackingLifecycleState>? _lifecycleSubscription;
   StreamSubscription<DriverTrackingConnectionEvent>? _connectionSubscription;
@@ -501,11 +508,18 @@ class DriverTrackingController
     final trackingConfig = _trackingConfig;
     if (!_isCurrent(generation) ||
         state.status != DriverTrackingStatus.sharing ||
-        trackingConfig == null ||
-        fix.point.accuracyMeters == null ||
-        (_latestRecordedAt != null &&
-            !fix.recordedAt.isAfter(_latestRecordedAt!)) ||
-        (_latestRecordedAt != null &&
+        trackingConfig == null) {
+      return;
+    }
+    if (_validationPolicy.rejectionFor(
+          candidate: fix,
+          previous: _latestAcceptedFix,
+          now: ref.read(driverTrackingClockProvider)(),
+        ) !=
+        null) {
+      return;
+    }
+    if ((_latestRecordedAt != null &&
             fix.recordedAt.difference(_latestRecordedAt!) <
                 trackingConfig.minimumUpdateInterval) ||
         !trackingConfig.isMeaningfulUpdate(fix, _latestAcceptedFix)) {

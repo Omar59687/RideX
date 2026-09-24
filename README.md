@@ -38,8 +38,10 @@ rebuilds. Task 4.25 makes the request profile and accepted-update cadence
 canonical-state-aware. Task 4.26 stops GPS and tracking connections in
 ineligible canonical states and permits a safe explicit-sync restart. Task 4.27
 adds state-specific device and write thresholds so idle tracking consumes fewer
-resources without reducing active-trip fidelity. Tasks 4.28 through 4.30,
-matching, and Rider live-trip tracking remain later work.
+resources without reducing active-trip fidelity. Task 4.28 rejects unusable,
+expired, future, and out-of-order fixes without replacing the last valid
+canonical reference. Tasks 4.29 and 4.30, matching, and Rider live-trip tracking
+remain later work.
 See `docs/ai/ops/CURRENT_STATUS.md`.
 
 ## Setup
@@ -225,11 +227,22 @@ measurement-only jitter do not cause premature writes. A freshness update can
 only use a fix already emitted by the existing stream; there is no timer,
 polling, extra canonical read, or additional subscription.
 
+Task 4.28 centralizes fix admission in `DriverLocationValidationPolicy`.
+Coordinates must survive provider-neutral model validation, accuracy must be
+present, timestamps must stay inside the existing RPC window of 15 minutes old
+through 5 minutes future, and source time must advance strictly. RideX does not
+use an arbitrary global accuracy cap: a worse-accuracy fix is rejected only when
+its displacement remains inside its own uncertainty radius relative to the last
+valid fix. Rejection preserves the last accepted/canonical location and pending
+write, so later valid data recovers normally. The RPC also rejects a newer
+sequence carrying non-advancing `recorded_at`, protecting canonical order across
+sessions.
+
 Physical Android GPS/permission/Start/Stop/lifecycle behavior and authenticated
 hosted Supabase persistence, reconnection, and unauthorized Rider rejection are
 reported verified. This is not continuous OS-background tracking and does not
 include matching or Rider live-trip tracking. Checkpoint 4E remains incomplete
-because tasks 4.28 through 4.30 are not implemented.
+because tasks 4.29 and 4.30 are not implemented.
 
 ## Verification
 

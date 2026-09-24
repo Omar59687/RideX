@@ -36,7 +36,7 @@ metadata and reported physical/live evidence through 2026-09-20:
 - Checkpoint 4B commit `2359a81` adds pickup/destination place search, geocoding, map selection, and routing-readiness validation. Fix commit `41dd2f5` blocks routing while map/GPS reverse geocoding is unresolved; this fix is pushed on the current branch but is not yet in `origin/main`.
 - The hosted Supabase `places` function is active and the required `GOOGLE_MAPS_WEB_SERVICES_API_KEY` secret name exists. No secret value was read.
 - Checkpoints 4A and 4B are approved. The project owner reports that Omar tested every previously remaining physical/live and configuration requirement successfully. The final 4B replacement-selection routing guard is implemented in the current working tree and passes focused and full regression verification.
-- Real routing and foreground Driver location tracking are implemented and approved through Checkpoints 4C and 4D. GPS efficiency tasks 4.24 through 4.27 are complete; tasks 4.28 through 4.30, matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
+- Real routing and foreground Driver location tracking are implemented and approved through Checkpoints 4C and 4D. GPS efficiency and resilience tasks 4.24 through 4.28 are complete; tasks 4.29 and 4.30, matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
 - Multi-stop data can be represented in the booking draft, but stop management, routing, persistence, and fare integration are not implemented.
 - Current fares are deterministic demo values rather than route-based fixed fares.
 - Cash is displayed in the booking and completion UI, and Phase 3 defines trusted atomic Cash completion/settlement and persistent receipt foundations, but they are not connected to Flutter.
@@ -960,7 +960,7 @@ begin.
   - Battery.
   - Mobile data.
   - Backend resources.
-- [ ] 4.28 Make location updates resilient to temporary GPS inaccuracies and prevent obviously stale/invalid updates from replacing a newer valid location.
+- [x] 4.28 Make location updates resilient to temporary GPS inaccuracies and prevent obviously stale/invalid updates from replacing a newer valid location.
 - [ ] 4.29 Provide clear application states for:
   - Loading.
   - GPS unavailable.
@@ -972,9 +972,9 @@ begin.
 
 #### Checkpoint 4E Task 4.24 — GPS update efficiency
 
-Status: Completed and verified on 2026-09-22. Tasks 4.25 through 4.27 are now
-recorded below; tasks 4.28 through 4.30 remain unimplemented, so Checkpoint 4E
-and its approval gate remain incomplete.
+Status: Completed and verified on 2026-09-22. Tasks 4.25 through 4.28 are now
+recorded below; tasks 4.29 and 4.30 remain unimplemented, so Checkpoint 4E and
+its approval gate remain incomplete.
 
 The existing foreground Driver-location architecture is preserved. Task 4.24
 introduced nonzero movement filtering; task 4.25 now selects its exact value by
@@ -1000,9 +1000,9 @@ behavior from tasks 4.26 through 4.30 was added.
 
 #### Checkpoint 4E Task 4.25 — State-based GPS frequency
 
-Status: Completed and verified on 2026-09-22. Tasks 4.26 and 4.27 are recorded
-below; tasks 4.28 through 4.30 remain unimplemented, so Checkpoint 4E and its
-approval gate remain incomplete.
+Status: Completed and verified on 2026-09-22. Tasks 4.26 through 4.28 are
+recorded below; tasks 4.29 and 4.30 remain unimplemented, so Checkpoint 4E and
+its approval gate remain incomplete.
 
 The provider-neutral `DriverGpsTrackingConfig` centralizes the policy derived
 only from canonical `DriverAvailabilityState`. `onTrip` uses high accuracy, a
@@ -1036,9 +1036,9 @@ UI-state, or error-policy behavior from tasks 4.26 through 4.30 was added.
 
 #### Checkpoint 4E Task 4.26 — Stop unnecessary Driver tracking
 
-Status: Completed and verified on 2026-09-24. Task 4.27 is recorded below;
-tasks 4.28 through 4.30 remain unimplemented, so Checkpoint 4E and its approval
-gate remain incomplete.
+Status: Completed and verified on 2026-09-24. Tasks 4.27 and 4.28 are recorded
+below; tasks 4.29 and 4.30 remain unimplemented, so Checkpoint 4E and its
+approval gate remain incomplete.
 
 Explicit canonical synchronization now treats `offline`, missing, and otherwise
 ineligible availability as a stop boundary. The controller invalidates queued
@@ -1065,8 +1065,9 @@ added.
 
 #### Checkpoint 4E Task 4.27 — GPS resource consumption
 
-Status: Completed and verified on 2026-09-24. Tasks 4.28 through 4.30 remain
-unimplemented, so Checkpoint 4E and its approval gate remain incomplete.
+Status: Completed and verified on 2026-09-24. Task 4.28 is recorded below;
+tasks 4.29 and 4.30 remain unimplemented, so Checkpoint 4E and its approval gate
+remain incomplete.
 
 The provider-neutral `DriverGpsTrackingConfig` now centralizes both device and
 backend resource policy. Canonical `available` uses low accuracy, a 50-meter
@@ -1097,8 +1098,45 @@ requested.
 Verification: the GPS service/controller and Driver Home sharing suites passed
 62 tests; `flutter analyze --no-pub` reported no issues; `flutter test --no-pub`
 passed 212 tests with 2 intentional live-test skips; and `git diff --check`
-passed. No accuracy-resilience, UI-state, or error-policy behavior from tasks
-4.28 through 4.30 was added.
+passed. At that task boundary, no accuracy-resilience, UI-state, or error-policy
+behavior from tasks 4.28 through 4.30 was added.
+
+#### Checkpoint 4E Task 4.28 — Driver location validity and ordering
+
+Status: Completed and verified on 2026-09-24. Tasks 4.29 and 4.30 remain
+unimplemented, so Checkpoint 4E and its approval gate remain incomplete.
+
+The provider-neutral `DriverLocationValidationPolicy` is now the single
+admission policy before a GPS fix can replace local accepted state or enter the
+ordered publish queue. A fix is accepted only when it has usable accuracy, its
+source timestamp is within the existing canonical RPC window of 15 minutes old
+through 5 minutes future, and its timestamp strictly advances past the latest
+accepted/canonical fix. Geolocator adapter boundaries continue to drop invalid
+coordinates and sanitize invalid optional heading/speed metadata to `null`.
+
+No global accuracy cutoff was invented. When reported accuracy becomes worse
+than the last valid fix, the candidate is rejected only if its displacement
+remains within its own reported accuracy radius; that reading cannot confidently
+establish a replacement position. Rejected fixes do not mutate the last valid
+recorded timestamp, accepted fix, pending write, sequence, or confirmed
+canonical timestamp, so a later valid fix recovers normally.
+
+Local writes remain strictly ordered and generation-scoped, and an older
+callback cannot replace a newer pending fix during an asynchronous publish.
+Additive migration `024_guard_driver_location_recorded_at.sql` extends the
+trusted RPC under its existing per-Driver availability-row lock: a higher
+sequence whose `recorded_at` does not advance is rejected as stale. This closes
+the cross-session race without rewriting prior migrations or changing the RPC
+signature; its existing `23505` mapping triggers canonical recovery.
+
+Verification: 74 focused validation/GPS/controller/repository/Driver Home tests
+passed; `flutter analyze --no-pub` reported no issues; `flutter test --no-pub`
+passed 218 tests with 2 intentional live-test skips; and `git diff --check`
+passed. A pgTAP regression was added to the existing Driver-location database
+suite, but local execution was blocked because no Docker engine or Docker
+Desktop executable is available; `npx supabase test db` and local stack startup
+were both attempted. No UI-state or error-policy behavior from tasks 4.29 or
+4.30 was added.
 
 Checkpoint goal:
 
