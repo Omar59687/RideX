@@ -74,7 +74,7 @@ seconds, and one minute; `onTrip` preserves high accuracy, 10 meters, and five
 seconds, with a 15-second maximum silence bound. The controller computes
 provider-neutral great-circle movement and suppresses sub-threshold callbacks
 until meaningful movement or the stream-driven silence bound. It adds no timer,
-polling, canonical read, or subscription. Checkpoints 4A through 4D are
+polling, canonical read, or subscription. Checkpoints 4A through 4F are
 approved. Task 4.28 adds the provider-neutral
 `DriverLocationValidationPolicy` before cadence/significance filtering and
 state mutation. It requires usable accuracy, the existing
@@ -98,7 +98,9 @@ once before mapping them to existing typed state and fixed UI copy. The default
 reporter uses Flutter diagnostics in debug builds and is a release no-op; raw
 errors are not stored in application state. Map camera and Driver cleanup futures
 are contained, and late auto-dispose failures use a reporter captured during
-provider construction. Checkpoint 4E is approved. Matching, Rider live-trip
+provider construction. Checkpoint 4E is approved. Checkpoint 4F confirms
+these provider boundaries with `test/architecture_boundary_test.dart` and
+documents Smart City readiness. Matching, Rider live-trip
 tracking, and continuous OS-background tracking remain later work.
 
 ## Router

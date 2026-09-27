@@ -1215,11 +1215,11 @@ Approval gate:
 
 ### Checkpoint 4F — Architecture + Smart City Readiness
 
-- [ ] 4.31 Keep the map/GPS provider behind RideX service/repository contracts so UI and domain logic are not tightly coupled to a specific provider.
-- [ ] 4.32 Keep API keys and map-service configuration out of source code and protect them according to existing RideX environment/config rules.
-- [ ] 4.33 Ensure GPS integration supports RideX's Smart City objective of connecting Rider and Driver location information through digital mobility services.
-- [ ] 4.34 Ensure routing supports RideX's objective of accurate local routing rather than relying only on generic coordinate distance.
-- [ ] 4.35 Ensure GPS and routing outputs can later support:
+- [x] 4.31 Keep the map/GPS provider behind RideX service/repository contracts so UI and domain logic are not tightly coupled to a specific provider.
+- [x] 4.32 Keep API keys and map-service configuration out of source code and protect them according to existing RideX environment/config rules.
+- [x] 4.33 Ensure GPS integration supports RideX's Smart City objective of connecting Rider and Driver location information through digital mobility services.
+- [x] 4.34 Ensure routing supports RideX's objective of accurate local routing rather than relying only on generic coordinate distance.
+- [x] 4.35 Ensure GPS and routing outputs can later support:
   - Accurate ETA.
   - FareQuote/fare calculation.
   - Driver matching.
@@ -1234,14 +1234,14 @@ Ensure Phase 4 becomes reusable RideX infrastructure instead of provider-specifi
 
 Approval gate:
 
-- [ ] UI is not unnecessarily coupled directly to provider APIs.
-- [ ] Provider-specific models do not leak into domain contracts.
-- [ ] API keys are not hardcoded.
-- [ ] Configuration follows existing RideX environment rules.
-- [ ] Routing architecture can support Phase 5.
-- [ ] GPS architecture can support Phase 7.
-- [ ] Route outputs can support later fare and ETA logic.
-- [ ] Phase boundaries remain intact.
+- [x] UI is not unnecessarily coupled directly to provider APIs.
+- [x] Provider-specific models do not leak into domain contracts.
+- [x] API keys are not hardcoded.
+- [x] Configuration follows existing RideX environment rules.
+- [x] Routing architecture can support Phase 5.
+- [x] GPS architecture can support Phase 7.
+- [x] Route outputs can support later fare and ETA logic.
+- [x] Phase boundaries remain intact.
 
 ### Checkpoint 4G — Testing + Final Phase 4 Approval
 

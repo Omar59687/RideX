@@ -2,7 +2,7 @@
 
 ## Git Checkpoint
 
-- Active branch: `yousuf/supabase-env-audit`
+- Active branch: `codex/phase-4f-architecture-readiness`
 - Final 4D audit baseline: `18a6c77`, aligned with `origin/main` before the
   uncommitted audit corrections.
 - Checkpoint 4D Driver Home UI correction: `31bc7c9`; documentation for this
@@ -383,6 +383,21 @@
   stale/out-of-order rejection, canonical-state preservation through temporary
   failures, safe user-facing errors, and passing relevant tests. Matching, Rider
   live-trip tracking, and continuous OS-background location remain later work.
+- Checkpoint 4F: **Approved on 2026-09-27.** Tasks 4.31 through 4.35 are
+  complete. The targeted architecture-boundary regression suite confirms that
+  provider-neutral models and feature UI do not import Google Maps, Geolocator,
+  or Supabase SDKs; approved adapter and composition boundaries remain explicit;
+  route contracts retain provider-neutral geometry, distance, and duration; and
+  Driver location contracts retain sequence, timestamps, accuracy, movement
+  metadata, availability, and trip association. The formal evidence is in
+  `docs/ai/verification/PHASE_4F_ARCHITECTURE_READINESS_2026-09-27.md`.
+  Checkpoint 4G remains incomplete, so Phase 4 is not fully approved and Phase 5
+  must not begin.
+- Migration `024_guard_driver_location_recorded_at.sql` remains a separate
+  operational 4E follow-up. It is present locally but has not been deployed to
+  hosted Supabase, and its pgTAP regression has not been independently run
+  because Docker was unavailable. It was not edited, deployed, or tested during
+  4F.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
