@@ -74,11 +74,14 @@ second-device result is invented here. Existing automated fakes and widget
 flows are reported as automated coverage only, not physical GPS or live-service
 evidence.
 
-The separate 4F/4E operational blocker also remains unresolved:
-`024_guard_driver_location_recorded_at.sql` has not been deployed to hosted
-Supabase, and its pgTAP ordering regression has not been independently run
-because Docker is unavailable. No migration or deployment was performed during
-4G.
+The separate 4F/4E operational blocker also remains unresolved. Separate
+uncommitted and stashed 4F evidence-hardening work completed an isolated local
+reset through migration `024`, passed the focused `011`/`024` ordering regression
+after a test-only timestamp correction, and passed sequential database tests
+`004` through `015` with 680 assertions. Test `016` remains blocked before
+assertions by local `dblink` authentication, tests `017` through `023` were not
+completed in that run, and migration `024` has not been deployed to hosted
+Supabase. No migration or deployment was performed during 4G.
 
 ## Status
 

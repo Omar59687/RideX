@@ -391,8 +391,8 @@
   Driver location contracts retain sequence, timestamps, accuracy, movement
   metadata, availability, and trip association. The formal evidence is in
   `docs/ai/verification/PHASE_4F_ARCHITECTURE_READINESS_2026-09-27.md`.
-  Checkpoint 4G remains incomplete, so Phase 4 is not fully approved and Phase 5
-  must not begin.
+  Checkpoint 4G automated gates are recorded below; final approval remains
+  incomplete, so Phase 5 must not begin.
 - Checkpoint 4G automated gates: **Completed on 2026-09-27.** The focused
   regression command passed 175 tests. Existing location, place, route, map,
   Rider/Driver flow, GPS, network, reconnection, repository, provider, and
@@ -411,10 +411,14 @@
   unresolved. Phase 4 must not be marked finally Approved and Phase 5 must not
   begin.
 - Migration `024_guard_driver_location_recorded_at.sql` remains a separate
-  operational 4E follow-up. It is present locally but has not been deployed to
-  hosted Supabase, and its pgTAP regression has not been independently run
-  because Docker was unavailable. It was not edited, deployed, or tested during
-  4F.
+  operational 4E/4F follow-up. Separate uncommitted and stashed 4F
+  evidence-hardening work completed an isolated local reset through migration
+  `024`, passed the focused `011`/`024` ordering regression after a test-only
+  timestamp correction, and passed sequential database tests `004` through
+  `015` with 680 assertions. Test `016` remains blocked before assertions by
+  local `dblink` authentication, tests `017` through `023` were not completed in
+  that run, and migration `024` has not been deployed to hosted Supabase. It was
+  not edited or deployed during 4G.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`
