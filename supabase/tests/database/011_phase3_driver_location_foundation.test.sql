@@ -48,13 +48,13 @@ select ok((select received_at >= recorded_at - interval '1 second' from public.d
 select throws_ok($$insert into public.driver_locations (driver_id, sequence, latitude, longitude, accuracy_meters, recorded_at, received_at) values (auth.uid(), 2, 31.9, 35.9, 1, now(), now() - interval '1 day')$$, '42501', null, 'direct inserts are denied');
 select throws_ok($$update public.driver_locations set latitude = 1$$, '42501', null, 'direct updates are denied');
 select throws_ok($$delete from public.driver_locations$$, '42501', null, 'direct deletes are denied');
-select throws_ok($$select public.driver_record_location(null, 1, 31.95, 35.93, 4, null, null, now())$$, '23505', 'Location sequence must increase for this Driver.', 'duplicate sequence is rejected');
-select throws_ok($$select public.driver_record_location(null, 0, 31.95, 35.93, 4, null, null, now())$$, '23505', 'Location sequence must increase for this Driver.', 'out-of-order sequence is rejected');
-select throws_ok($$select public.driver_record_location(null, 2, 91, 35.93, 4, null, null, now())$$, '23514', null, 'invalid latitude is rejected');
-select throws_ok($$select public.driver_record_location(null, 2, 31.95, 'Infinity'::float8, 4, null, null, now())$$, '23514', null, 'non-finite longitude is rejected');
-select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, -1, null, null, now())$$, '23514', null, 'negative accuracy is rejected');
-select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4, 360, null, now())$$, '23514', null, 'invalid heading is rejected');
-select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4, null, -1, now())$$, '23514', null, 'negative speed is rejected');
+select throws_ok($$select public.driver_record_location(null, 1, 31.95, 35.93, 4, null, null, clock_timestamp())$$, '23505', 'Location sequence must increase for this Driver.', 'duplicate sequence is rejected');
+select throws_ok($$select public.driver_record_location(null, 0, 31.95, 35.93, 4, null, null, clock_timestamp())$$, '23505', 'Location sequence must increase for this Driver.', 'out-of-order sequence is rejected');
+select throws_ok($$select public.driver_record_location(null, 2, 91, 35.93, 4, null, null, clock_timestamp())$$, '23514', null, 'invalid latitude is rejected');
+select throws_ok($$select public.driver_record_location(null, 2, 31.95, 'Infinity'::float8, 4, null, null, clock_timestamp())$$, '23514', null, 'non-finite longitude is rejected');
+select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, -1, null, null, clock_timestamp())$$, '23514', null, 'negative accuracy is rejected');
+select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4, 360, null, clock_timestamp())$$, '23514', null, 'invalid heading is rejected');
+select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4, null, -1, clock_timestamp())$$, '23514', null, 'negative speed is rejected');
 select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4, null, null, now() - interval '16 minutes')$$, '22023', 'Location timestamp is outside the accepted time window.', 'stale timestamp is rejected');
 select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4, null, null, now() + interval '6 minutes')$$, '22023', 'Location timestamp is outside the accepted time window.', 'future timestamp is rejected');
 select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4, null, null, now() - interval '1 second')$$, '23505', 'Location timestamp must increase for this Driver.', 'newer sequence with older timestamp is rejected');
@@ -74,9 +74,9 @@ update public.driver_availability set state = 'onTrip', active_trip_id = 'b12000
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'b1000000-0000-0000-0000-000000000011', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
-select lives_ok($$select public.driver_record_location('b1200000-0000-0000-0000-000000000004', 2, 31.96, 35.94, 3, 90, 4, now())$$, 'on-trip Driver records a sample for the assigned active Trip');
-select throws_ok($$select public.driver_record_location(null, 3, 31.96, 35.94, 3, null, null, now())$$, '22023', 'On-trip location requires this Driver''s active Trip.', 'on-trip sample requires Trip association');
-select throws_ok($$select public.driver_record_location('b1200000-0000-0000-0000-000000000004', 3, 'NaN'::float8, 35.94, 3, null, null, now())$$, '23514', null, 'non-finite latitude is rejected');
+select lives_ok($$select public.driver_record_location('b1200000-0000-0000-0000-000000000004', 2, 31.96, 35.94, 3, 90, 4, clock_timestamp())$$, 'on-trip Driver records a sample for the assigned active Trip');
+select throws_ok($$select public.driver_record_location(null, 3, 31.96, 35.94, 3, null, null, clock_timestamp())$$, '22023', 'On-trip location requires this Driver''s active Trip.', 'on-trip sample requires Trip association');
+select throws_ok($$select public.driver_record_location('b1200000-0000-0000-0000-000000000004', 3, 'NaN'::float8, 35.94, 3, null, null, clock_timestamp())$$, '23514', null, 'non-finite latitude is rejected');
 reset role;
 
 set local role authenticated;
@@ -102,7 +102,7 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'b1000000-0000-0000-0000-000000000012', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
-select lives_ok($$select public.driver_record_location(null, 1, 32, 36, 3, 20, 2, now())$$, 'sequences are independent across Drivers');
+select lives_ok($$select public.driver_record_location(null, 1, 32, 36, 3, 20, 2, clock_timestamp())$$, 'sequences are independent across Drivers');
 select is((select count(*) from public.driver_locations), 1::bigint, 'other Driver reads only own sample');
 reset role;
 

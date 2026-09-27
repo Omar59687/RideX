@@ -9,59 +9,34 @@ import 'package:ridex/core/models/route_models.dart';
 void main() {
   group('Phase 4 architecture boundaries', () {
     test('provider-neutral models do not import provider SDKs', () {
-      for (final relativePath in _phaseFourModelFiles) {
-        final source = _read(relativePath);
-        expect(source, isNot(contains('package:google_maps_flutter/')),
-            reason: relativePath);
-        expect(source, isNot(contains('package:geolocator/')),
-            reason: relativePath);
-        expect(source, isNot(contains('package:supabase')),
-            reason: relativePath);
+      for (final file in _dartFilesUnder('lib/core/models')) {
+        final directives = _providerDirectives(file);
+        expect(directives, isEmpty, reason: _relativePath(file));
       }
     });
 
     test('feature UI does not import provider SDKs directly', () {
-      final featureDirectory = Directory(_path('lib/features'));
-      final featureFiles = featureDirectory
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((file) => file.path.endsWith('.dart'));
-
-      for (final file in featureFiles) {
-        final source = file.readAsStringSync();
-        expect(source, isNot(contains('package:google_maps_flutter/')),
-            reason: file.path);
-        expect(source, isNot(contains('package:geolocator/')),
-            reason: file.path);
-        expect(source, isNot(contains('package:supabase')), reason: file.path);
+      for (final file in _dartFilesUnder('lib/features')) {
+        final directives = _providerDirectives(file);
+        expect(directives, isEmpty, reason: _relativePath(file));
       }
     });
 
-    test('provider SDK imports remain within approved Phase 4 boundaries', () {
-      _expectImportsOnly(
-        packageName: 'google_maps_flutter',
-        allowedFiles: _googleMapAdapterFiles,
-        scannedDirectories: const ['lib'],
-      );
-      _expectImportsOnly(
-        packageName: 'geolocator',
-        allowedFiles: _geolocatorAdapterFiles,
-        scannedDirectories: const ['lib'],
-      );
-      _expectImportsOnly(
-        packageName: 'supabase_flutter',
-        allowedFiles: _phaseFourSupabaseFiles,
-        scannedDirectories: const [
-          'lib/app',
-          'lib/core/providers',
-          'lib/core/services/driver_location',
-          'lib/core/services/places',
-          'lib/core/services/routes',
-        ],
-        scannedFiles: const [
-          'lib/core/services/supabase/supabase_client_provider.dart',
-        ],
-      );
+    test(
+        'provider SDK directives remain within explicit infrastructure boundaries',
+        () {
+      final allFiles = _dartFilesUnder('lib');
+      for (final file in allFiles) {
+        for (final directive in _providerDirectives(file)) {
+          final relativePath = _relativePath(file);
+          final allowedFiles = _allowedFilesFor(directive.packageName);
+          expect(
+            allowedFiles,
+            contains(relativePath),
+            reason: '$directive in $relativePath',
+          );
+        }
+      }
     });
 
     test('route contracts retain provider-neutral geometry and metrics', () {
@@ -128,68 +103,87 @@ void main() {
   });
 }
 
-const _phaseFourModelFiles = [
-  'lib/core/models/current_location_state.dart',
-  'lib/core/models/driver_availability.dart',
-  'lib/core/models/driver_location.dart',
-  'lib/core/models/location_point.dart',
-  'lib/core/models/route_models.dart',
-];
-
-const _googleMapAdapterFiles = [
+const _googleMapAdapterFiles = {
   'lib/core/widgets/google_current_location_map.dart',
   'lib/core/widgets/google_location_selection_map.dart',
-];
+};
 
-const _geolocatorAdapterFiles = [
-  'lib/core/services/location/location_service.dart',
+const _geolocatorAdapterFiles = {
+  'lib/core/services/location/geolocator_location_service.dart',
   'lib/core/services/driver_location/geolocator_driver_gps_stream_service.dart',
-];
+};
 
-const _phaseFourSupabaseFiles = [
+const _supabaseInfrastructureFiles = {
   'lib/app/bootstrap.dart',
   'lib/core/providers/driver_tracking_providers.dart',
   'lib/core/providers/repositories_providers.dart',
+  'lib/core/repositories/supabase_auth_repository.dart',
+  'lib/core/repositories/supabase_profile_repository.dart',
   'lib/core/services/driver_location/supabase_driver_location_service.dart',
   'lib/core/services/driver_location/supabase_driver_tracking_connection.dart',
   'lib/core/services/places/supabase_place_service.dart',
   'lib/core/services/routes/supabase_route_service.dart',
+  'lib/core/services/supabase/auth_service.dart',
+  'lib/core/services/supabase/profile_service.dart',
   'lib/core/services/supabase/supabase_client_provider.dart',
-];
+};
 
-void _expectImportsOnly({
-  required String packageName,
-  required List<String> allowedFiles,
-  required List<String> scannedDirectories,
-  List<String> scannedFiles = const [],
-}) {
-  final allowed = allowedFiles.toSet();
-  final files = <String>{
-    ...scannedFiles,
-    for (final directory in scannedDirectories)
-      ...Directory(_path(directory))
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((file) => file.path.endsWith('.dart'))
-          .map(_relativePath),
-  };
-
-  for (final relativePath in files) {
-    final source = _read(relativePath);
-    if (source.contains('package:$packageName/')) {
-      expect(allowed, contains(relativePath), reason: relativePath);
-    }
-  }
+Iterable<File> _dartFilesUnder(String relativeDirectory) {
+  return Directory(_path(relativeDirectory))
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((file) => file.path.endsWith('.dart'));
 }
 
-String _read(String relativePath) =>
-    File(_path(relativePath)).readAsStringSync();
+Set<_ProviderDirective> _providerDirectives(File file) {
+  final source = file.readAsStringSync();
+  final directives = <_ProviderDirective>{};
+  for (final packageName in const [
+    'google_maps_flutter',
+    'geolocator',
+    'supabase',
+    'supabase_flutter',
+  ]) {
+    final pattern = RegExp(
+      "^\\s*(?:import|export)\\s+['\"]package:$packageName/[^'\"]+['\"]",
+      multiLine: true,
+    );
+    if (pattern.hasMatch(source)) {
+      directives.add(_ProviderDirective(packageName));
+    }
+  }
+  return directives;
+}
+
+Set<String> _allowedFilesFor(String packageName) {
+  return switch (packageName) {
+    'google_maps_flutter' => _googleMapAdapterFiles,
+    'geolocator' => _geolocatorAdapterFiles,
+    'supabase' || 'supabase_flutter' => _supabaseInfrastructureFiles,
+    _ => const {},
+  };
+}
 
 String _path(String relativePath) =>
     Directory.current.uri.resolve(relativePath).toFilePath();
 
 String _relativePath(File file) {
   final root = Directory.current.uri.toFilePath();
-  final path = file.absolute.path;
-  return path.substring(root.length).replaceAll('\\', '/');
+  return file.absolute.path.substring(root.length).replaceAll('\\', '/');
+}
+
+class _ProviderDirective {
+  const _ProviderDirective(this.packageName);
+
+  final String packageName;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _ProviderDirective && other.packageName == packageName;
+
+  @override
+  int get hashCode => packageName.hashCode;
+
+  @override
+  String toString() => 'package:$packageName';
 }

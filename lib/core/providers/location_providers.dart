@@ -4,21 +4,35 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/app/config/env_config.dart';
+import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/current_location_state.dart';
 import 'package:ridex/core/models/location_point.dart';
+import 'package:ridex/core/models/place_selection_state.dart';
 import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/repositories/location_repository.dart';
 import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
+import 'package:ridex/core/services/location/geolocator_location_service.dart';
 import 'package:ridex/core/services/location/location_permission_store.dart';
 import 'package:ridex/core/services/location/location_service.dart';
 import 'package:ridex/core/services/maps/ride_map_service.dart';
 import 'package:ridex/core/widgets/google_current_location_map.dart';
+import 'package:ridex/core/widgets/google_location_selection_map.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 typedef CurrentLocationMapBuilder = Widget Function(
   BuildContext context,
   LocationPoint? point,
 );
+
+typedef LocationSelectionMapBuilder = Widget Function(
+  BuildContext context, {
+  required LocationEndpoint activeEndpoint,
+  required RideLocation? pickup,
+  required RideLocation? destination,
+  required LocationPoint? currentLocation,
+  required List<LocationPoint> routeGeometry,
+  required ValueChanged<LocationPoint> onPointSelected,
+});
 
 final locationServiceProvider = Provider<LocationService>((ref) {
   return const GeolocatorLocationService();
@@ -63,6 +77,30 @@ final currentLocationMapBuilderProvider = Provider<CurrentLocationMapBuilder>(
         );
   },
 );
+
+final locationSelectionMapBuilderProvider =
+    Provider<LocationSelectionMapBuilder>((ref) {
+  final errorReporter = ref.watch(appErrorReporterProvider);
+  return (
+    context, {
+    required activeEndpoint,
+    required pickup,
+    required destination,
+    required currentLocation,
+    required routeGeometry,
+    required onPointSelected,
+  }) {
+    return GoogleLocationSelectionMap(
+      activeEndpoint: activeEndpoint,
+      pickup: pickup,
+      destination: destination,
+      currentLocation: currentLocation,
+      routeGeometry: routeGeometry,
+      onPointSelected: onPointSelected,
+      errorReporter: errorReporter,
+    );
+  };
+});
 
 class CurrentLocationController
     extends AutoDisposeNotifier<CurrentLocationState> {

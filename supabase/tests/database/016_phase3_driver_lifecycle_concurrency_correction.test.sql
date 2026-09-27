@@ -34,7 +34,7 @@ declare
   remote_pid integer;
 begin
   connection_info := format(
-    'host=host.docker.internal port=54322 dbname=%s user=%s password=%s',
+    'host=db port=5432 dbname=%s user=%s password=%s',
     current_database(),
     current_user,
     current_user
