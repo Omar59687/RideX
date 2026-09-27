@@ -3,6 +3,7 @@
 Date: 2026-09-27
 Branch: `codex/phase-4f-architecture-readiness`
 Base: `1576692`
+Implementation commit: `6ded865`
 
 ## Result
 
@@ -114,5 +115,4 @@ appeared.
 - No live tests were run with credentials. Docker, local Supabase, migration
   deployment, and migration 024 testing were not performed.
 
-The focused implementation and documentation commit hash is recorded in the
-final status after commit.
+The focused implementation and documentation commit is `6ded865`.
