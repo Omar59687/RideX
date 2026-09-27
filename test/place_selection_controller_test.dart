@@ -67,7 +67,8 @@ void main() {
     controller.search('Abd');
     await Future<void>.delayed(const Duration(milliseconds: 100));
     controller.search('Airport');
-    await Future<void>.delayed(const Duration(milliseconds: 380));
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await Future<void>.delayed(Duration.zero);
 
     expect(fake.queries, ['Airport']);
     expect(container.read(provider).predictions, const [predictionB]);
@@ -85,9 +86,9 @@ void main() {
     final controller = container.read(provider.notifier);
 
     controller.search('Abdali');
-    await Future<void>.delayed(const Duration(milliseconds: 370));
+    await Future<void>.delayed(const Duration(milliseconds: 500));
     controller.search('Airport');
-    await Future<void>.delayed(const Duration(milliseconds: 370));
+    await Future<void>.delayed(const Duration(milliseconds: 500));
     second.complete(const [predictionB]);
     await Future<void>.delayed(Duration.zero);
     first.complete(const [predictionA]);
@@ -147,7 +148,7 @@ void main() {
         placeSelectionControllerProvider(LocationEndpoint.destination);
     container.listen(provider, (_, __) {});
     container.read(provider.notifier).search('Abdali');
-    await Future<void>.delayed(const Duration(milliseconds: 370));
+    await Future<void>.delayed(const Duration(milliseconds: 500));
 
     expect(container.read(provider).status, PlaceSearchStatus.failure);
     expect(container.read(provider).message, contains('unavailable'));
@@ -165,7 +166,7 @@ void main() {
     container.listen(provider, (_, __) {});
 
     container.read(provider.notifier).search('Abdali');
-    await Future<void>.delayed(const Duration(milliseconds: 370));
+    await Future<void>.delayed(const Duration(milliseconds: 500));
 
     final state = container.read(provider);
     expect(state.status, PlaceSearchStatus.failure);
@@ -216,7 +217,8 @@ void main() {
         placeSelectionControllerProvider(LocationEndpoint.destination);
     final subscription = container.listen(provider, (_, __) {});
     container.read(provider.notifier).search('Abdali');
-    await Future<void>.delayed(const Duration(milliseconds: 370));
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await Future<void>.delayed(Duration.zero);
 
     subscription.close();
     container.dispose();
