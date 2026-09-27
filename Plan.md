@@ -498,7 +498,7 @@ At Phase 3 completion, Phase 4 had not started and required separate scope appro
 
 ## Phase 4 — Maps, GPS, Place Search, and Routing
 
-- [~] Implement maps, GPS, location permissions, place search, and routing. Checkpoints 4A through 4D are approved; Checkpoints 4E through 4G remain incomplete.
+- [~] Implement maps, GPS, location permissions, place search, and routing. Checkpoints 4A through 4F are approved; Checkpoint 4G automated gates are complete, while physical/equivalent evidence and final approval remain incomplete.
 
 ### Checkpoint 4A — Map + GPS Foundation
 
@@ -1245,14 +1245,14 @@ Approval gate:
 
 ### Checkpoint 4G — Testing + Final Phase 4 Approval
 
-- [ ] 4.36 Add unit tests for:
+- [x] 4.36 Add unit tests for:
   - Location.
   - Geocoding.
   - Routing.
   - Stale-location handling.
   - Repositories.
   - Providers/controllers.
-- [ ] 4.37 Add widget/integration tests for:
+- [x] 4.37 Add widget/integration tests for:
   - Permission states.
   - Current-location loading.
   - Place search.
@@ -1262,12 +1262,22 @@ Approval gate:
   - Network failure.
   - Reconnection.
 - [ ] 4.38 Test GPS behavior on at least two physical devices or equivalent Rider/Driver environments before approving Phase 4.
-- [ ] 4.39 Verify temporary GPS/network failures do not corrupt:
+- [x] 4.39 Verify temporary GPS/network failures do not corrupt:
   - BookingRequest.
   - Trip.
   - DriverLocation.
   - Canonical RideX state.
 - [ ] 4.40 Complete the Phase 4 approval gate.
+
+Checkpoint 4G automated evidence is recorded in
+`docs/ai/verification/PHASE_4G_FINAL_VERIFICATION_2026-09-27.md`. The repository
+uses `BookingDraft` as its current booking-state equivalent; no `BookingRequest`
+Flutter API exists and none was added. Existing Rider/Driver flow tests provide
+the applicable integration-equivalent coverage, so no new integration framework
+was introduced. Task 4.38 remains incomplete because no new two-device or
+equivalent-environment evidence was available for this checkpoint. The separate
+hosted migration 024 and pgTAP verification follow-up also remains unresolved;
+therefore Phase 4 is not finally approved.
 
 Final approval gate:
 

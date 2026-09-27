@@ -393,6 +393,23 @@
   `docs/ai/verification/PHASE_4F_ARCHITECTURE_READINESS_2026-09-27.md`.
   Checkpoint 4G remains incomplete, so Phase 4 is not fully approved and Phase 5
   must not begin.
+- Checkpoint 4G automated gates: **Completed on 2026-09-27.** The focused
+  regression command passed 175 tests. Existing location, place, route, map,
+  Rider/Driver flow, GPS, network, reconnection, repository, provider, and
+  controller suites were reused. Two genuinely missing cases were added: the
+  three-test `BookingDraft`/`MockTrip`/`DriverLocation` contract suite and the
+  one-test current-location loading widget regression. The repository has no
+  `BookingRequest` Flutter API, so no fabricated API or test was added. Existing
+  Rider/Driver flow tests provide the applicable integration-equivalent coverage,
+  so no new integration framework was introduced. A small test-only timing
+  stabilization drained pending place-search work before the existing
+  auto-dispose assertion; production behavior was unchanged.
+- Checkpoint 4G approval limitation: **Not finally approved.** Task 4.38 remains
+  incomplete because this checkpoint has no new evidence from two physical
+  devices or equivalent Rider/Driver environments. The separate hosted
+  migration 024 deployment and pgTAP verification follow-up also remains
+  unresolved. Phase 4 must not be marked finally Approved and Phase 5 must not
+  begin.
 - Migration `024_guard_driver_location_recorded_at.sql` remains a separate
   operational 4E follow-up. It is present locally but has not been deployed to
   hosted Supabase, and its pgTAP regression has not been independently run
