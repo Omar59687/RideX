@@ -1138,6 +1138,10 @@ Desktop executable is available; `npx supabase test db` and local stack startup
 were both attempted. No UI-state or error-policy behavior from tasks 4.29 or
 4.30 was added.
 
+This historical Docker blocker was resolved by the later 4F evidence-hardening
+follow-up: migration `024` reset and passed locally, the complete database suite
+passed sequentially, and `024` was deployed and verified on hosted Supabase.
+
 #### Checkpoint 4E Task 4.29 — Recoverable location and route states
 
 Status: Completed and verified on 2026-09-24. At this task boundary, task 4.30
@@ -1276,17 +1280,18 @@ Flutter API exists and none was added. Existing Rider/Driver flow tests provide
 the applicable integration-equivalent coverage, so no new integration framework
 was introduced. Task 4.38 remains incomplete because no new two-device or
 equivalent-environment evidence was available for this checkpoint. The separate
-hosted migration 024 and pgTAP verification follow-up also remains unresolved;
-therefore Phase 4 is not finally approved.
+migration 024 follow-up is resolved: local reset through `024`, 928 sequential
+pgTAP assertions, database lint, hosted dry-run, deployment, and remote migration
+status all passed. Therefore only task 4.38 still blocks final Phase 4 approval.
 
 Final approval gate:
 
-- [ ] Flutter formatting passes.
-- [ ] Flutter analyze passes.
-- [ ] Relevant unit tests pass.
-- [ ] Relevant widget tests pass.
-- [ ] Relevant integration tests pass where applicable.
-- [ ] Existing regression tests pass.
+- [x] Flutter formatting passes.
+- [x] Flutter analyze passes.
+- [x] Relevant unit tests pass.
+- [x] Relevant widget tests pass.
+- [x] Relevant integration tests pass where applicable.
+- [x] Existing regression tests pass.
 - [ ] Rider GPS flow works.
 - [ ] Driver GPS flow works.
 - [ ] Place search works.

@@ -90,10 +90,15 @@ tracking, trip navigation, or new live business state was added in 4F.
 
 ## Separate 4E Operational Follow-Up
 
-`024_guard_driver_location_recorded_at.sql` remains a separate unresolved
-operational 4E follow-up. It exists in Git but has not been deployed to hosted
-Supabase. Its pgTAP regression has not been independently run because Docker was
-unavailable. Migration 024 was not edited, deployed, or tested during 4F.
+Resolved on 2026-09-27 by evidence-hardening commit `f1d34e8`. Migration
+`024_guard_driver_location_recorded_at.sql` reset successfully in an isolated
+local Supabase environment. The focused `011`/`024` regression passed after the
+test used `clock_timestamp()` for distinct statement-time samples. The `016`
+concurrency harness now uses Supabase's portable internal `db:5432` endpoint
+instead of a host port. Tests `004` through `023` passed sequentially with 928
+assertions, and database lint returned no errors. The hosted dry-run listed only
+migration `024`; deployment succeeded; and remote migration status confirms
+`024` is applied. No migration file was edited.
 
 ## Verification
 
@@ -112,7 +117,10 @@ appeared.
 - `dart format lib test`: 190 files checked, 0 changed.
 - `flutter analyze --no-pub`: no issues found.
 - `git diff --check`: passed; only existing line-ending warnings were emitted.
-- No live tests were run with credentials. Docker, local Supabase, migration
-  deployment, and migration 024 testing were not performed.
+- The later evidence-hardening verification formatted 194 files with no changes,
+  passed 23 focused Flutter tests, passed the complete Flutter suite with 245
+  tests and 2 intentional live-test skips, and found no analyzer issue.
+- Local Supabase reset, sequential pgTAP verification, lint, linked dry-run,
+  hosted migration `024` deployment, and remote status verification all passed.
 
 The focused implementation and documentation commit is `6ded865`.

@@ -2,7 +2,7 @@
 
 ## Git Checkpoint
 
-- Active branch: `codex/phase-4f-architecture-readiness`
+- Active branch: `codex/phase-4f-evidence-hardening`
 - Final 4D audit baseline: `18a6c77`, aligned with `origin/main` before the
   uncommitted audit corrections.
 - Checkpoint 4D Driver Home UI correction: `31bc7c9`; documentation for this
@@ -406,19 +406,20 @@
   auto-dispose assertion; production behavior was unchanged.
 - Checkpoint 4G approval limitation: **Not finally approved.** Task 4.38 remains
   incomplete because this checkpoint has no new evidence from two physical
-  devices or equivalent Rider/Driver environments. The separate hosted
-  migration 024 deployment and pgTAP verification follow-up also remains
-  unresolved. Phase 4 must not be marked finally Approved and Phase 5 must not
-  begin.
-- Migration `024_guard_driver_location_recorded_at.sql` remains a separate
-  operational 4E/4F follow-up. Separate uncommitted and stashed 4F
-  evidence-hardening work completed an isolated local reset through migration
-  `024`, passed the focused `011`/`024` ordering regression after a test-only
-  timestamp correction, and passed sequential database tests `004` through
-  `015` with 680 assertions. Test `016` remains blocked before assertions by
-  local `dblink` authentication, tests `017` through `023` were not completed in
-  that run, and migration `024` has not been deployed to hosted Supabase. It was
-  not edited or deployed during 4G.
+  devices or equivalent Rider/Driver environments. Phase 4 must not be marked
+  finally Approved and Phase 5 must not begin.
+- Migration `024_guard_driver_location_recorded_at.sql`: **Verified and deployed
+  on 2026-09-27.** Evidence-hardening commit `f1d34e8` separates provider
+  adapters/composition, strengthens directive and credential boundaries,
+  removes generated `supabase/.temp` metadata from Git, corrects the `011`
+  transaction-timestamp regression, and makes the `016` concurrency harness use
+  the portable Supabase Docker-network `db:5432` endpoint. Local reset through
+  `024` passed; database tests `004` through `023` passed sequentially with 928
+  assertions; database lint returned no errors; the hosted dry-run listed only
+  migration `024`; deployment succeeded; and remote migration status confirms
+  local `024` equals remote `024`. The Supabase CLI directory-wide command is
+  not a valid aggregate result for this suite because its shared database lets
+  fixture-heavy files interfere; isolated sequential execution is authoritative.
 - Detailed evidence:
   `docs/ai/verification/PHASE_4AB_FINAL_VERIFICATION_2026-09-14.md`
   and `docs/ai/verification/PHASE_4C_IMPLEMENTATION_VERIFICATION_2026-09-16.md`

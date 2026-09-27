@@ -74,18 +74,16 @@ second-device result is invented here. Existing automated fakes and widget
 flows are reported as automated coverage only, not physical GPS or live-service
 evidence.
 
-The separate 4F/4E operational blocker also remains unresolved. Separate
-uncommitted and stashed 4F evidence-hardening work completed an isolated local
-reset through migration `024`, passed the focused `011`/`024` ordering regression
-after a test-only timestamp correction, and passed sequential database tests
-`004` through `015` with 680 assertions. Test `016` remains blocked before
-assertions by local `dblink` authentication, tests `017` through `023` were not
-completed in that run, and migration `024` has not been deployed to hosted
-Supabase. No migration or deployment was performed during 4G.
+The separate 4F/4E operational blocker was resolved after the 4G automated run.
+Evidence-hardening commit `f1d34e8` completed the local reset through migration
+`024`, passed tests `004` through `023` sequentially with 928 assertions, passed
+database lint, and corrected the portable `dblink` test endpoint. The hosted
+dry-run listed only migration `024`; deployment succeeded; and remote migration
+status confirms `024` is applied. No migration file was edited.
 
 ## Status
 
 The 4G automated gates for tasks 4.36, 4.37, and 4.39 are complete and passing.
-Task 4.38 and the separate migration-024 verification remain open. Therefore
-Checkpoint 4G is **automated gates passed, final approval blocked**, and Phase 4
-is **not finally Approved**. Phase 5 must not begin.
+Task 4.38 remains open. Therefore Checkpoint 4G is **automated gates passed,
+physical/equivalent verification pending**, and Phase 4 is **not finally
+Approved**. Phase 5 must not begin.
