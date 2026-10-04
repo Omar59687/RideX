@@ -10,7 +10,21 @@ def localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localPropertiesFile.withInputStream { localProperties.load(it) }
 }
-def mapsApiKey = localProperties.getProperty("MAPS_API_KEY", "")
+
+def dartDefines = [:]
+if (project.hasProperty("dart-defines")) {
+    project.property("dart-defines").split(",").each { encodedDefine ->
+        def decodedDefine = new String(encodedDefine.decodeBase64(), "UTF-8")
+        def separatorIndex = decodedDefine.indexOf("=")
+        if (separatorIndex > 0) {
+            dartDefines[decodedDefine.substring(0, separatorIndex)] =
+                decodedDefine.substring(separatorIndex + 1)
+        }
+    }
+}
+
+def mapsApiKey = dartDefines.get("GOOGLE_MAPS_API_KEY") ?:
+    localProperties.getProperty("MAPS_API_KEY", "")
 
 android {
     namespace = "com.ridex.app"
