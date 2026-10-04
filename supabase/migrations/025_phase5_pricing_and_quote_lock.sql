@@ -65,7 +65,7 @@ returns public.fare_quotes
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $function$
 declare
   caller_id uuid;
   locked_quote public.fare_quotes%rowtype;
@@ -97,7 +97,7 @@ begin
 
   return locked_quote;
 end;
-$;
+$function$;
 
 revoke all on function public.rider_lock_fare_quote(uuid, uuid, integer, integer)
   from public, anon, authenticated, service_role;
