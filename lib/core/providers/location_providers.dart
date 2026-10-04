@@ -105,6 +105,7 @@ final locationSelectionMapBuilderProvider =
 class CurrentLocationController
     extends AutoDisposeNotifier<CurrentLocationState> {
   bool _operationRunning = false;
+  bool _refreshPending = false;
   int _generation = 0;
   late final AppErrorReporter _errorReporter;
 
@@ -117,6 +118,12 @@ class CurrentLocationController
   }
 
   Future<void> refresh() {
+    if (_operationRunning) {
+      // Settings may close while an older permission/location read is still
+      // completing. Recheck once afterward instead of losing the resume event.
+      _refreshPending = true;
+      return Future<void>.value();
+    }
     return _run(
       loadingStatus: CurrentLocationStatus.checking,
       operation: ref.read(locationRepositoryProvider).inspectCurrentLocation,
@@ -178,6 +185,10 @@ class CurrentLocationController
       state =
           preservePoint ? nextState.copyWith(point: previousPoint) : nextState;
       _operationRunning = false;
+      if (_refreshPending) {
+        _refreshPending = false;
+        await refresh();
+      }
     }
   }
 }

@@ -27,9 +27,20 @@ class PickupSelectionScreen extends ConsumerStatefulWidget {
 
 class _PickupSelectionScreenState extends ConsumerState<PickupSelectionScreen> {
   final _search = TextEditingController();
+  late final AppLifecycleListener _lifecycleListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycleListener = AppLifecycleListener(onResume: () {
+      if (!mounted) return;
+      ref.read(currentLocationControllerProvider.notifier).refresh();
+    });
+  }
 
   @override
   void dispose() {
+    _lifecycleListener.dispose();
     _search.dispose();
     super.dispose();
   }

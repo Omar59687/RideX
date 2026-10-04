@@ -92,6 +92,15 @@ class _DestinationSelectionScreenState
           const SizedBox(height: AppSpacing.md),
           const StopsSection(),
           const SizedBox(height: AppSpacing.md),
+          if (draft.destination == null) ...[
+            const Text(
+              'Choose your final destination using Search destination above. '
+              'Intermediate stops are optional visits along the way; '
+              'they do not select your final destination.',
+              key: ValueKey('destination-required-hint'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           AppButton(
             label: selection.isResolving
                 ? 'Resolving destination...'

@@ -25,6 +25,13 @@ class LocationSearchPanel extends StatelessWidget {
   final VoidCallback onRetry;
   final VoidCallback onRetryAddress;
 
+  void _submitVisibleAddress() {
+    // Selection clears the provider query, but the text field may still show
+    // the previous address. Always submit what the Rider can actually see.
+    onChanged(controller.text);
+    onSubmitted();
+  }
+
   @override
   Widget build(BuildContext context) {
     final label = endpoint == LocationEndpoint.pickup
@@ -37,7 +44,7 @@ class LocationSearchPanel extends StatelessWidget {
           key: ValueKey('${endpoint.name}-search-field'),
           controller: controller,
           onChanged: onChanged,
-          onSubmitted: (_) => onSubmitted(),
+          onSubmitted: (_) => _submitVisibleAddress(),
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
             labelText: label,
@@ -54,7 +61,7 @@ class LocationSearchPanel extends StatelessWidget {
                   )
                 : IconButton(
                     tooltip: 'Search address',
-                    onPressed: onSubmitted,
+                    onPressed: _submitVisibleAddress,
                     icon: const Icon(Icons.arrow_forward_rounded),
                   ),
           ),

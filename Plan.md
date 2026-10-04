@@ -1,6 +1,28 @@
 # RideX Development Plan
 
-Last updated: 2026-09-20
+Last updated: 2026-10-04
+
+## Active goal — Phase 1–5 device regression review
+
+This section supersedes historical current-state statements below.
+Work only on `codex/phase-4f-evidence-hardening`; do not change main.
+
+- [x] Review the three reported Android symptoms and patch confirmed client
+  search, pickup lifecycle, map centering, draft reset, and fare-flow defects.
+- [x] Add/update regression tests and record implementation versus verification.
+- [~] Phase 5 remains provisional; run formatting, analysis, full Flutter tests,
+  Edge/SQL suites and physical-device acceptance before claiming completion.
+- [ ] Diagnose blank map tiles with redacted Android logs and the installed
+  app's signing certificate plus native Maps SDK configuration.
+- [ ] Verify fare quote/lock failures, lost responses, concurrent versions and
+  deployed migration/function compatibility against authenticated Supabase.
+- [-] Phase 4 task 4.38 two-device final test: deferred by owner, not passed.
+
+Acceptance: destination selection works after cancel/restart; enabling GPS then
+returning refreshes pickup without app restart; map tiles render with correctly
+restricted credentials; live mode never presents mock matching as real; required
+automated and physical checks pass. See
+`docs/ai/verification/PHASE_1_5_DEVICE_AUDIT_2026-10-04.md`.
 
 ## Purpose
 

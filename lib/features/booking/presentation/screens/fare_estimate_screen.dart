@@ -74,6 +74,13 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
   FareFailure? _failure;
   bool _loading = false;
   String _requestKey = '';
+  Timer? _expiryTimer;
+
+  @override
+  void dispose() {
+    _expiryTimer?.cancel();
+    super.dispose();
+  }
 
   String _quoteKey(BookingDraft draft, RouteResult? result) {
     final stops = [
@@ -146,6 +153,10 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
           stops: stops,
         );
       }
+      if (!mounted) return;
+      // Draft persistence succeeds independently of quote retrieval. Retain
+      // its new version even when Google/fare lookup fails, so Retry works.
+      _booking = booking;
       final quote = await repository.fetchQuote(
         bookingRequestId: booking.bookingRequestId,
         expectedBookingVersion: booking.version,
@@ -153,6 +164,13 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
         routeDurationSeconds: result.durationSeconds,
       );
       if (!mounted) return;
+      _expiryTimer?.cancel();
+      final remaining = quote.expiresAt.difference(DateTime.now());
+      if (remaining > Duration.zero) {
+        _expiryTimer = Timer(remaining, () {
+          if (mounted) setState(() {});
+        });
+      }
       setState(() {
         _booking = booking;
         _quote = quote;
@@ -203,7 +221,10 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
     // back the total; anything else is stale and never shown.
     final quote =
         (!isDemo && _requestKey == _quoteKey(draft, result)) ? _quote : null;
-    final usableQuote = quote != null && quote.isUsableAt(now) ? quote : null;
+    final lockedQuote = quote?.status == FareQuoteStatus.locked;
+    final usableQuote = quote != null && (lockedQuote || quote.isUsableAt(now))
+        ? quote
+        : null;
     final staleQuote =
         quote != null && usableQuote == null && _failure == null && !_loading;
     final ready = isDemo
@@ -211,7 +232,12 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
             route.isReadyFor(draft) &&
             vehicle != null &&
             demoFare > 0
-        : routeReady && vehicle != null && usableQuote != null;
+        : routeReady &&
+            vehicle != null &&
+            usableQuote != null &&
+            !lockedQuote &&
+            !_loading &&
+            _failure == null;
 
     return AppScaffold(
       title: 'Review booking',
@@ -334,7 +360,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
               'Select a route and ride to request the authoritative fare.',
               style: Theme.of(context).textTheme.bodySmall,
             )
-          else if (usableQuote != null)
+          else if (usableQuote != null && _failure == null)
             _AuthoritativeFareCard(quote: usableQuote)
           else if (staleQuote)
             _ExpiredFareCard(
@@ -382,7 +408,13 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
           ),
           const SizedBox(height: AppSpacing.md),
           AppButton(
-            label: 'Confirm & find a driver',
+            label: isDemo
+                ? 'Confirm & find a driver'
+                : lockedQuote
+                    ? 'Fare locked'
+                    : _loading
+                        ? 'Please wait...'
+                        : 'Lock fare',
             onPressed: ready
                 ? () async {
                     if (isDemo) {
@@ -395,7 +427,13 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
 
                     final booking = _booking;
                     final currentQuote = usableQuote;
-                    if (booking == null || currentQuote == null) return;
+                    if (_loading || booking == null || currentQuote == null) {
+                      return;
+                    }
+                    if (!currentQuote.isUsableAt(DateTime.now())) {
+                      setState(() => _failure = FareFailure.expired);
+                      return;
+                    }
                     setState(() {
                       _loading = true;
                       _failure = null;
@@ -412,7 +450,8 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                         _quote = locked;
                         _loading = false;
                       });
-                      if (context.mounted) context.push('/rider/searching');
+                      // Real matching is Phase 7. Do not pass a backend quote
+                      // into the deterministic MockTrips search flow.
                     } on FareException catch (error) {
                       if (!mounted) return;
                       setState(() {
@@ -423,6 +462,14 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                   }
                 : null,
           ),
+          if (!isDemo) ...[
+            const SizedBox(height: AppSpacing.sm),
+            const Text(
+              'Phase 5 saves and locks your fare. Live driver matching is not '
+              'available yet; no driver request or payment is made here.',
+              textAlign: TextAlign.center,
+            ),
+          ],
         ],
       ),
     );
@@ -484,7 +531,7 @@ class _AuthoritativeFareCard extends StatelessWidget {
               Text(
                 'Fixed fare · Quote v${quote.quoteVersion} · '
                 'Pricing v${quote.pricingVersion} · '
-                'Expires ${_expiryLabel(quote.expiresAt)}'
+                '${quote.status == FareQuoteStatus.locked ? 'Locked' : 'Expires ${_expiryLabel(quote.expiresAt)}'}'
                 '${breakdown.minimumApplied ? ' · Minimum fare applied' : ''} · '
                 'Rounded to the nearest ${breakdown.roundingIncrementFils} fils.',
                 style: theme.textTheme.bodySmall?.copyWith(

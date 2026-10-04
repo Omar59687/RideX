@@ -1,5 +1,18 @@
 # RideX Project State (verified checkpoint)
 
+## Latest override — 2026-10-04
+
+The bootstrap snapshot below is historical. Current work is provisional Phase 5
+device-regression hardening on `codex/phase-4f-evidence-hardening` from `9be82b6`.
+Owner explicitly deferred Phase 4 task 4.38 until two physical devices are
+available and authorized Phase 5 work. Phase 4 final approval remains pending.
+Phase 5 is NOT complete or device-verified. Search, pickup lifecycle, fresh draft,
+and fare UI fixes are implemented with regression tests awaiting execution.
+Blank native Maps tiles require device/Cloud diagnosis. Real matching is not
+implemented and live fare locking no longer opens the mock searching screen.
+See the latest override in `docs/ai/ops/CURRENT_STATUS.md` and
+`docs/ai/verification/PHASE_1_5_DEVICE_AUDIT_2026-10-04.md` for outstanding gates.
+
 Cache/index only — Git, code, authoritative docs, migrations, and tests remain authoritative.
 Reconstructed 2026-10-04 from branch, history, `docs/ai/ops/CURRENT_STATUS.md`, `Plan.md` (sampled), code, migrations, and tests. No product files were modified to produce this file.
 

@@ -53,6 +53,11 @@ class _GoogleLocationSelectionMapState
       _scheduleRouteFit();
     } else if (_activePoint != null && oldPoint != _activePoint) {
       _moveTo(_activePoint!);
+    } else if (_activePoint == null &&
+        widget.routeGeometry.isEmpty &&
+        widget.currentLocation != null &&
+        oldWidget.currentLocation != widget.currentLocation) {
+      _moveTo(widget.currentLocation!);
     }
   }
 
@@ -96,6 +101,8 @@ class _GoogleLocationSelectionMapState
           _scheduleRouteFit();
         } else if (_activePoint != null) {
           _moveTo(_activePoint!);
+        } else if (widget.currentLocation != null) {
+          _moveTo(widget.currentLocation!);
         }
       },
       myLocationButtonEnabled: false,

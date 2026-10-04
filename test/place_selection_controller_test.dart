@@ -34,6 +34,54 @@ void main() {
     secondaryText: 'Jordan',
   );
 
+  test('repeating an in-flight query does not discard its response', () async {
+    final response = Completer<List<PlacePrediction>>();
+    final fake = _QueuedAutocompleteRepository([response.future]);
+    final container = _container(fake);
+    addTearDown(container.dispose);
+    final provider =
+        placeSelectionControllerProvider(LocationEndpoint.destination);
+    container.listen(provider, (_, __) {});
+    final controller = container.read(provider.notifier);
+
+    controller.search('Abdali');
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    controller.search('Abdali ');
+    response.complete(const [predictionA]);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(provider).status, PlaceSearchStatus.results);
+    expect(container.read(provider).predictions, const [predictionA]);
+  });
+
+  testWidgets('address submit synchronizes the visible text before submitting',
+      (tester) async {
+    final text = TextEditingController(text: 'Amman address');
+    addTearDown(text.dispose);
+    final events = <String>[];
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: LocationSearchPanel(
+          endpoint: LocationEndpoint.destination,
+          state: const PlaceSelectionState(),
+          controller: text,
+          onChanged: (value) => events.add('changed:$value'),
+          onSubmitted: () => events.add('submitted'),
+          onPredictionSelected: (_) {},
+          onRetry: () {},
+          onRetryAddress: () {},
+        ),
+      ),
+    ));
+    await tester.tap(find.byTooltip('Search address'));
+    expect(events, ['changed:Amman address', 'submitted']);
+    events.clear();
+    await tester.showKeyboard(find.byType(TextField));
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    expect(events, ['changed:Amman address', 'submitted']);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   test('empty and short queries issue no autocomplete request', () async {
     final fake = FakePlaceRepository();
     final container = _container(fake);
@@ -249,6 +297,7 @@ void main() {
     final point = LocationPoint(latitude: 31.95, longitude: 35.91);
     final provider = placeSelectionControllerProvider(LocationEndpoint.pickup);
     container.listen(provider, (_, __) {});
+    container.read(provider.notifier).search('Old pickup query');
 
     await container.read(provider.notifier).selectPoint(
           point,
@@ -258,6 +307,7 @@ void main() {
     expect(container.read(bookingControllerProvider).pickup?.point, point);
     expect(container.read(provider).status, PlaceSearchStatus.selected);
     expect(container.read(provider).message, contains('still valid'));
+    expect(container.read(provider).hasUncommittedQuery, isFalse);
   });
 
   for (final endpoint in LocationEndpoint.values) {

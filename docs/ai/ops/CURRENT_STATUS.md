@@ -1,5 +1,28 @@
 # RideX Current Status
 
+## Current override — 2026-10-04 device regression audit
+
+This section supersedes older current-state/completion statements below; their
+test counts and approvals are historical evidence, not results for this patch.
+
+- Work branch only: `codex/phase-4f-evidence-hardening`, baseline `9be82b6`.
+  Main configuration was already merged in `ed64486`; this audit does not edit main.
+- Phase 4 task 4.38 remains deferred by the owner pending two physical devices.
+  Owner authorized provisional Phase 5 work; this is not Phase 4 final approval.
+- Phase 5 is **in progress / not device-verified**, not fully complete.
+- Patched search request invalidation, visible-address submission, pin fallback
+  readiness, pickup Settings-resume refresh, late GPS camera centering, and new
+  booking draft reset. Patched fare retry version retention, lock button/error
+  handling, and quote expiry refresh.
+- Live fare locking no longer enters mock driver matching. Real matching remains
+  outside this Phase 5 implementation; the UI states that limitation explicitly.
+- Regression tests added/updated, but NOT executed: this audit environment has no
+  Flutter/Dart, Deno, PostgreSQL, Android SDK or attached physical device.
+- Blank native map tiles remain unresolved pending device logs and Google Cloud
+  key/SDK/billing/restriction checks. No credential values were changed.
+- Detailed evidence, limitations and next checks:
+  `docs/ai/verification/PHASE_1_5_DEVICE_AUDIT_2026-10-04.md`.
+
 ## Git Checkpoint
 
 - Active branch: `codex/phase-4f-evidence-hardening`

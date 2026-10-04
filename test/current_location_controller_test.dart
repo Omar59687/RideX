@@ -103,6 +103,44 @@ void main() {
     expect(container.read(currentLocationControllerProvider).point, isNull);
   });
 
+  test('refresh during an older read rechecks after that read completes',
+      () async {
+    final repository = FakeLocationRepository();
+    final container = ProviderContainer(
+      overrides: [locationRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    final subscription = container.listen(
+      currentLocationControllerProvider,
+      (_, __) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+    await flushLocationTasks();
+    final initialCount = repository.inspectCount;
+    final pending = Completer<CurrentLocationState>();
+    repository.inspectResult = pending.future;
+    final controller =
+        container.read(currentLocationControllerProvider.notifier);
+    final first = controller.refresh();
+    await controller.refresh();
+    final point = LocationPoint(latitude: 31.95, longitude: 35.91);
+    repository.inspectResult = Future.value(CurrentLocationState(
+      status: CurrentLocationStatus.available,
+      permission: LocationPermissionStatus.granted,
+      point: point,
+    ));
+    pending.complete(const CurrentLocationState(
+      status: CurrentLocationStatus.unavailable,
+      permission: LocationPermissionStatus.granted,
+      failure: LocationFailure.locationNotFound,
+    ));
+    await first;
+
+    expect(repository.inspectCount, initialCount + 2);
+    expect(container.read(currentLocationControllerProvider).point, point);
+  });
+
   test('deduplicates simultaneous permission requests', () async {
     final requestCompleter = Completer<CurrentLocationState>();
     final repository = FakeLocationRepository()

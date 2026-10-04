@@ -62,9 +62,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  AppButton confirmButton(WidgetTester tester) {
+  AppButton confirmButton(
+    WidgetTester tester, {
+    String label = 'Confirm & find a driver',
+  }) {
     return tester.widget<AppButton>(
-      find.widgetWithText(AppButton, 'Confirm & find a driver'),
+      find.widgetWithText(AppButton, label),
     );
   }
 
@@ -132,11 +135,18 @@ void main() {
       // The demo fare path is gone in the configured mode.
       expect(find.text('Demo fare'), findsNothing);
       await tester.scrollUntilVisible(
-        find.text('Confirm & find a driver'),
+        find.text('Lock fare'),
         300,
         scrollable: find.byType(Scrollable).first,
       );
-      expect(confirmButton(tester).onPressed, isNotNull);
+      expect(confirmButton(tester, label: 'Lock fare').onPressed, isNotNull);
+      await tester.tap(find.text('Lock fare'));
+      await tester.pumpAndSettle();
+      expect(find.text('Fare locked'), findsOneWidget);
+      expect(confirmButton(tester, label: 'Fare locked').onPressed, isNull);
+      // No GoRouter is installed: a live lock must not navigate to mock search.
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
     },
   );
 
@@ -182,11 +192,11 @@ void main() {
       expect(find.text('JOD 2.00'), findsNothing);
       expect(find.text('Upfront fare'), findsNothing);
       await tester.scrollUntilVisible(
-        find.text('Confirm & find a driver'),
+        find.text('Lock fare'),
         300,
         scrollable: find.byType(Scrollable).first,
       );
-      expect(confirmButton(tester).onPressed, isNull);
+      expect(confirmButton(tester, label: 'Lock fare').onPressed, isNull);
     },
   );
 }

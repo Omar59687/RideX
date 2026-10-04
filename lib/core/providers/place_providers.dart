@@ -19,7 +19,6 @@ class PlaceSelectionController
   int _generation = 0;
   late String _sessionToken;
   late LocationEndpoint _endpoint;
-  String? _lastRequestedQuery;
   late final AppErrorReporter _errorReporter;
 
   @override
@@ -40,22 +39,23 @@ class PlaceSelectionController
 
   void search(String value) {
     final query = value.trim();
+    // Do not invalidate the response (or cancel the debounce) for the same
+    // in-flight query. Incrementing first leaves a loading state with no owner.
+    if (query == state.query &&
+        (state.status == PlaceSearchStatus.debouncing ||
+            state.status == PlaceSearchStatus.loading ||
+            state.status == PlaceSearchStatus.results ||
+            state.status == PlaceSearchStatus.empty)) {
+      return;
+    }
     _debounce?.cancel();
     final generation = ++_generation;
     if (query.length < 3) {
-      _lastRequestedQuery = null;
       if (query.isEmpty) _sessionToken = _newSessionToken();
       state = PlaceSelectionState(
         query: query,
         selected: state.selected,
       );
-      return;
-    }
-    if (query == _lastRequestedQuery &&
-        (state.status == PlaceSearchStatus.loading ||
-            state.status == PlaceSearchStatus.results ||
-            state.status == PlaceSearchStatus.empty)) {
-      state = state.copyWith(query: query);
       return;
     }
     state = state.copyWith(
@@ -72,7 +72,6 @@ class PlaceSelectionController
   Future<void> retrySearch() async {
     final query = state.query.trim();
     if (query.length < 3) return;
-    _lastRequestedQuery = null;
     final generation = ++_generation;
     await _loadPredictions(query, generation);
   }
@@ -175,6 +174,7 @@ class PlaceSelectionController
     } on PlaceException catch (error) {
       if (generation != _generation || state.selected?.point != point) return;
       _commit(fallback);
+      _finishSelection(fallback);
       state = state.copyWith(
         status: PlaceSearchStatus.selected,
         message: error.failure == PlaceFailure.notFound
@@ -185,6 +185,7 @@ class PlaceSelectionController
       _report('reverse geocoding a map point', error, stackTrace);
       if (generation != _generation || state.selected?.point != point) return;
       _commit(fallback);
+      _finishSelection(fallback);
       state = state.copyWith(
         status: PlaceSearchStatus.selected,
         message: 'Address lookup failed. The selected pin is still valid.',
@@ -201,7 +202,6 @@ class PlaceSelectionController
   void clear() {
     _debounce?.cancel();
     _generation++;
-    _lastRequestedQuery = null;
     _sessionToken = _newSessionToken();
     _clearCommittedLocation();
     state = const PlaceSelectionState();
@@ -217,7 +217,6 @@ class PlaceSelectionController
 
   Future<void> _loadPredictions(String query, int generation) async {
     if (generation != _generation) return;
-    _lastRequestedQuery = query;
     state = state.copyWith(
       status: PlaceSearchStatus.loading,
       clearPredictions: true,
@@ -263,7 +262,6 @@ class PlaceSelectionController
       status: PlaceSearchStatus.selected,
       selected: location,
     );
-    _lastRequestedQuery = null;
     _sessionToken = _newSessionToken();
   }
 
