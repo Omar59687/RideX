@@ -385,10 +385,41 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
             label: 'Confirm & find a driver',
             onPressed: ready
                 ? () async {
-                    await ref
-                        .read(bookingControllerProvider.notifier)
-                        .estimateFare();
-                    if (context.mounted) context.push('/rider/searching');
+                    if (isDemo) {
+                      await ref
+                          .read(bookingControllerProvider.notifier)
+                          .estimateFare();
+                      if (context.mounted) context.push('/rider/searching');
+                      return;
+                    }
+
+                    final booking = _booking;
+                    final currentQuote = usableQuote;
+                    if (booking == null || currentQuote == null) return;
+                    setState(() {
+                      _loading = true;
+                      _failure = null;
+                    });
+                    try {
+                      final locked = await repository.lockQuote(
+                        bookingRequestId: booking.bookingRequestId,
+                        fareQuoteId: currentQuote.id,
+                        expectedBookingVersion: booking.version,
+                        expectedQuoteVersion: currentQuote.quoteVersion,
+                      );
+                      if (!mounted) return;
+                      setState(() {
+                        _quote = locked;
+                        _loading = false;
+                      });
+                      if (context.mounted) context.push('/rider/searching');
+                    } on FareException catch (error) {
+                      if (!mounted) return;
+                      setState(() {
+                        _failure = error.failure;
+                        _loading = false;
+                      });
+                    }
                   }
                 : null,
           ),

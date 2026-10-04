@@ -1,12 +1,14 @@
-// Fare Edge function core: authenticated `quote` operation only.
+// Fare Edge function core: authenticated, server-authoritative quote creation.
 //
-// Flutter NEVER calls `backend_calculate_fare_quote` / `backend_lock_fare_quote`
-// directly (both are `service_role`-only). This function authenticates the
-// rider (same discipline as the `places` function), then invokes
-// `backend_calculate_fare_quote` with the service-role key and returns the
-// whitelisted quote row. `lock` is intentionally NOT wired: confirmation and
-// matching belong to a later phase.
+// Flutter supplies only a booking id and optimistic version. The function binds
+// the booking to the authenticated rider, loads the canonical route snapshot,
+// asks Google Routes for trusted metrics, and only then invokes the
+// service-role-only fare RPC. Phone-supplied distance/duration are never trusted.
 const BACKEND_QUOTE_RPC = "/rest/v1/rpc/backend_calculate_fare_quote";
+const BOOKING_REQUESTS_REST = "/rest/v1/booking_requests";
+const BOOKING_STOPS_REST = "/rest/v1/booking_stops";
+const GOOGLE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
+const GOOGLE_ROUTES_MASK = "routes.distanceMeters,routes.duration";
 
 const MAX_REQUEST_BYTES = 4096;
 const MAX_UPSTREAM_BYTES = 32 * 1024;
@@ -37,10 +39,9 @@ export type FetchLike = (
 ) => Response | Promise<Response>;
 export type Authorize = (request: Request) => Promise<string>;
 export type CalculateFare = (input: {
+  riderId: string;
   bookingRequestId: string;
   expectedBookingVersion: number;
-  routeDistanceMeters: number;
-  routeDurationSeconds: number;
 }) => Promise<JsonRecord>;
 
 export interface FareHandlerDependencies {
@@ -53,6 +54,7 @@ export interface FareHandlerDependencies {
 export interface BackendQuoteCallerDependencies {
   supabaseUrl: string;
   serviceRoleKey: string;
+  googleRoutesApiKey: string;
   fetch?: FetchLike;
   timeoutMs?: number;
 }
@@ -119,18 +121,6 @@ function uuid(value: unknown): string {
 
 function positiveVersion(value: unknown): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
-    throw invalidRequest();
-  }
-  return value;
-}
-
-function nonNegativeMetric(value: unknown): number {
-  if (
-    typeof value !== "number" ||
-    !Number.isSafeInteger(value) ||
-    value < 0 ||
-    value > 2147483647
-  ) {
     throw invalidRequest();
   }
   return value;
@@ -305,32 +295,216 @@ export function createBackendQuoteCaller(
   const fetchImpl = dependencies.fetch ?? fetch;
   const timeoutMs = dependencies.timeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS;
 
-  return async (input) => {
-    if (!dependencies.supabaseUrl || !dependencies.serviceRoleKey) {
+  const serviceHeaders = {
+    apikey: dependencies.serviceRoleKey,
+    authorization: `Bearer ${dependencies.serviceRoleKey}`,
+    accept: "application/json",
+  };
+
+  async function serviceJson(url: URL): Promise<unknown> {
+    let response: Response;
+    try {
+      response = await fetchWithTimeout(fetchImpl, url, {
+        method: "GET",
+        headers: serviceHeaders,
+      }, timeoutMs);
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw new HttpError(504, "provider_timeout", "Fare request timed out.");
+      }
       throw new HttpError(503, "service_unavailable", "Fare service is unavailable.");
     }
+    if (!response.ok) {
+      throw new HttpError(503, "service_unavailable", "Fare service is unavailable.");
+    }
+    try {
+      return await readJson(response, MAX_UPSTREAM_BYTES);
+    } catch {
+      throw new HttpError(502, "quote_response_invalid", "Fare service response is invalid.");
+    }
+  }
+
+  function routePoint(value: unknown): { latitude: number; longitude: number } {
+    if (!isRecord(value)) {
+      throw new HttpError(422, "fare_unavailable", "Fare cannot be calculated for this booking.");
+    }
+    const latitude = value.latitude;
+    const longitude = value.longitude;
+    if (
+      typeof latitude !== "number" || !Number.isFinite(latitude) ||
+      latitude < -90 || latitude > 90 ||
+      typeof longitude !== "number" || !Number.isFinite(longitude) ||
+      longitude < -180 || longitude > 180
+    ) {
+      throw new HttpError(422, "fare_unavailable", "Fare cannot be calculated for this booking.");
+    }
+    return { latitude, longitude };
+  }
+
+  return async (input) => {
+    if (
+      !dependencies.supabaseUrl ||
+      !dependencies.serviceRoleKey ||
+      !dependencies.googleRoutesApiKey
+    ) {
+      throw new HttpError(503, "service_unavailable", "Fare service is unavailable.");
+    }
+
+    let bookingsUrl: URL;
+    let stopsUrl: URL;
     let rpcUrl: URL;
     try {
+      bookingsUrl = new URL(BOOKING_REQUESTS_REST, dependencies.supabaseUrl);
+      stopsUrl = new URL(BOOKING_STOPS_REST, dependencies.supabaseUrl);
       rpcUrl = new URL(BACKEND_QUOTE_RPC, dependencies.supabaseUrl);
     } catch {
       throw new HttpError(503, "service_unavailable", "Fare service is unavailable.");
     }
+
+    bookingsUrl.searchParams.set(
+      "select",
+      "id,rider_id,status,pickup,destination,version",
+    );
+    bookingsUrl.searchParams.set("id", `eq.${input.bookingRequestId}`);
+    bookingsUrl.searchParams.set("rider_id", `eq.${input.riderId}`);
+    bookingsUrl.searchParams.set("limit", "2");
+
+    const bookingPayload = await serviceJson(bookingsUrl);
+    if (
+      !Array.isArray(bookingPayload) ||
+      bookingPayload.length !== 1 ||
+      !isRecord(bookingPayload[0])
+    ) {
+      throw new HttpError(404, "not_found", "Booking draft was not found.");
+    }
+    const booking = bookingPayload[0];
+    if (booking.status !== "draft") {
+      throw new HttpError(422, "fare_unavailable", "Fare cannot be calculated for this booking.");
+    }
+    if (
+      typeof booking.version !== "number" ||
+      !Number.isSafeInteger(booking.version) ||
+      booking.version !== input.expectedBookingVersion
+    ) {
+      throw new HttpError(409, "version_conflict", "Booking changed. Request a new fare.");
+    }
+
+    const origin = routePoint(booking.pickup);
+    const destination = routePoint(booking.destination);
+    if (
+      origin.latitude === destination.latitude &&
+      origin.longitude === destination.longitude
+    ) {
+      throw new HttpError(422, "fare_unavailable", "Fare cannot be calculated for this booking.");
+    }
+
+    stopsUrl.searchParams.set("select", "sequence,location");
+    stopsUrl.searchParams.set("booking_request_id", `eq.${input.bookingRequestId}`);
+    stopsUrl.searchParams.set("order", "sequence.asc");
+    stopsUrl.searchParams.set("limit", "4");
+    const stopsPayload = await serviceJson(stopsUrl);
+    if (!Array.isArray(stopsPayload) || stopsPayload.length > 3) {
+      throw new HttpError(422, "fare_unavailable", "Fare cannot be calculated for this booking.");
+    }
+    const intermediates = stopsPayload.map((entry, index) => {
+      if (
+        !isRecord(entry) ||
+        entry.sequence !== index + 1
+      ) {
+        throw new HttpError(422, "fare_unavailable", "Fare cannot be calculated for this booking.");
+      }
+      return routePoint(entry.location);
+    });
+    const allPoints = [origin, ...intermediates, destination];
+    for (let index = 0; index < allPoints.length; index++) {
+      for (let other = index + 1; other < allPoints.length; other++) {
+        if (
+          allPoints[index].latitude === allPoints[other].latitude &&
+          allPoints[index].longitude === allPoints[other].longitude
+        ) {
+          throw new HttpError(422, "fare_unavailable", "Fare cannot be calculated for this booking.");
+        }
+      }
+    }
+
+    let routeResponse: Response;
+    try {
+      routeResponse = await fetchWithTimeout(fetchImpl, GOOGLE_ROUTES_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": dependencies.googleRoutesApiKey,
+          "x-goog-fieldmask": GOOGLE_ROUTES_MASK,
+        },
+        body: JSON.stringify({
+          origin: { location: { latLng: origin } },
+          destination: { location: { latLng: destination } },
+          ...(intermediates.length > 0
+            ? {
+              intermediates: intermediates.map((point) => ({
+                location: { latLng: point },
+              })),
+            }
+            : {}),
+          travelMode: "DRIVE",
+          routingPreference: "TRAFFIC_AWARE",
+          computeAlternativeRoutes: false,
+          units: "METRIC",
+        }),
+      }, timeoutMs);
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw new HttpError(504, "provider_timeout", "Fare request timed out.");
+      }
+      throw new HttpError(502, "provider_unavailable", "Routing provider is unavailable.");
+    }
+    if (!routeResponse.ok) {
+      throw new HttpError(502, "provider_unavailable", "Routing provider is unavailable.");
+    }
+
+    let routePayload: unknown;
+    try {
+      routePayload = await readJson(routeResponse, MAX_UPSTREAM_BYTES);
+    } catch {
+      throw new HttpError(502, "provider_response_invalid", "Routing provider response is invalid.");
+    }
+    if (
+      !isRecord(routePayload) ||
+      !Array.isArray(routePayload.routes) ||
+      routePayload.routes.length === 0 ||
+      !isRecord(routePayload.routes[0])
+    ) {
+      throw new HttpError(502, "provider_response_invalid", "Routing provider response is invalid.");
+    }
+    const route = routePayload.routes[0];
+    const distanceMeters = route.distanceMeters;
+    const durationMatch = typeof route.duration === "string"
+      ? /^([1-9]\d*)s$/u.exec(route.duration)
+      : null;
+    const durationSeconds = durationMatch ? Number(durationMatch[1]) : 0;
+    if (
+      typeof distanceMeters !== "number" ||
+      !Number.isSafeInteger(distanceMeters) ||
+      distanceMeters <= 0 ||
+      !Number.isSafeInteger(durationSeconds) ||
+      durationSeconds <= 0
+    ) {
+      throw new HttpError(502, "provider_response_invalid", "Routing provider response is invalid.");
+    }
+
     let response: Response;
     try {
       response = await fetchWithTimeout(fetchImpl, rpcUrl, {
         method: "POST",
         headers: {
-          apikey: dependencies.serviceRoleKey,
-          authorization: `Bearer ${dependencies.serviceRoleKey}`,
+          ...serviceHeaders,
           "content-type": "application/json",
-          accept: "application/json",
         },
         body: JSON.stringify({
           target_booking_request_id: input.bookingRequestId,
           expected_booking_version: input.expectedBookingVersion,
-          requested_route_distance_meters: input.routeDistanceMeters,
-          requested_route_duration_seconds: input.routeDurationSeconds,
-          // Geometry reference is intentionally always null in Phase 5.
+          requested_route_distance_meters: distanceMeters,
+          requested_route_duration_seconds: durationSeconds,
           requested_route_geometry_reference: null,
         }),
       }, timeoutMs);
@@ -379,7 +553,7 @@ export function createFareHandler(
         throw invalidRequest();
       }
 
-      await dependencies.authorize(request);
+      const callerId = await dependencies.authorize(request);
 
       const text = await request.text();
       if (new TextEncoder().encode(text).byteLength > MAX_REQUEST_BYTES) throw invalidRequest();
@@ -396,22 +570,14 @@ export function createFareHandler(
         "operation",
         "booking_request_id",
         "expected_booking_version",
-        "route_distance_meters",
-        "route_duration_seconds",
-        "route_geometry_reference",
       ]);
       for (const key of Object.keys(body)) {
         if (!allowedKeys.has(key)) throw invalidRequest();
       }
-      // Geometry reference is omit/null in Phase 5; never forwarded.
-      if (body.route_geometry_reference !== undefined && body.route_geometry_reference !== null) {
-        throw invalidRequest();
-      }
       const quoteInput = {
+        riderId: callerId,
         bookingRequestId: uuid(body.booking_request_id),
         expectedBookingVersion: positiveVersion(body.expected_booking_version),
-        routeDistanceMeters: nonNegativeMetric(body.route_distance_meters),
-        routeDurationSeconds: nonNegativeMetric(body.route_duration_seconds),
       };
 
       const release = limiter.acquire();

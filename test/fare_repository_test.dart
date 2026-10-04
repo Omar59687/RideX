@@ -98,6 +98,20 @@ void main() {
             expect(params['expected_version'], 1);
             return {'id': 'booking-1', 'version': 2};
           }
+          if (name == 'rider_lock_fare_quote') {
+            expect(params, {
+              'target_booking_request_id': 'booking-1',
+              'target_fare_quote_id':
+                  'aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee',
+              'expected_booking_version': 2,
+              'expected_quote_version': 2,
+            });
+            return _quoteRow(
+              bookingId: 'booking-1',
+              quoteVersion: 2,
+              status: 'locked',
+            );
+          }
           throw StateError('unexpected rpc $name');
         },
         quoteEdge: (Map<String, dynamic> body) async {
@@ -105,8 +119,6 @@ void main() {
             'operation': 'quote',
             'booking_request_id': 'booking-1',
             'expected_booking_version': 2,
-            'route_distance_meters': 5400,
-            'route_duration_seconds': 720,
           });
           return {
             'data': _quoteRow(bookingId: 'booking-1', quoteVersion: 2),
@@ -134,7 +146,18 @@ void main() {
       );
       expect(quote.quoteVersion, 2);
       expect(quote.fixedFareFils, 2050);
-      expect(names, ['rider_update_booking_draft']);
+
+      final locked = await repository.lockQuote(
+        bookingRequestId: updated.bookingRequestId,
+        fareQuoteId: quote.id,
+        expectedBookingVersion: updated.version,
+        expectedQuoteVersion: quote.quoteVersion,
+      );
+      expect(locked.status, FareQuoteStatus.locked);
+      expect(names, [
+        'rider_update_booking_draft',
+        'rider_lock_fare_quote',
+      ]);
     });
 
     test('maps transport failures for draft and quote calls', () async {

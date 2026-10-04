@@ -84,7 +84,9 @@ typedef FareEdgeCaller = Future<Map<String, dynamic>> Function(
 /// directly via PostgREST RPC (granted to `authenticated`) and reaches the
 /// `service_role`-only `backend_calculate_fare_quote` exclusively through
 /// the `fare` Edge function (`quote` operation). Flutter never calculates
-/// fares: [fetchQuote] returns the backend-computed [FareQuote].
+/// fares: route metrics passed to [fetchQuote] are local display context only
+/// and are deliberately not sent to the fare service. The Edge function reloads
+/// the canonical booking and requests trusted route metrics server-side.
 ///
 /// Updating a draft supersedes its `calculated` quotes server-side, so
 /// callers re-quote after every draft change.
@@ -112,6 +114,13 @@ abstract class FareRepository {
     required int expectedBookingVersion,
     required int routeDistanceMeters,
     required int routeDurationSeconds,
+  });
+
+  Future<FareQuote> lockQuote({
+    required String bookingRequestId,
+    required String fareQuoteId,
+    required int expectedBookingVersion,
+    required int expectedQuoteVersion,
   });
 }
 
@@ -206,8 +215,6 @@ class SupabaseFareRepository implements FareRepository {
         'operation': 'quote',
         'booking_request_id': bookingRequestId,
         'expected_booking_version': expectedBookingVersion,
-        'route_distance_meters': routeDistanceMeters,
-        'route_duration_seconds': routeDurationSeconds,
       });
       final data = envelope['data'];
       if (data is! Map) {
@@ -223,6 +230,35 @@ class SupabaseFareRepository implements FareRepository {
       rethrow;
     } on Object catch (error, stackTrace) {
       _report('requesting a fare quote', error, stackTrace);
+      throw const FareException(FareFailure.networkFailure);
+    }
+  }
+
+  @override
+  Future<FareQuote> lockQuote({
+    required String bookingRequestId,
+    required String fareQuoteId,
+    required int expectedBookingVersion,
+    required int expectedQuoteVersion,
+  }) async {
+    try {
+      final row = await _rpc(
+        name: 'rider_lock_fare_quote',
+        params: {
+          'target_booking_request_id': bookingRequestId,
+          'target_fare_quote_id': fareQuoteId,
+          'expected_booking_version': expectedBookingVersion,
+          'expected_quote_version': expectedQuoteVersion,
+        },
+      );
+      return FareQuote.fromJson(row);
+    } on FareTransportFailure catch (error) {
+      throw FareException(_mapTransport(error));
+    } on FareException catch (error, stackTrace) {
+      _reportInvalidResponse(error, stackTrace);
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      _report('locking a fare quote', error, stackTrace);
       throw const FareException(FareFailure.networkFailure);
     }
   }
@@ -313,6 +349,16 @@ class UnavailableFareRepository implements FareRepository {
     required int expectedBookingVersion,
     required int routeDistanceMeters,
     required int routeDurationSeconds,
+  }) async {
+    throw const FareException(FareFailure.unavailable);
+  }
+
+  @override
+  Future<FareQuote> lockQuote({
+    required String bookingRequestId,
+    required String fareQuoteId,
+    required int expectedBookingVersion,
+    required int expectedQuoteVersion,
   }) async {
     throw const FareException(FareFailure.unavailable);
   }
@@ -454,5 +500,59 @@ class FakeFareRepository implements FareRepository {
     );
     _quotes.putIfAbsent(bookingRequestId, () => []).add(quote);
     return quote;
+  }
+
+  @override
+  Future<FareQuote> lockQuote({
+    required String bookingRequestId,
+    required String fareQuoteId,
+    required int expectedBookingVersion,
+    required int expectedQuoteVersion,
+  }) async {
+    _throwIfScripted(
+      'lock $bookingRequestId@$expectedBookingVersion '
+      '$fareQuoteId@$expectedQuoteVersion',
+    );
+    final current = _bookingVersions[bookingRequestId];
+    if (current == null) {
+      throw const FareException(FareFailure.notFound);
+    }
+    if (current != expectedBookingVersion) {
+      throw const FareException(FareFailure.versionConflict);
+    }
+    final quotes = _quotes[bookingRequestId] ?? const [];
+    FareQuote? selected;
+    for (final quote in quotes) {
+      if (quote.id == fareQuoteId) selected = quote;
+    }
+    if (selected == null) {
+      throw const FareException(FareFailure.notFound);
+    }
+    if (selected.quoteVersion != expectedQuoteVersion) {
+      throw const FareException(FareFailure.versionConflict);
+    }
+    if (!selected.isUsableAt(DateTime.now().toUtc())) {
+      throw const FareException(FareFailure.expired);
+    }
+    final locked = FareQuote(
+      id: selected.id,
+      bookingRequestId: selected.bookingRequestId,
+      quoteVersion: selected.quoteVersion,
+      pricingVersion: selected.pricingVersion,
+      fixedFareFils: selected.fixedFareFils,
+      breakdown: selected.breakdown,
+      status: FareQuoteStatus.locked,
+      expiresAt: selected.expiresAt,
+      currency: selected.currency,
+      createdAt: selected.createdAt,
+      routeDistanceMeters: selected.routeDistanceMeters,
+      routeDurationSeconds: selected.routeDurationSeconds,
+    );
+    _quotes[bookingRequestId] = [
+      for (final quote in quotes)
+        if (quote.id == fareQuoteId) locked else quote,
+    ];
+    _bookingVersions[bookingRequestId] = current + 1;
+    return locked;
   }
 }
