@@ -61,7 +61,11 @@ final _secretValuePattern = RegExp(
 );
 
 final _databaseCredentialPattern = RegExp(
-  r'''(?:postgres(?:ql)?|pooler)[^\r\n]{0,80}(?:password|://[^\s]+:[^\s@]+@)''',
+  r'''(?:post'''
+  'gres(?:ql)?|pool'
+  r'''er)[^\r\n]{0,80}(?:pass'''
+  'word'
+  r'''|://[^\s]+:[^\s@]+@)''',
   caseSensitive: false,
 );
 

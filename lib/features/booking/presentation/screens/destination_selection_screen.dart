@@ -14,6 +14,7 @@ import 'package:ridex/core/widgets/ride_location_selection_map.dart';
 import 'package:ridex/core/widgets/route_status_panel.dart';
 import 'package:ridex/core/widgets/google_maps_attribution.dart';
 import 'package:ridex/features/booking/presentation/widgets/location_search_panel.dart';
+import 'package:ridex/features/booking/presentation/widgets/stops_section.dart';
 
 class DestinationSelectionScreen extends ConsumerStatefulWidget {
   const DestinationSelectionScreen({super.key});
@@ -88,6 +89,8 @@ class _DestinationSelectionScreenState
               child: GoogleMapsAttribution(),
             ),
           ],
+          const SizedBox(height: AppSpacing.md),
+          const StopsSection(),
           const SizedBox(height: AppSpacing.md),
           AppButton(
             label: selection.isResolving

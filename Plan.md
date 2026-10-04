@@ -1365,6 +1365,10 @@ Phase 4 documentation constraints:
 - [ ] Implement ordered multi-stop booking with a maximum of three intermediate stops.
 - [ ] Implement route distance, duration, persistent Fare Quotes, and route-based fixed fares.
 
+Provisional status (2026-10-04, owner-authorized): Phase 4 task 4.38 is deferred for lack of two-device environments and Phase 4 remains NOT finally approved. Provisional Phase 5 work is authorized ONLY for packages independent of 4.38 (bounded in `.factory/PROJECT_STATE.md`); this is not Phase 4 approval and no milestone may rely on the missing device evidence.
+
+Provisional Phase 5 execution (2026-10-04): P5-1 stop domain, P5-2 stop routing, P5-4 stop UI, and P5-3 fare-quote integration each passed factory DoD (implementation + validation + independent review; full suite 295 + 2 intentional skips; analyze clean). Boxes stay unchecked until environment-gated verification completes: Deno Edge suites, live fare/multi-stop routing, and the deferred 4.38 devices. Evidence: `.factory/state/phase-5-p5-*.md`.
+
 ### Phase 6: Payment Foundations
 
 - [ ] Implement persistent Cash payment foundations.

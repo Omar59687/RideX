@@ -456,24 +456,117 @@ Deno.test("route strictly validates its schema and coordinates without upstream 
   assertEquals(calls, 0);
 });
 
-Deno.test("route rejects non-empty intermediates without an upstream call", async () => {
+Deno.test("route accepts up to three ordered intermediates and forwards them in order", async () => {
+  let capturedInit: RequestInit | undefined;
+  const handler = handlerWith((_input, init) => {
+    capturedInit = init;
+    return Response.json({
+      routes: [{
+        distanceMeters: 15000,
+        duration: "1200s",
+        polyline: { encodedPolyline: ENCODED_POLYLINE },
+      }],
+    });
+  });
+  const intermediates = [
+    { latitude: 31.97, longitude: 35.95 },
+    { latitude: 31.99, longitude: 35.98 },
+    { latitude: 32.01, longitude: 36.02 },
+  ];
+
+  const response = await handler(request({
+    operation: "route",
+    origin: { latitude: 31.95, longitude: 35.92 },
+    destination: { latitude: 32.08, longitude: 36.1 },
+    intermediates,
+  }));
+
+  assertEquals(response.status, 200);
+  assertEquals(await responseBody(response), {
+    data: {
+      encodedPolyline: ENCODED_POLYLINE,
+      distanceMeters: 15000,
+      durationSeconds: 1200,
+    },
+  });
+  assertEquals(JSON.parse(String(capturedInit?.body)), {
+    origin: { location: { latLng: { latitude: 31.95, longitude: 35.92 } } },
+    destination: { location: { latLng: { latitude: 32.08, longitude: 36.1 } } },
+    intermediates: intermediates.map((point) => ({ location: { latLng: point } })),
+    travelMode: "DRIVE",
+    routingPreference: "TRAFFIC_AWARE",
+    computeAlternativeRoutes: false,
+    polylineQuality: "OVERVIEW",
+    polylineEncoding: "ENCODED_POLYLINE",
+    units: "METRIC",
+  });
+});
+
+Deno.test("route rejects too many, duplicate, or invalid intermediates without an upstream call", async () => {
   let calls = 0;
   const handler = handlerWith(() => {
     calls++;
     return Response.json({});
   });
-  const response = await handler(request({
-    operation: "route",
-    origin: { latitude: 31.95, longitude: 35.92 },
-    destination: { latitude: 32.08, longitude: 36.1 },
-    intermediates: [{ latitude: 32, longitude: 36 }],
-  }));
+  const origin = { latitude: 31.95, longitude: 35.92 };
+  const destination = { latitude: 32.08, longitude: 36.1 };
+  const invalidBodies = [
+    {
+      operation: "route",
+      origin,
+      destination,
+      intermediates: [
+        { latitude: 31.97, longitude: 35.95 },
+        { latitude: 31.98, longitude: 35.96 },
+        { latitude: 31.99, longitude: 35.97 },
+        { latitude: 32.0, longitude: 35.98 },
+      ],
+    },
+    { operation: "route", origin, destination, intermediates: [origin] },
+    { operation: "route", origin, destination, intermediates: [destination] },
+    {
+      operation: "route",
+      origin,
+      destination,
+      intermediates: [
+        { latitude: 31.97, longitude: 35.95 },
+        { latitude: 31.97, longitude: 35.95 },
+      ],
+    },
+    {
+      operation: "route",
+      origin,
+      destination,
+      intermediates: [{ latitude: 91, longitude: 35.95 }],
+    },
+    {
+      operation: "route",
+      origin,
+      destination,
+      intermediates: [{ latitude: "31.97", longitude: 35.95 }],
+    },
+    {
+      operation: "route",
+      origin,
+      destination,
+      intermediates: [{ latitude: 31.97, longitude: 35.95, altitude: 10 }],
+    },
+    {
+      operation: "route",
+      origin,
+      destination,
+      intermediates: "not-an-array",
+    },
+  ];
 
-  assertEquals(response.status, 400);
-  assertEquals((await responseBody(response)).error, {
-    code: "invalid_request",
-    message: "Request is invalid.",
-  });
+  for (const body of invalidBodies) {
+    const response = await handler(request(body));
+    assertEquals(response.status, 400);
+    assertEquals((await responseBody(response)).error, {
+      code: "invalid_request",
+      message: "Request is invalid.",
+    });
+  }
   assertEquals(calls, 0);
 });
 

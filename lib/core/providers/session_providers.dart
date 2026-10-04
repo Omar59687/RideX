@@ -7,6 +7,7 @@ import 'package:ridex/core/models/app_notification.dart';
 import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/driver_approval_status.dart';
+import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/models/mock_trip.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/session_status.dart';
@@ -176,6 +177,9 @@ class SessionController extends Notifier<SessionState> {
 }
 
 class BookingController extends Notifier<BookingDraft> {
+  /// Maximum number of intermediate stops in a booking draft.
+  static const int maxStops = 3;
+
   @override
   BookingDraft build() => MockData.initialDraft();
 
@@ -224,6 +228,109 @@ class BookingController extends Notifier<BookingDraft> {
       vehicleType: vehicleType,
       estimatedFare: vehicleType.baseFare,
     );
+  }
+
+  /// Adds an intermediate stop at the end of the ordered stop list.
+  ///
+  /// Returns `true` when the stop was added and `false` when it was
+  /// rejected. A stop is rejected when the draft already holds [maxStops]
+  /// stops, when its coordinates are invalid (non-finite or outside the
+  /// `LocationPoint` latitude/longitude ranges), or when its coordinates
+  /// duplicate the current pickup, the current destination, or an
+  /// already-added stop (latitude/longitude equality, matching the
+  /// `sameLocation` convention in [BookingDraft.locationValidation]).
+  /// A successful add clears the selected vehicle and any fare, distance,
+  /// and ETA estimates, consistent with [setPickup]/[setDestination].
+  /// Rejected adds leave the state untouched.
+  bool addStop(RideLocation stop) {
+    if (state.stops.length >= maxStops) return false;
+    if (!_hasValidCoordinates(stop.point)) return false;
+    if (_isDuplicateStop(stop)) return false;
+    state = state.copyWith(
+      stops: [...state.stops, stop],
+      clearVehicleType: true,
+      estimatedFare: 0,
+      distanceKm: 0,
+      etaMinutes: 0,
+    );
+    return true;
+  }
+
+  /// Removes the stop at [index].
+  ///
+  /// Out-of-range indexes are a no-op: the state is left untouched
+  /// (no estimate reset), so callers can safely forward UI indexes.
+  void removeStopAt(int index) {
+    if (index < 0 || index >= state.stops.length) return;
+    final stops = [...state.stops]..removeAt(index);
+    state = state.copyWith(
+      stops: stops,
+      clearVehicleType: true,
+      estimatedFare: 0,
+      distanceKm: 0,
+      etaMinutes: 0,
+    );
+  }
+
+  /// Moves the stop at [from] to position [to], preserving list order
+  /// for all other stops.
+  ///
+  /// Out-of-range indexes (or a [from] equal to [to]) are a no-op: the
+  /// state is left untouched, so callers can safely forward UI indexes.
+  void moveStop(int from, int to) {
+    if (from < 0 ||
+        from >= state.stops.length ||
+        to < 0 ||
+        to >= state.stops.length ||
+        from == to) {
+      return;
+    }
+    final stops = [...state.stops];
+    final stop = stops.removeAt(from);
+    stops.insert(to, stop);
+    state = state.copyWith(
+      stops: stops,
+      clearVehicleType: true,
+      estimatedFare: 0,
+      distanceKm: 0,
+      etaMinutes: 0,
+    );
+  }
+
+  /// Removes all intermediate stops.
+  ///
+  /// Clearing an already-empty stop list is a no-op: the state is left
+  /// untouched. A non-empty clear resets the selected vehicle and any
+  /// fare, distance, and ETA estimates, consistent with [setPickup].
+  void clearStops() {
+    if (state.stops.isEmpty) return;
+    state = state.copyWith(
+      stops: const [],
+      clearVehicleType: true,
+      estimatedFare: 0,
+      distanceKm: 0,
+      etaMinutes: 0,
+    );
+  }
+
+  bool _hasValidCoordinates(LocationPoint point) {
+    return point.latitude.isFinite &&
+        point.longitude.isFinite &&
+        point.latitude >= -90 &&
+        point.latitude <= 90 &&
+        point.longitude >= -180 &&
+        point.longitude <= 180;
+  }
+
+  bool _isDuplicateStop(RideLocation stop) {
+    bool samePoint(RideLocation other) =>
+        other.point.latitude == stop.point.latitude &&
+        other.point.longitude == stop.point.longitude;
+    final pickup = state.pickup;
+    if (pickup != null && samePoint(pickup)) return true;
+    final destination = state.destination;
+    if (destination != null && samePoint(destination)) return true;
+    return state.stops.any(samePoint);
   }
 
   Future<void> estimateFare() async {
