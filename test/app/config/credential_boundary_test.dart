@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -15,8 +16,24 @@ void main() {
     expect(trackedFiles, isNot(contains('android/local.properties')));
     expect(trackedFiles, isNot(contains('ios/Flutter/config.local.xcconfig')));
     expect(trackedFiles, isNot(contains('supabase/functions/.env')));
+    expect(trackedFiles, isNot(contains('.env.json')));
+    expect(_isIgnored('.env.json'), isTrue);
+
+    final environmentExample =
+        jsonDecode(_read('.env.example.json')) as Map<String, dynamic>;
+    expect(
+      environmentExample.keys.toSet(),
+      {
+        'SUPABASE_URL',
+        'SUPABASE_PUBLISHABLE_KEY',
+        'GOOGLE_MAPS_ENABLED',
+        'GOOGLE_MAPS_API_KEY',
+      },
+    );
 
     final androidGradle = _read('android/app/build.gradle');
+    expect(androidGradle, contains('project.hasProperty("dart-defines")'));
+    expect(androidGradle, contains('dartDefines.get("GOOGLE_MAPS_API_KEY")'));
     final androidManifest = _read('android/app/src/main/AndroidManifest.xml');
     expect(androidGradle, contains('getProperty("MAPS_API_KEY", "")'));
     expect(androidGradle, contains('manifestPlaceholders["MAPS_API_KEY"]'));
@@ -35,6 +52,20 @@ void main() {
     );
     expect(envConfig, contains("bool.fromEnvironment('GOOGLE_MAPS_ENABLED'"));
 
+    final placesFunction = _read('supabase/functions/places/index.ts');
+    expect(
+      placesFunction,
+      contains('Deno.env.get("GOOGLE_PLACES_API_KEY")'),
+    );
+    expect(
+      placesFunction,
+      contains('Deno.env.get("GOOGLE_ROUTES_API_KEY")'),
+    );
+    expect(
+      placesFunction,
+      isNot(contains('GOOGLE_MAPS_WEB_SERVICES_API_KEY')),
+    );
+
     for (final relativePath in trackedFiles) {
       final normalized = relativePath.toLowerCase();
       if (!_configurationFile(normalized)) continue;
@@ -47,6 +78,8 @@ void main() {
           relativePath.startsWith('android/') ||
           relativePath.startsWith('ios/')) {
         expect(source, isNot(contains('GOOGLE_MAPS_WEB_SERVICES_API_KEY')),
+            reason: relativePath);
+        expect(source, isNot(contains('GOOGLE_PLACES_API_KEY')),
             reason: relativePath);
         expect(source, isNot(contains('GOOGLE_ROUTES_API_KEY')),
             reason: relativePath);
@@ -101,6 +134,16 @@ Set<String> _trackedFiles() {
       .split(RegExp(r'\r?\n'))
       .where((path) => path.isNotEmpty)
       .toSet();
+}
+
+bool _isIgnored(String relativePath) {
+  final result = Process.runSync(
+    'git',
+    ['check-ignore', '--quiet', relativePath],
+    workingDirectory: Directory.current.path,
+    runInShell: true,
+  );
+  return result.exitCode == 0;
 }
 
 String _path(String relativePath) =>

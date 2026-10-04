@@ -56,14 +56,20 @@ flutter pub get
 flutter run
 ```
 
-To use Supabase, supply both values as Dart defines:
+For a configured local Android run, create the ignored `.env.json` from
+`.env.example.json`, replace its placeholders locally, and run:
 
 ```powershell
-flutter run --dart-define=SUPABASE_URL=<url> --dart-define=SUPABASE_PUBLISHABLE_KEY=<key>
+flutter run -d 15928155CT008314 --dart-define-from-file=.env.json
 ```
 
-Do not commit backend credentials. Live Supabase tests skip unless intentionally
-configured.
+The file supplies `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`,
+`GOOGLE_MAPS_ENABLED`, and the Android-restricted `GOOGLE_MAPS_API_KEY`. Flutter
+reads the first three as compile-time configuration. Gradle passes the Maps key
+to the existing Android manifest placeholder; the ignored `MAPS_API_KEY` in
+`android/local.properties` remains a compatibility fallback. Do not put Routes,
+Places, Supabase secret/service-role, or database credentials in `.env.json`.
+Live Supabase tests skip unless intentionally configured.
 
 ### Supabase database workflow
 
@@ -101,7 +107,8 @@ Android configuration:
 1. Enable only Maps SDK for Android in Google Cloud Console.
 2. Create an Android-restricted key for `com.ridex.app` and the applicable
    debug/release signing certificate fingerprints.
-3. Add the key to ignored `android/local.properties`:
+3. Put the key in ignored `.env.json` as `GOOGLE_MAPS_API_KEY`. The existing
+   ignored `android/local.properties` mechanism remains available as a fallback:
 
    ```properties
    MAPS_API_KEY=your_restricted_android_key
@@ -117,10 +124,11 @@ iOS configuration:
    GOOGLE_MAPS_API_KEY=your_restricted_ios_key
    ```
 
-Enable the in-app Google Maps surface with the non-secret Dart flag:
+Enable the in-app Google Maps surface with `GOOGLE_MAPS_ENABLED` in `.env.json`,
+then use the standard local run command:
 
 ```powershell
-flutter run --dart-define=GOOGLE_MAPS_ENABLED=true
+flutter run -d 15928155CT008314 --dart-define-from-file=.env.json
 ```
 
 Use separate restricted Android and iOS keys. Do not enable Places, Geocoding,
@@ -154,10 +162,23 @@ egress backend infrastructure before production if IP application restriction
 is required.
 
 Store the server credential only as the Supabase Edge Function secret
-`GOOGLE_MAPS_WEB_SERVICES_API_KEY`. For local function development, use an
+`GOOGLE_PLACES_API_KEY`. For local function development, use an
 ignored `supabase/functions/.env` file. For hosted functions, configure the
 secret through Supabase secret management. Never add this key to Dart defines,
 Flutter source, Android resources, iOS resources, or Git.
+
+With the project linked through the existing Supabase CLI workflow, configure
+the hosted server-only credentials locally. Replace the placeholders in your
+terminal; never write the real values into a tracked file:
+
+```powershell
+npx supabase secrets set GOOGLE_ROUTES_API_KEY="YOUR_ROUTES_SERVER_KEY"
+npx supabase secrets set GOOGLE_PLACES_API_KEY="YOUR_PLACES_SERVER_KEY"
+npx supabase functions deploy places
+```
+
+Set `GOOGLE_PLACES_API_KEY` before the next `places` deployment because the
+function no longer reads the historical `GOOGLE_MAPS_WEB_SERVICES_API_KEY` name.
 
 Deploy `supabase/functions/places` with JWT verification enabled. The function
 also verifies that the caller is an authenticated, unblocked Rider. Local Mock
@@ -183,7 +204,7 @@ after a provider failure; local Mock mode remains deterministic.
 
 Use a separate server-only key restricted to Routes API and store it only as the
 Supabase Edge Function secret `GOOGLE_ROUTES_API_KEY`. Do not reuse the mobile
-Maps keys or `GOOGLE_MAPS_WEB_SERVICES_API_KEY`, and never expose the routing key
+Maps keys or `GOOGLE_PLACES_API_KEY`, and never expose the routing key
 through Dart defines, native app resources, source, logs, or Git.
 
 The Flutter and Deno suites pass. Routes API/key setup, deployed authenticated
@@ -282,8 +303,10 @@ flutter test
 ## Environment configuration
 
 RideX reads Dart environment configuration at compile time. It does not load
-`.env` files at runtime. Native Maps keys use the ignored platform files
-documented above.
+`.env` files at runtime. Flutter parses the ignored `.env.json` only because it
+is passed explicitly with `--dart-define-from-file`; there is no runtime dotenv
+loader. Android Gradle forwards its client-visible Maps SDK value to the existing
+native manifest placeholder.
 
 To run with the local Mock repositories, omit the Supabase defines:
 
@@ -291,18 +314,16 @@ To run with the local Mock repositories, omit the Supabase defines:
 flutter run
 ```
 
-To enable Supabase-backed authentication and profiles, provide both required
-compile-time values. Replace the placeholders locally; never commit real
-configuration values.
+To enable Supabase-backed authentication and profiles, fill both required
+compile-time values in `.env.json`. Replace all placeholders locally; never
+commit real configuration values.
 
-```sh
-flutter run \
-  --dart-define=SUPABASE_URL=https://your-project.supabase.co \
-  --dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_REPLACE_WITH_PUBLIC_CLIENT_KEY
+```powershell
+flutter run -d 15928155CT008314 --dart-define-from-file=.env.json
 ```
 
-The same `--dart-define` arguments can be supplied to `flutter build`. RideX
-requires a valid HTTPS URL. Custom HTTPS Supabase domains are supported.
+The same `--dart-define-from-file` input can be supplied to `flutter build`.
+RideX requires a valid HTTPS URL. Custom HTTPS Supabase domains are supported.
 
 Both values must be provided together. When both are absent, RideX intentionally
 uses Mock mode for development and local tests. Partial, placeholder, malformed,
@@ -323,8 +344,9 @@ into version control, environment examples, logs, or bundled files:
 - Access tokens, refresh tokens, or user passwords
 
 Local environment, secret, signing, and Supabase temporary files are ignored by
-Git. The repository intentionally does not provide an `.env.example` because
-`.env` runtime loading is not part of the application configuration workflow.
+Git. `.env.example.json` contains placeholders only; `.env.json` is ignored and
+must remain local. Server-only Google credentials belong in Supabase secret
+management, not either Flutter environment file.
 
 ## Local verification
 
