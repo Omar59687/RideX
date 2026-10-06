@@ -101,8 +101,7 @@ void main() {
           if (name == 'rider_lock_fare_quote') {
             expect(params, {
               'target_booking_request_id': 'booking-1',
-              'target_fare_quote_id':
-                  'aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee',
+              'target_fare_quote_id': 'aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee',
               'expected_booking_version': 2,
               'expected_quote_version': 2,
             });

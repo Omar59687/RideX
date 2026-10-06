@@ -104,6 +104,7 @@ insert into public.driver_profiles (user_id, approval_status, is_online, is_avai
 values ('d1000000-0000-0000-0000-000000000011', 'approved', false, false);
 insert into public.vehicles (id, driver_id, vehicle_type_code, make, model, color, registration_plate, seat_capacity, is_active)
 values ('d1100000-0000-0000-0000-000000000011', 'd1000000-0000-0000-0000-000000000011', 'economy', 'Toyota', 'Camry', 'White', 'DH 011', 4, true);
+delete from public.pricing_configurations where vehicle_type_code = 'economy';
 insert into public.pricing_configurations (id, vehicle_type_code, pricing_version, base_fare_fils, per_kilometer_fils, per_minute_fils, per_stop_fils, minimum_fare_fils, is_active)
 values ('d1200000-0000-0000-0000-000000000001', 'economy', 1, 500, 300, 50, 200, 1000, true);
 insert into public.booking_requests (id, rider_id, pickup, destination, vehicle_type_code, payment_method)

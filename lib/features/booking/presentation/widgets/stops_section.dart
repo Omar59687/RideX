@@ -8,6 +8,7 @@ import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/place_prediction.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/services/places/places_session_token.dart';
 
 /// Provisional Phase 5 multi-stop management surface.
 ///
@@ -39,6 +40,8 @@ class _StopsSectionState extends ConsumerState<StopsSection> {
   final _search = TextEditingController();
   Timer? _debounce;
   int _generation = 0;
+  String _sessionToken = newPlacesSessionToken();
+  String _trackedQuery = '';
   List<PlacePrediction> _predictions = const [];
   bool _searching = false;
   String? _feedback;
@@ -56,12 +59,17 @@ class _StopsSectionState extends ConsumerState<StopsSection> {
     _debounce?.cancel();
     final generation = ++_generation;
     if (query.length < 3) {
+      if (_trackedQuery.length >= 3) {
+        _sessionToken = newPlacesSessionToken();
+      }
+      _trackedQuery = query;
       setState(() {
         _predictions = const [];
         _searching = false;
       });
       return;
     }
+    _trackedQuery = query;
     _debounce = Timer(const Duration(milliseconds: 350), () {
       if (!mounted) return;
       setState(() => _searching = true);
@@ -70,10 +78,11 @@ class _StopsSectionState extends ConsumerState<StopsSection> {
   }
 
   Future<void> _loadPredictions(String query, int generation) async {
+    final sessionToken = _sessionToken;
     try {
       final predictions = await ref
           .read(placeRepositoryProvider)
-          .autocomplete(query: query, sessionToken: 'stop-search');
+          .autocomplete(query: query, sessionToken: sessionToken);
       if (!mounted || generation != _generation) return;
       setState(() {
         _searching = false;
@@ -112,6 +121,10 @@ class _StopsSectionState extends ConsumerState<StopsSection> {
       return;
     }
     _debounce?.cancel();
+    // Typed-address lookup does not consume a session token, but it ends
+    // the prior autocomplete session and starts a fresh next session.
+    _sessionToken = newPlacesSessionToken();
+    _trackedQuery = '';
     final generation = ++_generation;
     setState(() {
       _searching = true;
@@ -151,15 +164,27 @@ class _StopsSectionState extends ConsumerState<StopsSection> {
   Future<void> _onPredictionSelected(PlacePrediction prediction) async {
     _debounce?.cancel();
     final generation = ++_generation;
-    setState(() => _searching = true);
+    final sessionToken = _sessionToken;
+    // Place Details consumes the autocomplete session at request initiation:
+    // provision the fresh next session now and consume predictions so a
+    // duplicate tap or rejected duplicate/max cannot resolve the old
+    // prediction with the new token.
+    _sessionToken = newPlacesSessionToken();
+    _trackedQuery = '';
+    setState(() {
+      _searching = true;
+      _predictions = const [];
+    });
     try {
       final location =
           await ref.read(placeRepositoryProvider).resolvePrediction(
                 prediction: prediction,
-                sessionToken: 'stop-search',
+                sessionToken: sessionToken,
               );
       if (!mounted || generation != _generation) return;
       setState(() => _searching = false);
+      // Next session was already provisioned at initiation; consumed
+      // predictions stay cleared. Failure/stale paths keep the session.
       _addStop(location);
     } on PlaceException catch (error) {
       if (!mounted || generation != _generation) return;
@@ -200,6 +225,10 @@ class _StopsSectionState extends ConsumerState<StopsSection> {
       return;
     }
     _search.clear();
+    // The next session was already provisioned at details/typed request
+    // initiation; reset tracked query state so the programmatic clear does
+    // not trigger a second rotation.
+    _trackedQuery = '';
     setState(() {
       _predictions = const [];
       _searching = false;

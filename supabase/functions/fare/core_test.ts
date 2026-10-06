@@ -126,6 +126,84 @@ Deno.test("handler rejects phone-supplied metrics and malformed inputs", async (
   }
 });
 
+Deno.test("handler scopes quote quota independently per authenticated rider", async () => {
+  let now = 1000;
+  const handler = createFareHandler({
+    authorize: (request) => Promise.resolve(request.headers.get("x-test-rider")!),
+    calculateFare: () => Promise.resolve(quoteRow()),
+    now: () => now,
+  });
+
+  for (let requestNumber = 0; requestNumber < 10; requestNumber++) {
+    const response = await handler(request(validBody(), { "x-test-rider": CALLER_ID }));
+    assertEquals(response.status, 200);
+  }
+
+  const exhaustedResponse = await handler(
+    request(validBody(), { "x-test-rider": CALLER_ID }),
+  );
+  const otherRiderResponse = await handler(
+    request(validBody(), { "x-test-rider": OTHER_RIDER_ID }),
+  );
+
+  assertEquals(exhaustedResponse.status, 429);
+  assertEquals(otherRiderResponse.status, 200);
+
+  now += 60000;
+  const resetResponse = await handler(
+    request(validBody(), { "x-test-rider": CALLER_ID }),
+  );
+  assertEquals(resetResponse.status, 200);
+});
+
+Deno.test("handler scopes concurrency per rider and releases completed requests", async () => {
+  let now = 1000;
+  const blockedReleases: Array<() => void> = [];
+  let started = 0;
+  let signalTwoStarted!: () => void;
+  const twoStarted = new Promise<void>((resolve) => signalTwoStarted = resolve);
+  let signalThirdStarted!: () => void;
+  const thirdStarted = new Promise<void>((resolve) => signalThirdStarted = resolve);
+  const handler = createFareHandler({
+    authorize: (request) => Promise.resolve(request.headers.get("x-test-rider")!),
+    calculateFare: async ({ riderId }) => {
+      if (riderId === CALLER_ID) {
+        await new Promise<void>((resolve) => {
+          blockedReleases.push(resolve);
+          started++;
+          if (started === 2) signalTwoStarted();
+          if (started === 3) signalThirdStarted();
+        });
+      }
+      return quoteRow();
+    },
+    now: () => now,
+  });
+
+  const first = handler(request(validBody(), { "x-test-rider": CALLER_ID }));
+  const second = handler(request(validBody(), { "x-test-rider": CALLER_ID }));
+  await twoStarted;
+
+  now += 60000;
+  const otherRiderResponse = await handler(
+    request(validBody(), { "x-test-rider": OTHER_RIDER_ID }),
+  );
+  const limitedResponse = await handler(
+    request(validBody(), { "x-test-rider": CALLER_ID }),
+  );
+  assertEquals(otherRiderResponse.status, 200);
+  assertEquals(limitedResponse.status, 429);
+
+  blockedReleases.shift()!();
+  assertEquals((await first).status, 200);
+  const afterRelease = handler(request(validBody(), { "x-test-rider": CALLER_ID }));
+  await thirdStarted;
+  blockedReleases.shift()!();
+  assertEquals((await second).status, 200);
+  blockedReleases.shift()!();
+  assertEquals((await afterRelease).status, 200);
+});
+
 Deno.test("backend quote reloads owned canonical stops and uses trusted Google metrics", async () => {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   const fetchImpl: FetchLike = (input, init) => {
@@ -299,10 +377,12 @@ Deno.test("authorizeCaller validates the authenticated non-blocked rider", async
 });
 
 Deno.test("authorizeCaller rejects blocked and non-rider callers", async () => {
-  for (const row of [
-    { id: CALLER_ID, role: "rider", is_blocked: true },
-    { id: CALLER_ID, role: "driver", is_blocked: false },
-  ]) {
+  for (
+    const row of [
+      { id: CALLER_ID, role: "rider", is_blocked: true },
+      { id: CALLER_ID, role: "driver", is_blocked: false },
+    ]
+  ) {
     let error: unknown;
     try {
       await authorizeCaller(request(validBody()), {

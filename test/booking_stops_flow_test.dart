@@ -6,8 +6,10 @@ import 'package:ridex/core/errors/route_exception.dart';
 import 'package:ridex/core/mocks/mock_data.dart';
 import 'package:ridex/core/mocks/mock_repositories.dart';
 import 'package:ridex/core/models/route_models.dart';
+import 'package:ridex/core/models/place_prediction.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/services/places/places_session_token.dart';
 import 'package:ridex/core/repositories/mock_place_repository.dart';
 import 'package:ridex/core/repositories/mock_route_repository.dart';
 import 'package:ridex/core/repositories/route_repository.dart';
@@ -414,5 +416,232 @@ void main() {
 
     expect(stopLabelsOf(container), ['Abdali Mall']);
     expect(find.byKey(const ValueKey('stop-remove-0')), findsOneWidget);
+  });
+
+  testWidgets(
+      'stop autocomplete and details reuse one valid token and rotate across sequential sessions',
+      (tester) async {
+    final fake = FakePlaceRepository()
+      ..predictions = const [
+        PlacePrediction(
+          placeId: 'stop-a',
+          primaryText: 'Stop A',
+          secondaryText: 'Address A',
+        ),
+      ]
+      ..resolvedPrediction = testLocation(
+        latitude: 31.90,
+        longitude: 35.90,
+        label: 'Stop A',
+      );
+    final container = ProviderContainer(
+      overrides: [
+        authRepositoryProvider.overrideWith((ref) => MockAuthRepository()),
+        bookingRepositoryProvider.overrideWith(
+          (ref) => MockBookingRepository(),
+        ),
+        placeRepositoryProvider.overrideWithValue(fake),
+        routeRepositoryProvider.overrideWithValue(
+          const MockRouteRepository(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await pumpStopsSection(tester, container);
+
+    await searchForStop(tester, 'Stop A');
+    await tapVisible(tester, find.byKey(const ValueKey('stop-prediction-0')));
+
+    expect(stopLabelsOf(container), ['Stop A']);
+    expect(fake.sessionTokens, hasLength(2));
+    for (final token in fake.sessionTokens) {
+      expect(placesSessionTokenRegExp.hasMatch(token), isTrue);
+    }
+    expect(fake.sessionTokens[1], fake.sessionTokens[0]);
+    final firstSessionToken = fake.sessionTokens.first;
+
+    fake.predictions = const [
+      PlacePrediction(
+        placeId: 'stop-b',
+        primaryText: 'Stop B',
+        secondaryText: 'Address B',
+      ),
+    ];
+    fake.resolvedPrediction = testLocation(
+      latitude: 31.91,
+      longitude: 35.91,
+      label: 'Stop B',
+    );
+
+    await searchForStop(tester, 'Stop B');
+    await tapVisible(tester, find.byKey(const ValueKey('stop-prediction-0')));
+
+    expect(stopLabelsOf(container), ['Stop A', 'Stop B']);
+    expect(fake.sessionTokens, hasLength(4));
+    for (final token in fake.sessionTokens) {
+      expect(placesSessionTokenRegExp.hasMatch(token), isTrue);
+    }
+    expect(fake.sessionTokens[2], isNot(firstSessionToken));
+    expect(fake.sessionTokens[3], fake.sessionTokens[2]);
+  });
+
+  testWidgets('typed address submission terminates the stop autocomplete token',
+      (tester) async {
+    final fake = FakePlaceRepository()
+      ..predictions = const [
+        PlacePrediction(
+          placeId: 'stop-a',
+          primaryText: 'Stop A',
+          secondaryText: 'Address A',
+        ),
+      ]
+      ..resolvedPrediction = testLocation(
+        latitude: 31.90,
+        longitude: 35.90,
+        label: 'Stop A',
+      )
+      ..forwardResults = [
+        testLocation(
+          latitude: 31.91,
+          longitude: 35.91,
+          label: 'Typed Stop',
+        ),
+      ];
+    final container = ProviderContainer(
+      overrides: [
+        authRepositoryProvider.overrideWith((ref) => MockAuthRepository()),
+        bookingRepositoryProvider.overrideWith(
+          (ref) => MockBookingRepository(),
+        ),
+        placeRepositoryProvider.overrideWithValue(fake),
+        routeRepositoryProvider.overrideWithValue(
+          const MockRouteRepository(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await pumpStopsSection(tester, container);
+
+    await searchForStop(tester, 'Stop A');
+    expect(fake.sessionTokens, hasLength(1));
+    final autocompleteToken = fake.sessionTokens.single;
+    expect(placesSessionTokenRegExp.hasMatch(autocompleteToken), isTrue);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('stop-search-field')),
+      'Typed address',
+    );
+    await tester.pump();
+    await tapVisible(
+      tester,
+      find.byKey(const ValueKey('stop-search-submit')),
+    );
+
+    expect(stopLabelsOf(container), ['Typed Stop']);
+    // Forward geocoding consumes no session token.
+    expect(fake.sessionTokens, hasLength(1));
+
+    fake.predictions = const [
+      PlacePrediction(
+        placeId: 'stop-b',
+        primaryText: 'Stop B',
+        secondaryText: 'Address B',
+      ),
+    ];
+    fake.resolvedPrediction = testLocation(
+      latitude: 31.92,
+      longitude: 35.92,
+      label: 'Stop B',
+    );
+
+    await searchForStop(tester, 'Stop B');
+    expect(fake.sessionTokens, hasLength(2));
+    expect(fake.sessionTokens.last, isNot(autocompleteToken));
+    expect(
+      placesSessionTokenRegExp.hasMatch(fake.sessionTokens.last),
+      isTrue,
+    );
+
+    await tapVisible(tester, find.byKey(const ValueKey('stop-prediction-0')));
+    expect(stopLabelsOf(container), ['Typed Stop', 'Stop B']);
+    expect(fake.sessionTokens, hasLength(3));
+    expect(fake.sessionTokens[1], fake.sessionTokens[2]);
+    for (final token in fake.sessionTokens) {
+      expect(placesSessionTokenRegExp.hasMatch(token), isTrue);
+    }
+  });
+
+  testWidgets(
+      'rejected duplicate consumes predictions and next session uses a fresh token',
+      (tester) async {
+    final fake = FakePlaceRepository()
+      ..predictions = const [
+        PlacePrediction(
+          placeId: 'dup-a',
+          primaryText: 'Dup A',
+          secondaryText: 'Address A',
+        ),
+      ]
+      ..resolvedPrediction = testLocation(
+        latitude: 31.90,
+        longitude: 35.90,
+        label: 'Dup A',
+      );
+    final container = ProviderContainer(
+      overrides: [
+        authRepositoryProvider.overrideWith((ref) => MockAuthRepository()),
+        bookingRepositoryProvider.overrideWith(
+          (ref) => MockBookingRepository(),
+        ),
+        placeRepositoryProvider.overrideWithValue(fake),
+        routeRepositoryProvider.overrideWithValue(
+          const MockRouteRepository(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await pumpStopsSection(tester, container);
+
+    await searchForStop(tester, 'Dup A');
+    await tapVisible(tester, find.byKey(const ValueKey('stop-prediction-0')));
+    expect(stopLabelsOf(container), ['Dup A']);
+    expect(fake.sessionTokens, hasLength(2));
+    final firstSession = fake.sessionTokens.first;
+
+    await searchForStop(tester, 'Dup A');
+    expect(find.byKey(const ValueKey('stop-prediction-0')), findsOneWidget);
+    await tapVisible(tester, find.byKey(const ValueKey('stop-prediction-0')));
+
+    expect(stopLabelsOf(container), hasLength(1));
+    expect(
+      find.text(
+        'This stop is already in your route. Choose a different location.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('stop-prediction-0')), findsNothing);
+    expect(fake.sessionTokens, hasLength(4));
+    expect(fake.sessionTokens[2], isNot(firstSession));
+    expect(fake.sessionTokens[3], fake.sessionTokens[2]);
+
+    fake.predictions = const [
+      PlacePrediction(
+        placeId: 'stop-b',
+        primaryText: 'Stop B',
+        secondaryText: 'Address B',
+      ),
+    ];
+    fake.resolvedPrediction = testLocation(
+      latitude: 31.91,
+      longitude: 35.91,
+      label: 'Stop B',
+    );
+    await searchForStop(tester, 'Stop B');
+    expect(fake.sessionTokens, hasLength(5));
+    expect(fake.sessionTokens.last, isNot(fake.sessionTokens[3]));
+    expect(
+      placesSessionTokenRegExp.hasMatch(fake.sessionTokens.last),
+      isTrue,
+    );
   });
 }

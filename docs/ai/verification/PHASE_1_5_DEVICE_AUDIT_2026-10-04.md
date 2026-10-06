@@ -33,12 +33,16 @@ the required destination.
 
 ## Verification status
 
-- Added regression coverage for repeated pending autocomplete, visible-address
-  submission, reverse-geocode fallback readiness, queued location refresh, and
-  live fare locking without mock navigation. These tests are NOT yet run.
-- Source diff/whitespace review only in this environment. Flutter/Dart, Deno,
-  PostgreSQL, Android runtime and a physical test device are unavailable.
-- Historical passing test counts in status documents do not validate this patch.
+- The original 2026-10-04 audit added regression coverage for repeated pending
+  autocomplete, visible-address submission, reverse-geocode fallback readiness,
+  queued location refresh, and live fare locking without mock navigation. Those
+  tests could not be run in the original audit environment.
+- Automated follow-up completed on 2026-10-06: `flutter analyze` found no issues;
+  `flutter test` passed 304 tests with 2 intentional live-test skips; Deno passed
+  35 tests; and all 23 database files passed 995 assertions after a clean local
+  reset. Dart and Deno formatting checks also passed.
+- Android runtime and physical-device verification remain unavailable for this
+  audit, so the automated follow-up does not close the device findings below.
 - No Cloud settings, backend deployment, secrets or existing migrations changed.
 
 Required local gates after pulling (PowerShell, from repository root):

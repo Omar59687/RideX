@@ -25,7 +25,7 @@ begin
     insert into public.booking_requests (id,rider_id,pickup,destination,vehicle_type_code,payment_method,status) values
       (booking_id,'a0000000-0000-0000-0000-000000000001','{"latitude":31.95,"longitude":35.93}','{"latitude":31.98,"longitude":35.97}','economy','card','matched');
     insert into public.fare_quotes (id,booking_request_id,rider_id,status,pickup,destination,ordered_stops,route_distance_meters,route_duration_seconds,vehicle_type_code,breakdown,fixed_fare_fils,pricing_configuration_id,pricing_version,quote_version,locked_at) values
-      (quote_id,booking_id,'a0000000-0000-0000-0000-000000000001','locked','{"latitude":31.95,"longitude":35.93}','{"latitude":31.98,"longitude":35.97}','[]',1000,60,'economy','{"fixed_fare_fils":2500}',2500,(select id from public.pricing_configurations where is_active),1,1,now());
+      (quote_id,booking_id,'a0000000-0000-0000-0000-000000000001','locked','{"latitude":31.95,"longitude":35.93}','{"latitude":31.98,"longitude":35.97}','[]',1000,60,'economy','{"fixed_fare_fils":2500}',2500,(select id from public.pricing_configurations where is_active and vehicle_type_code = 'economy'),1,1,now());
     insert into public.trips (id,booking_request_id,fare_quote_id,rider_id,driver_id,vehicle_id,status,payment_method,pickup,destination,route_distance_meters,route_duration_seconds,original_fare_fils,current_fare_fils) values
       (trip_id,booking_id,quote_id,'a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','a1000000-0000-0000-0000-000000000001','accepted','card','{"latitude":31.95,"longitude":35.93}','{"latitude":31.98,"longitude":35.97}',1000,60,2500,2500);
     perform public.backend_create_payment(trip_id);

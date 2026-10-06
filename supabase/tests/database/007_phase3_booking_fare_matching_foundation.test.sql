@@ -80,6 +80,8 @@ select ok((select relrowsecurity from pg_class where oid = 'public.driver_match_
 select throws_ok($$select 'premium'::public.vehicle_type_code$$, '22P02', null, 'unsupported vehicle values are rejected');
 select throws_ok($$select 'wallet'::public.payment_method$$, '22P02', null, 'unsupported payment values are rejected');
 
+delete from public.pricing_configurations;
+
 select lives_ok(
   $$select public.backend_create_pricing_configuration('economy', 500, 300, 50, 200, 1000, 50, true)$$,
   'backend creates the approved integer-fils economy pricing configuration'

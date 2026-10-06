@@ -1,5 +1,0 @@
-# Transient factory execution state. Task files (*.md) are tracked;
-# local scratch is ignored.
-*.tmp
-*.bak
-.cache/

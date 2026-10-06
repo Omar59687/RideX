@@ -18,8 +18,7 @@ const RATE_WINDOW_MS = 60000;
 const MAX_CONCURRENT_REQUESTS_PER_USER = 2;
 const QUOTE_RATE_LIMIT = 10;
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const QUOTE_STATUSES = ["calculated", "locked", "expired", "superseded"] as const;
 const BREAKDOWN_KEYS = [
   "base_fare_fils",
@@ -77,30 +76,56 @@ class HttpError extends Error {
 }
 
 class InstanceRateLimiter {
-  private count = 0;
-  private concurrent = 0;
-  private windowStartedAt: number | null = null;
+  private readonly riders = new Map<string, {
+    count: number;
+    concurrent: number;
+    expiresAt: number;
+    windowStartedAt: number;
+  }>();
 
   constructor(private readonly now: () => number) {}
 
   // Bounds one warm Edge instance only, mirroring the places function.
-  acquire(): () => void {
+  acquire(callerId: string): () => void {
     const now = this.now();
-    if (this.windowStartedAt === null || now - this.windowStartedAt >= RATE_WINDOW_MS) {
-      this.windowStartedAt = now;
-      this.count = 0;
+    this.cleanup(now);
+    let rider = this.riders.get(callerId);
+    if (rider === undefined) {
+      rider = {
+        count: 0,
+        concurrent: 0,
+        expiresAt: now + RATE_WINDOW_MS,
+        windowStartedAt: now,
+      };
+      this.riders.set(callerId, rider);
+    } else if (now - rider.windowStartedAt >= RATE_WINDOW_MS) {
+      rider.count = 0;
+      rider.windowStartedAt = now;
     }
-    if (this.concurrent >= MAX_CONCURRENT_REQUESTS_PER_USER || this.count >= QUOTE_RATE_LIMIT) {
+    if (
+      rider.concurrent >= MAX_CONCURRENT_REQUESTS_PER_USER ||
+      rider.count >= QUOTE_RATE_LIMIT
+    ) {
       throw new HttpError(429, "rate_limited", "Too many requests.");
     }
-    this.count++;
-    this.concurrent++;
+    rider.count++;
+    rider.concurrent++;
+    rider.expiresAt = Math.max(rider.expiresAt, rider.windowStartedAt + RATE_WINDOW_MS);
     let released = false;
     return () => {
       if (released) return;
       released = true;
-      this.concurrent = Math.max(0, this.concurrent - 1);
+      rider.concurrent = Math.max(0, rider.concurrent - 1);
+      this.cleanup(this.now());
     };
+  }
+
+  private cleanup(now: number): void {
+    for (const [callerId, rider] of this.riders) {
+      if (rider.concurrent === 0 && rider.expiresAt <= now) {
+        this.riders.delete(callerId);
+      }
+    }
   }
 }
 
@@ -422,7 +447,11 @@ export function createBackendQuoteCaller(
           allPoints[index].latitude === allPoints[other].latitude &&
           allPoints[index].longitude === allPoints[other].longitude
         ) {
-          throw new HttpError(422, "fare_unavailable", "Fare cannot be calculated for this booking.");
+          throw new HttpError(
+            422,
+            "fare_unavailable",
+            "Fare cannot be calculated for this booking.",
+          );
         }
       }
     }
@@ -466,7 +495,11 @@ export function createBackendQuoteCaller(
     try {
       routePayload = await readJson(routeResponse, MAX_UPSTREAM_BYTES);
     } catch {
-      throw new HttpError(502, "provider_response_invalid", "Routing provider response is invalid.");
+      throw new HttpError(
+        502,
+        "provider_response_invalid",
+        "Routing provider response is invalid.",
+      );
     }
     if (
       !isRecord(routePayload) ||
@@ -474,7 +507,11 @@ export function createBackendQuoteCaller(
       routePayload.routes.length === 0 ||
       !isRecord(routePayload.routes[0])
     ) {
-      throw new HttpError(502, "provider_response_invalid", "Routing provider response is invalid.");
+      throw new HttpError(
+        502,
+        "provider_response_invalid",
+        "Routing provider response is invalid.",
+      );
     }
     const route = routePayload.routes[0];
     const distanceMeters = route.distanceMeters;
@@ -489,7 +526,11 @@ export function createBackendQuoteCaller(
       !Number.isSafeInteger(durationSeconds) ||
       durationSeconds <= 0
     ) {
-      throw new HttpError(502, "provider_response_invalid", "Routing provider response is invalid.");
+      throw new HttpError(
+        502,
+        "provider_response_invalid",
+        "Routing provider response is invalid.",
+      );
     }
 
     let response: Response;
@@ -580,7 +621,7 @@ export function createFareHandler(
         expectedBookingVersion: positiveVersion(body.expected_booking_version),
       };
 
-      const release = limiter.acquire();
+      const release = limiter.acquire(callerId);
       try {
         const data = await dependencies.calculateFare(quoteInput);
         return jsonResponse(200, { data });

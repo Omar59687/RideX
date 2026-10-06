@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/core/errors/place_exception.dart';
@@ -12,6 +11,7 @@ import 'package:ridex/core/providers/location_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
+import 'package:ridex/core/services/places/places_session_token.dart';
 
 class PlaceSelectionController
     extends AutoDisposeFamilyNotifier<PlaceSelectionState, LocationEndpoint> {
@@ -25,7 +25,7 @@ class PlaceSelectionController
   PlaceSelectionState build(LocationEndpoint arg) {
     _errorReporter = ref.read(appErrorReporterProvider);
     _endpoint = arg;
-    _sessionToken = _newSessionToken();
+    _sessionToken = newPlacesSessionToken();
     ref.onDispose(() {
       _debounce?.cancel();
       _generation++;
@@ -51,7 +51,7 @@ class PlaceSelectionController
     _debounce?.cancel();
     final generation = ++_generation;
     if (query.length < 3) {
-      if (query.isEmpty) _sessionToken = _newSessionToken();
+      if (query.isEmpty) _sessionToken = newPlacesSessionToken();
       state = PlaceSelectionState(
         query: query,
         selected: state.selected,
@@ -84,11 +84,13 @@ class PlaceSelectionController
       status: PlaceSearchStatus.resolving,
       clearMessage: true,
     );
+    final sessionToken = _sessionToken;
+    _sessionToken = newPlacesSessionToken();
     try {
       final location =
           await ref.read(placeRepositoryProvider).resolvePrediction(
                 prediction: prediction,
-                sessionToken: _sessionToken,
+                sessionToken: sessionToken,
               );
       if (generation != _generation) return;
       _commit(location);
@@ -105,7 +107,7 @@ class PlaceSelectionController
     final query = state.query.trim();
     if (query.length < 3) return;
     _debounce?.cancel();
-    _sessionToken = _newSessionToken();
+    _sessionToken = newPlacesSessionToken();
     final generation = ++_generation;
     _clearCommittedLocation();
     state = state.copyWith(
@@ -202,7 +204,7 @@ class PlaceSelectionController
   void clear() {
     _debounce?.cancel();
     _generation++;
-    _sessionToken = _newSessionToken();
+    _sessionToken = newPlacesSessionToken();
     _clearCommittedLocation();
     state = const PlaceSelectionState();
   }
@@ -262,7 +264,7 @@ class PlaceSelectionController
       status: PlaceSearchStatus.selected,
       selected: location,
     );
-    _sessionToken = _newSessionToken();
+    _sessionToken = newPlacesSessionToken();
   }
 
   void _report(String operation, Object error, StackTrace stackTrace) {
@@ -293,17 +295,6 @@ class PlaceSelectionController
 
   static const _unavailableMessage =
       'Place search is unavailable right now. Please try again.';
-
-  static String _newSessionToken() {
-    final bytes = List<int>.generate(16, (_) => Random.secure().nextInt(256));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    final hex =
-        bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
-    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
-        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
-        '${hex.substring(20)}';
-  }
 }
 
 final placeSelectionControllerProvider = AutoDisposeNotifierProviderFamily<

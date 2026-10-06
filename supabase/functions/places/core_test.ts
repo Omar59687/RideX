@@ -201,6 +201,72 @@ Deno.test("a bounded opaque session token is reused unchanged across autocomplet
   assertEquals(detailsToken, opaqueToken);
 });
 
+Deno.test("session tokens accept 16 and 128 chars and reject 15, 129, and invalid chars", async () => {
+  const valid16 = "a".repeat(16);
+  const valid128 = "Ab_-".repeat(32);
+
+  for (const sessionToken of [valid16, valid128]) {
+    let autocompleteToken = "";
+    const autocompleteHandler = handlerWith((_input, init) => {
+      autocompleteToken = JSON.parse(String(init?.body)).sessionToken;
+      return Response.json({});
+    });
+    const autocompleteResponse = await autocompleteHandler(request({
+      operation: "autocomplete",
+      input: "Amman",
+      sessionToken,
+    }));
+    assertEquals(autocompleteResponse.status, 200);
+    assertEquals(autocompleteToken, sessionToken);
+
+    let detailsToken = "";
+    const detailsHandler = handlerWith((input) => {
+      detailsToken = new URL(String(input)).searchParams.get("sessionToken") ?? "";
+      return Response.json({
+        id: "ChIJ12345",
+        formattedAddress: "Amman, Jordan",
+        location: { latitude: 31.95, longitude: 35.92 },
+      });
+    });
+    const detailsResponse = await detailsHandler(request({
+      operation: "placeDetails",
+      placeId: "ChIJ12345",
+      sessionToken,
+    }));
+    assertEquals(detailsResponse.status, 200);
+    assertEquals(detailsToken, sessionToken);
+  }
+
+  let calls = 0;
+  const rejectingHandler = handlerWith(() => {
+    calls++;
+    return Response.json({});
+  });
+  const invalidTokens = [
+    "a".repeat(15),
+    "a".repeat(129),
+    "not url safe token!",
+    "abc$def1234567890",
+    `${"a".repeat(15)}!`,
+  ];
+  for (const sessionToken of invalidTokens) {
+    for (
+      const body of [
+        { operation: "autocomplete", input: "Amman", sessionToken },
+        { operation: "placeDetails", placeId: "ChIJ12345", sessionToken },
+      ]
+    ) {
+      const response = await rejectingHandler(request(body));
+      assertEquals(response.status, 400);
+      assertEquals((await responseBody(response)).error, {
+        code: "invalid_request",
+        message: "Request is invalid.",
+      });
+    }
+  }
+  assertEquals(calls, 0);
+});
+
 Deno.test("placeDetails rejects a provider ID that differs from the requested ID", async () => {
   const handler = handlerWith(() =>
     Response.json({
@@ -637,10 +703,14 @@ Deno.test("route rejects missing, malformed, and nonpositive provider data", asy
 
 Deno.test("a missing Routes key affects only route requests", async () => {
   let calls = 0;
-  const handler = handlerWith(() => {
-    calls++;
-    return Response.json({});
-  }, 100, "");
+  const handler = handlerWith(
+    () => {
+      calls++;
+      return Response.json({});
+    },
+    100,
+    "",
+  );
 
   const routeResponse = await handler(request({
     operation: "route",

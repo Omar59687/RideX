@@ -5,7 +5,7 @@
 This section supersedes older current-state/completion statements below; their
 test counts and approvals are historical evidence, not results for this patch.
 
-- Work branch only: `codex/phase-4f-evidence-hardening`, baseline `9be82b6`.
+- Work branch only: `codex/phase-4f-evidence-hardening`, starting commit `b728f6a`.
   Main configuration was already merged in `ed64486`; this audit does not edit main.
 - Phase 4 task 4.38 remains deferred by the owner pending two physical devices.
   Owner authorized provisional Phase 5 work; this is not Phase 4 final approval.
@@ -13,11 +13,16 @@ test counts and approvals are historical evidence, not results for this patch.
 - Patched search request invalidation, visible-address submission, pin fallback
   readiness, pickup Settings-resume refresh, late GPS camera centering, and new
   booking draft reset. Patched fare retry version retention, lock button/error
-  handling, and quote expiry refresh.
+  handling, quote expiry refresh, per-Rider Edge Function limits, secure Places
+  session-token lifecycle, and Rider fare-lock authorization and concurrency.
 - Live fare locking no longer enters mock driver matching. Real matching remains
   outside this Phase 5 implementation; the UI states that limitation explicitly.
-- Regression tests added/updated, but NOT executed: this audit environment has no
-  Flutter/Dart, Deno, PostgreSQL, Android SDK or attached physical device.
+- Automated verification completed on 2026-10-06: `flutter analyze` found no
+  issues; `flutter test` passed 304 tests with 2 intentional live-test skips;
+  Deno passed 35 tests; and all 23 database files passed 995 assertions after a
+  clean local reset. Dart and Deno formatting checks also passed.
+- Physical-device verification remains pending; no Android device was attached
+  for this hardening pass.
 - Blank native map tiles remain unresolved pending device logs and Google Cloud
   key/SDK/billing/restriction checks. No credential values were changed.
 - Detailed evidence, limitations and next checks:

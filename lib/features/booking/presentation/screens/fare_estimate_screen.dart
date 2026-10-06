@@ -222,9 +222,8 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
     final quote =
         (!isDemo && _requestKey == _quoteKey(draft, result)) ? _quote : null;
     final lockedQuote = quote?.status == FareQuoteStatus.locked;
-    final usableQuote = quote != null && (lockedQuote || quote.isUsableAt(now))
-        ? quote
-        : null;
+    final usableQuote =
+        quote != null && (lockedQuote || quote.isUsableAt(now)) ? quote : null;
     final staleQuote =
         quote != null && usableQuote == null && _failure == null && !_loading;
     final ready = isDemo

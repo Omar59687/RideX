@@ -578,6 +578,56 @@ void main() {
     expect(container.read(provider).status, PlaceSearchStatus.failure);
   });
 
+  test('place details consumes the session token once even after failure',
+      () async {
+    final firstLocation = testLocation(latitude: 31.95, longitude: 35.91);
+    final retryLocation = testLocation(latitude: 31.96, longitude: 35.92);
+    final fake = FakePlaceRepository()
+      ..predictions = const [predictionA]
+      ..resolvedPrediction = firstLocation;
+    final container = _container(fake);
+    addTearDown(container.dispose);
+    final provider =
+        placeSelectionControllerProvider(LocationEndpoint.destination);
+    container.listen(provider, (_, __) {});
+    final controller = container.read(provider.notifier);
+
+    controller.search('Abdali');
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await Future<void>.delayed(Duration.zero);
+    expect(fake.sessionTokens, hasLength(1));
+    final firstToken = fake.sessionTokens.single;
+    expect(firstToken, isNotEmpty);
+
+    await controller.selectPrediction(predictionA);
+    expect(fake.sessionTokens, hasLength(2));
+    expect(fake.sessionTokens[1], firstToken);
+
+    fake.resolveError = const PlaceException(PlaceFailure.unavailable);
+    await controller.selectPrediction(predictionB);
+    expect(container.read(provider).status, PlaceSearchStatus.failure);
+    expect(fake.sessionTokens, hasLength(3));
+    final failedToken = fake.sessionTokens[2];
+    expect(failedToken, isNotEmpty);
+    expect(failedToken, isNot(firstToken));
+
+    fake.resolveError = null;
+    fake.resolvedPrediction = retryLocation;
+    controller.search('Airport');
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await Future<void>.delayed(Duration.zero);
+    expect(fake.sessionTokens, hasLength(4));
+    final retryToken = fake.sessionTokens[3];
+    expect(retryToken, isNotEmpty);
+    expect(retryToken, isNot(failedToken));
+    expect(retryToken, isNot(firstToken));
+
+    await controller.selectPrediction(predictionB);
+    expect(fake.sessionTokens, hasLength(5));
+    expect(fake.sessionTokens[4], retryToken);
+    expect(container.read(provider).status, PlaceSearchStatus.selected);
+  });
+
   test('empty forward-geocode replacement leaves endpoint uncommitted',
       () async {
     final forward = Completer<List<RideLocation>>();
