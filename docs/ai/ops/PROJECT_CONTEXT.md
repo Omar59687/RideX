@@ -41,7 +41,10 @@ Checkpoints 4A and 4B are approved after final routing-guard regression coverage
 and project-owner-reported completion of all remaining physical/live checks.
 Checkpoint 4C routing is approved after automated Edge/Flutter verification and
 authenticated live Google routing on physical Android.
-Upfront fares, driver matching, trip transitions, history,
+Phase 5 route-based fixed fares are implemented and physical-device verified
+against hosted Supabase (server-authoritative quotes, persistent versions, fare
+locking; deterministic demo fares remain only in unconfigured Mock mode).
+Driver matching, trip transitions, history,
 notifications, phone OTP, ratings, and most profile/settings data remain mock,
 session-local, or presentation-only. Profile identity is repository-backed,
 while profile editing, ride statistics, rewards, saved places, and payment

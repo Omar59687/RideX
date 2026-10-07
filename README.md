@@ -238,6 +238,11 @@ npx supabase functions deploy fare
 
 Never put the Routes key or service-role key in Flutter configuration or Git.
 
+Deployed and device-verified 2026-10-07: hosted history includes migrations
+`025`/`026` with active economy/comfort/xl pricing rows, the `fare` function
+is deployed, and the physical-device route/fare/lock flow passes. Live driver
+matching remains unavailable by design in this phase.
+
 ### Driver location tracking
 
 Checkpoint 4D adds explicit foreground Driver location sharing through the

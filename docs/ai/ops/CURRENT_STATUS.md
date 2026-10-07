@@ -1,15 +1,31 @@
 # RideX Current Status
 
-## Current override — 2026-10-04 device regression audit
+## Current override — 2026-10-07 Phase 5 fare verification
 
 This section supersedes older current-state/completion statements below; their
 test counts and approvals are historical evidence, not results for this patch.
+
+- Work branch only: `codex/phase-4f-evidence-hardening`, HEAD `21fd476`.
+  Main configuration was already merged in `ed64486`; this update does not edit main.
+- Phase 4 task 4.38 remains deferred by the owner pending two physical devices.
+  Owner authorized provisional Phase 5 work; this is not Phase 4 final approval.
+- Phase 5 fare scope is **implemented and physical-device verified** (route
+  calculation with distance/duration, fare quote, fare calculation, fare lock).
+  Hosted `ykasivejjchupswqyxpm` has migrations `025`/`026` applied, active
+  economy/comfort/xl pricing rows, deployed `places`/`fare` functions, and a
+  corrected `GOOGLE_ROUTES_API_KEY` confirmed by a direct Google Routes call,
+  followed by redeploys of both the `places` and `fare` Edge Functions.
+  Remaining Phase 5 tails: multi-stop device leg, lost-response/concurrent
+  edge cases, booking-confirmation handoff, live driver matching (Phase 7).
+
+## Previous override — 2026-10-04 device regression audit
 
 - Work branch only: `codex/phase-4f-evidence-hardening`, starting commit `b728f6a`.
   Main configuration was already merged in `ed64486`; this audit does not edit main.
 - Phase 4 task 4.38 remains deferred by the owner pending two physical devices.
   Owner authorized provisional Phase 5 work; this is not Phase 4 final approval.
-- Phase 5 is **in progress / not device-verified**, not fully complete.
+- Phase 5 was **in progress / not device-verified** at that time (superseded by
+  the 2026-10-07 verification above).
 - Patched search request invalidation, visible-address submission, pin fallback
   readiness, pickup Settings-resume refresh, late GPS camera centering, and new
   booking draft reset. Patched fare retry version retention, lock button/error
@@ -21,8 +37,10 @@ test counts and approvals are historical evidence, not results for this patch.
   issues; `flutter test` passed 304 tests with 2 intentional live-test skips;
   Deno passed 35 tests; and all 23 database files passed 995 assertions after a
   clean local reset. Dart and Deno formatting checks also passed.
-- Physical-device verification remains pending; no Android device was attached
-  for this hardening pass.
+- Physical-device verification for the 2026-10-04 hardening pass was pending
+  at that time (no Android device was attached). The Phase 5 route/fare/lock
+  flow has since been verified on a physical device (2026-10-07; see override
+  above). Blank-map diagnosis and task 4.38 two-device checks remain open.
 - Blank native map tiles remain unresolved pending device logs and Google Cloud
   key/SDK/billing/restriction checks. No credential values were changed.
 - Detailed evidence, limitations and next checks:
