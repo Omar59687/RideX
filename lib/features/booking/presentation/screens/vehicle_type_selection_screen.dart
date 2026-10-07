@@ -42,6 +42,13 @@ class VehicleTypeSelectionScreen extends ConsumerWidget {
                         title: draft.destination?.address ??
                             'Destination not selected',
                       ),
+                      stops: [
+                        for (final stop in draft.stops)
+                          RouteTimelineStop(
+                            title: stop.address,
+                            subtitle: stop.label,
+                          ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),

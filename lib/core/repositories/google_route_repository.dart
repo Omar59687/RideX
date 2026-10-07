@@ -16,7 +16,7 @@ class GoogleRouteRepository implements RouteRepository {
 
   @override
   Future<RouteResult> calculateRoute(RouteRequest request) async {
-    if (request.intermediatePoints.isNotEmpty) {
+    if (!_hasValidStops(request)) {
       throw const RouteException(RouteFailure.unsupportedStops);
     }
     if (!request.hasDistinctEndpoints) {
@@ -60,6 +60,25 @@ class GoogleRouteRepository implements RouteRepository {
       rethrow;
     }
   }
+}
+
+bool _hasValidStops(RouteRequest request) {
+  final stops = request.intermediatePoints;
+  if (stops.length > 3) return false;
+  bool samePoint(LocationPoint a, LocationPoint b) =>
+      a.latitude == b.latitude && a.longitude == b.longitude;
+  for (final stop in stops) {
+    if (samePoint(stop, request.origin) ||
+        samePoint(stop, request.destination)) {
+      return false;
+    }
+  }
+  for (var i = 0; i < stops.length; i++) {
+    for (var j = i + 1; j < stops.length; j++) {
+      if (samePoint(stops[i], stops[j])) return false;
+    }
+  }
+  return true;
 }
 
 List<LocationPoint> decodeGooglePolyline(String encoded) {

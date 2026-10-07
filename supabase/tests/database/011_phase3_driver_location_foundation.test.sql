@@ -60,6 +60,7 @@ select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4
 select throws_ok($$select public.driver_record_location(null, 2, 31.95, 35.93, 4, null, null, now() - interval '1 second')$$, '23505', 'Location timestamp must increase for this Driver.', 'newer sequence with older timestamp is rejected');
 reset role;
 
+delete from public.pricing_configurations where vehicle_type_code = 'economy';
 insert into public.pricing_configurations (id, vehicle_type_code, pricing_version, base_fare_fils, per_kilometer_fils, per_minute_fils, per_stop_fils, minimum_fare_fils, is_active)
 values ('b1200000-0000-0000-0000-000000000001', 'economy', 1, 500, 300, 50, 200, 1000, true);
 insert into public.booking_requests (id, rider_id, pickup, destination, vehicle_type_code, payment_method)

@@ -14,6 +14,7 @@ import 'package:ridex/core/widgets/ride_location_selection_map.dart';
 import 'package:ridex/core/widgets/route_status_panel.dart';
 import 'package:ridex/core/widgets/google_maps_attribution.dart';
 import 'package:ridex/features/booking/presentation/widgets/location_search_panel.dart';
+import 'package:ridex/features/booking/presentation/widgets/stops_section.dart';
 
 class DestinationSelectionScreen extends ConsumerStatefulWidget {
   const DestinationSelectionScreen({super.key});
@@ -89,6 +90,17 @@ class _DestinationSelectionScreenState
             ),
           ],
           const SizedBox(height: AppSpacing.md),
+          const StopsSection(),
+          const SizedBox(height: AppSpacing.md),
+          if (draft.destination == null) ...[
+            const Text(
+              'Choose your final destination using Search destination above. '
+              'Intermediate stops are optional visits along the way; '
+              'they do not select your final destination.',
+              key: ValueKey('destination-required-hint'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           AppButton(
             label: selection.isResolving
                 ? 'Resolving destination...'

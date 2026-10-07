@@ -5,6 +5,7 @@ import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/app/theme/ridex_theme.dart';
 import 'package:ridex/core/mocks/mock_data.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/providers/place_providers.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
 import 'package:ridex/core/widgets/ride_x_bottom_navigation.dart';
 import 'package:ridex/features/rider_home/presentation/widgets/home_map_header.dart';
@@ -13,6 +14,11 @@ import 'package:ridex/features/rider_home/presentation/widgets/saved_recent_plac
 
 class RiderHomeScreen extends ConsumerWidget {
   const RiderHomeScreen({super.key});
+
+  void _startNewBooking(WidgetRef ref) {
+    ref.invalidate(placeSelectionControllerProvider);
+    ref.invalidate(bookingControllerProvider);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -38,7 +44,10 @@ class RiderHomeScreen extends ConsumerWidget {
             pickup: booking.pickup,
             unreadCount: unreadCount,
             onNotifications: () => context.push('/notifications'),
-            onPlanRide: () => context.go('/rider/destination'),
+            onPlanRide: () {
+              _startNewBooking(ref);
+              context.go('/rider/destination');
+            },
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -53,12 +62,16 @@ class RiderHomeScreen extends ConsumerWidget {
                 SavedRecentPlaces(
                   locations: MockData.locations.skip(1).toList(),
                   onPlaceTap: (location) {
+                    _startNewBooking(ref);
                     ref
                         .read(bookingControllerProvider.notifier)
                         .setDestination(location);
                     context.go('/rider/pickup');
                   },
-                  onViewAll: () => context.go('/rider/destination'),
+                  onViewAll: () {
+                    _startNewBooking(ref);
+                    context.go('/rider/destination');
+                  },
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 const RideAvailability(vehicles: MockData.vehicleTypes),

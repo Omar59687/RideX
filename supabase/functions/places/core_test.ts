@@ -201,6 +201,72 @@ Deno.test("a bounded opaque session token is reused unchanged across autocomplet
   assertEquals(detailsToken, opaqueToken);
 });
 
+Deno.test("session tokens accept 16 and 128 chars and reject 15, 129, and invalid chars", async () => {
+  const valid16 = "a".repeat(16);
+  const valid128 = "Ab_-".repeat(32);
+
+  for (const sessionToken of [valid16, valid128]) {
+    let autocompleteToken = "";
+    const autocompleteHandler = handlerWith((_input, init) => {
+      autocompleteToken = JSON.parse(String(init?.body)).sessionToken;
+      return Response.json({});
+    });
+    const autocompleteResponse = await autocompleteHandler(request({
+      operation: "autocomplete",
+      input: "Amman",
+      sessionToken,
+    }));
+    assertEquals(autocompleteResponse.status, 200);
+    assertEquals(autocompleteToken, sessionToken);
+
+    let detailsToken = "";
+    const detailsHandler = handlerWith((input) => {
+      detailsToken = new URL(String(input)).searchParams.get("sessionToken") ?? "";
+      return Response.json({
+        id: "ChIJ12345",
+        formattedAddress: "Amman, Jordan",
+        location: { latitude: 31.95, longitude: 35.92 },
+      });
+    });
+    const detailsResponse = await detailsHandler(request({
+      operation: "placeDetails",
+      placeId: "ChIJ12345",
+      sessionToken,
+    }));
+    assertEquals(detailsResponse.status, 200);
+    assertEquals(detailsToken, sessionToken);
+  }
+
+  let calls = 0;
+  const rejectingHandler = handlerWith(() => {
+    calls++;
+    return Response.json({});
+  });
+  const invalidTokens = [
+    "a".repeat(15),
+    "a".repeat(129),
+    "not url safe token!",
+    "abc$def1234567890",
+    `${"a".repeat(15)}!`,
+  ];
+  for (const sessionToken of invalidTokens) {
+    for (
+      const body of [
+        { operation: "autocomplete", input: "Amman", sessionToken },
+        { operation: "placeDetails", placeId: "ChIJ12345", sessionToken },
+      ]
+    ) {
+      const response = await rejectingHandler(request(body));
+      assertEquals(response.status, 400);
+      assertEquals((await responseBody(response)).error, {
+        code: "invalid_request",
+        message: "Request is invalid.",
+      });
+    }
+  }
+  assertEquals(calls, 0);
+});
+
 Deno.test("placeDetails rejects a provider ID that differs from the requested ID", async () => {
   const handler = handlerWith(() =>
     Response.json({
@@ -456,24 +522,117 @@ Deno.test("route strictly validates its schema and coordinates without upstream 
   assertEquals(calls, 0);
 });
 
-Deno.test("route rejects non-empty intermediates without an upstream call", async () => {
+Deno.test("route accepts up to three ordered intermediates and forwards them in order", async () => {
+  let capturedInit: RequestInit | undefined;
+  const handler = handlerWith((_input, init) => {
+    capturedInit = init;
+    return Response.json({
+      routes: [{
+        distanceMeters: 15000,
+        duration: "1200s",
+        polyline: { encodedPolyline: ENCODED_POLYLINE },
+      }],
+    });
+  });
+  const intermediates = [
+    { latitude: 31.97, longitude: 35.95 },
+    { latitude: 31.99, longitude: 35.98 },
+    { latitude: 32.01, longitude: 36.02 },
+  ];
+
+  const response = await handler(request({
+    operation: "route",
+    origin: { latitude: 31.95, longitude: 35.92 },
+    destination: { latitude: 32.08, longitude: 36.1 },
+    intermediates,
+  }));
+
+  assertEquals(response.status, 200);
+  assertEquals(await responseBody(response), {
+    data: {
+      encodedPolyline: ENCODED_POLYLINE,
+      distanceMeters: 15000,
+      durationSeconds: 1200,
+    },
+  });
+  assertEquals(JSON.parse(String(capturedInit?.body)), {
+    origin: { location: { latLng: { latitude: 31.95, longitude: 35.92 } } },
+    destination: { location: { latLng: { latitude: 32.08, longitude: 36.1 } } },
+    intermediates: intermediates.map((point) => ({ location: { latLng: point } })),
+    travelMode: "DRIVE",
+    routingPreference: "TRAFFIC_AWARE",
+    computeAlternativeRoutes: false,
+    polylineQuality: "OVERVIEW",
+    polylineEncoding: "ENCODED_POLYLINE",
+    units: "METRIC",
+  });
+});
+
+Deno.test("route rejects too many, duplicate, or invalid intermediates without an upstream call", async () => {
   let calls = 0;
   const handler = handlerWith(() => {
     calls++;
     return Response.json({});
   });
-  const response = await handler(request({
-    operation: "route",
-    origin: { latitude: 31.95, longitude: 35.92 },
-    destination: { latitude: 32.08, longitude: 36.1 },
-    intermediates: [{ latitude: 32, longitude: 36 }],
-  }));
+  const origin = { latitude: 31.95, longitude: 35.92 };
+  const destination = { latitude: 32.08, longitude: 36.1 };
+  const invalidBodies = [
+    {
+      operation: "route",
+      origin,
+      destination,
+      intermediates: [
+        { latitude: 31.97, longitude: 35.95 },
+        { latitude: 31.98, longitude: 35.96 },
+        { latitude: 31.99, longitude: 35.97 },
+        { latitude: 32.0, longitude: 35.98 },
+      ],
+    },
+    { operation: "route", origin, destination, intermediates: [origin] },
+    { operation: "route", origin, destination, intermediates: [destination] },
+    {
+      operation: "route",
+      origin,
+      destination,
+      intermediates: [
+        { latitude: 31.97, longitude: 35.95 },
+        { latitude: 31.97, longitude: 35.95 },
+      ],
+    },
+    {
+      operation: "route",
+      origin,
+      destination,
+      intermediates: [{ latitude: 91, longitude: 35.95 }],
+    },
+    {
+      operation: "route",
+      origin,
+      destination,
+      intermediates: [{ latitude: "31.97", longitude: 35.95 }],
+    },
+    {
+      operation: "route",
+      origin,
+      destination,
+      intermediates: [{ latitude: 31.97, longitude: 35.95, altitude: 10 }],
+    },
+    {
+      operation: "route",
+      origin,
+      destination,
+      intermediates: "not-an-array",
+    },
+  ];
 
-  assertEquals(response.status, 400);
-  assertEquals((await responseBody(response)).error, {
-    code: "invalid_request",
-    message: "Request is invalid.",
-  });
+  for (const body of invalidBodies) {
+    const response = await handler(request(body));
+    assertEquals(response.status, 400);
+    assertEquals((await responseBody(response)).error, {
+      code: "invalid_request",
+      message: "Request is invalid.",
+    });
+  }
   assertEquals(calls, 0);
 });
 
@@ -544,10 +703,14 @@ Deno.test("route rejects missing, malformed, and nonpositive provider data", asy
 
 Deno.test("a missing Routes key affects only route requests", async () => {
   let calls = 0;
-  const handler = handlerWith(() => {
-    calls++;
-    return Response.json({});
-  }, 100, "");
+  const handler = handlerWith(
+    () => {
+      calls++;
+      return Response.json({});
+    },
+    100,
+    "",
+  );
 
   const routeResponse = await handler(request({
     operation: "route",

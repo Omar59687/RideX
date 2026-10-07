@@ -96,7 +96,7 @@ select
   ('c7300000-0000-0000-0000-' || lpad(sequence_number::text, 12, '0'))::uuid,
   booking.id, booking.rider_id, 'locked', booking.pickup, booking.destination,
   2000, 600, 'economy', '{"fixed_fare_fils":2000}', 2000,
-  (select id from public.pricing_configurations where is_active),
+  (select id from public.pricing_configurations where is_active and vehicle_type_code = 'economy'),
   1, 1, now()
 from generate_series(1, 8) as sequence_number
 join public.booking_requests as booking

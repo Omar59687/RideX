@@ -66,7 +66,7 @@ select
   '{"latitude":31.9,"longitude":35.9}',
   '{"latitude":32.0,"longitude":36.0}',
   4000, 1200, 'economy', '{"fixed_fare_fils":2000}', 2000,
-  (select id from public.pricing_configurations where is_active),
+  (select id from public.pricing_configurations where is_active and vehicle_type_code = 'economy'),
   1, 1, now()
 from generate_series(1, 7) as n;
 

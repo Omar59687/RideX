@@ -38,7 +38,7 @@ values
   ('a5200000-0000-0000-0000-000000000003', 'a5000000-0000-0000-0000-000000000001', '{"latitude":31.93,"longitude":35.91}', '{"latitude":31.97,"longitude":35.96}', 'economy', 'cash'),
   ('a5200000-0000-0000-0000-000000000004', 'a5000000-0000-0000-0000-000000000001', '{"latitude":31.92,"longitude":35.90}', '{"latitude":31.96,"longitude":35.95}', 'economy', 'cash');
 insert into public.fare_quotes (id, booking_request_id, rider_id, status, pickup, destination, route_distance_meters, route_duration_seconds, vehicle_type_code, breakdown, fixed_fare_fils, pricing_configuration_id, pricing_version, quote_version, locked_at)
-select ('a5300000-0000-0000-0000-00000000000' || n)::uuid, ('a5200000-0000-0000-0000-00000000000' || n)::uuid, 'a5000000-0000-0000-0000-000000000001', 'locked', pickup, destination, 2000, 600, 'economy', '{"fixed_fare_fils":2000}', 2000, (select id from public.pricing_configurations where is_active), 1, 1, now()
+select ('a5300000-0000-0000-0000-00000000000' || n)::uuid, ('a5200000-0000-0000-0000-00000000000' || n)::uuid, 'a5000000-0000-0000-0000-000000000001', 'locked', pickup, destination, 2000, 600, 'economy', '{"fixed_fare_fils":2000}', 2000, (select id from public.pricing_configurations where is_active and vehicle_type_code = 'economy'), 1, 1, now()
 from public.booking_requests cross join generate_series(1, 4) as n where id = ('a5200000-0000-0000-0000-00000000000' || n)::uuid;
 update public.booking_requests set fare_quote_id = ('a5300000-0000-0000-0000-00000000000' || right(id::text, 1))::uuid;
 update public.booking_requests set status = 'confirmed', confirmed_at = now();

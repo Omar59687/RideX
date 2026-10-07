@@ -77,13 +77,46 @@ void main() {
     );
   });
 
-  test('rejects intermediate stops before calling the provider', () async {
+  test('routes with up to three distinct stops and preserves metrics',
+      () async {
+    final service = _FakeRouteService({
+      'encodedPolyline': '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+      'distanceMeters': 9123,
+      'durationSeconds': 840,
+    });
+    final repository = GoogleRouteRepository(service);
+    final request = RouteRequest(
+      origin: origin,
+      destination: destination,
+      intermediatePoints: [
+        LocationPoint(latitude: 40, longitude: -121),
+        LocationPoint(latitude: 41, longitude: -122),
+      ],
+    );
+
+    final result = await repository.calculateRoute(request);
+
+    expect(service.callCount, 1);
+    expect(service.lastRequest, request);
+    expect(service.lastRequest!.intermediatePoints, hasLength(2));
+    expect(result.request, request);
+    expect(result.geometry.length, 3);
+    expect(result.distanceMeters, 9123);
+    expect(result.durationSeconds, 840);
+  });
+
+  test('rejects more than three stops before calling the provider', () async {
     final service = _FakeRouteService(const {});
     final repository = GoogleRouteRepository(service);
     final request = RouteRequest(
       origin: origin,
       destination: destination,
-      intermediatePoints: [LocationPoint(latitude: 40, longitude: -121)],
+      intermediatePoints: [
+        LocationPoint(latitude: 40, longitude: -121),
+        LocationPoint(latitude: 41, longitude: -122),
+        LocationPoint(latitude: 42, longitude: -123),
+        LocationPoint(latitude: 39, longitude: -120),
+      ],
     );
 
     await expectLater(
@@ -96,6 +129,45 @@ void main() {
         ),
       ),
     );
+    expect(service.callCount, 0);
+  });
+
+  test('rejects stops duplicating endpoints or each other', () async {
+    final service = _FakeRouteService(const {});
+    final repository = GoogleRouteRepository(service);
+    final invalidRequests = [
+      RouteRequest(
+        origin: origin,
+        destination: destination,
+        intermediatePoints: [origin],
+      ),
+      RouteRequest(
+        origin: origin,
+        destination: destination,
+        intermediatePoints: [destination],
+      ),
+      RouteRequest(
+        origin: origin,
+        destination: destination,
+        intermediatePoints: [
+          LocationPoint(latitude: 40, longitude: -121),
+          LocationPoint(latitude: 40, longitude: -121),
+        ],
+      ),
+    ];
+
+    for (final request in invalidRequests) {
+      await expectLater(
+        repository.calculateRoute(request),
+        throwsA(
+          isA<RouteException>().having(
+            (error) => error.failure,
+            'failure',
+            RouteFailure.unsupportedStops,
+          ),
+        ),
+      );
+    }
     expect(service.callCount, 0);
   });
 
@@ -138,10 +210,12 @@ class _FakeRouteService implements RouteService {
 
   final Map<String, dynamic> response;
   int callCount = 0;
+  RouteRequest? lastRequest;
 
   @override
   Future<Map<String, dynamic>> calculateRoute(RouteRequest request) async {
     callCount++;
+    lastRequest = request;
     return response;
   }
 }

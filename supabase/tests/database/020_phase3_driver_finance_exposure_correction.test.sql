@@ -19,6 +19,7 @@ insert into public.driver_profiles (user_id, approval_status, is_online, is_avai
   ('fa000000-0000-0000-0000-000000000003', 'approved', false, false);
 insert into public.vehicles (id, driver_id, vehicle_type_code, make, model, color, registration_plate, seat_capacity, is_active)
 values ('fa100000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-000000000002', 'comfort', 'Toyota', 'Camry', 'White', 'RDX 020', 4, true);
+delete from public.pricing_configurations where vehicle_type_code = 'comfort';
 insert into public.pricing_configurations (id, vehicle_type_code, pricing_version, base_fare_fils, per_kilometer_fils, per_minute_fils, per_stop_fils, minimum_fare_fils, is_active)
 values ('fa200000-0000-0000-0000-000000000001', 'comfort', 1, 500, 300, 50, 200, 1000, true);
 insert into public.booking_requests (id, rider_id, pickup, destination, vehicle_type_code, payment_method, status)

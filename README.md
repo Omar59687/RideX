@@ -211,6 +211,33 @@ The Flutter and Deno suites pass. Routes API/key setup, deployed authenticated
 routing, and physical Android polyline rendering are verified; Checkpoint 4C is
 approved.
 
+### Phase 5 multi-stop fares
+
+The configured booking flow persists up to three ordered intermediate stops and
+stores versioned fixed-fare quotes. Fare calculation is server-authoritative:
+Flutter sends only the booking id/version to the `fare` Edge Function; the
+function binds the booking to the authenticated Rider, reloads pickup,
+destination, and ordered stops from Supabase, and obtains fresh distance and
+duration from Google Routes before calling the service-role-only fare RPC.
+
+Migration `025_phase5_pricing_and_quote_lock.sql` bootstraps the approved
+integer-fils formula only when a vehicle type has no active owner-managed
+configuration: 500 fils base, 300 fils/km, 50 fils/minute, 200 fils per
+intermediate stop, 1000 fils minimum, rounded to 50 fils. It also exposes an
+authenticated ownership-checking quote-lock RPC; the raw backend lock RPC stays
+service-role-only.
+
+After linking the intended Supabase project, deploy the additive migration and
+the fare function:
+
+```powershell
+npx supabase db push
+npx supabase secrets set GOOGLE_ROUTES_API_KEY="YOUR_ROUTES_SERVER_KEY"
+npx supabase functions deploy fare
+```
+
+Never put the Routes key or service-role key in Flutter configuration or Git.
+
 ### Driver location tracking
 
 Checkpoint 4D adds explicit foreground Driver location sharing through the

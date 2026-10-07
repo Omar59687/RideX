@@ -575,8 +575,20 @@ function executeOperation(
     ) {
       throw invalidRequest();
     }
-    if (!Array.isArray(body.intermediates) || body.intermediates.length !== 0) {
+    if (!Array.isArray(body.intermediates) || body.intermediates.length > 3) {
       throw invalidRequest();
+    }
+    const intermediates = (body.intermediates as unknown[]).map(routePoint);
+    const allRoutePoints = [origin, destination, ...intermediates];
+    for (let index = 0; index < allRoutePoints.length; index++) {
+      for (let other = index + 1; other < allRoutePoints.length; other++) {
+        if (
+          allRoutePoints[index].latitude === allRoutePoints[other].latitude &&
+          allRoutePoints[index].longitude === allRoutePoints[other].longitude
+        ) {
+          throw invalidRequest();
+        }
+      }
     }
     return runLimited("route", async () => {
       const payload = await fetchUpstreamJson(fetchImpl, ROUTES_URL, {
@@ -585,6 +597,9 @@ function executeOperation(
         body: JSON.stringify({
           origin: { location: { latLng: origin } },
           destination: { location: { latLng: destination } },
+          ...(intermediates.length > 0
+            ? { intermediates: intermediates.map((point) => ({ location: { latLng: point } })) }
+            : {}),
           travelMode: "DRIVE",
           routingPreference: "TRAFFIC_AWARE",
           computeAlternativeRoutes: false,

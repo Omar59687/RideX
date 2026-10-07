@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/core/errors/place_exception.dart';
@@ -12,6 +11,7 @@ import 'package:ridex/core/providers/location_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
+import 'package:ridex/core/services/places/places_session_token.dart';
 
 class PlaceSelectionController
     extends AutoDisposeFamilyNotifier<PlaceSelectionState, LocationEndpoint> {
@@ -19,14 +19,13 @@ class PlaceSelectionController
   int _generation = 0;
   late String _sessionToken;
   late LocationEndpoint _endpoint;
-  String? _lastRequestedQuery;
   late final AppErrorReporter _errorReporter;
 
   @override
   PlaceSelectionState build(LocationEndpoint arg) {
     _errorReporter = ref.read(appErrorReporterProvider);
     _endpoint = arg;
-    _sessionToken = _newSessionToken();
+    _sessionToken = newPlacesSessionToken();
     ref.onDispose(() {
       _debounce?.cancel();
       _generation++;
@@ -40,22 +39,23 @@ class PlaceSelectionController
 
   void search(String value) {
     final query = value.trim();
+    // Do not invalidate the response (or cancel the debounce) for the same
+    // in-flight query. Incrementing first leaves a loading state with no owner.
+    if (query == state.query &&
+        (state.status == PlaceSearchStatus.debouncing ||
+            state.status == PlaceSearchStatus.loading ||
+            state.status == PlaceSearchStatus.results ||
+            state.status == PlaceSearchStatus.empty)) {
+      return;
+    }
     _debounce?.cancel();
     final generation = ++_generation;
     if (query.length < 3) {
-      _lastRequestedQuery = null;
-      if (query.isEmpty) _sessionToken = _newSessionToken();
+      if (query.isEmpty) _sessionToken = newPlacesSessionToken();
       state = PlaceSelectionState(
         query: query,
         selected: state.selected,
       );
-      return;
-    }
-    if (query == _lastRequestedQuery &&
-        (state.status == PlaceSearchStatus.loading ||
-            state.status == PlaceSearchStatus.results ||
-            state.status == PlaceSearchStatus.empty)) {
-      state = state.copyWith(query: query);
       return;
     }
     state = state.copyWith(
@@ -72,7 +72,6 @@ class PlaceSelectionController
   Future<void> retrySearch() async {
     final query = state.query.trim();
     if (query.length < 3) return;
-    _lastRequestedQuery = null;
     final generation = ++_generation;
     await _loadPredictions(query, generation);
   }
@@ -85,11 +84,13 @@ class PlaceSelectionController
       status: PlaceSearchStatus.resolving,
       clearMessage: true,
     );
+    final sessionToken = _sessionToken;
+    _sessionToken = newPlacesSessionToken();
     try {
       final location =
           await ref.read(placeRepositoryProvider).resolvePrediction(
                 prediction: prediction,
-                sessionToken: _sessionToken,
+                sessionToken: sessionToken,
               );
       if (generation != _generation) return;
       _commit(location);
@@ -106,7 +107,7 @@ class PlaceSelectionController
     final query = state.query.trim();
     if (query.length < 3) return;
     _debounce?.cancel();
-    _sessionToken = _newSessionToken();
+    _sessionToken = newPlacesSessionToken();
     final generation = ++_generation;
     _clearCommittedLocation();
     state = state.copyWith(
@@ -175,6 +176,7 @@ class PlaceSelectionController
     } on PlaceException catch (error) {
       if (generation != _generation || state.selected?.point != point) return;
       _commit(fallback);
+      _finishSelection(fallback);
       state = state.copyWith(
         status: PlaceSearchStatus.selected,
         message: error.failure == PlaceFailure.notFound
@@ -185,6 +187,7 @@ class PlaceSelectionController
       _report('reverse geocoding a map point', error, stackTrace);
       if (generation != _generation || state.selected?.point != point) return;
       _commit(fallback);
+      _finishSelection(fallback);
       state = state.copyWith(
         status: PlaceSearchStatus.selected,
         message: 'Address lookup failed. The selected pin is still valid.',
@@ -201,8 +204,7 @@ class PlaceSelectionController
   void clear() {
     _debounce?.cancel();
     _generation++;
-    _lastRequestedQuery = null;
-    _sessionToken = _newSessionToken();
+    _sessionToken = newPlacesSessionToken();
     _clearCommittedLocation();
     state = const PlaceSelectionState();
   }
@@ -217,7 +219,6 @@ class PlaceSelectionController
 
   Future<void> _loadPredictions(String query, int generation) async {
     if (generation != _generation) return;
-    _lastRequestedQuery = query;
     state = state.copyWith(
       status: PlaceSearchStatus.loading,
       clearPredictions: true,
@@ -263,8 +264,7 @@ class PlaceSelectionController
       status: PlaceSearchStatus.selected,
       selected: location,
     );
-    _lastRequestedQuery = null;
-    _sessionToken = _newSessionToken();
+    _sessionToken = newPlacesSessionToken();
   }
 
   void _report(String operation, Object error, StackTrace stackTrace) {
@@ -295,17 +295,6 @@ class PlaceSelectionController
 
   static const _unavailableMessage =
       'Place search is unavailable right now. Please try again.';
-
-  static String _newSessionToken() {
-    final bytes = List<int>.generate(16, (_) => Random.secure().nextInt(256));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    final hex =
-        bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
-    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
-        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
-        '${hex.substring(20)}';
-  }
 }
 
 final placeSelectionControllerProvider = AutoDisposeNotifierProviderFamily<

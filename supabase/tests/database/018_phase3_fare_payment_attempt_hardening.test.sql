@@ -29,8 +29,8 @@ insert into public.fare_quotes (
   route_duration_seconds, vehicle_type_code, breakdown, fixed_fare_fils,
   pricing_configuration_id, pricing_version, quote_version, locked_at
 ) values
-  ('e8300000-0000-0000-0000-000000000001', 'e8200000-0000-0000-0000-000000000001', 'e8000000-0000-0000-0000-000000000001', 'locked', '{"latitude":31.9,"longitude":35.9}', '{"latitude":32.0,"longitude":36.0}', 4000, 1200, 'economy', '{}', 2000, (select id from public.pricing_configurations where is_active), 1, 1, now()),
-  ('e8300000-0000-0000-0000-000000000002', 'e8200000-0000-0000-0000-000000000002', 'e8000000-0000-0000-0000-000000000001', 'locked', '{"latitude":31.8,"longitude":35.8}', '{"latitude":32.1,"longitude":36.1}', 4000, 1200, 'economy', '{}', 2000, (select id from public.pricing_configurations where is_active), 1, 1, now());
+  ('e8300000-0000-0000-0000-000000000001', 'e8200000-0000-0000-0000-000000000001', 'e8000000-0000-0000-0000-000000000001', 'locked', '{"latitude":31.9,"longitude":35.9}', '{"latitude":32.0,"longitude":36.0}', 4000, 1200, 'economy', '{}', 2000, (select id from public.pricing_configurations where is_active and vehicle_type_code = 'economy'), 1, 1, now()),
+  ('e8300000-0000-0000-0000-000000000002', 'e8200000-0000-0000-0000-000000000002', 'e8000000-0000-0000-0000-000000000001', 'locked', '{"latitude":31.8,"longitude":35.8}', '{"latitude":32.1,"longitude":36.1}', 4000, 1200, 'economy', '{}', 2000, (select id from public.pricing_configurations where is_active and vehicle_type_code = 'economy'), 1, 1, now());
 insert into public.trips (
   id, booking_request_id, fare_quote_id, rider_id, driver_id, vehicle_id, status,
   payment_method, pickup, destination, route_distance_meters, route_duration_seconds,
