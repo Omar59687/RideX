@@ -1,8 +1,8 @@
 # RideX Development Plan
 
-Last updated: 2026-10-04
+Last updated: 2026-10-07
 
-## Active goal — Phase 1–5 device regression review
+## Active goal — Phase 5 fare verification and documentation reconciliation
 
 This section supersedes historical current-state statements below.
 Work only on `codex/phase-4f-evidence-hardening`; do not change main.
@@ -10,12 +10,18 @@ Work only on `codex/phase-4f-evidence-hardening`; do not change main.
 - [x] Review the three reported Android symptoms and patch confirmed client
   search, pickup lifecycle, map centering, draft reset, and fare-flow defects.
 - [x] Add/update regression tests and record implementation versus verification.
-- [~] Phase 5 remains provisional; run formatting, analysis, full Flutter tests,
-  Edge/SQL suites and physical-device acceptance before claiming completion.
+- [x] Verify the Phase 5 route/fare/lock flow on a physical device against
+  hosted Supabase: route calculation with distance/duration, fare quote, fare
+  calculation, and fare lock. Migrations `025` and `026` are applied on hosted
+  `ykasivejjchupswqyxpm`, `pricing_configurations` holds active economy,
+  comfort, and xl rows, and the `places`/`fare` Edge Functions are deployed
+  with a corrected `GOOGLE_ROUTES_API_KEY` (verified by a direct Google Routes
+  API call). Live driver matching remains unavailable by design in Phase 5.
 - [ ] Diagnose blank map tiles with redacted Android logs and the installed
   app's signing certificate plus native Maps SDK configuration.
-- [ ] Verify fare quote/lock failures, lost responses, concurrent versions and
-  deployed migration/function compatibility against authenticated Supabase.
+- [~] Verify remaining fare edge cases (lost lock responses, concurrent
+  versions, post-lock editing reconciliation) and deployed
+  migration/function compatibility against authenticated Supabase.
 - [-] Phase 4 task 4.38 two-device final test: deferred by owner, not passed.
 
 Acceptance: destination selection works after cancel/restart; enabling GPS then
@@ -53,14 +59,14 @@ metadata and reported physical/live evidence through 2026-09-20:
 - Real Supabase behavior currently covers email/password authentication, session restoration, profiles, roles, blocked state, and Driver approval state.
 - Phase 3 migrations `005` through `022` provide the approved database foundations and remediation for security/audit/idempotency, Driver assets and availability, Booking/Fare/matching, Trips, Payments/Refunds/Receipts, Driver locations, Ratings, Notifications, and HelpRequests.
 - Phase 3 is approved/completed after the documented remediation, clean isolated migration execution, and complete pgTAP verification.
-- Flutter Booking, Driver matching, active trips, trip history, ratings, notifications, and Driver availability remain Mock-backed or session-local; Phase 3 added database foundations only.
+- Flutter Driver matching, active trips, trip history, ratings, notifications, and Driver availability remain Mock-backed or session-local; booking drafts and fare quotes now persist in Supabase (Phase 5), while trip/matching execution remains later-phase work.
 - Checkpoint 4A commit `d65a58a` adds Google Maps to Rider and Driver Home plus one-shot foreground GPS and permission/fallback handling.
 - Checkpoint 4B commit `2359a81` adds pickup/destination place search, geocoding, map selection, and routing-readiness validation. Fix commit `41dd2f5` blocks routing while map/GPS reverse geocoding is unresolved; this fix is pushed on the current branch but is not yet in `origin/main`.
 - The hosted Supabase `places` function is active and the required `GOOGLE_MAPS_WEB_SERVICES_API_KEY` secret name exists. No secret value was read.
 - Checkpoints 4A and 4B are approved. The project owner reports that Omar tested every previously remaining physical/live and configuration requirement successfully. The final 4B replacement-selection routing guard is implemented in the current working tree and passes focused and full regression verification.
 - Real routing, foreground Driver location tracking, and GPS efficiency/resilience are implemented and approved through Checkpoint 4E. Matching, Rider live-trip tracking, and later Phase 4 work remain incomplete.
-- Multi-stop data can be represented in the booking draft, but stop management, routing, persistence, and fare integration are not implemented.
-- Current fares are deterministic demo values rather than route-based fixed fares.
+- Multi-stop booking is implemented: ordered stops (max three) with management UI, stop-aware routing, persistence via `booking_stops`, and fare integration through per-stop pricing. Multi-stop device verification beyond single-leg routes remains open.
+- Route-based fixed fares are implemented and device-verified against hosted Supabase: server-authoritative quotes with base/distance/duration/stops/minimum/rounding breakdown, persistent versioned quotes, and fare locking. Deterministic demo fares remain only for unconfigured (Mock) mode.
 - Cash is displayed in the booking and completion UI, and Phase 3 defines trusted atomic Cash completion/settlement and persistent receipt foundations, but they are not connected to Flutter.
 - Phase 3 defines approved Card Payment, attempt, Refund, Receipt, and webhook-ID foundations; provider integration, secure execution, and Flutter integration remain later-phase work.
 - Current trip history and receipt content are Mock-backed and are not generated from completed persistent trips.
@@ -1384,12 +1390,12 @@ Phase 4 documentation constraints:
 
 ### Phase 5: Multi-Stop and Fixed Fare
 
-- [ ] Implement ordered multi-stop booking with a maximum of three intermediate stops.
-- [ ] Implement route distance, duration, persistent Fare Quotes, and route-based fixed fares.
+- [x] Implement ordered multi-stop booking with a maximum of three intermediate stops (domain P5-1, routing P5-2, UI P5-4; commits `9865d4d`, `b728f6a`, `21fd476`; multi-stop device leg remains open).
+- [x] Implement route distance, duration, persistent Fare Quotes, and route-based fixed fares (P5-3 fare-quote integration plus fare calculation, locking, expiry/retry; device-verified 2026-10-07; live driver matching explicitly out of scope).
 
-Provisional status (2026-10-04, owner-authorized): Phase 4 task 4.38 is deferred for lack of two-device environments and Phase 4 remains NOT finally approved. Provisional Phase 5 work is authorized ONLY for packages independent of 4.38 (bounded in `.factory/PROJECT_STATE.md`); this is not Phase 4 approval and no milestone may rely on the missing device evidence.
+Provisional status (2026-10-04, owner-authorized): Phase 4 task 4.38 is deferred for lack of two-device environments and Phase 4 remains NOT finally approved. Provisional Phase 5 work was authorized ONLY for packages independent of 4.38; this is not Phase 4 approval and no milestone may rely on the missing device evidence.
 
-Provisional Phase 5 execution (2026-10-04): P5-1 stop domain, P5-2 stop routing, P5-4 stop UI, and P5-3 fare-quote integration each passed factory DoD (implementation + validation + independent review; full suite 295 + 2 intentional skips; analyze clean). Boxes stay unchecked until environment-gated verification completes: Deno Edge suites, live fare/multi-stop routing, and the deferred 4.38 devices. Evidence: `.factory/state/phase-5-p5-*.md`.
+Phase 5 verification (2026-10-07): P5-1 stop domain, P5-2 stop routing, P5-4 stop UI, and P5-3 fare-quote integration are implemented with passing suites (Flutter 304 + 2 intentional skips, Deno 35, analyze clean). Hosted `ykasivejjchupswqyxpm` has migrations `025`/`026` applied with active economy/comfort/xl pricing rows, deployed `places`/`fare` functions, and a corrected `GOOGLE_ROUTES_API_KEY`. Physical-device verification passed for route calculation with distance/duration display, fare quote, fare calculation, and fare lock. Remaining: multi-stop device leg, lost-response/concurrent-version edge cases, booking confirmation handoff, and live driver matching (Phase 7).
 
 ### Phase 6: Payment Foundations
 

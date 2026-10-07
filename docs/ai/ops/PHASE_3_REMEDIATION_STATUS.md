@@ -19,7 +19,7 @@
 - Post-merge corrections: FareQuote locking rejects all non-positive expected versions; the legacy full-route Cash pricing RPC fails closed while remaining-route pricing remains service-only; Card authorization uses the latest verified applicable attempt; Refund attempts enforce payload-bound replay, retry order, limits, and terminal idempotency; Notification destinations require a recipient-authorized resource; and PaymentAttempts receive deterministic historical `created_at, id` sequencing before future generated values.
 - Final verification: a clean isolated reset applied migrations `001` through `023`; the complete pgTAP suite passed 927 assertions across 20 files. All previously identified Phase 3 remediation blockers remain resolved, and the additive signup repair passed its 12 focused assertions.
 - Local Supabase state: stopped after the clean reset and verification; no RideX Supabase containers remain.
-- Remote state: the linked hosted project is synchronized through migration `023`. Hosted Dashboard-style and app-metadata user bootstrap, password sign-in, and Rider-only enforcement passed on September 12, 2026; temporary verification users were deleted.
+- Remote state: the linked hosted project is synchronized through migration `026` (2026-10-07; Phase 5 `025`/`026` applied with active economy/comfort/xl pricing rows). Hosted Dashboard-style and app-metadata user bootstrap, password sign-in, and Rider-only enforcement passed on September 12, 2026; temporary verification users were deleted.
 - Phase 4 state: not started. Phase 4 is the next phase and requires separate scope approval.
 
 Phase 3 remediation, post-merge hardening, and final payment-lifecycle remediation

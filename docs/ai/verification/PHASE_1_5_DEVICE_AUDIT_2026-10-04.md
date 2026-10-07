@@ -102,3 +102,24 @@ Android manifest changes. Continue using the working ASCII drive path on Windows
   this targeted review does not establish that those systems are defect-free.
 - Phase 4 task 4.38 remains deferred, not approved. Phase 5 is provisional and
   not complete. Real dispatch/matching is a later phase, not supplied by mocks.
+
+## Addendum — 2026-10-07 Phase 5 route/fare/lock device verification
+
+Verified on a physical device against hosted `ykasivejjchupswqyxpm`:
+
+- Route calculation works; distance/duration display works.
+- Fare quote, fare calculation, and fare lock work; the earlier
+  "Fare unavailable" blocker is resolved.
+- Migrations `025` and `026` are applied; hosted history includes both;
+  `pricing_configurations` holds active economy, comfort, and xl rows.
+- `places` and `fare` Edge Functions are deployed; `GOOGLE_ROUTES_API_KEY`
+  was corrected and confirmed with a direct Google Routes API call, and both
+  functions were redeployed after the key update. Route + fare + lock
+  end-to-end flow is verified on the physical device.
+- Automated evidence re-run 2026-10-07: `flutter test --no-pub` 304 passed
+  with 2 intentional live-test skips; `deno test places fare` 35 passed;
+  `flutter analyze` clean.
+
+Still open from the list above: blank-map diagnosis, multi-stop device leg,
+lost-response/concurrent-version edge cases, post-lock editing
+reconciliation, task 4.38 two-device checks, and live driver matching.
