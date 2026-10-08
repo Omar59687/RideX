@@ -22,7 +22,7 @@ jobs:
           persist-credentials: false
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
-          flutter-version: '3.32.8'
+          flutter-version: '3.35.7'
           channel: stable
           cache: true
       - name: Resolve the committed dependencies
@@ -40,8 +40,47 @@ jobs:
         if: steps.dependencies.outcome == 'failure'
         run: exit 1
       - name: Analyze
-        run: flutter analyze
+        id: analyze
+        continue-on-error: true
+        run: |
+          set +e
+          flutter analyze --no-pub > "$RUNNER_TEMP/ridex-analyze.log" 2>&1
+          result=$?
+          cat "$RUNNER_TEMP/ridex-analyze.log"
+          summary=$(tail -n 20 "$RUNNER_TEMP/ridex-analyze.log" | tr '\n' ' ')
+          printf 'summary=%s\n' "$summary" >> "$GITHUB_OUTPUT"
+          exit "$result"
+      - name: "Analysis result: ${{ steps.analyze.outputs.summary }}"
+        if: always() && steps.analyze.outcome == 'failure'
+        run: exit 1
       - name: Test
-        run: flutter test --no-pub
+        id: tests
+        if: always() && steps.dependencies.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set +e
+          flutter test --no-pub --reporter json > "$RUNNER_TEMP/ridex-tests.jsonl" 2>&1
+          result=$?
+          python3 - <<'PY'
+          import json, os, pathlib
+          events = []
+          for line in pathlib.Path(os.environ['RUNNER_TEMP'], 'ridex-tests.jsonl').read_text().splitlines():
+              try:
+                  events.append(json.loads(line))
+              except ValueError:
+                  print(line)
+          errors = [e.get('error', '') for e in events if e.get('type') == 'error']
+          done = [e for e in events if e.get('type') == 'testDone' and not e.get('hidden')]
+          passed = sum(e.get('result') == 'success' and not e.get('skipped') for e in done)
+          skipped = sum(bool(e.get('skipped')) for e in done)
+          summary = f'{passed} passed; {skipped} skipped. ' + ' | '.join(errors)
+          print(summary)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('summary=' + summary.replace('\n', ' ')[:6000] + '\n')
+          PY
+          exit "$result"
+      - name: "Test result: ${{ steps.tests.outputs.summary }}"
+        if: always() && steps.tests.outcome != 'skipped'
+        run: test '${{ steps.tests.outcome }}' = 'success'
       - name: Verify dependency locks are unchanged
         run: git diff --exit-code -- pubspec.lock pubspec.yaml
