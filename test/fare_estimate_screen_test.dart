@@ -30,9 +30,7 @@ void main() {
           (ref) => MockBookingRepository(),
         ),
         placeRepositoryProvider.overrideWith((ref) => MockPlaceRepository()),
-        routeRepositoryProvider.overrideWithValue(
-          const MockRouteRepository(),
-        ),
+        routeRepositoryProvider.overrideWithValue(const MockRouteRepository()),
         if (fareRepository != null)
           fareRepositoryProvider.overrideWith((ref) => fareRepository),
       ],
@@ -68,9 +66,7 @@ void main() {
     WidgetTester tester, {
     String label = 'Confirm & find a driver',
   }) {
-    return tester.widget<AppButton>(
-      find.widgetWithText(AppButton, label),
-    );
+    return tester.widget<AppButton>(find.widgetWithText(AppButton, label));
   }
 
   testWidgets(
@@ -107,9 +103,7 @@ void main() {
   testWidgets(
     'configured backend shows the authoritative breakdown and total',
     (tester) async {
-      final container = createContainer(
-        fareRepository: FakeFareRepository(),
-      );
+      final container = createContainer(fareRepository: FakeFareRepository());
       readyDraft(container);
 
       await pumpFareScreen(tester, container);
@@ -152,69 +146,73 @@ void main() {
     },
   );
 
-  testWidgets(
-    'expired quotes show a re-quote prompt and never a stale total',
-    (tester) async {
-      final fareRepository = FakeFareRepository();
-      fareRepository.seedQuote(
-        FareQuote(
-          id: 'quote-expired',
-          bookingRequestId: 'booking-fake-1',
-          quoteVersion: 1,
-          pricingVersion: 1,
+  testWidgets('expired quotes show a re-quote prompt and never a stale total', (
+    tester,
+  ) async {
+    final fareRepository = FakeFareRepository();
+    fareRepository.seedQuote(
+      FareQuote(
+        id: 'quote-expired',
+        bookingRequestId: 'booking-fake-1',
+        quoteVersion: 1,
+        pricingVersion: 1,
+        fixedFareFils: 2000,
+        breakdown: const FareBreakdown(
+          baseFareFils: 500,
+          distanceFils: 1200,
+          durationFils: 300,
+          stopsFils: 0,
+          subtotalFils: 2000,
+          minimumFareFils: 1000,
+          roundingIncrementFils: 50,
           fixedFareFils: 2000,
-          breakdown: const FareBreakdown(
-            baseFareFils: 500,
-            distanceFils: 1200,
-            durationFils: 300,
-            stopsFils: 0,
-            subtotalFils: 2000,
-            minimumFareFils: 1000,
-            roundingIncrementFils: 50,
-            fixedFareFils: 2000,
-          ),
-          status: FareQuoteStatus.calculated,
-          expiresAt: DateTime.now().toUtc().subtract(
-                const Duration(minutes: 1),
-              ),
         ),
-      );
-      final container = createContainer(fareRepository: fareRepository);
-      readyDraft(container);
+        status: FareQuoteStatus.calculated,
+        expiresAt: DateTime.now().toUtc().subtract(const Duration(minutes: 1)),
+      ),
+    );
+    final container = createContainer(fareRepository: fareRepository);
+    readyDraft(container);
 
-      await pumpFareScreen(tester, container);
+    await pumpFareScreen(tester, container);
 
-      await tester.scrollUntilVisible(
-        find.text('Fare quote expired'),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-      expect(find.text('Fare quote expired'), findsOneWidget);
-      expect(find.text('Request a new fare'), findsOneWidget);
-      expect(find.text('JOD 2.00'), findsNothing);
-      expect(find.text('Upfront fare'), findsNothing);
-      await tester.scrollUntilVisible(
-        find.text('Lock fare'),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-      expect(confirmButton(tester, label: 'Lock fare').onPressed, isNull);
-    },
-  );
+    await tester.scrollUntilVisible(
+      find.text('Fare quote expired'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Fare quote expired'), findsOneWidget);
+    expect(find.text('Request a new fare'), findsOneWidget);
+    expect(find.text('JOD 2.00'), findsNothing);
+    expect(find.text('Upfront fare'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('Lock fare'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(confirmButton(tester, label: 'Lock fare').onPressed, isNull);
+  });
 
-  testWidgets('lost successful lock response replays the original request',
-      (tester) async {
+  testWidgets('lost successful lock response replays the original request', (
+    tester,
+  ) async {
     final repository = _ControlledLockRepository(loseFirstResponse: true);
     final container = createContainer(fareRepository: repository);
     readyDraft(container);
     await pumpFareScreen(tester, container);
-    await tester.scrollUntilVisible(find.text('Lock fare'), 300,
-        scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text('Lock fare'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Lock fare'));
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(find.text('Retry fare lock'), -200,
-        scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text('Retry fare lock'),
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Fare lock not confirmed'), findsOneWidget);
     expect(find.text('Retry fare request'), findsNothing);
     expect(find.text('Fare locked'), findsNothing);
@@ -224,39 +222,53 @@ void main() {
     expect(repository.lockRequests, hasLength(2));
     expect(repository.lockRequests[1], repository.lockRequests[0]);
     expect(repository.calls.where((call) => call == 'create'), hasLength(1));
-    expect(repository.calls.where((call) => call.startsWith('quote ')),
-        hasLength(1));
+    expect(
+      repository.calls.where((call) => call.startsWith('quote ')),
+      hasLength(1),
+    );
     expect(
       repository.calls.where((call) => call.startsWith('update ')),
       isEmpty,
     );
-    await tester.scrollUntilVisible(find.text('Fare locked'), 200,
-        scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text('Fare locked'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(confirmButton(tester, label: 'Fare locked').onPressed, isNull);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('lock transport failure before commit can be retried',
-      (tester) async {
+  testWidgets('lock transport failure before commit can be retried', (
+    tester,
+  ) async {
     final repository = _ControlledLockRepository();
     final container = createContainer(fareRepository: repository);
     readyDraft(container);
     await pumpFareScreen(tester, container);
     repository.failNext(const FareException(FareFailure.networkFailure));
-    await tester.scrollUntilVisible(find.text('Lock fare'), 300,
-        scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text('Lock fare'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Lock fare'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Retry fare lock'), -200,
-        scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text('Retry fare lock'),
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Retry fare lock'));
     await tester.pumpAndSettle();
 
     expect(repository.lockRequests, hasLength(2));
     expect(repository.lockRequests[1], repository.lockRequests[0]);
-    expect(repository.quotesFor('booking-fake-1').single.status,
-        FareQuoteStatus.locked);
+    expect(
+      repository.quotesFor('booking-fake-1').single.status,
+      FareQuoteStatus.locked,
+    );
     expect(
       repository.calls.where((call) => call.startsWith('update ')),
       isEmpty,
@@ -264,15 +276,19 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('rapid lock submissions make only one in-flight request',
-      (tester) async {
+  testWidgets('rapid lock submissions make only one in-flight request', (
+    tester,
+  ) async {
     final gate = Completer<void>();
     final repository = _ControlledLockRepository(lockGate: gate);
     final container = createContainer(fareRepository: repository);
     readyDraft(container);
     await pumpFareScreen(tester, container);
-    await tester.scrollUntilVisible(find.text('Lock fare'), 300,
-        scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text('Lock fare'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     final submit = confirmButton(tester, label: 'Lock fare').onPressed!;
     submit();
     submit();
@@ -280,19 +296,25 @@ void main() {
     expect(repository.lockRequests, hasLength(1));
     gate.complete();
     await tester.pumpAndSettle();
-    expect(repository.quotesFor('booking-fake-1').single.status,
-        FareQuoteStatus.locked);
+    expect(
+      repository.quotesFor('booking-fake-1').single.status,
+      FareQuoteStatus.locked,
+    );
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('editing a locked fare updates with the post-lock version',
-      (tester) async {
+  testWidgets('editing a locked fare updates with the post-lock version', (
+    tester,
+  ) async {
     final repository = _ControlledLockRepository();
     final container = createContainer(fareRepository: repository);
     readyDraft(container);
     await pumpFareScreen(tester, container);
-    await tester.scrollUntilVisible(find.text('Lock fare'), 300,
-        scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text('Lock fare'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Lock fare'));
     await tester.pumpAndSettle();
 
@@ -303,8 +325,11 @@ void main() {
     expect(repository.calls, contains('update booking-fake-1@2'));
     expect(repository.calls.where((call) => call == 'create'), hasLength(1));
     expect(find.text('Fare unavailable'), findsNothing);
-    await tester.scrollUntilVisible(find.text('Lock fare'), 200,
-        scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text('Lock fare'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(confirmButton(tester, label: 'Lock fare').onPressed, isNotNull);
     await tester.tap(find.text('Lock fare'));
     await tester.pumpAndSettle();
@@ -313,14 +338,18 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('an edit waits for the unresolved original lock to recover',
-      (tester) async {
+  testWidgets('an edit waits for the unresolved original lock to recover', (
+    tester,
+  ) async {
     final repository = _ControlledLockRepository(loseFirstResponse: true);
     final container = createContainer(fareRepository: repository);
     readyDraft(container);
     await pumpFareScreen(tester, container);
-    await tester.scrollUntilVisible(find.text('Lock fare'), 300,
-        scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text('Lock fare'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Lock fare'));
     await tester.pumpAndSettle();
 
@@ -332,52 +361,74 @@ void main() {
       repository.calls.where((call) => call.startsWith('update ')),
       isEmpty,
     );
-    expect(repository.calls.where((call) => call.startsWith('quote ')),
-        hasLength(1));
-    await tester.scrollUntilVisible(find.text('Retry fare lock'), -200,
-        scrollable: find.byType(Scrollable).first);
+    expect(
+      repository.calls.where((call) => call.startsWith('quote ')),
+      hasLength(1),
+    );
+    await tester.scrollUntilVisible(
+      find.text('Retry fare lock'),
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Retry fare lock'));
     await tester.pumpAndSettle();
 
     expect(repository.lockRequests[1], repository.lockRequests[0]);
     expect(repository.calls, contains('update booking-fake-1@2'));
-    expect(repository.calls.where((call) => call.startsWith('quote ')),
-        hasLength(2));
+    expect(
+      repository.calls.where((call) => call.startsWith('quote ')),
+      hasLength(2),
+    );
     expect(find.text('Fare lock not confirmed'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('version conflict cannot silently overwrite or reprice a booking',
-      (tester) async {
-    final repository = _ControlledLockRepository();
-    final container = createContainer(fareRepository: repository);
-    readyDraft(container);
-    await pumpFareScreen(tester, container);
-    repository.failNext(const FareException(FareFailure.versionConflict));
-    await tester.scrollUntilVisible(find.text('Lock fare'), 300,
-        scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.text('Lock fare'));
-    await tester.pumpAndSettle();
-    container
-        .read(bookingControllerProvider.notifier)
-        .setVehicleType(MockData.vehicleTypes[1]);
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Fare lock not confirmed'), -200,
-        scrollable: find.byType(Scrollable).first);
+  testWidgets(
+    'version conflict cannot silently overwrite or reprice a booking',
+    (tester) async {
+      final repository = _ControlledLockRepository();
+      final container = createContainer(fareRepository: repository);
+      readyDraft(container);
+      await pumpFareScreen(tester, container);
+      repository.failNext(const FareException(FareFailure.versionConflict));
+      await tester.scrollUntilVisible(
+        find.text('Lock fare'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Lock fare'));
+      await tester.pumpAndSettle();
+      container
+          .read(bookingControllerProvider.notifier)
+          .setVehicleType(MockData.vehicleTypes[1]);
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Fare lock not confirmed'),
+        -200,
+        scrollable: find.byType(Scrollable).first,
+      );
 
-    expect(find.text('This booking changed elsewhere. '
-        'Return home and start a new booking.'), findsOneWidget);
-    expect(find.text('Retry fare lock'), findsNothing);
-    expect(find.text('Retry fare request'), findsNothing);
-    expect(repository.lockRequests, hasLength(1));
-    expect(
-      repository.calls.where((call) => call.startsWith('update ')),
-      isEmpty,
-    );
-    expect(repository.calls.where((call) => call.startsWith('quote ')),
-        hasLength(1));
-    await tester.pumpWidget(const SizedBox());
-  });
+      expect(
+        find.text(
+          'This booking changed elsewhere. '
+          'Return home and start a new booking.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Retry fare lock'), findsNothing);
+      expect(find.text('Retry fare request'), findsNothing);
+      expect(repository.lockRequests, hasLength(1));
+      expect(
+        repository.calls.where((call) => call.startsWith('update ')),
+        isEmpty,
+      );
+      expect(
+        repository.calls.where((call) => call.startsWith('quote ')),
+        hasLength(1),
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 }
 
 class _ControlledLockRepository extends FakeFareRepository {

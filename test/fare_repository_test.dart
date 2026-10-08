@@ -50,13 +50,15 @@ void main() {
       String? rpcName;
       Map<String, dynamic>? rpcParams;
       final repository = SupabaseFareRepository(
-        rpc: (
-            {required String name,
-            required Map<String, dynamic> params}) async {
-          rpcName = name;
-          rpcParams = params;
-          return {'id': 'booking-1', 'version': 1};
-        },
+        rpc:
+            ({
+              required String name,
+              required Map<String, dynamic> params,
+            }) async {
+              rpcName = name;
+              rpcParams = params;
+              return {'id': 'booking-1', 'version': 1};
+            },
         quoteEdge: (_) async => throw StateError('unexpected edge call'),
       );
 
@@ -85,79 +87,79 @@ void main() {
       expect((rpcParams!['requested_stops'] as List), hasLength(1));
     });
 
-    test('update sends expected version and quote carries the new version',
-        () async {
-      final names = <String>[];
-      final repository = SupabaseFareRepository(
-        rpc: (
-            {required String name,
-            required Map<String, dynamic> params}) async {
-          names.add(name);
-          if (name == 'rider_update_booking_draft') {
-            expect(params['target_booking_request_id'], 'booking-1');
-            expect(params['expected_version'], 1);
-            return {'id': 'booking-1', 'version': 2};
-          }
-          if (name == 'rider_lock_fare_quote') {
-            expect(params, {
-              'target_booking_request_id': 'booking-1',
-              'target_fare_quote_id': 'aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee',
+    test(
+      'update sends expected version and quote carries the new version',
+      () async {
+        final names = <String>[];
+        final repository = SupabaseFareRepository(
+          rpc:
+              ({
+                required String name,
+                required Map<String, dynamic> params,
+              }) async {
+                names.add(name);
+                if (name == 'rider_update_booking_draft') {
+                  expect(params['target_booking_request_id'], 'booking-1');
+                  expect(params['expected_version'], 1);
+                  return {'id': 'booking-1', 'version': 2};
+                }
+                if (name == 'rider_lock_fare_quote') {
+                  expect(params, {
+                    'target_booking_request_id': 'booking-1',
+                    'target_fare_quote_id':
+                        'aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee',
+                    'expected_booking_version': 2,
+                    'expected_quote_version': 2,
+                  });
+                  return _quoteRow(
+                    bookingId: 'booking-1',
+                    quoteVersion: 2,
+                    status: 'locked',
+                  );
+                }
+                throw StateError('unexpected rpc $name');
+              },
+          quoteEdge: (Map<String, dynamic> body) async {
+            expect(body, {
+              'operation': 'quote',
+              'booking_request_id': 'booking-1',
               'expected_booking_version': 2,
-              'expected_quote_version': 2,
             });
-            return _quoteRow(
-              bookingId: 'booking-1',
-              quoteVersion: 2,
-              status: 'locked',
-            );
-          }
-          throw StateError('unexpected rpc $name');
-        },
-        quoteEdge: (Map<String, dynamic> body) async {
-          expect(body, {
-            'operation': 'quote',
-            'booking_request_id': 'booking-1',
-            'expected_booking_version': 2,
-          });
-          return {
-            'data': _quoteRow(bookingId: 'booking-1', quoteVersion: 2),
-          };
-        },
-      );
+            return {'data': _quoteRow(bookingId: 'booking-1', quoteVersion: 2)};
+          },
+        );
 
-      // Draft change supersedes server-side; the re-quote that follows
-      // carries the bumped booking version and the new quote version.
-      final updated = await repository.updateBookingDraft(
-        bookingRequestId: 'booking-1',
-        expectedBookingVersion: 1,
-        pickup: _pickup,
-        destination: _destination,
-        vehicleTypeCode: 'economy',
-        paymentMethod: 'cash',
-      );
-      expect(updated.version, 2);
+        // Draft change supersedes server-side; the re-quote that follows
+        // carries the bumped booking version and the new quote version.
+        final updated = await repository.updateBookingDraft(
+          bookingRequestId: 'booking-1',
+          expectedBookingVersion: 1,
+          pickup: _pickup,
+          destination: _destination,
+          vehicleTypeCode: 'economy',
+          paymentMethod: 'cash',
+        );
+        expect(updated.version, 2);
 
-      final quote = await repository.fetchQuote(
-        bookingRequestId: updated.bookingRequestId,
-        expectedBookingVersion: updated.version,
-        routeDistanceMeters: 5400,
-        routeDurationSeconds: 720,
-      );
-      expect(quote.quoteVersion, 2);
-      expect(quote.fixedFareFils, 2050);
+        final quote = await repository.fetchQuote(
+          bookingRequestId: updated.bookingRequestId,
+          expectedBookingVersion: updated.version,
+          routeDistanceMeters: 5400,
+          routeDurationSeconds: 720,
+        );
+        expect(quote.quoteVersion, 2);
+        expect(quote.fixedFareFils, 2050);
 
-      final locked = await repository.lockQuote(
-        bookingRequestId: updated.bookingRequestId,
-        fareQuoteId: quote.id,
-        expectedBookingVersion: updated.version,
-        expectedQuoteVersion: quote.quoteVersion,
-      );
-      expect(locked.status, FareQuoteStatus.locked);
-      expect(names, [
-        'rider_update_booking_draft',
-        'rider_lock_fare_quote',
-      ]);
-    });
+        final locked = await repository.lockQuote(
+          bookingRequestId: updated.bookingRequestId,
+          fareQuoteId: quote.id,
+          expectedBookingVersion: updated.version,
+          expectedQuoteVersion: quote.quoteVersion,
+        );
+        expect(locked.status, FareQuoteStatus.locked);
+        expect(names, ['rider_update_booking_draft', 'rider_lock_fare_quote']);
+      },
+    );
 
     test('maps transport failures for draft and quote calls', () async {
       final cases = <FareTransportFailure, FareFailure>{
@@ -186,11 +188,13 @@ void main() {
         final transport = entry.key;
         final expected = entry.value;
         final repository = SupabaseFareRepository(
-          rpc: (
-              {required String name,
-              required Map<String, dynamic> params}) async {
-            throw transport;
-          },
+          rpc:
+              ({
+                required String name,
+                required Map<String, dynamic> params,
+              }) async {
+                throw transport;
+              },
           quoteEdge: (_) async {
             throw transport;
           },
@@ -232,10 +236,11 @@ void main() {
 
     test('maps malformed rows and envelopes to invalidResponse', () async {
       final malformedRpc = SupabaseFareRepository(
-        rpc: (
-                {required String name,
-                required Map<String, dynamic> params}) async =>
-            {'id': 'booking-1'},
+        rpc:
+            ({
+              required String name,
+              required Map<String, dynamic> params,
+            }) async => {'id': 'booking-1'},
         quoteEdge: (_) async => throw StateError('unexpected edge call'),
       );
       await expectLater(
@@ -255,10 +260,11 @@ void main() {
       );
 
       final malformedEdge = SupabaseFareRepository(
-        rpc: (
-                {required String name,
-                required Map<String, dynamic> params}) async =>
-            throw StateError('unexpected rpc call'),
+        rpc:
+            ({
+              required String name,
+              required Map<String, dynamic> params,
+            }) async => throw StateError('unexpected rpc call'),
         quoteEdge: (_) async => {
           'data': {'id': 'not-a-quote'},
         },
@@ -282,8 +288,11 @@ void main() {
 
     test('rejects quotes returned for a different booking', () async {
       final repository = SupabaseFareRepository(
-        rpc: ({required String name, required Map<String, dynamic> params})
-            async => throw StateError('unexpected rpc'),
+        rpc:
+            ({
+              required String name,
+              required Map<String, dynamic> params,
+            }) async => throw StateError('unexpected rpc'),
         quoteEdge: (_) async => {'data': _quoteRow(bookingId: 'other-booking')},
       );
       await expectLater(
@@ -293,98 +302,130 @@ void main() {
           routeDistanceMeters: 5400,
           routeDurationSeconds: 720,
         ),
-        throwsA(isA<FareException>().having((e) => e.failure, 'failure',
-            FareFailure.invalidResponse)),
+        throwsA(
+          isA<FareException>().having(
+            (e) => e.failure,
+            'failure',
+            FareFailure.invalidResponse,
+          ),
+        ),
       );
     });
 
-    test('accepts an authoritative locked response after the quote deadline',
-        () async {
-      final repository = SupabaseFareRepository(
-        rpc: (
-            {required String name,
-            required Map<String, dynamic> params}) async {
-          expect(name, 'rider_lock_fare_quote');
-          expect(params['expected_booking_version'], 1);
-          return _quoteRow(status: 'locked', expiresAt: '2020-01-01T00:00:00Z');
-        },
-        quoteEdge: (_) async => throw StateError('unexpected edge call'),
-      );
-      final locked = await repository.lockQuote(
-        bookingRequestId: 'booking-1',
-        fareQuoteId: 'aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee',
-        expectedBookingVersion: 1,
-        expectedQuoteVersion: 1,
-      );
-      expect(locked.status, FareQuoteStatus.locked);
-      expect(locked.isExpiredAt(DateTime.now()), isTrue);
-    });
-
-    test('a lock response must match the requested quote and locked status',
-        () async {
-      for (final wrongField in <Map<String, dynamic>>[
-        {'id': 'other-quote'},
-        {'booking_request_id': 'other-booking'},
-        {'quote_version': 2},
-        {'status': 'calculated'},
-        {'status': 'superseded'},
-      ]) {
+    test(
+      'accepts an authoritative locked response after the quote deadline',
+      () async {
         final repository = SupabaseFareRepository(
-          rpc: ({required String name, required Map<String, dynamic> params})
-              async => {..._quoteRow(status: 'locked'), ...wrongField},
+          rpc:
+              ({
+                required String name,
+                required Map<String, dynamic> params,
+              }) async {
+                expect(name, 'rider_lock_fare_quote');
+                expect(params['expected_booking_version'], 1);
+                return _quoteRow(
+                  status: 'locked',
+                  expiresAt: '2020-01-01T00:00:00Z',
+                );
+              },
           quoteEdge: (_) async => throw StateError('unexpected edge call'),
         );
-        await expectLater(
-          repository.lockQuote(
-            bookingRequestId: 'booking-1',
-            fareQuoteId: 'aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee',
-            expectedBookingVersion: 1,
-            expectedQuoteVersion: 1,
-          ),
-          throwsA(isA<FareException>().having((e) => e.failure, 'failure',
-              FareFailure.invalidResponse)),
-          reason: 'incorrect lock field $wrongField',
+        final locked = await repository.lockQuote(
+          bookingRequestId: 'booking-1',
+          fareQuoteId: 'aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee',
+          expectedBookingVersion: 1,
+          expectedQuoteVersion: 1,
         );
-      }
-    });
+        expect(locked.status, FareQuoteStatus.locked);
+        expect(locked.isExpiredAt(DateTime.now()), isTrue);
+      },
+    );
+
+    test(
+      'a lock response must match the requested quote and locked status',
+      () async {
+        for (final wrongField in <Map<String, dynamic>>[
+          {'id': 'other-quote'},
+          {'booking_request_id': 'other-booking'},
+          {'quote_version': 2},
+          {'status': 'calculated'},
+          {'status': 'superseded'},
+        ]) {
+          final repository = SupabaseFareRepository(
+            rpc:
+                ({
+                  required String name,
+                  required Map<String, dynamic> params,
+                }) async => {..._quoteRow(status: 'locked'), ...wrongField},
+            quoteEdge: (_) async => throw StateError('unexpected edge call'),
+          );
+          await expectLater(
+            repository.lockQuote(
+              bookingRequestId: 'booking-1',
+              fareQuoteId: 'aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee',
+              expectedBookingVersion: 1,
+              expectedQuoteVersion: 1,
+            ),
+            throwsA(
+              isA<FareException>().having(
+                (e) => e.failure,
+                'failure',
+                FareFailure.invalidResponse,
+              ),
+            ),
+            reason: 'incorrect lock field $wrongField',
+          );
+        }
+      },
+    );
   });
 
   group('FakeFareRepository', () {
-    test('exact lock replay increments once and stale replay fails after edit',
-        () async {
-      final fake = FakeFareRepository();
-      final booking = await fake.createBookingDraft(
-        pickup: _pickup,
-        destination: _destination,
-        vehicleTypeCode: 'economy',
-        paymentMethod: 'cash',
-      );
-      final quote = await fake.fetchQuote(
-        bookingRequestId: booking.bookingRequestId,
-        expectedBookingVersion: booking.version,
-        routeDistanceMeters: 5400,
-        routeDurationSeconds: 720,
-      );
-      Future<FareQuote> replay() => fake.lockQuote(
-            bookingRequestId: booking.bookingRequestId,
-            fareQuoteId: quote.id,
-            expectedBookingVersion: booking.version,
-            expectedQuoteVersion: quote.quoteVersion,
-          );
-      final locked = await replay();
-      expect(await replay(), locked);
-      final edited = await fake.updateBookingDraft(
-        bookingRequestId: booking.bookingRequestId,
-        expectedBookingVersion: 2,
-        pickup: _pickup,
-        destination: _destination,
-        vehicleTypeCode: 'comfort',
-        paymentMethod: 'cash',
-      );
-      expect(edited.version, 3);
-      await expectLater(replay(), throwsA(isA<FareException>().having(
-          (e) => e.failure, 'failure', FareFailure.versionConflict)));
-    });
+    test(
+      'exact lock replay increments once and stale replay fails after edit',
+      () async {
+        final fake = FakeFareRepository();
+        final booking = await fake.createBookingDraft(
+          pickup: _pickup,
+          destination: _destination,
+          vehicleTypeCode: 'economy',
+          paymentMethod: 'cash',
+        );
+        final quote = await fake.fetchQuote(
+          bookingRequestId: booking.bookingRequestId,
+          expectedBookingVersion: booking.version,
+          routeDistanceMeters: 5400,
+          routeDurationSeconds: 720,
+        );
+        Future<FareQuote> replay() => fake.lockQuote(
+          bookingRequestId: booking.bookingRequestId,
+          fareQuoteId: quote.id,
+          expectedBookingVersion: booking.version,
+          expectedQuoteVersion: quote.quoteVersion,
+        );
+        final locked = await replay();
+        expect(await replay(), locked);
+        final edited = await fake.updateBookingDraft(
+          bookingRequestId: booking.bookingRequestId,
+          expectedBookingVersion: 2,
+          pickup: _pickup,
+          destination: _destination,
+          vehicleTypeCode: 'comfort',
+          paymentMethod: 'cash',
+        );
+        expect(edited.version, 3);
+        await expectLater(
+          replay(),
+          throwsA(
+            isA<FareException>().having(
+              (e) => e.failure,
+              'failure',
+              FareFailure.versionConflict,
+            ),
+          ),
+        );
+      },
+    );
 
     test('supports create, superseding update, and re-quote', () async {
       final fake = FakeFareRepository();
@@ -505,8 +546,8 @@ void main() {
           ),
           status: FareQuoteStatus.calculated,
           expiresAt: DateTime.now().toUtc().subtract(
-                const Duration(minutes: 1),
-              ),
+            const Duration(minutes: 1),
+          ),
         ),
       );
       final quote = await fake.fetchQuote(

@@ -17,10 +17,10 @@ class FareRouteLocation extends Equatable {
   final String? label;
 
   Map<String, dynamic> toJson() => {
-        'latitude': latitude,
-        'longitude': longitude,
-        if (label != null && label!.trim().isNotEmpty) 'label': label!.trim(),
-      };
+    'latitude': latitude,
+    'longitude': longitude,
+    if (label != null && label!.trim().isNotEmpty) 'label': label!.trim(),
+  };
 
   @override
   List<Object?> get props => [latitude, longitude, label];
@@ -35,9 +35,9 @@ class FareStopInput extends Equatable {
   final String? label;
 
   Map<String, dynamic> toJson() => {
-        'location': location.toJson(),
-        if (label != null && label!.trim().isNotEmpty) 'label': label!.trim(),
-      };
+    'location': location.toJson(),
+    if (label != null && label!.trim().isNotEmpty) 'label': label!.trim(),
+  };
 
   @override
   List<Object?> get props => [location, label];
@@ -69,14 +69,14 @@ class FareTransportFailure implements Exception {
   final String? code;
 }
 
-typedef FareRpcCaller = Future<Map<String, dynamic>> Function({
-  required String name,
-  required Map<String, dynamic> params,
-});
+typedef FareRpcCaller =
+    Future<Map<String, dynamic>> Function({
+      required String name,
+      required Map<String, dynamic> params,
+    });
 
-typedef FareEdgeCaller = Future<Map<String, dynamic>> Function(
-  Map<String, dynamic> body,
-);
+typedef FareEdgeCaller =
+    Future<Map<String, dynamic>> Function(Map<String, dynamic> body);
 
 /// Provider-neutral fare contract.
 ///
@@ -129,9 +129,9 @@ class SupabaseFareRepository implements FareRepository {
     required FareRpcCaller rpc,
     required FareEdgeCaller quoteEdge,
     AppErrorReporter errorReporter = const NoopAppErrorReporter(),
-  })  : _rpc = rpc,
-        _quoteEdge = quoteEdge,
-        _errorReporter = errorReporter;
+  }) : _rpc = rpc,
+       _quoteEdge = quoteEdge,
+       _errorReporter = errorReporter;
 
   final FareRpcCaller _rpc;
   final FareEdgeCaller _quoteEdge;
@@ -292,15 +292,15 @@ class SupabaseFareRepository implements FareRepository {
       'quote_expired' => FareFailure.expired,
       'provider_timeout' => FareFailure.timedOut,
       _ => switch (error.status) {
-          401 => FareFailure.unauthorized,
-          403 => FareFailure.forbidden,
-          404 => FareFailure.notFound,
-          409 => FareFailure.versionConflict,
-          410 => FareFailure.expired,
-          504 => FareFailure.timedOut,
-          null => FareFailure.networkFailure,
-          _ => FareFailure.unavailable,
-        },
+        401 => FareFailure.unauthorized,
+        403 => FareFailure.forbidden,
+        404 => FareFailure.notFound,
+        409 => FareFailure.versionConflict,
+        410 => FareFailure.expired,
+        504 => FareFailure.timedOut,
+        null => FareFailure.networkFailure,
+        _ => FareFailure.unavailable,
+      },
     };
   }
 

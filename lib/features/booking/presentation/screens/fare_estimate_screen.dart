@@ -43,14 +43,12 @@ String _fareFailureMessage(FareFailure failure) {
     FareFailure.notFound => 'The booking draft was not found.',
     FareFailure.pricingUnavailable => 'Fares are unavailable right now.',
     FareFailure.unauthorized ||
-    FareFailure.forbidden =>
-      'Sign in again to see fares.',
+    FareFailure.forbidden => 'Sign in again to see fares.',
     FareFailure.timedOut => 'The fare request timed out.',
     FareFailure.networkFailure => 'Could not reach the fare service.',
     FareFailure.expired => 'This fare quote expired. Request a new fare.',
     FareFailure.unavailable ||
-    FareFailure.invalidResponse =>
-      'Fares are unavailable right now.',
+    FareFailure.invalidResponse => 'Fares are unavailable right now.',
   };
 }
 
@@ -197,7 +195,9 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
     try {
       // Keep this tuple unchanged after a lost response. Migration 026 returns
       // the existing lock for its original versions, even after quote expiry.
-      final locked = await ref.read(fareRepositoryProvider).lockQuote(
+      final locked = await ref
+          .read(fareRepositoryProvider)
+          .lockQuote(
             bookingRequestId: attempt.booking.bookingRequestId,
             fareQuoteId: attempt.quote.id,
             expectedBookingVersion: attempt.booking.version,
@@ -254,30 +254,33 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
       }
     }
 
-    final demoFare =
-        draft.estimatedFare > 0 ? draft.estimatedFare : vehicle?.baseFare ?? 0;
+    final demoFare = draft.estimatedFare > 0
+        ? draft.estimatedFare
+        : vehicle?.baseFare ?? 0;
     final now = DateTime.now();
     // Only the quote fetched for the currently displayed draft/route may
     // back the total; anything else is stale and never shown.
-    final quote =
-        (!isDemo && _requestKey == _quoteKey(draft, result)) ? _quote : null;
+    final quote = (!isDemo && _requestKey == _quoteKey(draft, result))
+        ? _quote
+        : null;
     final lockedQuote = quote?.status == FareQuoteStatus.locked;
-    final usableQuote =
-        quote != null && (lockedQuote || quote.isUsableAt(now)) ? quote : null;
+    final usableQuote = quote != null && (lockedQuote || quote.isUsableAt(now))
+        ? quote
+        : null;
     final staleQuote =
         quote != null && usableQuote == null && _failure == null && !_loading;
     final ready = isDemo
         ? draft.isRoutingReady &&
-            route.isReadyFor(draft) &&
-            vehicle != null &&
-            demoFare > 0
+              route.isReadyFor(draft) &&
+              vehicle != null &&
+              demoFare > 0
         : routeReady &&
-            vehicle != null &&
-            usableQuote != null &&
-            !lockedQuote &&
-            _pendingLock == null &&
-            !_loading &&
-            _failure == null;
+              vehicle != null &&
+              usableQuote != null &&
+              !lockedQuote &&
+              _pendingLock == null &&
+              !_loading &&
+              _failure == null;
 
     return AppScaffold(
       title: 'Review booking',
@@ -296,18 +299,18 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                 Text(
                   'YOUR ROUTE',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onInverseSurface,
-                      ),
+                    color: Theme.of(context).colorScheme.onInverseSurface,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Theme(
                   data: Theme.of(context).copyWith(
                     textTheme: Theme.of(context).textTheme.apply(
-                          bodyColor:
-                              Theme.of(context).colorScheme.onInverseSurface,
-                          displayColor:
-                              Theme.of(context).colorScheme.onInverseSurface,
-                        ),
+                      bodyColor: Theme.of(context).colorScheme.onInverseSurface,
+                      displayColor: Theme.of(
+                        context,
+                      ).colorScheme.onInverseSurface,
+                    ),
                   ),
                   child: RouteTimeline(
                     pickup: RouteTimelineStop(
@@ -315,7 +318,8 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                       subtitle: draft.pickup?.label,
                     ),
                     destination: RouteTimelineStop(
-                      title: draft.destination?.address ??
+                      title:
+                          draft.destination?.address ??
                           'Destination not selected',
                       subtitle: draft.destination?.label,
                     ),
@@ -445,9 +449,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                     SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Text('Requesting the authoritative fare…'),
-                    ),
+                    Expanded(child: Text('Requesting the authoritative fare…')),
                   ],
                 ),
               ),
@@ -463,10 +465,10 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
             label: isDemo
                 ? 'Confirm & find a driver'
                 : lockedQuote
-                    ? 'Fare locked'
-                    : _loading
-                        ? 'Please wait...'
-                        : 'Lock fare',
+                ? 'Fare locked'
+                : _loading
+                ? 'Please wait...'
+                : 'Lock fare',
             onPressed: ready
                 ? () async {
                     if (isDemo) {
@@ -528,23 +530,29 @@ class _AuthoritativeFareCard extends StatelessWidget {
               Text('Upfront fare', style: theme.textTheme.titleLarge),
               const SizedBox(height: AppSpacing.md),
               _FareFilsRow(
-                  label: 'Base fare',
-                  value: formatFareFils(breakdown.baseFareFils)),
+                label: 'Base fare',
+                value: formatFareFils(breakdown.baseFareFils),
+              ),
               const SizedBox(height: AppSpacing.xs),
               _FareFilsRow(
-                  label: 'Distance',
-                  value: formatFareFils(breakdown.distanceFils)),
+                label: 'Distance',
+                value: formatFareFils(breakdown.distanceFils),
+              ),
               const SizedBox(height: AppSpacing.xs),
               _FareFilsRow(
-                  label: 'Duration',
-                  value: formatFareFils(breakdown.durationFils)),
+                label: 'Duration',
+                value: formatFareFils(breakdown.durationFils),
+              ),
               const SizedBox(height: AppSpacing.xs),
               _FareFilsRow(
-                  label: 'Stops', value: formatFareFils(breakdown.stopsFils)),
+                label: 'Stops',
+                value: formatFareFils(breakdown.stopsFils),
+              ),
               const SizedBox(height: AppSpacing.xs),
               _FareFilsRow(
-                  label: 'Subtotal',
-                  value: formatFareFils(breakdown.subtotalFils)),
+                label: 'Subtotal',
+                value: formatFareFils(breakdown.subtotalFils),
+              ),
               Divider(color: theme.colorScheme.outlineVariant),
               const SizedBox(height: AppSpacing.xs),
               Row(
@@ -618,8 +626,7 @@ class _FareLockRecoveryCard extends StatelessWidget {
       FareFailure.networkFailure ||
       FareFailure.timedOut ||
       FareFailure.unavailable ||
-      FareFailure.invalidResponse =>
-        true,
+      FareFailure.invalidResponse => true,
       _ => false,
     };
     final message = switch (failure) {
@@ -632,8 +639,9 @@ class _FareLockRecoveryCard extends StatelessWidget {
       FareFailure.pricingUnavailable =>
         'This fare can no longer be locked. '
             'Return home and start a new booking.',
-      _ => 'We could not confirm whether your fare was locked. '
-          'Retry the same request before pricing any changes.',
+      _ =>
+        'We could not confirm whether your fare was locked. '
+            'Retry the same request before pricing any changes.',
     };
     return Card(
       child: Padding(
@@ -641,8 +649,10 @@ class _FareLockRecoveryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Fare lock not confirmed',
-                style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Fare lock not confirmed',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(message),
             if (canRetry) ...[
