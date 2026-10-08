@@ -1,0 +1,35 @@
+name: Phase 5 Flutter validation
+
+on:
+  push:
+    branches: [codex/phase-5-completion]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-5-flutter-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.32.8'
+          channel: stable
+          cache: true
+      - name: Resolve the committed dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Analyze
+        run: flutter analyze
+      - name: Test
+        run: flutter test --no-pub
+      - name: Verify dependency locks are unchanged
+        run: git diff --exit-code -- pubspec.lock pubspec.yaml
