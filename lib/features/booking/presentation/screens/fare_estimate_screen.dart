@@ -75,6 +75,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
   bool _loading = false;
   String _requestKey = '';
   Timer? _expiryTimer;
+  ({FareBookingRef booking, FareQuote quote})? _pendingLock;
 
   @override
   void dispose() {
@@ -111,7 +112,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
   }
 
   Future<void> _refresh() async {
-    if (_loading || !mounted) return;
+    if (_loading || !mounted || _pendingLock != null) return;
     final draft = ref.read(bookingControllerProvider);
     final route = ref.read(routeControllerProvider);
     final result = route.resultFor(draft);
@@ -186,6 +187,45 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
     }
   }
 
+  Future<void> _lockPendingFare() async {
+    final attempt = _pendingLock;
+    if (_loading || !mounted || attempt == null) return;
+    setState(() {
+      _loading = true;
+      _failure = null;
+    });
+    try {
+      // Keep this tuple unchanged after a lost response. Migration 026 returns
+      // the existing lock for its original versions, even after quote expiry.
+      final locked = await ref.read(fareRepositoryProvider).lockQuote(
+            bookingRequestId: attempt.booking.bookingRequestId,
+            fareQuoteId: attempt.quote.id,
+            expectedBookingVersion: attempt.booking.version,
+            expectedQuoteVersion: attempt.quote.quoteVersion,
+          );
+      if (!mounted) return;
+      _expiryTimer?.cancel();
+      setState(() {
+        _quote = locked;
+        // The first successful lock links fare_quote_id and increments the
+        // booking version once. Exact replays do not increment it again.
+        // A later external edit is still rejected by the update RPC's CAS.
+        _booking = FareBookingRef(
+          bookingRequestId: attempt.booking.bookingRequestId,
+          version: attempt.booking.version + 1,
+        );
+        _pendingLock = null;
+        _loading = false;
+      });
+    } on FareException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _failure = error.failure;
+        _loading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(bookingControllerProvider);
@@ -204,7 +244,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
 
     if (!isDemo && routeReady && vehicle != null) {
       final key = _quoteKey(draft, result);
-      if (key != _requestKey && !_loading) {
+      if (key != _requestKey && !_loading && _pendingLock == null) {
         _requestKey = key;
         // A changed draft/route invalidates the displayed quote: never show
         // a stale total while the re-quote is in flight.
@@ -235,6 +275,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
             vehicle != null &&
             usableQuote != null &&
             !lockedQuote &&
+            _pendingLock == null &&
             !_loading &&
             _failure == null;
 
@@ -354,6 +395,18 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
               note:
                   'Demo fare — a deterministic placeholder, not a backend quote. It stays fixed for the route shown.',
             )
+          else if (_pendingLock != null && _failure != null)
+            _FareLockRecoveryCard(
+              failure: _failure!,
+              onRetry: () => unawaited(_lockPendingFare()),
+            )
+          else if (_pendingLock != null)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                child: Text('Confirming your fare lock…'),
+              ),
+            )
           else if (!routeReady || vehicle == null)
             Text(
               'Select a route and ride to request the authoritative fare.',
@@ -433,31 +486,10 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                       setState(() => _failure = FareFailure.expired);
                       return;
                     }
-                    setState(() {
-                      _loading = true;
-                      _failure = null;
-                    });
-                    try {
-                      final locked = await repository.lockQuote(
-                        bookingRequestId: booking.bookingRequestId,
-                        fareQuoteId: currentQuote.id,
-                        expectedBookingVersion: booking.version,
-                        expectedQuoteVersion: currentQuote.quoteVersion,
-                      );
-                      if (!mounted) return;
-                      setState(() {
-                        _quote = locked;
-                        _loading = false;
-                      });
-                      // Real matching is Phase 7. Do not pass a backend quote
-                      // into the deterministic MockTrips search flow.
-                    } on FareException catch (error) {
-                      if (!mounted) return;
-                      setState(() {
-                        _failure = error.failure;
-                        _loading = false;
-                      });
-                    }
+                    _pendingLock = (booking: booking, quote: currentQuote);
+                    await _lockPendingFare();
+                    // Real matching is Phase 7. A lock never enters the
+                    // deterministic mock driver-search flow.
                   }
                 : null,
           ),
@@ -567,6 +599,56 @@ class _ExpiredFareCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             AppButton(label: 'Request a new fare', onPressed: onRequote),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FareLockRecoveryCard extends StatelessWidget {
+  const _FareLockRecoveryCard({required this.failure, required this.onRetry});
+
+  final FareFailure failure;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final canRetry = switch (failure) {
+      FareFailure.networkFailure ||
+      FareFailure.timedOut ||
+      FareFailure.unavailable ||
+      FareFailure.invalidResponse =>
+        true,
+      _ => false,
+    };
+    final message = switch (failure) {
+      FareFailure.unauthorized || FareFailure.forbidden =>
+        'Sign in again before continuing with your booking.',
+      FareFailure.versionConflict =>
+        'This booking changed elsewhere. Return home and start a new booking.',
+      FareFailure.expired ||
+      FareFailure.notFound ||
+      FareFailure.pricingUnavailable =>
+        'This fare can no longer be locked. '
+            'Return home and start a new booking.',
+      _ => 'We could not confirm whether your fare was locked. '
+          'Retry the same request before pricing any changes.',
+    };
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Fare lock not confirmed',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.sm),
+            Text(message),
+            if (canRetry) ...[
+              const SizedBox(height: AppSpacing.md),
+              AppButton(label: 'Retry fare lock', onPressed: onRetry),
+            ],
           ],
         ),
       ),

@@ -279,9 +279,113 @@ void main() {
         ),
       );
     });
+
+    test('rejects quotes returned for a different booking', () async {
+      final repository = SupabaseFareRepository(
+        rpc: ({required String name, required Map<String, dynamic> params})
+            async => throw StateError('unexpected rpc'),
+        quoteEdge: (_) async => {'data': _quoteRow(bookingId: 'other-booking')},
+      );
+      await expectLater(
+        repository.fetchQuote(
+          bookingRequestId: 'booking-1',
+          expectedBookingVersion: 1,
+          routeDistanceMeters: 5400,
+          routeDurationSeconds: 720,
+        ),
+        throwsA(isA<FareException>().having((e) => e.failure, 'failure',
+            FareFailure.invalidResponse)),
+      );
+    });
+
+    test('accepts an authoritative locked response after the quote deadline',
+        () async {
+      final repository = SupabaseFareRepository(
+        rpc: (
+            {required String name,
+            required Map<String, dynamic> params}) async {
+          expect(name, 'rider_lock_fare_quote');
+          expect(params['expected_booking_version'], 1);
+          return _quoteRow(status: 'locked', expiresAt: '2020-01-01T00:00:00Z');
+        },
+        quoteEdge: (_) async => throw StateError('unexpected edge call'),
+      );
+      final locked = await repository.lockQuote(
+        bookingRequestId: 'booking-1',
+        fareQuoteId: 'aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee',
+        expectedBookingVersion: 1,
+        expectedQuoteVersion: 1,
+      );
+      expect(locked.status, FareQuoteStatus.locked);
+      expect(locked.isExpiredAt(DateTime.now()), isTrue);
+    });
+
+    test('a lock response must match the requested quote and locked status',
+        () async {
+      for (final wrongField in <Map<String, dynamic>>[
+        {'id': 'other-quote'},
+        {'booking_request_id': 'other-booking'},
+        {'quote_version': 2},
+        {'status': 'calculated'},
+        {'status': 'superseded'},
+      ]) {
+        final repository = SupabaseFareRepository(
+          rpc: ({required String name, required Map<String, dynamic> params})
+              async => {..._quoteRow(status: 'locked'), ...wrongField},
+          quoteEdge: (_) async => throw StateError('unexpected edge call'),
+        );
+        await expectLater(
+          repository.lockQuote(
+            bookingRequestId: 'booking-1',
+            fareQuoteId: 'aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee',
+            expectedBookingVersion: 1,
+            expectedQuoteVersion: 1,
+          ),
+          throwsA(isA<FareException>().having((e) => e.failure, 'failure',
+              FareFailure.invalidResponse)),
+          reason: 'incorrect lock field $wrongField',
+        );
+      }
+    });
   });
 
   group('FakeFareRepository', () {
+    test('exact lock replay increments once and stale replay fails after edit',
+        () async {
+      final fake = FakeFareRepository();
+      final booking = await fake.createBookingDraft(
+        pickup: _pickup,
+        destination: _destination,
+        vehicleTypeCode: 'economy',
+        paymentMethod: 'cash',
+      );
+      final quote = await fake.fetchQuote(
+        bookingRequestId: booking.bookingRequestId,
+        expectedBookingVersion: booking.version,
+        routeDistanceMeters: 5400,
+        routeDurationSeconds: 720,
+      );
+      Future<FareQuote> replay() => fake.lockQuote(
+            bookingRequestId: booking.bookingRequestId,
+            fareQuoteId: quote.id,
+            expectedBookingVersion: booking.version,
+            expectedQuoteVersion: quote.quoteVersion,
+          );
+      final locked = await replay();
+      expect(await replay(), locked);
+      final edited = await fake.updateBookingDraft(
+        bookingRequestId: booking.bookingRequestId,
+        expectedBookingVersion: 2,
+        pickup: _pickup,
+        destination: _destination,
+        vehicleTypeCode: 'comfort',
+        paymentMethod: 'cash',
+      );
+      expect(edited.version, 3);
+      await expectLater(replay(), throwsA(isA<FareException>().having(
+          (e) => e.failure, 'failure', FareFailure.versionConflict)));
+    });
+
     test('supports create, superseding update, and re-quote', () async {
       final fake = FakeFareRepository();
 

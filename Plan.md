@@ -1,8 +1,29 @@
 # RideX Development Plan
 
-Last updated: 2026-10-07
+Last updated: 2026-10-08
 
-## Active goal — Phase 5 fare verification and documentation reconciliation
+## Active branch checkpoint — Phase 5 fare-lock recovery
+
+Owner authorized a new branch from current main and continued implementation
+on 2026-10-08. Branch: `codex/phase-5-completion`; baseline: `a421bf8`.
+The first bounded checkpoint builds on the deployed migration `026` contract.
+
+Acceptance for this checkpoint:
+
+- A lost lock response retries the exact booking id/version and quote id/version.
+- An unresolved lock prevents draft updates and replacement quotes.
+- A successful lock retains the contract's incremented booking version for edits.
+- Unexpected lock response identities or statuses are rejected.
+- Regression tests cover replay, duplicate taps, edits, and version conflicts.
+
+Existing migrations, backend contracts, credentials, and dependency locks are
+preserved. Local Flutter execution is blocked by missing SDKs and restricted
+downloads; branch-scoped GitHub Actions validation is in progress. No new
+automated or device pass is claimed yet. Screen-remount/process
+recovery, general concurrent-version reconciliation, booking-confirmation
+handoff, and the existing physical-device checks remain separate open work.
+
+## Previous active goal — Phase 5 fare verification and documentation reconciliation
 
 This section supersedes historical current-state statements below.
 Work only on `codex/phase-4f-evidence-hardening`; do not change main.

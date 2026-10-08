@@ -1,5 +1,28 @@
 # RideX Current Status
 
+## Current branch checkpoint — 2026-10-08 fare-lock recovery
+
+- Owner authorized `codex/phase-5-completion` from main `a421bf8` and continued
+  work on that branch. Main is preserved.
+- Candidate implementation retries an ambiguous lock using its original booking
+  and quote ids/versions. It blocks draft updates and replacement quotes while
+  that lock remains unresolved, checks returned quote identity/status, and
+  carries forward the single booking-version increment after confirmed success.
+- This checkpoint is limited to the current review screen. Navigation/process
+  restoration and general reconciliation after external concurrent edits remain
+  open. A definitive version conflict is shown without overwriting server state.
+- Existing migrations `001`–`026`, RPC contracts, Edge Functions, dependency
+  locks, credentials, and hosted configuration are unchanged.
+- Candidate verification is pending. The local environment has no Flutter/Dart SDK;
+  a read-only, branch-scoped GitHub Actions job now supplies Flutter validation.
+  Flutter 3.35.7 matches the committed SDK-pinned test dependencies; the first
+  CI attempt used an incompatible 3.32.8 and stopped before analysis/tests.
+- Unchanged application baseline `fdcb445` subsequently passed dependency-lock
+  enforcement, analysis (no issues), and all 304 tests with two intentional skips
+  in GitHub Actions run `37818534600`. Candidate results are separate.
+- Phase 4 task 4.38, blank map diagnosis, multi-stop physical verification,
+  booking-confirmation handoff, and later payment/matching phases remain open.
+
 ## Current override — 2026-10-07 Phase 5 fare verification
 
 This section supersedes older current-state/completion statements below; their

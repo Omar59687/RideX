@@ -39,8 +39,27 @@ jobs:
       - name: "Dependency result: ${{ steps.dependencies.outputs.summary }}"
         if: steps.dependencies.outcome == 'failure'
         run: exit 1
+      - name: Check formatting of the Phase 5 Dart files
+        id: formatting
+        continue-on-error: true
+        run: |
+          dart format lib/core/repositories/fare_repository.dart lib/features/booking/presentation/screens/fare_estimate_screen.dart test/fare_repository_test.dart test/fare_estimate_screen_test.dart
+          set +e
+          git diff --quiet -- '*.dart'
+          result=$?
+          {
+            echo 'diff<<RIDEX_FORMAT_DIFF'
+            git diff -- '*.dart'
+            echo RIDEX_FORMAT_DIFF
+          } >> "$GITHUB_OUTPUT"
+          git restore -- lib/core/repositories/fare_repository.dart lib/features/booking/presentation/screens/fare_estimate_screen.dart test/fare_repository_test.dart test/fare_estimate_screen_test.dart
+          exit "$result"
+      - name: "Formatting result: ${{ steps.formatting.outputs.diff }}"
+        if: always() && steps.formatting.outcome == 'failure'
+        run: exit 1
       - name: Analyze
         id: analyze
+        if: always() && steps.dependencies.outcome == 'success'
         continue-on-error: true
         run: |
           set +e

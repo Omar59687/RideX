@@ -220,9 +220,13 @@ class SupabaseFareRepository implements FareRepository {
       if (data is! Map) {
         throw const FareException(FareFailure.invalidResponse);
       }
-      return FareQuote.fromJson(
+      final quote = FareQuote.fromJson(
         data.map((key, value) => MapEntry(key.toString(), value)),
       );
+      if (quote.bookingRequestId != bookingRequestId) {
+        throw const FareException(FareFailure.invalidResponse);
+      }
+      return quote;
     } on FareTransportFailure catch (error) {
       throw FareException(_mapTransport(error));
     } on FareException catch (error, stackTrace) {
@@ -251,7 +255,14 @@ class SupabaseFareRepository implements FareRepository {
           'expected_quote_version': expectedQuoteVersion,
         },
       );
-      return FareQuote.fromJson(row);
+      final quote = FareQuote.fromJson(row);
+      if (quote.bookingRequestId != bookingRequestId ||
+          quote.id != fareQuoteId ||
+          quote.quoteVersion != expectedQuoteVersion ||
+          quote.status != FareQuoteStatus.locked) {
+        throw const FareException(FareFailure.invalidResponse);
+      }
+      return quote;
     } on FareTransportFailure catch (error) {
       throw FareException(_mapTransport(error));
     } on FareException catch (error, stackTrace) {
@@ -383,6 +394,7 @@ class FakeFareRepository implements FareRepository {
 
   final List<String> calls = [];
   final Map<String, int> _bookingVersions = {};
+  final Map<String, String> _lockedQuoteIds = {};
   final Map<String, List<FareQuote>> _quotes = {};
   final Map<String, bool> _pendingSeed = {};
   FareException? _nextFailure;
@@ -446,6 +458,7 @@ class FakeFareRepository implements FareRepository {
     }
     final next = current + 1;
     _bookingVersions[bookingRequestId] = next;
+    _lockedQuoteIds.remove(bookingRequestId);
     return FareBookingRef(bookingRequestId: bookingRequestId, version: next);
   }
 
@@ -517,9 +530,6 @@ class FakeFareRepository implements FareRepository {
     if (current == null) {
       throw const FareException(FareFailure.notFound);
     }
-    if (current != expectedBookingVersion) {
-      throw const FareException(FareFailure.versionConflict);
-    }
     final quotes = _quotes[bookingRequestId] ?? const [];
     FareQuote? selected;
     for (final quote in quotes) {
@@ -529,6 +539,18 @@ class FakeFareRepository implements FareRepository {
       throw const FareException(FareFailure.notFound);
     }
     if (selected.quoteVersion != expectedQuoteVersion) {
+      throw const FareException(FareFailure.versionConflict);
+    }
+    // Migration 026 accepts only an exact replay of the currently linked lock.
+    // Replay remains valid after the original quote's expiry timestamp.
+    if (selected.status == FareQuoteStatus.locked) {
+      if (_lockedQuoteIds[bookingRequestId] == selected.id &&
+          current == expectedBookingVersion + 1) {
+        return selected;
+      }
+      throw const FareException(FareFailure.versionConflict);
+    }
+    if (current != expectedBookingVersion) {
       throw const FareException(FareFailure.versionConflict);
     }
     if (!selected.isUsableAt(DateTime.now().toUtc())) {
@@ -553,6 +575,7 @@ class FakeFareRepository implements FareRepository {
         if (quote.id == fareQuoteId) locked else quote,
     ];
     _bookingVersions[bookingRequestId] = current + 1;
+    _lockedQuoteIds[bookingRequestId] = locked.id;
     return locked;
   }
 }
