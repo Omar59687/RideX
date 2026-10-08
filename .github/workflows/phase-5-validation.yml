@@ -13,13 +13,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  format:
+    if: github.ref == 'refs/heads/codex/phase-5-completion'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.head.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+      - name: Format the Phase 5 Dart files
+        run: dart format lib/core/repositories/fare_repository.dart lib/features/booking/presentation/screens/fare_estimate_screen.dart test/fare_repository_test.dart test/fare_estimate_screen_test.dart
+      - name: Save formatting on the authorized feature branch
+        id: head
+        run: |
+          git add -- lib/core/repositories/fare_repository.dart lib/features/booking/presentation/screens/fare_estimate_screen.dart test/fare_repository_test.dart test/fare_estimate_screen_test.dart
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'style: format Phase 5 Dart changes'
+            git push origin HEAD:codex/phase-5-completion
+          fi
+          printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   flutter:
+    needs: format
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          ref: ${{ needs.format.outputs.sha }}
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           flutter-version: '3.35.7'
@@ -38,24 +69,6 @@ jobs:
           exit "$result"
       - name: "Dependency result: ${{ steps.dependencies.outputs.summary }}"
         if: steps.dependencies.outcome == 'failure'
-        run: exit 1
-      - name: Check formatting of the Phase 5 Dart files
-        id: formatting
-        continue-on-error: true
-        run: |
-          dart format lib/core/repositories/fare_repository.dart lib/features/booking/presentation/screens/fare_estimate_screen.dart test/fare_repository_test.dart test/fare_estimate_screen_test.dart
-          set +e
-          git diff --quiet -- '*.dart'
-          result=$?
-          {
-            echo 'diff<<RIDEX_FORMAT_DIFF'
-            git diff -- '*.dart'
-            echo RIDEX_FORMAT_DIFF
-          } >> "$GITHUB_OUTPUT"
-          git restore -- lib/core/repositories/fare_repository.dart lib/features/booking/presentation/screens/fare_estimate_screen.dart test/fare_repository_test.dart test/fare_estimate_screen_test.dart
-          exit "$result"
-      - name: "Formatting result: ${{ steps.formatting.outputs.diff }}"
-        if: always() && steps.formatting.outcome == 'failure'
         run: exit 1
       - name: Analyze
         id: analyze
