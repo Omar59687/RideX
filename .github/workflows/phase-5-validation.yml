@@ -26,7 +26,19 @@ jobs:
           channel: stable
           cache: true
       - name: Resolve the committed dependencies
-        run: flutter pub get --enforce-lockfile
+        id: dependencies
+        continue-on-error: true
+        run: |
+          set +e
+          flutter pub get --enforce-lockfile > "$RUNNER_TEMP/ridex-dependencies.log" 2>&1
+          result=$?
+          cat "$RUNNER_TEMP/ridex-dependencies.log"
+          summary=$(tail -n 18 "$RUNNER_TEMP/ridex-dependencies.log" | tr '\n' ' ')
+          printf 'summary=%s\n' "$summary" >> "$GITHUB_OUTPUT"
+          exit "$result"
+      - name: "Dependency result: ${{ steps.dependencies.outputs.summary }}"
+        if: steps.dependencies.outcome == 'failure'
+        run: exit 1
       - name: Analyze
         run: flutter analyze
       - name: Test
