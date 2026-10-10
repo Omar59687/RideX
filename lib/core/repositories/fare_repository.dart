@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:ridex/core/models/fare_quote.dart';
+import 'package:ridex/core/models/fare_lock_recovery.dart';
 import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 
 /// Route-location JSON sent to the draft RPCs
@@ -78,6 +79,40 @@ typedef FareEdgeCaller = Future<Map<String, dynamic>> Function(
   Map<String, dynamic> body,
 );
 
+typedef FareCanonicalReader = Future<List<Map<String, dynamic>>> Function({
+  required String bookingRequestId,
+  required String riderId,
+});
+
+/// Runs the actual draft dispatch under the shared pending-lock owner.
+typedef BookingMutationGate = Future<Map<String, dynamic>> Function(
+  Future<Map<String, dynamic>> Function() dispatch,
+);
+
+typedef FareBookingConfirmer = Future<Map<String, dynamic>> Function({
+  required String bookingRequestId,
+  required int expectedVersion,
+  required String idempotencyKey,
+  required String riderId,
+});
+
+abstract interface class BookingConfirmationRepository {
+  Future<void> confirmLockedBooking(
+      {required String bookingRequestId,
+      required int expectedVersion,
+      required String idempotencyKey,
+      required String riderId});
+}
+
+/// Optional read-only capability; existing fare doubles and demo mode keep
+/// their existing contract. Recovery never substitutes draft/quote mutations.
+abstract interface class FareLockRecoveryRepository {
+  Future<List<CanonicalFareBooking>> readCanonicalFareLock({
+    required String bookingRequestId,
+    required String riderId,
+  });
+}
+
 /// Provider-neutral fare contract.
 ///
 /// Flutter calls `rider_create_booking_draft` / `rider_update_booking_draft`
@@ -124,18 +159,92 @@ abstract class FareRepository {
   });
 }
 
-class SupabaseFareRepository implements FareRepository {
+class SupabaseFareRepository
+    implements
+        FareRepository,
+        FareLockRecoveryRepository,
+        BookingConfirmationRepository {
   const SupabaseFareRepository({
+    required BookingMutationGate bookingMutationGate,
     required FareRpcCaller rpc,
     required FareEdgeCaller quoteEdge,
+    FareCanonicalReader? canonicalReader,
+    FareBookingConfirmer? bookingConfirmer,
     AppErrorReporter errorReporter = const NoopAppErrorReporter(),
-  })  : _rpc = rpc,
+  })  : _bookingMutationGate = bookingMutationGate,
+        _rpc = rpc,
         _quoteEdge = quoteEdge,
+        _canonicalReader = canonicalReader,
+        _bookingConfirmer = bookingConfirmer,
         _errorReporter = errorReporter;
 
   final FareRpcCaller _rpc;
+  final BookingMutationGate _bookingMutationGate;
   final FareEdgeCaller _quoteEdge;
+  final FareCanonicalReader? _canonicalReader;
+  final FareBookingConfirmer? _bookingConfirmer;
   final AppErrorReporter _errorReporter;
+
+  @override
+  Future<void> confirmLockedBooking(
+      {required String bookingRequestId,
+      required int expectedVersion,
+      required String idempotencyKey,
+      required String riderId}) async {
+    final confirmer = _bookingConfirmer;
+    if (confirmer == null) throw const FareException(FareFailure.unavailable);
+    try {
+      final result = await confirmer(
+          bookingRequestId: bookingRequestId,
+          expectedVersion: expectedVersion,
+          idempotencyKey: idempotencyKey,
+          riderId: riderId);
+      if (result['booking_request_id'] != bookingRequestId ||
+          result['status'] != 'confirmed' ||
+          result.containsKey('error')) {
+        throw const FareException(FareFailure.invalidResponse);
+      }
+    } on FareTransportFailure catch (error) {
+      throw FareException(_mapTransport(error));
+    } on FareException {
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      _report('confirming the locked booking', error, stackTrace);
+      throw const FareException(FareFailure.networkFailure);
+    }
+  }
+
+  @override
+  Future<List<CanonicalFareBooking>> readCanonicalFareLock({
+    required String bookingRequestId,
+    required String riderId,
+  }) async {
+    final reader = _canonicalReader;
+    if (reader == null) throw const FareException(FareFailure.unavailable);
+    try {
+      final rows =
+          await reader(bookingRequestId: bookingRequestId, riderId: riderId);
+      final bookings = rows.map(CanonicalFareBooking.fromJson).toList();
+      for (final booking in bookings) {
+        if (booking.id != bookingRequestId ||
+            booking.riderId != riderId ||
+            booking.quotes.any((row) =>
+                row.riderId != riderId ||
+                row.quote.bookingRequestId != bookingRequestId)) {
+          throw const FareException(FareFailure.invalidResponse);
+        }
+      }
+      return List.unmodifiable(bookings);
+    } on FareTransportFailure catch (error) {
+      throw FareException(_mapTransport(error));
+    } on FareException catch (error, stackTrace) {
+      _reportInvalidResponse(error, stackTrace);
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      _report('reading canonical fare-lock state', error, stackTrace);
+      throw const FareException(FareFailure.networkFailure);
+    }
+  }
 
   @override
   Future<FareBookingRef> createBookingDraft({
@@ -146,16 +255,16 @@ class SupabaseFareRepository implements FareRepository {
     List<FareStopInput> stops = const [],
   }) async {
     try {
-      final row = await _rpc(
-        name: 'rider_create_booking_draft',
-        params: {
-          'requested_pickup': pickup.toJson(),
-          'requested_destination': destination.toJson(),
-          'requested_vehicle_type': vehicleTypeCode,
-          'requested_payment_method': paymentMethod,
-          'requested_stops': [for (final stop in stops) stop.toJson()],
-        },
-      );
+      final row = await _bookingMutationGate(() => _rpc(
+            name: 'rider_create_booking_draft',
+            params: {
+              'requested_pickup': pickup.toJson(),
+              'requested_destination': destination.toJson(),
+              'requested_vehicle_type': vehicleTypeCode,
+              'requested_payment_method': paymentMethod,
+              'requested_stops': [for (final stop in stops) stop.toJson()],
+            },
+          ));
       return _bookingRef(row);
     } on FareTransportFailure catch (error) {
       throw FareException(_mapTransport(error));
@@ -179,18 +288,18 @@ class SupabaseFareRepository implements FareRepository {
     List<FareStopInput> stops = const [],
   }) async {
     try {
-      final row = await _rpc(
-        name: 'rider_update_booking_draft',
-        params: {
-          'target_booking_request_id': bookingRequestId,
-          'expected_version': expectedBookingVersion,
-          'requested_pickup': pickup.toJson(),
-          'requested_destination': destination.toJson(),
-          'requested_vehicle_type': vehicleTypeCode,
-          'requested_payment_method': paymentMethod,
-          'requested_stops': [for (final stop in stops) stop.toJson()],
-        },
-      );
+      final row = await _bookingMutationGate(() => _rpc(
+            name: 'rider_update_booking_draft',
+            params: {
+              'target_booking_request_id': bookingRequestId,
+              'expected_version': expectedBookingVersion,
+              'requested_pickup': pickup.toJson(),
+              'requested_destination': destination.toJson(),
+              'requested_vehicle_type': vehicleTypeCode,
+              'requested_payment_method': paymentMethod,
+              'requested_stops': [for (final stop in stops) stop.toJson()],
+            },
+          ));
       return _bookingRef(row);
     } on FareTransportFailure catch (error) {
       throw FareException(_mapTransport(error));
@@ -220,9 +329,14 @@ class SupabaseFareRepository implements FareRepository {
       if (data is! Map) {
         throw const FareException(FareFailure.invalidResponse);
       }
-      return FareQuote.fromJson(
+      final quote = FareQuote.fromJson(
         data.map((key, value) => MapEntry(key.toString(), value)),
       );
+      // A quote for another booking must never back this booking's total.
+      if (quote.bookingRequestId != bookingRequestId) {
+        throw const FareException(FareFailure.invalidResponse);
+      }
+      return quote;
     } on FareTransportFailure catch (error) {
       throw FareException(_mapTransport(error));
     } on FareException catch (error, stackTrace) {
@@ -251,7 +365,17 @@ class SupabaseFareRepository implements FareRepository {
           'expected_quote_version': expectedQuoteVersion,
         },
       );
-      return FareQuote.fromJson(row);
+      final quote = FareQuote.fromJson(row);
+      // The lock response must be the requested quote, at the requested
+      // version, and actually locked. Anything else is backend confusion,
+      // never a fare the rider may rely on.
+      if (quote.bookingRequestId != bookingRequestId ||
+          quote.id != fareQuoteId ||
+          quote.quoteVersion != expectedQuoteVersion ||
+          quote.status != FareQuoteStatus.locked) {
+        throw const FareException(FareFailure.invalidResponse);
+      }
+      return quote;
     } on FareTransportFailure catch (error) {
       throw FareException(_mapTransport(error));
     } on FareException catch (error, stackTrace) {
@@ -276,7 +400,12 @@ class SupabaseFareRepository implements FareRepository {
     return switch (error.code) {
       '40001' || 'version_conflict' => FareFailure.versionConflict,
       'P0002' || 'not_found' => FareFailure.notFound,
-      '42501' || 'forbidden' => FareFailure.forbidden,
+      '42501' || '403' || 'forbidden' => FareFailure.forbidden,
+      '401' ||
+      'PGRST301' ||
+      'PGRST302' ||
+      'PGRST303' =>
+        FareFailure.unauthorized,
       'no_pricing_configuration' => FareFailure.pricingUnavailable,
       'quote_expired' => FareFailure.expired,
       'provider_timeout' => FareFailure.timedOut,
@@ -373,7 +502,8 @@ class UnavailableFareRepository implements FareRepository {
 /// Preload quotes with [seedQuote]; fail the next call with [failNext].
 /// [calls] logs `create`/`update`/`quote` entries for re-quote verification.
 class FakeFareRepository implements FareRepository {
-  FakeFareRepository({FareQuote? seedQuote}) {
+  FakeFareRepository({FareQuote? seedQuote, DateTime Function()? clock})
+      : _clock = clock {
     if (seedQuote != null) {
       _quotes[seedQuote.bookingRequestId] = [seedQuote];
       final version = _bookingVersions[seedQuote.bookingRequestId] ?? 1;
@@ -383,11 +513,22 @@ class FakeFareRepository implements FareRepository {
 
   final List<String> calls = [];
   final Map<String, int> _bookingVersions = {};
+  // Booking ids whose lock committed, mirroring migration 026: a committed
+  // lock links the booking to the locked quote and bumps the booking
+  // version by exactly one, so an exact replay stays valid.
+  final Map<String, String> _lockedQuoteIds = {};
   final Map<String, List<FareQuote>> _quotes = {};
   final Map<String, bool> _pendingSeed = {};
   FareException? _nextFailure;
   int _bookingSequence = 0;
   int _quoteSequence = 0;
+
+  /// Test-only clock for expiry boundaries. Defaults to wall-clock time;
+  /// tests control it to model replay after the original quote's expiry,
+  /// which migration 026 still accepts for the linked lock.
+  final DateTime Function()? _clock;
+
+  DateTime get _now => (_clock?.call() ?? DateTime.now()).toUtc();
 
   void failNext(FareException failure) {
     _nextFailure = failure;
@@ -446,6 +587,9 @@ class FakeFareRepository implements FareRepository {
     }
     final next = current + 1;
     _bookingVersions[bookingRequestId] = next;
+    // A new draft lineage starts: a previously committed lock no longer
+    // authorizes replays for this booking.
+    _lockedQuoteIds.remove(bookingRequestId);
     return FareBookingRef(bookingRequestId: bookingRequestId, version: next);
   }
 
@@ -494,7 +638,7 @@ class FakeFareRepository implements FareRepository {
       fixedFareFils: 2000,
       breakdown: breakdown,
       status: FareQuoteStatus.calculated,
-      expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 10)),
+      expiresAt: _now.add(const Duration(minutes: 10)),
       routeDistanceMeters: routeDistanceMeters,
       routeDurationSeconds: routeDurationSeconds,
     );
@@ -517,9 +661,6 @@ class FakeFareRepository implements FareRepository {
     if (current == null) {
       throw const FareException(FareFailure.notFound);
     }
-    if (current != expectedBookingVersion) {
-      throw const FareException(FareFailure.versionConflict);
-    }
     final quotes = _quotes[bookingRequestId] ?? const [];
     FareQuote? selected;
     for (final quote in quotes) {
@@ -531,7 +672,21 @@ class FakeFareRepository implements FareRepository {
     if (selected.quoteVersion != expectedQuoteVersion) {
       throw const FareException(FareFailure.versionConflict);
     }
-    if (!selected.isUsableAt(DateTime.now().toUtc())) {
+    // Migration 026 accepts only an exact replay of the currently linked
+    // lock. A replay stays valid even after the original quote's expiry,
+    // mirroring the deployed contract, which returns the linked locked row
+    // before any other version check.
+    if (selected.status == FareQuoteStatus.locked) {
+      if (_lockedQuoteIds[bookingRequestId] == selected.id &&
+          current == expectedBookingVersion + 1) {
+        return selected;
+      }
+      throw const FareException(FareFailure.versionConflict);
+    }
+    if (current != expectedBookingVersion) {
+      throw const FareException(FareFailure.versionConflict);
+    }
+    if (!selected.isUsableAt(_now)) {
       throw const FareException(FareFailure.expired);
     }
     final locked = FareQuote(
@@ -553,6 +708,7 @@ class FakeFareRepository implements FareRepository {
         if (quote.id == fareQuoteId) locked else quote,
     ];
     _bookingVersions[bookingRequestId] = current + 1;
+    _lockedQuoteIds[bookingRequestId] = locked.id;
     return locked;
   }
 }

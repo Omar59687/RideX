@@ -7,6 +7,7 @@ import 'package:equatable/equatable.dart';
 /// render sanitized, user-facing messages. Backend details are never
 /// surfaced.
 enum FareFailure {
+  mutationBlocked,
   unavailable,
   networkFailure,
   timedOut,
