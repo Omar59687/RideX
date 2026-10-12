@@ -16,6 +16,7 @@ import 'package:ridex/features/auth/presentation/screens/sign_up_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/verify_otp_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/destination_selection_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/fare_estimate_screen.dart';
+import 'package:ridex/features/booking/presentation/screens/booking_confirmation_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/pickup_selection_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/ride_request_searching_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/vehicle_type_selection_screen.dart';
@@ -103,6 +104,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/rider/fare',
           name: RouteNames.fareEstimate,
           builder: (_, __) => const FareEstimateScreen()),
+      GoRoute(
+          path: '/rider/confirmation',
+          builder: (_, state) => BookingConfirmationScreen(
+              bookingRequestId: state.uri.queryParameters['booking'])),
       GoRoute(
           path: '/rider/searching',
           name: RouteNames.searching,

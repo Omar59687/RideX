@@ -101,6 +101,7 @@ const _riderLocations = {
   '/rider/destination',
   '/rider/vehicle',
   '/rider/fare',
+  '/rider/confirmation',
   '/rider/searching',
   '/rider/trip',
   '/rider/completed',

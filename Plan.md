@@ -1,11 +1,14 @@
 # RideX Development Plan
 
-Last updated: 2026-10-07
+Last updated: 2026-10-12
 
 ## Active goal — Phase 5 fare verification and documentation reconciliation
 
 This section supersedes historical current-state statements below.
-Work only on `codex/phase-4f-evidence-hardening`; do not change main.
+Implementation checkpoint: `65e9bf91a237812fc4831f76cad7a6fb64869e4a` on
+`codex/phase-4f-evidence-hardening`. On 2026-10-12 the owner authorized
+documentation reconciliation on that source branch and a normal merge into
+`main`; this integration does not approve either phase.
 
 - [x] Review the three reported Android symptoms and patch confirmed client
   search, pickup lifecycle, map centering, draft reset, and fare-flow defects.
@@ -19,10 +22,17 @@ Work only on `codex/phase-4f-evidence-hardening`; do not change main.
   API call). Live driver matching remains unavailable by design in Phase 5.
 - [ ] Diagnose blank map tiles with redacted Android logs and the installed
   app's signing certificate plus native Maps SDK configuration.
-- [~] Verify remaining fare edge cases (lost lock responses, concurrent
+- [ ] Verify remaining fare edge cases (lost lock responses, concurrent
   versions, post-lock editing reconciliation) and deployed
   migration/function compatibility against authenticated Supabase.
-- [-] Phase 4 task 4.38 two-device final test: deferred by owner, not passed.
+- [ ] Phase 4 task 4.38 two-device final test: owner-deferred, not passed.
+  No dated two-device/equivalent execution or acceptance evidence was found
+  during the 2026-10-12 reconciliation. See the exact 4.38/4.40 gates below.
+
+Current implementation and remaining verification are listed under
+Phase 5 below. The 2026-10-10 automated audit passed 459 Flutter tests with
+2 intentional live skips; analysis and formatting were clean. These are
+automated results, not hosted/device confirmation or recovery evidence.
 
 Acceptance: destination selection works after cancel/restart; enabling GPS then
 returning refreshes pickup without app restart; map tiles render with correctly
@@ -45,7 +55,10 @@ This is the local source of truth for development discussions, decisions, review
 
 Task states: `[ ]` planned, `[~]` in progress, `[x]` completed, `[-]` cancelled or deferred.
 
-## Current State
+## Historical baseline and subsequent checkpoint notes
+
+The active status above and the Phase 4/5 sections below supersede older
+branch, approval, and milestone restrictions in this baseline.
 
 Verified from the repository, Git, automated tests, and read-only hosted Supabase
 metadata and reported physical/live evidence through 2026-09-20:
@@ -73,7 +86,7 @@ metadata and reported physical/live evidence through 2026-09-20:
 - Rider-Driver Realtime synchronization and two-device trip operation are not implemented.
 - The existing automated tests validate the current UI, authentication, role, route, repository, and local lifecycle behavior. They do not establish Graduation MVP backend completeness.
 
-## Active Goal
+## Historical goal at Checkpoint 4D
 
 Checkpoints 4A through 4D are approved. Checkpoint 4D approval combines the final automated audit with project-owner-reported physical Android and authenticated hosted Supabase verification. Checkpoints 4E through 4G remain incomplete, so Phase 4 is not complete and Phase 5 must not begin. The approved 4D scope is recorded in `docs/superpowers/specs/2026-09-17-checkpoint-4d-driver-location-tracking-design.md`.
 
@@ -1294,6 +1307,9 @@ Approval gate:
   - Network failure.
   - Reconnection.
 - [ ] 4.38 Test GPS behavior on at least two physical devices or equivalent Rider/Driver environments before approving Phase 4.
+  Still owner-deferred as of 2026-10-12: the September 27 4G record and
+  October 4 device audit provide no successful two-device/equivalent result.
+  Existing single-device and automated results do not close this task.
 - [x] 4.39 Verify temporary GPS/network failures do not corrupt:
   - BookingRequest.
   - Trip.
@@ -1340,6 +1356,8 @@ Phase status:
 Only after approval:
 
 Phase 5 — Multi-Stop Booking and Fixed Fare may begin.
+The owner's 2026-10-04 exception separately authorized provisional work
+independent of task 4.38; it did not close this approval gate.
 
 ### OpenCode Execution Workflow
 
@@ -1395,7 +1413,65 @@ Phase 4 documentation constraints:
 
 Provisional status (2026-10-04, owner-authorized): Phase 4 task 4.38 is deferred for lack of two-device environments and Phase 4 remains NOT finally approved. Provisional Phase 5 work was authorized ONLY for packages independent of 4.38; this is not Phase 4 approval and no milestone may rely on the missing device evidence.
 
-Phase 5 verification (2026-10-07): P5-1 stop domain, P5-2 stop routing, P5-4 stop UI, and P5-3 fare-quote integration are implemented with passing suites (Flutter 304 + 2 intentional skips, Deno 35, analyze clean). Hosted `ykasivejjchupswqyxpm` has migrations `025`/`026` applied with active economy/comfort/xl pricing rows, deployed `places`/`fare` functions, and a corrected `GOOGLE_ROUTES_API_KEY`. Physical-device verification passed for route calculation with distance/duration display, fare quote, fare calculation, and fare lock. Remaining: multi-stop device leg, lost-response/concurrent-version edge cases, booking confirmation handoff, and live driver matching (Phase 7).
+Phase 5 verification (2026-10-07): P5-1 stop domain, P5-2 stop routing, P5-4 stop UI, and P5-3 fare-quote integration are implemented with passing suites (Flutter 304 + 2 intentional skips, Deno 35, analyze clean). Hosted `ykasivejjchupswqyxpm` has migrations `025`/`026` applied with active economy/comfort/xl pricing rows, deployed `places`/`fare` functions, and a corrected `GOOGLE_ROUTES_API_KEY`. Physical-device verification passed for route calculation with distance/duration display, fare quote, fare calculation, and fare lock. Remaining at that historical checkpoint: multi-stop device leg, lost-response/concurrent-version edge cases, booking confirmation handoff, and live driver matching (Phase 7). The following current status supersedes the implementation tails, not the missing live/device evidence.
+
+Current implementation checklist (2026-10-12; checkpoint `65e9bf9`):
+
+- [x] Pending Fare Lock Ownership: preserve and restore the original per-Rider
+  lock command before dispatch; reject competing or corrupt evidence.
+- [x] Canonical Fare Lock Recovery: recover the original successful lock through
+  authenticated canonical reads without inventing a replacement lineage.
+- [x] Booking Mutation Safety Gate: serialize draft dispatch with pending
+  ownership/restoration and block mutations during unresolved uncertainty.
+- [x] Booking Confirmation Handoff: review the original locked fare, explicitly
+  call the existing confirmation RPC, then verify canonical confirmation.
+- [x] Authorized Evidence Resolution and Repeat Booking implementation: retire
+  pending protection only after canonical confirmation, retain Booking 1's
+  reference, and permit a subsequent draft without changing Booking 1.
+
+Evidence: these five checkpoints passed independent focused reviews, as
+confirmed by the owner in the 2026-10-12 reconciliation instruction. The
+2026-10-10 full audit passed 459 Flutter tests, with 2 intentional live skips,
+clean analysis/formatting and no confirmed blocking implementation defect.
+Code/tests are committed in `65e9bf9`, including
+`test/pending_fare_lock_test.dart`, `test/fare_lock_recovery_test.dart`,
+`test/booking_mutation_gate_test.dart`,
+`test/booking_confirmation_handoff_test.dart`, and
+`test/authorized_evidence_resolution_test.dart`. Historical implementation
+records are in `docs/ai/verification/PHASE_5_SLICE_2_CANONICAL_RECOVERY_2026-10-10.md`,
+`PHASE_5_SLICE_3_BOOKING_MUTATION_GATE_2026-10-10.md`, and
+`PHASE_5_BOOKING_CONFIRMATION_HANDOFF_2026-10-10.md` in the same directory.
+Their earlier statements about pending reviews or missing later slices are
+historical and superseded by this checklist.
+
+Required verification and approval (not silently deferred):
+
+- [ ] Verify hosted draft update/quote invalidation, canonical booking/quote
+  SELECT under real Rider RLS, recovery and explicit confirmation compatibility.
+- [ ] Run the full single-stop physical Android quote -> lock -> confirm flow,
+  including original-fare review and correct confirmation navigation.
+- [ ] Confirm Booking 1, resolve its evidence, create/lock/confirm Booking 2,
+  and independently verify Booking 1's canonical fare and booking unchanged.
+  Existing automated repeat-booking coverage proves second-draft creation and
+  original reread, not both confirmations end to end.
+- [ ] Verify ordered multi-stop routing, totals, versions and fare lineage
+  through quote -> lock -> confirm on physical Android.
+- [ ] Verify controlled lost lock/confirmation responses, stale/concurrent
+  versions, process termination/restart, logout/login and retained-pending
+  recovery on physical Android with authenticated canonical evidence.
+- [ ] Verify native Android map tiles and route rendering; blank-map diagnosis
+  remains open under the active-goal acceptance criteria.
+- [ ] Record an acceptance decision or verification for nonsettling storage/RPC
+  liveness. SharedPreferences is best-effort evidence, not crash durability;
+  cross-device/process coordination and app-data loss are not proven guarantees.
+- [ ] Complete the remaining mandatory verification evidence and owner exit review.
+- [ ] PHASE 5 APPROVED.
+
+Phase 4 is not finally approved (4.38/4.40 remain open). Phase 5 implementation
+is complete for the five reviewed checkpoints; its exit verification and
+formal approval remain pending. The owner-authorized merge is an implementation
+integration checkpoint. Phase 6 payments and Phase 7 matching/Realtime remain
+separate future scope; no such work is authorized by this reconciliation.
 
 ### Phase 6: Payment Foundations
 

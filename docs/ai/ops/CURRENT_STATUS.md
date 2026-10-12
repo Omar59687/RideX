@@ -1,6 +1,50 @@
 # RideX Current Status
 
-## Current override — 2026-10-07 Phase 5 fare verification
+## Current override - 2026-10-12 Phase 4/5 reconciliation and integration
+
+This section supersedes older current-state statements below. Historical
+verification records and results are preserved; merging code does not approve
+a phase.
+
+- Source: `codex/phase-4f-evidence-hardening`, implementation checkpoint
+  `65e9bf91a237812fc4831f76cad7a6fb64869e4a`. Local and remote `main` were
+  `a421bf8` at reconciliation start. The owner explicitly authorized a
+  documentation commit on the source and a normal merge into `main` after
+  validation. See `Plan.md` for the current implementation and exit checklists.
+- Phase 4: Checkpoints 4A through 4F are approved; 4G automated tasks 4.36,
+  4.37 and 4.39 passed. Task 4.38 remains owner-deferred and unchecked: no
+  completed two-physical-device/equivalent Rider/Driver evidence was found.
+  Task 4.40 and PHASE 4 APPROVED remain unchecked. Evidence:
+  `docs/ai/verification/PHASE_4G_FINAL_VERIFICATION_2026-09-27.md` and
+  `PHASE_1_5_DEVICE_AUDIT_2026-10-04.md` in the same directory. Provisional
+  Phase 5 work independent of 4.38 was owner-authorized; Phase 4 was not approved.
+- Phase 5: all five implementation checkpoints passed independent focused
+  reviews: Pending Fare Lock Ownership, Canonical Fare Lock Recovery, Booking
+  Mutation Safety Gate, Booking Confirmation Handoff, and Authorized Evidence
+  Resolution and Repeat Booking. Review completion is confirmed by the owner's
+  2026-10-12 instruction; implementation and tests are committed in `65e9bf9`.
+  The three October 10 Phase 5 verification records remain historical slice
+  evidence; their pending-review/missing-later-slice statements are superseded.
+- Latest completed full automated audit (2026-10-10): 459 Flutter tests passed,
+  2 intentional live authentication/role tests skipped; analysis and formatting
+  clean; no confirmed blocking implementation defect. Those skips are not
+  Phase 5 hosted tests. This reconciliation does not rerun or relabel historical
+  hosted/device results as current end-to-end verification.
+- Historical October 7 hosted/Android evidence covers route metrics, quote
+  creation, fare calculation and lock only. Still unchecked: hosted Rider-RLS
+  recovery/confirmation compatibility and draft update/invalidation; full
+  single-stop confirmation/navigation; Booking 1 and Booking 2 both confirmed
+  end to end with original state unchanged; multi-stop physical flow; controlled
+  response-loss/concurrent-version tests, process restart and logout/login
+  recovery; native Android map rendering and the remaining owner exit review.
+- Nonsettling storage/RPC liveness needs an explicit acceptance decision or
+  verification. SharedPreferences remains best-effort evidence; crash durability,
+  app-data loss and cross-device/process coordination are not established.
+- Phase 5 final approval remains pending. Phase 6 payments and Phase 7 matching
+  and Realtime are separate future scope. No backend/dependency changes,
+  deployment or Software Factory execution are part of this reconciliation.
+
+## Previous override — 2026-10-07 Phase 5 fare verification
 
 This section supersedes older current-state/completion statements below; their
 test counts and approvals are historical evidence, not results for this patch.
@@ -48,7 +92,7 @@ test counts and approvals are historical evidence, not results for this patch.
 
 ## Git Checkpoint
 
-- Active branch: `codex/phase-4f-evidence-hardening`
+- Historical checkpoint source branch: `codex/phase-4f-evidence-hardening`
 - Final 4D audit baseline: `18a6c77`, aligned with `origin/main` before the
   uncommitted audit corrections.
 - Checkpoint 4D Driver Home UI correction: `31bc7c9`; documentation for this

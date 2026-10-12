@@ -4,6 +4,7 @@ import 'package:ridex/core/mocks/mock_repositories.dart';
 import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/models/fare_quote.dart';
 import 'package:ridex/core/providers/diagnostics_providers.dart';
+import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/repositories/auth_repository.dart';
 import 'package:ridex/core/repositories/booking_repository.dart';
 import 'package:ridex/core/repositories/driver_location_repository.dart';
@@ -20,6 +21,7 @@ import 'package:ridex/core/repositories/supabase_auth_repository.dart';
 import 'package:ridex/core/repositories/supabase_profile_repository.dart';
 import 'package:ridex/core/repositories/trips_repository.dart';
 import 'package:ridex/core/services/supabase/auth_service.dart';
+import 'package:ridex/core/services/fare/supabase_fare_lock_reader.dart';
 import 'package:ridex/core/services/supabase/profile_service.dart';
 import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
 import 'package:ridex/core/services/driver_location/driver_location_service.dart';
@@ -54,16 +56,54 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 final bookingRepositoryProvider =
     Provider<BookingRepository>((ref) => MockBookingRepository());
 final fareRepositoryProvider = Provider<FareRepository>((ref) {
-  if (!EnvConfig.hasBackendConfig) {
-    // Demo mode: the fare screen keeps the deterministic demo fare path and
-    // never calls this repository.
-    return const UnavailableFareRepository();
-  }
+  // The client provider owns configuration readiness. A null client retains
+  // demo mode; an injected client exercises this same production wiring.
   final client = ref.watch(supabaseClientProvider);
   if (client == null) {
     return const UnavailableFareRepository();
   }
   return SupabaseFareRepository(
+    bookingMutationGate: (dispatch) => ref
+        .read(pendingFareLockControllerProvider.notifier)
+        .runBookingMutation(() async {
+      // SDK auth can change before the session provider finishes refreshing.
+      // The JWT used for dispatch must own the slot the gate just inspected.
+      final riderId = ref.read(sessionControllerProvider).user?.id;
+      if (riderId == null || client.auth.currentUser?.id != riderId) {
+        throw const FareException(FareFailure.mutationBlocked);
+      }
+      final result = await dispatch();
+      if (client.auth.currentUser?.id != riderId) {
+        throw const FareException(FareFailure.mutationBlocked);
+      }
+      return result;
+    }),
+    canonicalReader: SupabaseFareLockReader(client).read,
+    bookingConfirmer: (
+        {required bookingRequestId,
+        required expectedVersion,
+        required idempotencyKey,
+        required riderId}) async {
+      if (client.auth.currentUser?.id != riderId) {
+        throw const FareException(FareFailure.mutationBlocked);
+      }
+      try {
+        final result = await client.rpc('rider_confirm_booking', params: {
+          'target_booking_request_id': bookingRequestId,
+          'expected_version': expectedVersion,
+          'idempotency_key': idempotencyKey,
+        });
+        if (client.auth.currentUser?.id != riderId) {
+          throw const FareException(FareFailure.mutationBlocked);
+        }
+        if (result is! Map) {
+          throw const FareException(FareFailure.invalidResponse);
+        }
+        return result.map((key, value) => MapEntry(key.toString(), value));
+      } on PostgrestException catch (error) {
+        throw FareTransportFailure(code: _farePostgrestCode(error));
+      }
+    },
     rpc: ({required String name, required Map<String, dynamic> params}) async {
       try {
         final data = await client.rpc(name, params: params);

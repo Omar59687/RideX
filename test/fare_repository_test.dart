@@ -50,6 +50,7 @@ void main() {
       String? rpcName;
       Map<String, dynamic>? rpcParams;
       final repository = SupabaseFareRepository(
+        bookingMutationGate: (dispatch) => dispatch(),
         rpc: (
             {required String name,
             required Map<String, dynamic> params}) async {
@@ -89,6 +90,7 @@ void main() {
         () async {
       final names = <String>[];
       final repository = SupabaseFareRepository(
+        bookingMutationGate: (dispatch) => dispatch(),
         rpc: (
             {required String name,
             required Map<String, dynamic> params}) async {
@@ -159,6 +161,72 @@ void main() {
       ]);
     });
 
+    test('fetchQuote rejects a quote bound to a different booking', () async {
+      final repository = SupabaseFareRepository(
+        bookingMutationGate: (dispatch) => dispatch(),
+        rpc: (
+                {required String name,
+                required Map<String, dynamic> params}) async =>
+            throw StateError('unexpected rpc call'),
+        quoteEdge: (_) async => {
+          'data': _quoteRow(bookingId: 'booking-other'),
+        },
+      );
+      await expectLater(
+        repository.fetchQuote(
+          bookingRequestId: 'booking-1',
+          expectedBookingVersion: 1,
+          routeDistanceMeters: 5400,
+          routeDurationSeconds: 720,
+        ),
+        throwsA(
+          isA<FareException>().having(
+            (error) => error.failure,
+            'failure',
+            FareFailure.invalidResponse,
+          ),
+        ),
+      );
+    });
+
+    test('lockQuote rejects mismatched identity, version, or status', () async {
+      final rows = <String, Map<String, dynamic>>{
+        'wrong booking': _quoteRow(bookingId: 'booking-other'),
+        'wrong quote id': {
+          ..._quoteRow(quoteVersion: 2, status: 'locked'),
+          'id': 'bbbbbbbb-cccc-4ddd-9eee-ffffffffffff',
+        },
+        'wrong version': _quoteRow(quoteVersion: 3, status: 'locked'),
+        'not locked': _quoteRow(quoteVersion: 2, status: 'calculated'),
+      };
+      for (final entry in rows.entries) {
+        final repository = SupabaseFareRepository(
+          bookingMutationGate: (dispatch) => dispatch(),
+          rpc: (
+                  {required String name,
+                  required Map<String, dynamic> params}) async =>
+              entry.value,
+          quoteEdge: (_) async => throw StateError('unexpected edge call'),
+        );
+        await expectLater(
+          repository.lockQuote(
+            bookingRequestId: 'booking-1',
+            fareQuoteId: 'aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee',
+            expectedBookingVersion: 2,
+            expectedQuoteVersion: 2,
+          ),
+          throwsA(
+            isA<FareException>().having(
+              (error) => error.failure,
+              'failure',
+              FareFailure.invalidResponse,
+            ),
+          ),
+          reason: entry.key,
+        );
+      }
+    });
+
     test('maps transport failures for draft and quote calls', () async {
       final cases = <FareTransportFailure, FareFailure>{
         const FareTransportFailure(code: '40001'): FareFailure.versionConflict,
@@ -186,6 +254,7 @@ void main() {
         final transport = entry.key;
         final expected = entry.value;
         final repository = SupabaseFareRepository(
+          bookingMutationGate: (dispatch) => dispatch(),
           rpc: (
               {required String name,
               required Map<String, dynamic> params}) async {
@@ -232,6 +301,7 @@ void main() {
 
     test('maps malformed rows and envelopes to invalidResponse', () async {
       final malformedRpc = SupabaseFareRepository(
+        bookingMutationGate: (dispatch) => dispatch(),
         rpc: (
                 {required String name,
                 required Map<String, dynamic> params}) async =>
@@ -255,6 +325,7 @@ void main() {
       );
 
       final malformedEdge = SupabaseFareRepository(
+        bookingMutationGate: (dispatch) => dispatch(),
         rpc: (
                 {required String name,
                 required Map<String, dynamic> params}) async =>
@@ -336,6 +407,178 @@ void main() {
       expect(
         fake.calls.where((call) => call.startsWith('quote')).length,
         greaterThanOrEqualTo(2),
+      );
+    });
+
+    test('replays an uncertain lock with original versions', () async {
+      final fake = FakeFareRepository();
+      final created = await fake.createBookingDraft(
+        pickup: _pickup,
+        destination: _destination,
+        vehicleTypeCode: 'economy',
+        paymentMethod: 'cash',
+      );
+      final quote = await fake.fetchQuote(
+        bookingRequestId: created.bookingRequestId,
+        expectedBookingVersion: created.version,
+        routeDistanceMeters: 5400,
+        routeDurationSeconds: 720,
+      );
+      final locked = await fake.lockQuote(
+        bookingRequestId: created.bookingRequestId,
+        fareQuoteId: quote.id,
+        expectedBookingVersion: created.version,
+        expectedQuoteVersion: quote.quoteVersion,
+      );
+      expect(locked.status, FareQuoteStatus.locked);
+
+      // The lock response never arrived: retrying with the ORIGINAL
+      // identifiers and versions replays the commit instead of replacing
+      // the quote, mirroring migration 026.
+      final replayed = await fake.lockQuote(
+        bookingRequestId: created.bookingRequestId,
+        fareQuoteId: quote.id,
+        expectedBookingVersion: created.version,
+        expectedQuoteVersion: quote.quoteVersion,
+      );
+      expect(replayed.id, locked.id);
+      expect(replayed.status, FareQuoteStatus.locked);
+      expect(
+        fake.quotesFor(created.bookingRequestId),
+        hasLength(1),
+      );
+
+      // The committed lock bumped the booking version exactly once, so a
+      // later draft update uses the fresh version.
+      final updated = await fake.updateBookingDraft(
+        bookingRequestId: created.bookingRequestId,
+        expectedBookingVersion: created.version + 1,
+        pickup: _pickup,
+        destination: _destination,
+        vehicleTypeCode: 'economy',
+        paymentMethod: 'cash',
+      );
+      expect(updated.version, created.version + 2);
+
+      // The replay committed nothing new: the original versions no longer
+      // authorize any further write.
+      await expectLater(
+        fake.updateBookingDraft(
+          bookingRequestId: created.bookingRequestId,
+          expectedBookingVersion: created.version,
+          pickup: _pickup,
+          destination: _destination,
+          vehicleTypeCode: 'economy',
+          paymentMethod: 'cash',
+        ),
+        throwsA(
+          isA<FareException>().having(
+            (error) => error.failure,
+            'failure',
+            FareFailure.versionConflict,
+          ),
+        ),
+      );
+    });
+
+    test('replays the linked lock after the original quote expiry', () async {
+      var now = DateTime.utc(2026, 10, 9, 12);
+      final fake = FakeFareRepository(clock: () => now);
+      final created = await fake.createBookingDraft(
+        pickup: _pickup,
+        destination: _destination,
+        vehicleTypeCode: 'economy',
+        paymentMethod: 'cash',
+      );
+      final quote = await fake.fetchQuote(
+        bookingRequestId: created.bookingRequestId,
+        expectedBookingVersion: created.version,
+        routeDistanceMeters: 5400,
+        routeDurationSeconds: 720,
+      );
+      final locked = await fake.lockQuote(
+        bookingRequestId: created.bookingRequestId,
+        fareQuoteId: quote.id,
+        expectedBookingVersion: created.version,
+        expectedQuoteVersion: quote.quoteVersion,
+      );
+      expect(locked.status, FareQuoteStatus.locked);
+
+      // Past the original quote's expiry, the exact replay still returns
+      // the linked locked row, mirroring migration 026 (which answers the
+      // linked lock before any other version check).
+      now = DateTime.utc(2026, 10, 9, 12, 11);
+      final replayed = await fake.lockQuote(
+        bookingRequestId: created.bookingRequestId,
+        fareQuoteId: quote.id,
+        expectedBookingVersion: created.version,
+        expectedQuoteVersion: quote.quoteVersion,
+      );
+      expect(replayed.id, locked.id);
+      expect(replayed.status, FareQuoteStatus.locked);
+    });
+
+    test('rejects lock replay once versions moved on', () async {
+      final fake = FakeFareRepository();
+      final created = await fake.createBookingDraft(
+        pickup: _pickup,
+        destination: _destination,
+        vehicleTypeCode: 'economy',
+        paymentMethod: 'cash',
+      );
+      final quote = await fake.fetchQuote(
+        bookingRequestId: created.bookingRequestId,
+        expectedBookingVersion: created.version,
+        routeDistanceMeters: 5400,
+        routeDurationSeconds: 720,
+      );
+      await fake.lockQuote(
+        bookingRequestId: created.bookingRequestId,
+        fareQuoteId: quote.id,
+        expectedBookingVersion: created.version,
+        expectedQuoteVersion: quote.quoteVersion,
+      );
+
+      // A replay claiming the post-lock version is not the exact replay.
+      await expectLater(
+        fake.lockQuote(
+          bookingRequestId: created.bookingRequestId,
+          fareQuoteId: quote.id,
+          expectedBookingVersion: created.version + 1,
+          expectedQuoteVersion: quote.quoteVersion,
+        ),
+        throwsA(
+          isA<FareException>().having(
+            (error) => error.failure,
+            'failure',
+            FareFailure.versionConflict,
+          ),
+        ),
+      );
+
+      // A new draft lineage ends replayability of the old lock.
+      await fake.updateBookingDraft(
+        bookingRequestId: created.bookingRequestId,
+        expectedBookingVersion: created.version + 1,
+        pickup: _pickup,
+        destination: _destination,
+        vehicleTypeCode: 'economy',
+        paymentMethod: 'cash',
+      );
+      await expectLater(
+        fake.lockQuote(
+          bookingRequestId: created.bookingRequestId,
+          fareQuoteId: quote.id,
+          expectedBookingVersion: created.version,
+          expectedQuoteVersion: quote.quoteVersion,
+        ),
+        throwsA(
+          isA<FareException>().having(
+            (error) => error.failure,
+            'failure',
+            FareFailure.versionConflict,
+          ),
+        ),
       );
     });
 
