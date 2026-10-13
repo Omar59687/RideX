@@ -111,6 +111,91 @@ void main() {
       expect(repository.completeCalls, 1);
     });
 
+    final interveningChanges =
+        <String, void Function(ActiveTripController, MockTrip)>{
+      'same-ID cancellation': (controller, trip) => controller.setTrip(
+            trip.copyWith(status: TripStatus.cancelledByDriver),
+          ),
+      'same-ID replacement': (controller, trip) => controller.setTrip(
+            trip.copyWith(finalFare: trip.finalFare + 1),
+          ),
+      'equal same-ID replacement': (controller, trip) =>
+          controller.setTrip(trip.copyWith()),
+      'different-ID replacement': (controller, trip) => controller.setTrip(
+            MockData.sampleTrip(
+              id: 'other-trip',
+              status: TripStatus.inProgress,
+            ),
+          ),
+      'reset': (controller, trip) => controller.reset(),
+      'reset and reseed': (controller, trip) {
+        controller.reset();
+        controller.setTrip(trip);
+      },
+      'intervening status update': (controller, trip) =>
+          controller.setStatus(TripStatus.completed),
+      'overlapping updates returning to the original state':
+          (controller, trip) {
+        controller.setTrip(trip.copyWith(finalFare: trip.finalFare + 1));
+        controller.setTrip(trip);
+      },
+    };
+
+    for (final change in interveningChanges.entries) {
+      test('discards pending completion after ${change.key}', () async {
+        final gate = Completer<void>();
+        final repository = TripsRepositoryDouble()..gate = gate;
+        final seed = inProgressTrip();
+        final container = containerWith(seed: seed, repository: repository);
+        final controller =
+            container.read(activeTripControllerProvider.notifier);
+
+        final pending = controller.completeTrip();
+        expect(repository.completeCalls, 1);
+        change.value(controller, seed);
+        final latest = container.read(activeTripControllerProvider);
+        // State changes must not release the existing single-flight operation.
+        final overlapping = controller.completeTrip();
+        expect(identical(pending, overlapping), isTrue);
+        expect(repository.completeCalls, 1);
+
+        gate.complete();
+        await Future.wait([pending, overlapping]);
+
+        expect(container.read(activeTripControllerProvider), same(latest));
+        expect(repository.completeCalls, 1);
+      });
+    }
+
+    test('failure preserves newer state and subsequent retry succeeds',
+        () async {
+      final gate = Completer<void>();
+      final repository = TripsRepositoryDouble()
+        ..gate = gate
+        ..failNext = StateError('network unavailable');
+      final container = containerWith(
+        seed: inProgressTrip(),
+        repository: repository,
+      );
+      final controller = container.read(activeTripControllerProvider.notifier);
+      final pending = controller.completeTrip();
+      final failure = expectLater(pending, throwsStateError);
+      final replacement = inProgressTrip().copyWith(finalFare: 25);
+      controller.setTrip(replacement);
+      gate.complete();
+      await failure;
+
+      expect(container.read(activeTripControllerProvider), same(replacement));
+      await controller.completeTrip();
+
+      expect(repository.completeCalls, 2);
+      expect(repository.lastCompleted, same(replacement));
+      expect(
+        container.read(activeTripControllerProvider),
+        replacement.copyWith(status: TripStatus.completed),
+      );
+    });
+
     test('concurrent calls share one repository operation', () async {
       final gate = Completer<void>();
       final repository = TripsRepositoryDouble()..gate = gate;

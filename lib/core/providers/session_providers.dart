@@ -1132,6 +1132,14 @@ class PendingFareLockController extends Notifier<PendingFareLock?> {
 class ActiveTripController extends Notifier<MockTrip?> {
   Future<void>? _tripCreation;
   Future<void>? _tripCompletion;
+  int _stateRevision = 0;
+
+  @override
+  set state(MockTrip? value) {
+    // Even an equal replacement or reset/reseed invalidates pending results.
+    _stateRevision++;
+    super.state = value;
+  }
 
   @override
   MockTrip? build() => null;
@@ -1146,7 +1154,8 @@ class ActiveTripController extends Notifier<MockTrip?> {
   ///
   /// Single-flight: concurrent calls share one repository operation, so
   /// rapid repeated taps cannot create concurrent completions. The returned
-  /// trip is applied only when it matches the active trip id and represents
+  /// trip is applied only when no state assignment has intervened, it matches
+  /// the active trip id and represents
   /// a legal transition to completed; anything else (including a repository
   /// failure) leaves state untouched. Never declares payment state: Cash
   /// settlement stays a server-side consequence of the trusted completion.
@@ -1159,8 +1168,10 @@ class ActiveTripController extends Notifier<MockTrip?> {
   Future<void> _completeTrip() async {
     final active = state;
     if (active == null || active.status != TripStatus.inProgress) return;
+    final revision = _stateRevision;
     final completed =
         await ref.read(tripsRepositoryProvider).completeTrip(active);
+    if (revision != _stateRevision) return;
     final current = state;
     if (current == null ||
         completed.id != active.id ||
