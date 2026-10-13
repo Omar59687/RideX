@@ -56,6 +56,12 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
 
+  # Test-only direct import for the V5-04 offline recovery regression suite,
+  # which drives the production persistence envelope through the plugin's
+  # official in-memory async backend. Pinned to the resolved transitive
+  # version; production code must not import this package.
+  shared_preferences_platform_interface: 2.4.1
+
 # The Maps federated packages otherwise resolve to releases requiring newer
 # Flutter versions when pub get runs on a newer developer SDK.
 dependency_overrides:
