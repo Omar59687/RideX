@@ -1189,9 +1189,12 @@ class ActiveTripController extends Notifier<MockTrip?> {
   }
 
   Future<void> _createTrip() async {
+    final revision = _stateRevision;
     final trip = await ref
         .read(tripsRepositoryProvider)
         .createTrip(ref.read(bookingControllerProvider));
+    // State assignments and lifecycle changes retire this creation result.
+    if (revision != _stateRevision) return;
     state = trip;
   }
 

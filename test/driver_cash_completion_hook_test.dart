@@ -270,7 +270,12 @@ void main() {
           creationGate.complete(created);
           await creation;
         }
-        expect(container.read(activeTripControllerProvider), same(created));
+        expect(
+          container.read(activeTripControllerProvider),
+          creationFirst
+              ? same(created)
+              : seed.copyWith(status: TripStatus.completed),
+        );
         expect(repository.createCalls, 1);
         expect(repository.completeCalls, 1);
       });
