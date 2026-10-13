@@ -52,7 +52,7 @@ new admin widgets). `repositories_providers.dart`/`app_router.dart`: no producti
 
 | Task | Dev | Branch (suggested) | Depends | Status | PR | Gate / outcome |
 |---|---|---|---|---|---|---|
-| P6-03 card domain contract | Dev 1 | `feature/p6-card-contract` | P6-01 | TODO | — | adapter boundary review; no secrets |
+| P6-03 card domain contract | Dev 1 | `feature/p6-card-contract` | P6-01 | TODO | — | S1/S2/S3 independently approved; 20/20 focused tests, scoped analyze clean. Contract handoff prepared below; adapter-boundary deferral reviewed and accepted (executable adapter → P6-04/P8). Dev 2 receipt, integration review, sprint-boundary suite and merge confirmation pending. |
 | P6-06 rider states + receipts | Dev 2 | `feature/p6-rider-payment-states` | P6-01, P6-03, P6-05 | TODO | — | state/receipt widget tests; no history rewrite |
 | P6-07 driver cash-completion hook | Dev 3 | `feature/p6-driver-cash-completion` | P6-01 (+P6-02 draft) | TODO | — | hook tests; execution claim waits on V-evidence |
 | V4-01 two-device (4.38) | Dev 3 | n/a (evidence) | devices | TODO | — | dated evidence or remains open |
@@ -60,6 +60,35 @@ new admin widgets). `repositories_providers.dart`/`app_router.dart`: no producti
 
 Conflict check Sprint 2: writers disjoint (new card files / history-trips UI /
 driver UI). No shared production-file overlap. Full non-live suite at boundary.
+
+### P6-03 handoff record (prepared; receipt not yet confirmed)
+
+- Dev 2 / P6-06: `CardPaymentRepository` exposes only
+  `readCardPayment({required String paymentId})`. Use canonical Card
+  `FakeCardPaymentRepository` fixtures for read-only state and receipt
+  presentation (status text, fils amounts, brand/last4 only); fixture seeding
+  is test/demo-only, never payment authority. No persisted `paymentId` exists
+  before trusted Trip-linked payment creation. Build mock-backed UI without
+  production provider/router changes.
+- Security boundary: trusted backend operations authorize (post-match),
+  capture (post-completion), void, refund, and verify webhooks. Flutter cannot
+  authorize, capture, void, settle, or refund a persisted Card Payment via this
+  contract. No Stripe SDK, secret, PAN/CVV, or provider type enters UI-facing
+  models; the executable provider adapter is deferred to P6-04/P8 behind a
+  trusted server-side boundary.
+- Future production read gap: `user_payment_summary` omits
+  `bookingRequestId` and Payment `version`, so it cannot alone populate the
+  complete `CardPayment` model. Resolve at authorized integration; no fields
+  may be fabricated. This does not block mock-backed P6-06 work.
+- Evidence: independent reviews approved P6-03-S1/S2/S3; focused
+  `test/payment_card_contract_test.dart` 20/20 passed and scoped Flutter
+  analysis clean. The original "adapter interface" wording was reconciled in
+  `DEVELOPER_1.md` to the approved read contract plus documented P6-04/P8
+  deferral.
+- Closure pending: record actual Dev 2 receipt; obtain independent
+  PR/integration review, run the full non-live suite at the sprint boundary,
+  and verify merge and stable `main`. Integration Owner updates this row only
+  after those gates.
 
 ## Later (high-level; re-plan from latest main when Phase 6 S1–S2 merge)
 
