@@ -1142,7 +1142,12 @@ class ActiveTripController extends Notifier<MockTrip?> {
   }
 
   @override
-  MockTrip? build() => null;
+  MockTrip? build() {
+    // Riverpod rebuilds bypass the state setter. Invalidate responses as soon
+    // as this lifecycle ends, including invalidation before the next build.
+    ref.onDispose(() => _stateRevision++);
+    return null;
+  }
 
   Future<void> createTrip() {
     return _tripCreation ??= _createTrip().whenComplete(() {
