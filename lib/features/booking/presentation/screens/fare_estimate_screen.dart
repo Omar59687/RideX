@@ -7,6 +7,7 @@ import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/fare_quote.dart';
 import 'package:ridex/core/models/fare_lock_recovery.dart';
+import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/pending_fare_lock.dart';
 import 'package:ridex/core/models/route_models.dart';
 import 'package:ridex/core/models/ride_role.dart';
@@ -16,6 +17,7 @@ import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/providers/route_providers.dart';
 import 'package:ridex/core/repositories/fare_repository.dart';
+import 'package:ridex/features/booking/presentation/providers/rider_payment_selection_provider.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
 import 'package:ridex/core/widgets/fare_summary_card.dart';
@@ -38,9 +40,17 @@ String _backendVehicleTypeCode(String id) {
   };
 }
 
-/// The draft carries no payment selection yet; the screen displays `Cash`,
-/// so draft persistence sends `cash` to match what is shown.
-const _displayedPaymentMethod = 'cash';
+/// Display label for the rider-selected payment method.
+///
+/// Slice A only ever selects Cash (Card is a Coming Soon placeholder), but
+/// the label derives from state so a future slice adding real Card
+/// selection needs no fare-screen rework.
+String _paymentDisplayLabel(PaymentMethod method) {
+  return switch (method) {
+    PaymentMethod.cash => 'Cash',
+    PaymentMethod.card => 'Card',
+  };
+}
 
 String _fareFailureMessage(FareFailure failure) {
   return switch (failure) {
@@ -126,6 +136,12 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
       for (final stop in draft.stops)
         '${stop.point.latitude},${stop.point.longitude},${stop.label}',
     ].join(';');
+    // The selected payment method is part of the draft identity: a change
+    // re-quotes via the normal draft-update path. While a lock is
+    // unresolved the refresh gate below suppresses any re-quote, so the
+    // committed lock lineage is preserved.
+    final selectedPaymentBackend =
+        ref.read(riderPaymentSelectionProvider).backendValue;
     return [
       draft.pickup?.point.latitude,
       draft.pickup?.point.longitude,
@@ -135,7 +151,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
       draft.destination?.label,
       stops,
       draft.vehicleType?.id,
-      _displayedPaymentMethod,
+      selectedPaymentBackend,
       result?.distanceMeters,
       result?.durationSeconds,
     ].join('|');
@@ -192,7 +208,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
           pickup: pickup,
           destination: destination,
           vehicleTypeCode: vehicleTypeCode,
-          paymentMethod: _displayedPaymentMethod,
+          paymentMethod: ref.read(riderPaymentSelectionProvider).backendValue,
           stops: stops,
         );
       } else {
@@ -204,7 +220,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
           pickup: pickup,
           destination: destination,
           vehicleTypeCode: vehicleTypeCode,
-          paymentMethod: _displayedPaymentMethod,
+          paymentMethod: ref.read(riderPaymentSelectionProvider).backendValue,
           stops: stops,
         );
       }
@@ -471,6 +487,9 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
     final draft = ref.watch(bookingControllerProvider);
     final route = ref.watch(routeControllerProvider);
     final vehicle = draft.vehicleType;
+    // P6-05 Slice A: the displayed method derives from rider selection
+    // state (default Cash) instead of a hardcoded display value.
+    final paymentSelection = ref.watch(riderPaymentSelectionProvider);
     final session = ref.watch(sessionControllerProvider);
     final rider = session.user;
     final repository = ref.watch(fareRepositoryProvider);
@@ -659,7 +678,10 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                       label: 'Passenger',
                       value: rider?.name ?? 'Demo rider',
                     ),
-                    const _SummaryRow(label: 'Payment', value: 'Cash'),
+                    _SummaryRow(
+                      label: 'Payment',
+                      value: _paymentDisplayLabel(paymentSelection),
+                    ),
                     const _SummaryRow(
                       label: 'Location status',
                       value: 'Pickup and destination selected',
