@@ -101,9 +101,53 @@ backend, shared-contract ownership. Status authority: `SPRINT_TRACKER.md`.
 
 ## Sprint 3+ (outline, re-plan from latest main)
 
-- P6-02 cash settlement wiring (RPC/RLS validation vs Phase 3; additive migration
-  only if separately authorized, Dev 1-numbered). Blocked-claim: trusted settlement
-  needs V5-01/V5-04 evidence.
+## P6-02 — Cash settlement backend wiring | Status: TODO
+
+- Goal: Flutter-visible Cash settlement wiring against the existing trusted
+  Phase 3 path; unblock P6-07 semantics. No new settlement logic.
+- Prerequisites: P6-01 (merged); V5-01/V5-04 hosted evidence (both TODO).
+- P6-02-S1 validated settlement chain (docs only; verified against latest SQL):
+  - Trusted completion: Flutter calls only
+    `public.driver_transition_trip(target_id uuid, requested_status
+    public.trip_status, expected_version integer, idempotency_key text)`
+    (`017:204-210`, SECURITY DEFINER, approved non-blocked Driver only).
+    With `requested_status = 'completed'` and a Cash-method Trip, the backend
+    invokes `private.settle_cash_trip_and_issue_receipt` (`017:263-264`),
+    which requires a completed Cash Trip (`017:159-163`), refuses completion
+    while an approved fare adjustment is unapplied (`017:164-170`), moves the
+    payment `cashSelected` → `paid` at the current fare, and issues the receipt
+    via `backend_issue_receipt` (`017:172-189`). Direct Flutter invocation of
+    any `private.*payment*` / `private.settle_*` function is forbidden; these
+    are revoked from client roles (`017:444-447`, `009:376` pattern).
+  - Cancellation/reconciliation: `public.rider_cancel_trip` (`017:272-287`),
+    driver `cancelledByDriver` via `driver_transition_trip` (`017:265-266`),
+    and `public.admin_terminate_trip` (`017:289-307`) all reconcile through
+    trusted `reconcile_cancelled_trip_payment` (latest: `022:612-670`), which
+    requires a terminal-cancelled Trip, moves Cash `cashSelected` →
+    `cancelled`, and never cancels settled `paid` (`022:632-642`).
+  - Read-only access: `payments`, `payment_attempts`, `refunds`, `receipts`,
+    and `processed_webhook_events` expose SELECT-only RLS to authenticated
+    callers (`009:361-369`). `private.can_read_payment` admits admins and the
+    owning rider only — Drivers cannot read payment rows (`009:198-205`).
+    `private.can_read_receipt` admits admins, the owning rider, and the trip
+    Driver (`009:207-216`). Sanitized projections (`019`/`020`,
+    `user_payment_summary` and receipt views) carry brand/last4 only.
+  - Known gap (P6-02-S2 prerequisite): `user_payment_summary` omits
+    `bookingRequestId` and Payment `version` required by `CashPayment`.
+    Resolve the authorized read projection before production wiring; Flutter
+    must never fabricate missing identifiers or versions.
+- Security/verification gates: settlement authority stays entirely backend-side;
+  no new migration or RPC is required for the existing path unless a verified
+  gap is later discovered (any such migration is additive, Dev 1-numbered, and
+  separately authorized). V5-01/V5-04 hosted evidence remains pending: no claim
+  of real financial execution until those gates and the sprint-boundary full
+  non-live suite pass.
+- Handoff for Dev 3 / P6-07 (prepared; receipt not confirmed): the Driver hook
+  calls the existing trusted completion path only and presents the canonical
+  result; it never sets `paid` client-side. Execution claims wait on V-evidence.
+- Sprint 3+ sequencing: S1 (this validation) → S2 wiring draft (blocked until
+  V-evidence) → S3 settlement claim (blocked until evidence + boundary suite).
+  Re-plan S2/S3 from latest `main` when unblocked.
 - P6-04 Stripe Test Mode intent interface (PaymentIntent manual-capture design,
   webhook-ID dedup design; no deploy). Secrets server-side only.
 - P6-09 compatibility harness (contract + fake parity, version/idempotency matrix).
