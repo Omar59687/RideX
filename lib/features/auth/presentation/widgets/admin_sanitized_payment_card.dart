@@ -1,34 +1,7 @@
 import 'package:flutter/material.dart';
+import 'admin_sanitized_payment_mapper.dart';
 
-/// Presentation-only view-model for sanitized payment information.
-///
-/// Display strings only. This type carries no backend identifiers, status
-/// enums, raw payloads, secrets, idempotency keys, provider references, or
-/// raw card numbers. Instances must be built through the allowlist payment
-/// mapper, never from free-form maps or payload passthrough. Card brand/last-four surface only when the
-/// validated [CardPayment] model carries them; anything else stays absent.
-@immutable
-class AdminSanitizedPayment {
-  const AdminSanitizedPayment({
-    this.methodLabel,
-    this.statusLabel,
-    this.amountDisplay,
-    this.currencyDisplay,
-    this.cardBrandDisplay,
-    this.maskedCardLastFourDisplay,
-  });
-
-  final String? methodLabel;
-  final String? statusLabel;
-  final String? amountDisplay;
-  final String? currencyDisplay;
-
-  /// Validated card brand, if the canonical Card model carries one.
-  final String? cardBrandDisplay;
-
-  /// Masked last four (`•••• 1234`), if the canonical Card model carries one.
-  final String? maskedCardLastFourDisplay;
-}
+export 'admin_sanitized_payment_mapper.dart' show AdminSanitizedPayment;
 
 /// Read-only card rendering an [AdminSanitizedPayment].
 ///

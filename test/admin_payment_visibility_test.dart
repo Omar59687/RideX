@@ -21,12 +21,11 @@ void main() {
   testWidgets('displays sanitized cash-payment information', (tester) async {
     await pumpCard(
       tester,
-      const AdminSanitizedPayment(
-        methodLabel: 'Cash',
-        statusLabel: 'Selected',
-        amountDisplay: '4.200',
-        currencyDisplay: 'JOD',
-      ),
+      mapCashPaymentForAdmin(CashPayment(
+        amountFils: 4200,
+        status: CashPaymentStatus.cashSelected,
+        version: 1,
+      )),
     );
 
     expect(find.byType(AdminSanitizedPaymentCard), findsOneWidget);
@@ -38,50 +37,41 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Cash'), findsOneWidget);
-    expect(find.text('Selected'), findsOneWidget);
-    expect(find.text('4.200'), findsOneWidget);
+    expect(find.text('Selected (unpaid)'), findsOneWidget);
+    expect(find.text('JOD 4.20'), findsOneWidget);
     expect(find.text('JOD'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('renders unavailable values safely', (tester) async {
-    await pumpCard(tester, const AdminSanitizedPayment());
-
-    expect(
-      find.text(AdminSanitizedPaymentCard.unavailableLabel),
-      findsNWidgets(4),
-    );
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('treats blank strings as unavailable', (tester) async {
+  testWidgets('brand without last four renders only the brand row',
+      (tester) async {
     await pumpCard(
       tester,
-      const AdminSanitizedPayment(
-        methodLabel: '  ',
-        statusLabel: '',
-        amountDisplay: '4.200',
-        currencyDisplay: 'JOD',
-      ),
+      AdminSanitizedPayment.fromCard(CardPayment(
+        amountFils: 4200,
+        status: CardPaymentStatus.cardPaymentPending,
+        version: 1,
+        cardBrand: ' Visa ',
+      )),
     );
 
     expect(
-      find.text(AdminSanitizedPaymentCard.unavailableLabel),
-      findsNWidgets(2),
+      find.byKey(const ValueKey('admin-payment-card-last4')),
+      findsNothing,
     );
-    expect(find.text('4.200'), findsOneWidget);
+    expect(find.text('Visa'), findsOneWidget);
+    expect(find.text('JOD 4.20'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('exposes no mutation controls or navigation', (tester) async {
     await pumpCard(
       tester,
-      const AdminSanitizedPayment(
-        methodLabel: 'Cash',
-        statusLabel: 'Paid',
-        amountDisplay: '4.200',
-        currencyDisplay: 'JOD',
-      ),
+      AdminSanitizedPayment.fromCash(CashPayment(
+        amountFils: 4200,
+        status: CashPaymentStatus.paid,
+        version: 1,
+      )),
     );
 
     expect(find.byType(ElevatedButton), findsNothing);
@@ -96,12 +86,17 @@ void main() {
   testWidgets('renders no sensitive payment strings', (tester) async {
     await pumpCard(
       tester,
-      const AdminSanitizedPayment(
-        methodLabel: 'Cash',
-        statusLabel: 'Paid',
-        amountDisplay: '4.200',
-        currencyDisplay: 'JOD',
-      ),
+      AdminSanitizedPayment.fromCard(CardPayment(
+        paymentId: 'sk_test_payment',
+        bookingRequestId: 'raw payload',
+        tripId: 'service_role',
+        idempotencyKey: 'card number',
+        amountFils: 4200,
+        status: CardPaymentStatus.cardPaymentPending,
+        version: 1,
+        cardBrand: '4242424242424242',
+        cardLastFour: '4242',
+      )),
     );
 
     for (final canary in [
@@ -113,6 +108,9 @@ void main() {
     ]) {
       expect(find.textContaining(canary, findRichText: true), findsNothing);
     }
+    expect(find.text('•••• 4242'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('admin-payment-card-brand')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

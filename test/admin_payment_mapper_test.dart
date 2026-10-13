@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/core/models/card_payment.dart';
 import 'package:ridex/core/models/cash_payment.dart';
 import 'package:ridex/core/models/payment_method.dart';
-import 'package:ridex/features/auth/presentation/widgets/admin_sanitized_payment_card.dart';
 import 'package:ridex/features/auth/presentation/widgets/admin_sanitized_payment_mapper.dart';
 
 /// P6-08 Slice B mapper unit tests.
@@ -154,6 +153,40 @@ void main() {
   });
 
   group('card metadata', () {
+    test('optional brand follows the actual model constructor rules', () {
+      expect(cardFixture(cardBrand: null).cardBrand, isNull);
+      expect(() => cardFixture(cardBrand: ''), throwsArgumentError);
+      expect(() => cardFixture(cardBrand: '   '), throwsArgumentError);
+      expect(() => cardFixture(cardBrand: 'x' * 33), throwsArgumentError);
+      expect(
+        mapCardPaymentForAdmin(cardFixture(cardBrand: ' Visa '))
+            .cardBrandDisplay,
+        'Visa',
+      );
+    });
+
+    test('unknown and sensitive brand strings are omitted', () {
+      for (final brand in [
+        'Unknown brand',
+        'sk_test_secret',
+        'service_role',
+        '4242424242424242',
+        'raw payload',
+      ]) {
+        // These strings pass the domain length check, so display sanitization
+        // must still exclude them.
+        final display =
+            AdminSanitizedPayment.fromCard(cardFixture(cardBrand: brand));
+        expect(display.cardBrandDisplay, isNull);
+        expect(display.maskedCardLastFourDisplay, '•••• 4242');
+      }
+    });
+
+    test('last four can be displayed without a brand', () {
+      final display = mapCardPaymentForAdmin(cardFixture(cardBrand: null));
+      expect(display.cardBrandDisplay, isNull);
+      expect(display.maskedCardLastFourDisplay, '•••• 4242');
+    });
     test('shows brand and masked last four', () {
       final display = mapCardPaymentForAdmin(cardFixture());
 
@@ -179,6 +212,62 @@ void main() {
   });
 
   group('sanitization boundary', () {
+    test('typed factories reject raw strings and payload maps', () {
+      for (final input in <dynamic>[
+        'sk_test_secret',
+        {'statusLabel': 'sk_test_secret'},
+      ]) {
+        expect(() => AdminSanitizedPayment.fromCash(input),
+            throwsA(isA<TypeError>()));
+        expect(() => AdminSanitizedPayment.fromCard(input),
+            throwsA(isA<TypeError>()));
+      }
+    });
+
+    test('typed factories expose no free-form display arguments', () {
+      for (final field in [
+        #methodLabel,
+        #statusLabel,
+        #amountDisplay,
+        #currencyDisplay,
+        #cardBrandDisplay,
+        #maskedCardLastFourDisplay,
+      ]) {
+        expect(
+          () => Function.apply(AdminSanitizedPayment.fromCash, [cashFixture()],
+              {field: 'sk_test_secret'}),
+          throwsNoSuchMethodError,
+        );
+        expect(
+          () => Function.apply(AdminSanitizedPayment.fromCard, [cardFixture()],
+              {field: 'sk_test_secret'}),
+          throwsNoSuchMethodError,
+        );
+      }
+    });
+
+    test('mask rejects invalid input with runtime errors and no input echo',
+        () {
+      for (final input in [
+        '',
+        '123',
+        '12345',
+        '4242424242424242',
+        '１２３４',
+        '12a4',
+        '1234\n',
+        'sk_test_secret',
+      ]) {
+        expect(
+          () => maskCardLastFour(input),
+          throwsA(isA<ArgumentError>()
+              .having((error) => error.message, 'message',
+                  'Expected exactly four ASCII digits.')
+              .having((error) => error.invalidValue, 'invalidValue', isNull)),
+        );
+      }
+      expect(maskCardLastFour('0000'), '•••• 0000');
+    });
     test('never emits identifiers, versions, or idempotency keys', () {
       const secrets = [
         'pay-cash-1',

@@ -1,8 +1,64 @@
+import 'package:flutter/foundation.dart';
 import 'package:ridex/core/models/card_payment.dart';
 import 'package:ridex/core/models/cash_payment.dart';
 import 'package:ridex/core/models/fare_quote.dart' show formatFareFils;
 import 'package:ridex/core/models/payment_method.dart';
-import 'package:ridex/features/auth/presentation/widgets/admin_sanitized_payment_card.dart';
+
+/// Immutable display data constructed only from canonical payment models.
+///
+/// The private constructor and final class prevent callers from supplying
+/// arbitrary display strings or implementing a replacement display model.
+@immutable
+final class AdminSanitizedPayment {
+  const AdminSanitizedPayment._({
+    required this.methodLabel,
+    required this.statusLabel,
+    required this.amountDisplay,
+    required this.currencyDisplay,
+    this.cardBrandDisplay,
+    this.maskedCardLastFourDisplay,
+  });
+
+  factory AdminSanitizedPayment.fromCash(CashPayment payment) =>
+      AdminSanitizedPayment._(
+        methodLabel: adminPaymentMethodLabel(PaymentMethod.cash),
+        statusLabel: adminCashStatusLabel(payment.status),
+        amountDisplay: formatFareFils(payment.amountFils),
+        currencyDisplay: 'JOD',
+      );
+
+  factory AdminSanitizedPayment.fromCard(CardPayment payment) =>
+      AdminSanitizedPayment._(
+        methodLabel: adminPaymentMethodLabel(PaymentMethod.card),
+        statusLabel: adminCardStatusLabel(payment.status),
+        amountDisplay: formatFareFils(payment.amountFils),
+        currencyDisplay: 'JOD',
+        cardBrandDisplay: _cardBrandLabel(payment.cardBrand),
+        maskedCardLastFourDisplay: payment.cardLastFour == null
+            ? null
+            : maskCardLastFour(payment.cardLastFour!),
+      );
+
+  final String methodLabel;
+  final String statusLabel;
+  final String amountDisplay;
+  final String currencyDisplay;
+  final String? cardBrandDisplay;
+  final String? maskedCardLastFourDisplay;
+}
+
+// The domain validates brand length, not content. Never pass unknown text
+// through to the display: it may contain identifiers or provider secrets.
+String? _cardBrandLabel(String? brand) => switch (brand?.trim().toLowerCase()) {
+      'visa' => 'Visa',
+      'mastercard' => 'Mastercard',
+      'amex' || 'american express' => 'American Express',
+      'discover' => 'Discover',
+      'diners' || 'diners club' => 'Diners Club',
+      'jcb' => 'JCB',
+      'unionpay' => 'UnionPay',
+      _ => null,
+    };
 
 /// Allowlist mapper from canonical payment domain objects to the sanitized
 /// Admin display model (P6-08 Slice B).
@@ -50,40 +106,22 @@ String adminCardStatusLabel(CardPaymentStatus status) => switch (status) {
 /// Masks a validated last-four into display form.
 ///
 /// [lastFour] must already satisfy the [CardPayment] contract (exactly four
-/// ASCII digits); this function only prefixes the mask, never accepts raw
-/// card numbers.
+/// ASCII digits). Invalid input is rejected at runtime, including in release
+/// builds, without including the supplied value in the exception.
 String maskCardLastFour(String lastFour) {
-  assert(
-    RegExp(r'^[0-9]{4}$').hasMatch(lastFour),
-    'maskCardLastFour accepts only validated four-digit input.',
-  );
+  if (lastFour.length != 4 || !RegExp(r'^[0-9]{4}$').hasMatch(lastFour)) {
+    throw ArgumentError('Expected exactly four ASCII digits.');
+  }
   return '•••• $lastFour';
 }
 
 /// Maps a canonical Cash payment to its sanitized Admin display model.
-AdminSanitizedPayment mapCashPaymentForAdmin(CashPayment payment) {
-  return AdminSanitizedPayment(
-    methodLabel: adminPaymentMethodLabel(PaymentMethod.cash),
-    statusLabel: adminCashStatusLabel(payment.status),
-    amountDisplay: formatFareFils(payment.amountFils),
-    currencyDisplay: payment.currency,
-  );
-}
+AdminSanitizedPayment mapCashPaymentForAdmin(CashPayment payment) =>
+    AdminSanitizedPayment.fromCash(payment);
 
 /// Maps a canonical Card payment to its sanitized Admin display model.
 ///
 /// Optional [CardPayment.cardBrand]/[CardPayment.cardLastFour] surface only
-/// when the validated model carries them; the last four render masked.
-AdminSanitizedPayment mapCardPaymentForAdmin(CardPayment payment) {
-  final brand = payment.cardBrand?.trim();
-  final lastFour = payment.cardLastFour;
-  return AdminSanitizedPayment(
-    methodLabel: adminPaymentMethodLabel(PaymentMethod.card),
-    statusLabel: adminCardStatusLabel(payment.status),
-    amountDisplay: formatFareFils(payment.amountFils),
-    currencyDisplay: payment.currency,
-    cardBrandDisplay: brand == null || brand.isEmpty ? null : brand,
-    maskedCardLastFourDisplay:
-        lastFour == null ? null : maskCardLastFour(lastFour),
-  );
-}
+/// when present and allowlisted; the last four render masked.
+AdminSanitizedPayment mapCardPaymentForAdmin(CardPayment payment) =>
+    AdminSanitizedPayment.fromCard(payment);
