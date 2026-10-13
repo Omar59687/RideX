@@ -53,11 +53,29 @@ class DriverActiveTripScreen extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.md),
                   AppButton(
                     label: 'Complete trip',
-                    onPressed: () {
-                      ref
-                          .read(activeTripControllerProvider.notifier)
-                          .setStatus(TripStatus.completed);
-                      context.go('/driver/completed');
+                    onPressed: () async {
+                      try {
+                        await ref
+                            .read(activeTripControllerProvider.notifier)
+                            .completeTrip();
+                      } on Object {
+                        // The controller leaves the trip unchanged on
+                        // failure; fall through to the status check below
+                        // instead of navigating.
+                      }
+                      if (!context.mounted) return;
+                      if (ref.read(activeTripControllerProvider)?.status ==
+                          TripStatus.completed) {
+                        context.go('/driver/completed');
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Could not complete the trip. Try again.',
+                            ),
+                          ),
+                        );
+                      }
                     },
                   ),
                 ],

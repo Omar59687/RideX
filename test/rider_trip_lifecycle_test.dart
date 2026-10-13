@@ -310,6 +310,11 @@ class _DelayedTripsRepository implements TripsRepository {
   void complete(MockTrip trip) => _tripCompleter.complete(trip);
 
   @override
+  Future<MockTrip> completeTrip(MockTrip trip) {
+    throw UnimplementedError('Trip completion is unavailable in this test.');
+  }
+
+  @override
   Future<List<MockTrip>> getTripHistory() async => const [];
 
   @override

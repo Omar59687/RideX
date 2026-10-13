@@ -282,6 +282,11 @@ class _TestTripsRepository implements TripsRepository {
   }
 
   @override
+  Future<MockTrip> completeTrip(MockTrip trip) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<List<MockTrip>> getTripHistory() => historyResult;
 
   @override

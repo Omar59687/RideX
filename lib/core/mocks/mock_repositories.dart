@@ -95,6 +95,14 @@ class MockTripsRepository implements TripsRepository {
     }
     return null;
   }
+
+  @override
+  Future<MockTrip> completeTrip(MockTrip trip) async {
+    if (!canTransition(trip.status, TripStatus.completed)) {
+      throw StateError('Trip cannot be completed from ${trip.status}.');
+    }
+    return trip.copyWith(status: TripStatus.completed);
+  }
 }
 
 class MockProfileRepository implements ProfileRepository {

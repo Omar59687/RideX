@@ -1131,6 +1131,7 @@ class PendingFareLockController extends Notifier<PendingFareLock?> {
 
 class ActiveTripController extends Notifier<MockTrip?> {
   Future<void>? _tripCreation;
+  Future<void>? _tripCompletion;
 
   @override
   MockTrip? build() => null;
@@ -1139,6 +1140,36 @@ class ActiveTripController extends Notifier<MockTrip?> {
     return _tripCreation ??= _createTrip().whenComplete(() {
       _tripCreation = null;
     });
+  }
+
+  /// Repository-backed driver completion hook (P6-07 mock-only slice).
+  ///
+  /// Single-flight: concurrent calls share one repository operation, so
+  /// rapid repeated taps cannot create concurrent completions. The returned
+  /// trip is applied only when it matches the active trip id and represents
+  /// a legal transition to completed; anything else (including a repository
+  /// failure) leaves state untouched. Never declares payment state: Cash
+  /// settlement stays a server-side consequence of the trusted completion.
+  Future<void> completeTrip() {
+    return _tripCompletion ??= _completeTrip().whenComplete(() {
+      _tripCompletion = null;
+    });
+  }
+
+  Future<void> _completeTrip() async {
+    final active = state;
+    if (active == null || active.status != TripStatus.inProgress) return;
+    final completed =
+        await ref.read(tripsRepositoryProvider).completeTrip(active);
+    final current = state;
+    if (current == null ||
+        completed.id != active.id ||
+        completed.id != current.id ||
+        completed.status != TripStatus.completed ||
+        !canTransition(active.status, completed.status)) {
+      return;
+    }
+    state = completed;
   }
 
   Future<void> _createTrip() async {
