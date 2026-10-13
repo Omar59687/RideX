@@ -3,21 +3,46 @@
 Role: PostgreSQL/Supabase architecture, RLS/RPC/Edge contracts, payment/matching
 backend, shared-contract ownership. Status authority: `SPRINT_TRACKER.md`.
 
-## P6-01 — Cash payment domain contract | Status: TODO
+## P6-01 — Cash payment domain contract
 
 - Goal: provider-neutral Cash contract reusing Phase 3 foundations; unblock P6-05/P6-07/P6-08.
 - Prerequisites: Phase 3 `008`/`009`/`017`/`022` semantics; P5 fare-lock/confirm flow.
-- Implementation: new `lib/core/models/payment*.dart` (method vs status separate;
-  `cash_selected` unpaid until trusted completion; `payment_cancelled` on cancel),
-  new `lib/core/repositories/payment_repository.dart` interface + fake; no secrets;
-  integer minor units + currency; idempotency/expected-version fields.
+- Implementation: `payment_method.dart` defines `cash`/`card` separately from
+  `cash_payment.dart` statuses (`cashSelected`, `paid`, `cancelled`, matching
+  the backend camelCase strings). `cashSelected` is unpaid. The existing
+  `FareRepository.createBookingDraft` / `updateBookingDraft` selects Cash on
+  the booking draft; the latter uses the **booking** expected version. Only
+  trusted Trip-linked backend operations create persisted Payments and settle
+  Cash atomically or reconcile cancellation after Trip cancellation.
+- `PaymentRepository` exposes only
+  `Future<CashPayment> readCashPayment({required String paymentId})` for an
+  already persisted Payment. `FakePaymentRepository` accepts canonical
+  test/demo fixtures for read-only presentation; it is not payment authority.
+  Neither interface nor fake creates, cancels, or settles Cash client-side.
+  Persisted Payment version is distinct from booking version; there is no
+  client payment mutation or payment-command idempotency key to test here.
 - Owned files: new model/contract/test files only.
 - Shared/coordination: `repositories_providers.dart`, `fare_repository.dart`,
   `booking/trip` models — read-only in Sprint 1; wiring deferred to P6-09.
-- Acceptance: interface reviewed; fake passes version/idempotency cases; Dev 2/3
-  build P6-05/P6-08 against it with no production-provider change.
-- Tests: `test/payment_cash_contract_test.dart` (states, transitions, fake).
-  Complexity: M. Integration: publish draft Day 1 Sprint 1.
+- Acceptance: S1/S2/S3 independently approved; read-only interface and fake
+  cover canonical payment identities, typed read failures, and fixture
+  uniqueness. `test/payment_cash_contract_test.dart`: 16/16 passed for exact
+  mappings, lifecycle, model invariants, typed reads, and fake fixture safety;
+  scoped Flutter analysis clean. No client-side payment mutation, settlement,
+  or cancellation. Fake mutation version/idempotency tests from the initial
+  plan are obsolete; backend/booking version and idempotency protections remain
+  in their existing trusted contracts.
+- Handoff for Dev 2 / P6-05: use `FareRepository.createBookingDraft` or
+  `updateBookingDraft(paymentMethod: 'cash')`; never assume `paymentId` before
+  trusted Trip-linked payment creation. No production provider/router change.
+- Handoff for Dev 3 / P6-08: use the read-only `PaymentRepository` interface
+  and test/demo-only `FakePaymentRepository` fixtures for Cash presentation;
+  never treat fixture values as real payments or invent absent RPC fields.
+- Future integration: `user_payment_summary` omits `bookingRequestId` and
+  Payment `version` required by `CashPayment`. Resolve the authorized read
+  projection before production wiring; do not fabricate these fields.
+- Complexity: M. Task status, teammate receipt, and integration gates remain
+  authoritative in `SPRINT_TRACKER.md`.
 
 ## P6-03 — Card payment domain contract | Status: TODO
 

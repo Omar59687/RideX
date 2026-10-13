@@ -9,7 +9,7 @@ Owner rotation: Sprint 1 Dev 1 → Sprint 2 Dev 2 → Sprint 3 Dev 3 → Sprint 
 
 | Task | Dev | Branch (suggested) | Depends | Status | PR | Gate / outcome |
 |---|---|---|---|---|---|---|
-| P6-01 cash domain contract | Dev 1 | `feature/p6-cash-contract` | none | TODO | — | focused tests + analyze; draft interface to Dev 2/3 Day 1 |
+| P6-01 cash domain contract | Dev 1 | `feature/p6-cash-contract` | none | TODO | — | S1/S2/S3 independently approved; 16/16 focused tests, scoped analyze clean. Contract handoff prepared below; Dev 2/3 receipt, integration review, sprint-boundary suite and merge confirmation pending. |
 | P6-05 rider selection + handoff (mock) | Dev 2 | `feature/p6-rider-payment-ui` | P6-01 draft | TODO | — | widget + fake tests; no router change; no success claim |
 | P6-08 admin sanitized visibility | Dev 3 | `feature/p6-admin-payment-visibility` | P6-01 draft (cash scope) | TODO | — | redaction + guard tests; TO VERIFY admin surface first |
 | V4-02 blank-map diagnosis | Dev 3 | n/a (evidence) | device/logs | TODO | — | redacted evidence note |
@@ -17,6 +17,36 @@ Owner rotation: Sprint 1 Dev 1 → Sprint 2 Dev 2 → Sprint 3 Dev 3 → Sprint 
 
 Conflict check Sprint 1: production writers disjoint (new contract files / booking UI /
 new admin widgets). `repositories_providers.dart`/`app_router.dart`: no production edits.
+
+### P6-01 handoff record (prepared; receipt not yet confirmed)
+
+- Dev 2 / P6-05: Cash method selection uses existing
+  `FareRepository.createBookingDraft` / `updateBookingDraft` with
+  `paymentMethod: 'cash'`; updating takes the booking's expected version.
+  No persisted `paymentId` exists before trusted Trip-linked payment creation.
+  Build mock-backed booking UI without production provider/router changes.
+- Dev 3 / P6-08: `PaymentRepository` exposes only
+  `readCashPayment({required String paymentId})`. Use canonical Cash
+  `FakePaymentRepository` fixtures for read-only presentation; fixture seeding
+  is test/demo-only, never payment authority. Do not invent missing backend
+  fields or introduce provider/router/RLS changes. Verify the admin surface
+  before implementation.
+- Security boundary: trusted backend Trip completion settles Cash; trusted
+  Trip cancellation reconciles payment cancellation. Flutter cannot create,
+  settle, or cancel a persisted Cash Payment via this contract.
+- Future production read gap: `user_payment_summary` omits
+  `bookingRequestId` and Payment `version`, so it cannot alone populate the
+  complete `CashPayment` model. Resolve at authorized integration; no fields
+  may be fabricated. This does not block mock-backed P6-05/P6-08 work.
+- Evidence: independent reviews approved P6-01-S1/S2/S3; focused
+  `test/payment_cash_contract_test.dart` 16/16 passed and scoped Flutter
+  analysis clean. The earlier fake mutation-version/idempotency test wording
+  was reconciled in `DEVELOPER_1.md` to the approved read-only contract.
+- Closure pending: record actual Dev 2/3 receipt; reconcile this work from
+  the current planning branch onto the task branch per `TEAM_RULES.md`;
+  obtain independent PR/integration review, run the full non-live suite at
+  the sprint boundary, and verify merge and stable `main`. Integration Owner
+  updates this row only after those gates.
 
 ## Sprint 2 (48h) — Integration Owner: Dev 2
 
