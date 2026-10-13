@@ -148,8 +148,79 @@ backend, shared-contract ownership. Status authority: `SPRINT_TRACKER.md`.
 - Sprint 3+ sequencing: S1 (this validation) → S2 wiring draft (blocked until
   V-evidence) → S3 settlement claim (blocked until evidence + boundary suite).
   Re-plan S2/S3 from latest `main` when unblocked.
-- P6-04 Stripe Test Mode intent interface (PaymentIntent manual-capture design,
-  webhook-ID dedup design; no deploy). Secrets server-side only.
+## P6-04 — Stripe Test Mode intent interface | Status: TODO
+
+- Goal: reviewed design mapping Stripe PaymentIntent manual-capture concepts
+  onto the existing trusted Phase 3 attempt lifecycle. Design only in Phase 6;
+  execution belongs to a separately authorized future phase (Phase 8 scope).
+- Prerequisites: P6-03 (merged); Phase 2 card rules; this design slice is
+  unblocked contract work, while any execution claim stays blocked behind
+  Sprint 3 authorization, Test Mode key infrastructure, and V5-01/V5-04 hosted
+  evidence (all TODO).
+- P6-04-S1 intent mapping (docs only; verified against latest SQL). In every
+  case the provider occurrence is conceptual only: canonical state changes only
+  when the trusted backend records and verifies a `payment_attempts` row through
+  the service_role-only RPCs (`backend_record_payment_attempt` at `022:240`,
+  `backend_complete_payment_attempt` at `022:435`; client roles revoked at
+  `009:376-378`). A provider-side success that the backend has not verified and
+  committed changes nothing.
+  - Initial authorization: provider authorize-and-hold maps to recording an
+    `initialAuthorization` attempt (first authorization cycle, Pending Card
+    payment on an accepted Trip; `022:329-339`), completed only when the
+    verified attempt matches the current cycle, amount, and currency
+    (`022:482-495`) within the 2-minute attempt-completion timeout.
+  - Replacement authorization: exactly one follow-up hold maps to a
+    `replacementAuthorization` attempt, permitted only after a failed
+    authorization or a verified release, with at most two authorization
+    attempts per payment (`022:340-366`).
+  - Capture: provider capture maps to recording a single `capture` attempt and
+    only for a completed Trip on a currently authorized payment with a
+    verified current-cycle authorization (`022:367-380`); one initial capture
+    only.
+  - Capture retry: provider retry maps to `captureRetry`, permitted only while
+    the latest current-cycle capture has failed, at most three capture attempts
+    total (`022:381-401`).
+  - Authorization void/release: provider release maps to a `voidAuthorization`
+    attempt on the current pre-start authorized payment (`022:402-421`); verified
+    voids gate new authorization cycles and cancellation.
+  - Refund attempts: provider refunds map to `refund`-type attempts recorded
+    per Refund row through the canonical refund operations
+    (`022:539-610`; completion at `021:308-378` semantics), at most three
+    attempts per refund, moving `refundPending` → `refunded` only on verified
+    completion. No `refundFailed` card state exists by design.
+  - Provider-status verification not used: `providerStatusVerification` (and
+    `adjustmentAuthorization`) attempts cannot be recorded through the attempt
+    operation (`022:322-327`); the design must not rely on provider polling.
+  - No new RPCs, columns, or enums are introduced by this mapping.
+- Webhook deduplication design: provider events deduplicate through
+  `processed_webhook_events` on `(provider_name, provider_event_id)`
+  (`009:144-151`), recorded server-side via
+  `backend_record_processed_webhook_event` (`009:350-359`, upsert
+  `on conflict do nothing`, 90-day retention). This is provider-event
+  deduplication, distinct from per-operation payment-attempt idempotency keys
+  (`payment_attempts_payment_idempotency_unique`, `009:61`) and per-cycle
+  accounting. No webhook handler, endpoint, or signature-verification code is
+  designed or authorized here.
+- Security boundary: Stripe secret credentials must remain server-side; no key
+  material, test keys, tokens, or secrets may enter the repository, config, or
+  Flutter code. No Stripe SDK installation is authorized for Flutter. Flutter
+  cannot directly perform authorization, capture, void, or refund, and S1
+  introduces no client-callable financial-execution API. The existing trusted
+  backend payment lifecycle remains exclusively authoritative.
+- Explicit non-goals: no Stripe SDK/dependency setup; no PaymentIntent
+  creation; no Edge Function implementation; no webhook endpoint or signature
+  code; no Test Mode payment execution; no hosted Supabase operations; no
+  financial settlement verification claims.
+- Handoff implications (prepared; receipt not confirmed): Dev 2 / P6-06 keeps
+  building mock-backed Card states against the P6-03 fake — this design changes
+  nothing UI-facing. Dev 1 / P6-09 will consume this mapping for the contract
+  compatibility harness. Future Phase 8 trusted execution implements this
+  design behind the service-role boundary; re-validate against latest `main`
+  before any execution slice.
+- Sprint sequencing: S1 (this design) → S2 interface scaffold → S3 Test Mode
+  verification, each blocked until Sprint 3 authorization, key infrastructure,
+  V-evidence, and integration verification clear. Re-plan S2/S3 from latest
+  `main` when unblocked.
 - P6-09 compatibility harness (contract + fake parity, version/idempotency matrix).
 
 ## Cross-phase independent work
