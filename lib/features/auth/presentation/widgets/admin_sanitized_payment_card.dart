@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
-/// Presentation-only view-model for sanitized cash-payment information.
+/// Presentation-only view-model for sanitized payment information.
 ///
 /// Display strings only. This type carries no backend identifiers, status
-/// enums, raw payloads, secrets, or card metadata. Card-specific fields
-/// (brand/last4/provider) arrive with P6-03 and must extend this type
-/// explicitly, never via free-form maps or payload passthrough.
+/// enums, raw payloads, secrets, idempotency keys, provider references, or
+/// raw card numbers. Instances must be built through the allowlist payment
+/// mapper, never from free-form maps or payload passthrough. Card brand/last-four surface only when the
+/// validated [CardPayment] model carries them; anything else stays absent.
 @immutable
 class AdminSanitizedPayment {
   const AdminSanitizedPayment({
@@ -13,12 +14,20 @@ class AdminSanitizedPayment {
     this.statusLabel,
     this.amountDisplay,
     this.currencyDisplay,
+    this.cardBrandDisplay,
+    this.maskedCardLastFourDisplay,
   });
 
   final String? methodLabel;
   final String? statusLabel;
   final String? amountDisplay;
   final String? currencyDisplay;
+
+  /// Validated card brand, if the canonical Card model carries one.
+  final String? cardBrandDisplay;
+
+  /// Masked last four (`•••• 1234`), if the canonical Card model carries one.
+  final String? maskedCardLastFourDisplay;
 }
 
 /// Read-only card rendering an [AdminSanitizedPayment].
@@ -63,6 +72,18 @@ class AdminSanitizedPaymentCard extends StatelessWidget {
                 label: 'Currency',
                 value: payment.currencyDisplay,
               ),
+              if (payment.cardBrandDisplay != null)
+                _FieldRow(
+                  fieldKey: const ValueKey('admin-payment-card-brand'),
+                  label: 'Card',
+                  value: payment.cardBrandDisplay,
+                ),
+              if (payment.maskedCardLastFourDisplay != null)
+                _FieldRow(
+                  fieldKey: const ValueKey('admin-payment-card-last4'),
+                  label: 'Card ending',
+                  value: payment.maskedCardLastFourDisplay,
+                ),
             ],
           ),
         ),
