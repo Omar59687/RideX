@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/core/mocks/mock_data.dart';
+import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/providers/route_providers.dart';
+import 'package:ridex/features/booking/presentation/providers/rider_payment_selection_provider.dart';
 import 'package:ridex/core/utils/money_utils.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
@@ -22,6 +24,11 @@ class VehicleTypeSelectionScreen extends ConsumerWidget {
     final draft = ref.watch(bookingControllerProvider);
     final route = ref.watch(routeControllerProvider);
     final vehicle = draft.vehicleType;
+    // P6-05 Slice A: feature-local cash selection. Defaults to cash; Card
+    // stays a Coming Soon placeholder so this value is cash throughout
+    // this slice, but the fare screen now derives from this state instead
+    // of an unrelated hardcoded display value.
+    final paymentSelection = ref.watch(riderPaymentSelectionProvider);
     return AppScaffold(
       title: 'Choose your ride',
       body: ListView(
@@ -86,10 +93,22 @@ class VehicleTypeSelectionScreen extends ConsumerWidget {
           Row(
             children: [
               Expanded(
-                child: _OptionButton(
-                  icon: Icons.payments_outlined,
-                  label: 'Cash',
-                  supporting: 'Current',
+                child: Semantics(
+                  key: const ValueKey('cash-payment-option'),
+                  selected: paymentSelection == PaymentMethod.cash,
+                  label: paymentSelection == PaymentMethod.cash
+                      ? 'Cash, selected payment method'
+                      : 'Cash',
+                  child: _OptionButton(
+                    icon: Icons.payments_outlined,
+                    label: 'Cash',
+                    supporting: paymentSelection == PaymentMethod.cash
+                        ? 'Selected'
+                        : null,
+                    onTap: () => ref
+                        .read(riderPaymentSelectionProvider.notifier)
+                        .selectCash(),
+                  ),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
