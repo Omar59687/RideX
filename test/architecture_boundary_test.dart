@@ -118,6 +118,7 @@ const _supabaseInfrastructureFiles = {
   'lib/core/providers/driver_tracking_providers.dart',
   'lib/core/providers/repositories_providers.dart',
   'lib/core/repositories/supabase_auth_repository.dart',
+  'lib/core/repositories/supabase_driver_trip_completion_repository.dart',
   'lib/core/repositories/supabase_profile_repository.dart',
   'lib/core/services/driver_location/supabase_driver_location_service.dart',
   'lib/core/services/driver_location/supabase_driver_tracking_connection.dart',
