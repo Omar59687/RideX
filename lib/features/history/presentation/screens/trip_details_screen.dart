@@ -13,6 +13,7 @@ import 'package:ridex/core/widgets/app_scaffold.dart';
 import 'package:ridex/core/widgets/map_placeholder.dart';
 import 'package:ridex/core/widgets/route_timeline.dart';
 import 'package:ridex/core/widgets/status_chip.dart';
+import 'package:ridex/features/history/presentation/widgets/rider_payment_status_card.dart';
 
 class TripDetailsScreen extends ConsumerStatefulWidget {
   const TripDetailsScreen({super.key, required this.tripId});
@@ -55,7 +56,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'Trip receipt',
+      title: 'Trip details',
       body: FutureBuilder<MockTrip?>(
         future: _trip,
         builder: (context, snapshot) {
@@ -81,7 +82,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
               onAction: () => context.go('/history'),
             );
           }
-          return _TripReceipt(
+          return _TripDetailsContent(
             trip: trip,
             onRebook: () => _rebook(trip),
           );
@@ -91,8 +92,8 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   }
 }
 
-class _TripReceipt extends StatelessWidget {
-  const _TripReceipt({required this.trip, required this.onRebook});
+class _TripDetailsContent extends StatelessWidget {
+  const _TripDetailsContent({required this.trip, required this.onRebook});
 
   final MockTrip trip;
   final VoidCallback onRebook;
@@ -133,15 +134,16 @@ class _TripReceipt extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             StatusChip(
-                              label:
-                                  _cancelled ? trip.status.label : 'Completed',
+                              label: _cancelled
+                                  ? trip.status.label
+                                  : 'Trip completed',
                               tone: _cancelled
                                   ? StatusChipTone.error
                                   : StatusChipTone.success,
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             Text(
-                              _formatReceiptDate(trip.occurredAt),
+                              _formatTripDate(trip.occurredAt),
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
                               ),
@@ -150,9 +152,21 @@ class _TripReceipt extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
-                      Text(
-                        formatMoney(trip.finalFare),
-                        style: theme.textTheme.headlineSmall,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Trip fare',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xxs),
+                          Text(
+                            formatMoney(trip.finalFare),
+                            style: theme.textTheme.headlineSmall,
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -178,9 +192,11 @@ class _TripReceipt extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             _HistoricalDriverCard(trip: trip),
             const SizedBox(height: AppSpacing.lg),
-            const _SectionTitle('Fare breakdown'),
+            const _SectionTitle('Payment'),
             const SizedBox(height: AppSpacing.sm),
-            _CompletedFareCard(trip: trip),
+            const RiderPaymentStatusCard(
+              readState: RiderPaymentUnavailable(),
+            ),
           ] else ...[
             const _SectionTitle('Cancellation summary'),
             const SizedBox(height: AppSpacing.sm),
@@ -246,39 +262,6 @@ class _HistoricalDriverCard extends StatelessWidget {
   }
 }
 
-class _CompletedFareCard extends StatelessWidget {
-  const _CompletedFareCard({required this.trip});
-
-  final MockTrip trip;
-
-  @override
-  Widget build(BuildContext context) {
-    final baseFare = trip.finalFare.clamp(0, 1.2).toDouble();
-    final distanceAndTime = trip.finalFare - baseFare;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          children: [
-            _ReceiptLine(label: 'Base fare', value: formatMoney(baseFare)),
-            _ReceiptLine(
-              label: 'Distance & time',
-              value: formatMoney(distanceAndTime),
-            ),
-            _ReceiptLine(label: 'Promotion', value: formatMoney(0)),
-            const Divider(height: AppSpacing.lg),
-            _ReceiptLine(
-              label: 'Demo payment record | Visa 2048',
-              value: formatMoney(trip.finalFare),
-              emphasized: true,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _CancelledFareCard extends StatelessWidget {
   const _CancelledFareCard({required this.trip});
 
@@ -293,8 +276,8 @@ class _CancelledFareCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _ReceiptLine(
-              label: 'Total charged',
+            _SummaryLine(
+              label: 'Trip fare (not charged)',
               value: formatMoney(trip.finalFare),
               emphasized: true,
             ),
@@ -312,8 +295,8 @@ class _CancelledFareCard extends StatelessWidget {
   }
 }
 
-class _ReceiptLine extends StatelessWidget {
-  const _ReceiptLine({
+class _SummaryLine extends StatelessWidget {
+  const _SummaryLine({
     required this.label,
     required this.value,
     this.emphasized = false,
@@ -352,7 +335,7 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-String _formatReceiptDate(DateTime? date) {
+String _formatTripDate(DateTime? date) {
   if (date == null) return 'Date unavailable';
   const months = [
     'January',
