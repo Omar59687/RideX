@@ -42,9 +42,9 @@ String _backendVehicleTypeCode(String id) {
 
 /// Display label for the rider-selected payment method.
 ///
-/// Slice A only ever selects Cash (Card is a Coming Soon placeholder), but
-/// the label derives from state so a future slice adding real Card
-/// selection needs no fare-screen rework.
+/// Derives purely from state so Cash and Card both render from the single
+/// selection source without fare-screen rework. A label is presentation only:
+/// it never implies a card was charged, authorized, or settled.
 String _paymentDisplayLabel(PaymentMethod method) {
   return switch (method) {
     PaymentMethod.cash => 'Cash',
@@ -106,6 +106,10 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
   bool _handoffNavigation = false;
   String? _bookingOwnerId;
   String _requestKey = '';
+  // The exact method that formed [_requestKey] for the in-flight/last request.
+  // Dispatch reads this captured value, never the live selection, so a toggle
+  // mid-request cannot mix one method's key with another method's draft value.
+  PaymentMethod _requestPaymentMethod = PaymentMethod.cash;
   Timer? _expiryTimer;
 
   @override
@@ -131,17 +135,21 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
     super.dispose();
   }
 
-  String _quoteKey(BookingDraft draft, RouteResult? result) {
+  String _quoteKey(
+    BookingDraft draft,
+    RouteResult? result,
+    PaymentMethod method,
+  ) {
     final stops = [
       for (final stop in draft.stops)
         '${stop.point.latitude},${stop.point.longitude},${stop.label}',
     ].join(';');
     // The selected payment method is part of the draft identity: a change
-    // re-quotes via the normal draft-update path. While a lock is
-    // unresolved the refresh gate below suppresses any re-quote, so the
-    // committed lock lineage is preserved.
-    final selectedPaymentBackend =
-        ref.read(riderPaymentSelectionProvider).backendValue;
+    // re-quotes via the normal draft-update path. The value is captured with
+    // the key (see [_captureRequestKey]) so the request key and the dispatched
+    // draft value can never diverge. While a lock is unresolved the refresh
+    // gate below suppresses any re-quote, so the committed lock lineage is
+    // preserved.
     return [
       draft.pickup?.point.latitude,
       draft.pickup?.point.longitude,
@@ -151,10 +159,20 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
       draft.destination?.label,
       stops,
       draft.vehicleType?.id,
-      selectedPaymentBackend,
+      method.backendValue,
       result?.distanceMeters,
       result?.durationSeconds,
     ].join('|');
+  }
+
+  /// Captures the live selection into [_requestPaymentMethod] and returns the
+  /// matching request key, so the method that keys a request is exactly the
+  /// method later dispatched to `createBookingDraft`/`updateBookingDraft`.
+  String _captureRequestKey(BookingDraft draft, RouteResult? result) {
+    final method = ref.read(riderPaymentSelectionProvider);
+    _requestPaymentMethod = method;
+    _requestKey = _quoteKey(draft, result, method);
+    return _requestKey;
   }
 
   FareRouteLocation _fareLocation(RideLocation location) {
@@ -208,7 +226,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
           pickup: pickup,
           destination: destination,
           vehicleTypeCode: vehicleTypeCode,
-          paymentMethod: ref.read(riderPaymentSelectionProvider).backendValue,
+          paymentMethod: _requestPaymentMethod.backendValue,
           stops: stops,
         );
       } else {
@@ -220,7 +238,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
           pickup: pickup,
           destination: destination,
           vehicleTypeCode: vehicleTypeCode,
-          paymentMethod: ref.read(riderPaymentSelectionProvider).backendValue,
+          paymentMethod: _requestPaymentMethod.backendValue,
           stops: stops,
         );
       }
@@ -513,7 +531,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
         draft.isRoutingReady && route.isReadyFor(draft) && result != null;
 
     if (!isDemo && routeReady && vehicle != null) {
-      final key = _quoteKey(draft, result);
+      final key = _quoteKey(draft, result, paymentSelection);
       // While a lock is unresolved, never issue draft updates or
       // replacement quotes behind the rider's back; the pending lock must
       // replay first so the committed lineage is preserved. While blocked
@@ -525,6 +543,9 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
           !_canonicalRecovered &&
           !recoveryBlocked) {
         _requestKey = key;
+        // Capture the method that formed this key so the dispatched draft
+        // value can never diverge from the key it was computed against.
+        _requestPaymentMethod = paymentSelection;
         // A changed draft/route invalidates the displayed quote: never show
         // a stale total while the re-quote is in flight.
         _quote = null;
@@ -542,7 +563,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
             ownerAvailable &&
             (_canonicalRecovered ||
                 _quote?.status == FareQuoteStatus.locked ||
-                _requestKey == _quoteKey(draft, result)))
+                _requestKey == _quoteKey(draft, result, paymentSelection)))
         ? _quote
         : null;
     final lockedQuote = quote?.status == FareQuoteStatus.locked;
@@ -690,6 +711,14 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                 ),
               ),
             ),
+            if (paymentSelection == PaymentMethod.card) ...[
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Card is your selected payment method. No card payment is '
+                'processed in this flow yet.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             if (isDemo)
               FareSummaryCard(
@@ -754,7 +783,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                       'original booking to continue. Replacement remains paused.'),
                 if (lockedQuote &&
                     !_canonicalRecovered &&
-                    _requestKey != _quoteKey(draft, result))
+                    _requestKey != _quoteKey(draft, result, paymentSelection))
                   const Text('This fare belongs to your original booking. '
                       'Current route selections may differ.'),
                 _AuthoritativeFareCard(quote: usableQuote),
@@ -776,7 +805,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                   }
                   final currentDraft = ref.read(bookingControllerProvider);
                   final currentRoute = ref.read(routeControllerProvider);
-                  _requestKey = _quoteKey(
+                  _captureRequestKey(
                       currentDraft, currentRoute.resultFor(currentDraft));
                   _quote = null;
                   _failure = null;
@@ -805,7 +834,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                   // stale draft or route snapshot.
                   final currentDraft = ref.read(bookingControllerProvider);
                   final currentRoute = ref.read(routeControllerProvider);
-                  _requestKey = _quoteKey(
+                  _captureRequestKey(
                     currentDraft,
                     currentRoute.resultFor(currentDraft),
                   );
