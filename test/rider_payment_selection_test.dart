@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,12 +20,13 @@ import 'package:ridex/features/booking/presentation/providers/rider_payment_sele
 import 'package:ridex/features/booking/presentation/screens/fare_estimate_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/vehicle_type_selection_screen.dart';
 
-/// P6-05 Slice A: Rider Cash payment selection.
+/// P6-05: Rider payment method selection (Cash and Card).
 ///
-/// Cash is the default and only functional method in this slice; Card stays
-/// a Coming Soon placeholder that can never create a Card payment.
-/// The fare screen derives its display and draft calls from
-/// [riderPaymentSelectionProvider] instead of a hardcoded value.
+/// Cash is the default. Card is selectable as a booking payment **method
+/// only**: selection never authorizes, captures, or settles a payment. The
+/// fare screen derives its display and draft calls from
+/// [riderPaymentSelectionProvider] and dispatches the exact method that keyed
+/// the in-flight request, so a toggle mid-request cannot mix values.
 class _MemoryPendingFareLockStore implements PendingFareLockStore {
   PendingFareLock? slot;
 
@@ -62,6 +65,10 @@ class _RecordingMethodFareRepository implements FareRepository {
   final FakeFareRepository _delegate;
   final List<String> paymentMethods = [];
 
+  /// When set, [createBookingDraft] waits on this before delegating so a test
+  /// can toggle the payment method while the first draft call is in flight.
+  Completer<void>? createGate;
+
   @override
   Future<FareBookingRef> createBookingDraft({
     required FareRouteLocation pickup,
@@ -69,8 +76,12 @@ class _RecordingMethodFareRepository implements FareRepository {
     required String vehicleTypeCode,
     required String paymentMethod,
     List<FareStopInput> stops = const [],
-  }) {
+  }) async {
     paymentMethods.add(paymentMethod);
+    final gate = createGate;
+    if (gate != null) {
+      await gate.future;
+    }
     return _delegate.createBookingDraft(
       pickup: pickup,
       destination: destination,
@@ -195,6 +206,33 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Signs in the demo rider without re-signing on every screen pump, so a
+  /// Card selection made before pumping the fare screen is not reset by a
+  /// session change.
+  Future<void> signInDemoRider(ProviderContainer container) async {
+    await container.read(sessionControllerProvider.notifier).refreshSession();
+    await container.read(sessionControllerProvider.notifier).continueAsDemo();
+  }
+
+  /// Pumps the fare screen on an already-established session (see
+  /// [signInDemoRider]); does not touch sessions, so a prior Card selection
+  /// survives.
+  Future<void> pumpFareScreenRaw(
+    WidgetTester tester,
+    ProviderContainer container,
+  ) async {
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const FareEstimateScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
   test('cash is selected by default with the canonical backend value', () {
     final container = createContainer();
     expect(
@@ -207,7 +245,7 @@ void main() {
     );
   });
 
-  test('only cash selection is exposed and it is idempotent', () {
+  test('cash and card selection are exposed and idempotent', () {
     final container = createContainer();
     final notifier = container.read(riderPaymentSelectionProvider.notifier);
     expect(notifier, isA<RiderPaymentSelectionController>());
@@ -215,18 +253,27 @@ void main() {
       container.read(riderPaymentSelectionProvider),
       PaymentMethod.cash,
     );
-    // The only allowed operation keeps Cash; repeated calls are no-ops.
-    // There is intentionally no selectCard() in Slice A.
     notifier.selectCash();
     expect(
       container.read(riderPaymentSelectionProvider),
       PaymentMethod.cash,
     );
-    notifier.selectCash();
+    // Card is selectable as a method only; repeated calls are no-ops.
+    notifier.selectCard();
     expect(
       container.read(riderPaymentSelectionProvider),
-      PaymentMethod.cash,
+      PaymentMethod.card,
     );
+    expect(
+      container.read(riderPaymentSelectionProvider).backendValue,
+      'card',
+    );
+    notifier.selectCard();
+    expect(
+      container.read(riderPaymentSelectionProvider),
+      PaymentMethod.card,
+    );
+    notifier.select(PaymentMethod.cash);
     expect(
       container.read(riderPaymentSelectionProvider).backendValue,
       'cash',
@@ -240,17 +287,15 @@ void main() {
       container.read(riderPaymentSelectionProvider),
       PaymentMethod.cash,
     );
-    // Rider A signs in via demo.
+    // Rider A signs in via demo and selects Card.
     await container.read(sessionControllerProvider.notifier).continueAsDemo();
     expect(container.read(sessionControllerProvider).user?.id, 'rider-1');
-    container.read(riderPaymentSelectionProvider.notifier).selectCash();
+    container.read(riderPaymentSelectionProvider.notifier).selectCard();
     expect(
       container.read(riderPaymentSelectionProvider),
-      PaymentMethod.cash,
+      PaymentMethod.card,
     );
     // Session ends: selection returns to Cash (never carried over).
-    // In Slice A the value is already cash, so this is a no-op reset that
-    // pins the isolation contract for the future Card slice.
     await container.read(sessionControllerProvider.notifier).signOut();
     expect(
       container.read(riderPaymentSelectionProvider),
@@ -300,38 +345,82 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('card remains a placeholder and never selects card',
+  testWidgets('tapping Card selects the card method with selected semantics',
       (tester) async {
     final container = createContainer();
 
     await pumpVehicleScreen(tester, container);
+    await tester.scrollUntilVisible(
+      find.text('Card'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
 
     await tester.tap(find.text('Card'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Coming soon'), findsOneWidget);
     expect(
-      find.text('Card payments is not available in this demo yet.'),
+      container.read(riderPaymentSelectionProvider),
+      PaymentMethod.card,
+    );
+    // No Coming Soon dialog gates the selection any more.
+    expect(find.text('Coming soon'), findsNothing);
+    expect(find.text('Selected'), findsOneWidget);
+    final semantics = tester.widget<Semantics>(
+      find.byKey(const ValueKey('card-payment-option')),
+    );
+    expect(semantics.properties.selected, isTrue);
+    expect(semantics.properties.label, 'Card, selected payment method');
+    // The UI clearly distinguishes method selection from real card capture.
+    expect(
+      find.textContaining('Real card payment processing is not available'),
       findsOneWidget,
     );
-    // Selection is untouched: no Card payment can be created from here.
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('switching Card back to Cash updates selection and semantics',
+      (tester) async {
+    final container = createContainer();
+
+    await pumpVehicleScreen(tester, container);
+    await tester.scrollUntilVisible(
+      find.text('Card'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Card'));
+    await tester.pumpAndSettle();
+    expect(
+      container.read(riderPaymentSelectionProvider),
+      PaymentMethod.card,
+    );
+
+    await tester.tap(find.text('Cash'));
+    await tester.pumpAndSettle();
+
     expect(
       container.read(riderPaymentSelectionProvider),
       PaymentMethod.cash,
     );
-
-    await tester.tap(find.text('Got it'));
-    await tester.pumpAndSettle();
-    expect(find.text('Coming soon'), findsNothing);
+    final cash = tester.widget<Semantics>(
+      find.byKey(const ValueKey('cash-payment-option')),
+    );
+    expect(cash.properties.selected, isTrue);
     expect(find.text('Selected'), findsOneWidget);
+    expect(
+      find.textContaining('Real card payment processing is not available'),
+      findsNothing,
+    );
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('card tap dispatches no draft mutation; later drafts stay cash',
+  testWidgets('card selection dispatches the canonical card backend value',
       (tester) async {
     final recording = _RecordingMethodFareRepository(FakeFareRepository());
     final container = createContainer(fareRepository: recording);
     readyDraft(container);
+    await signInDemoRider(container);
 
     await pumpVehicleScreen(tester, container);
     // The vehicle screen itself never touches the fare repository.
@@ -344,22 +433,13 @@ void main() {
 
     await tester.tap(find.text('Card'));
     await tester.pumpAndSettle();
-
-    expect(find.text('Coming soon'), findsOneWidget);
-    // Tapping Card leaves the selection as Cash and dispatches nothing:
-    // no payment operation and no booking-draft mutation.
     expect(
       container.read(riderPaymentSelectionProvider),
-      PaymentMethod.cash,
+      PaymentMethod.card,
     );
-    expect(recording.paymentMethods, isEmpty);
 
-    await tester.tap(find.text('Got it'));
-    await tester.pumpAndSettle();
-
-    // The subsequent normal fare flow creates drafts with the canonical
-    // cash value only; no Card operation was ever invoked.
-    await pumpFareScreen(tester, container);
+    // The fare step creates drafts with the canonical card value only.
+    await pumpFareScreenRaw(tester, container);
     await tester.scrollUntilVisible(
       find.text('Upfront fare'),
       300,
@@ -367,7 +447,69 @@ void main() {
     );
     expect(find.text('Upfront fare'), findsOneWidget);
     expect(recording.paymentMethods, isNotEmpty);
-    expect(recording.paymentMethods, everyElement('cash'));
+    expect(
+      recording.paymentMethods,
+      everyElement(PaymentMethod.card.backendValue),
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+      'dispatched method matches the request key across an in-flight '
+      'toggle', (tester) async {
+    final recording = _RecordingMethodFareRepository(FakeFareRepository());
+    final container = createContainer(fareRepository: recording);
+    readyDraft(container);
+    await signInDemoRider(container);
+
+    // Gate the very first (create) call so we can toggle while it is in
+    // flight and prove the captured method, not the live one, is dispatched.
+    recording.createGate = Completer<void>();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const FareEstimateScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(
+      recording.paymentMethods,
+      [PaymentMethod.cash.backendValue],
+    );
+    expect(
+      container.read(riderPaymentSelectionProvider),
+      PaymentMethod.cash,
+    );
+
+    // Toggle to Card while the cash-created request is still in flight.
+    container.read(riderPaymentSelectionProvider.notifier).selectCard();
+    await tester.pump();
+
+    // The in-flight request keeps its captured cash value; no new dispatch.
+    expect(
+      recording.paymentMethods,
+      [PaymentMethod.cash.backendValue],
+    );
+    expect(
+      container.read(riderPaymentSelectionProvider),
+      PaymentMethod.card,
+    );
+
+    // Release the create: the screen re-quotes with the new Card method.
+    recording.createGate!.complete();
+    await tester.pumpAndSettle();
+
+    // Each dispatched value equals the method that keyed its request: the
+    // create was cash-keyed/cash-sent, the follow-up update is card.
+    expect(recording.paymentMethods, [
+      PaymentMethod.cash.backendValue,
+      PaymentMethod.card.backendValue,
+    ]);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -574,6 +716,118 @@ void main() {
       semantics.properties.label,
       'Cash, selected payment method',
     );
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('fare screen displays the selected card method distinctly',
+      (tester) async {
+    final container = createContainer(fareRepository: FakeFareRepository());
+    readyDraft(container);
+    await signInDemoRider(container);
+    container.read(riderPaymentSelectionProvider.notifier).selectCard();
+
+    await pumpFareScreenRaw(tester, container);
+    await tester.scrollUntilVisible(
+      find.text('Upfront fare'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text('Upfront fare'), findsOneWidget);
+    expect(find.text('Payment'), findsOneWidget);
+    expect(find.text('Card'), findsOneWidget);
+    expect(find.text('Cash'), findsNothing);
+    // The note makes clear this is method selection, not a processed charge.
+    expect(
+      find.textContaining('No card payment is processed'),
+      findsOneWidget,
+    );
+    // Never presents Card as a completed payment state.
+    expect(find.textContaining('Succeeded'), findsNothing);
+    expect(find.textContaining('Authorized'), findsNothing);
+    expect(find.textContaining('Paid'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('card selection survives a quote failure and retries',
+      (tester) async {
+    final fake = FakeFareRepository();
+    final recording = _RecordingMethodFareRepository(fake);
+    final container = createContainer(fareRepository: recording);
+    readyDraft(container);
+    await signInDemoRider(container);
+    container.read(riderPaymentSelectionProvider.notifier).selectCard();
+
+    fake.failNext(const FareException(FareFailure.pricingUnavailable));
+    await pumpFareScreenRaw(tester, container);
+
+    await tester.scrollUntilVisible(
+      find.text('Retry fare request'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Fares are unavailable right now.'), findsOneWidget);
+    // The selection is untouched by a backend failure.
+    expect(
+      container.read(riderPaymentSelectionProvider),
+      PaymentMethod.card,
+    );
+
+    await tester.ensureVisible(find.text('Retry fare request'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Retry fare request'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Upfront fare'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Upfront fare'), findsOneWidget);
+    expect(
+      recording.paymentMethods,
+      everyElement(PaymentMethod.card.backendValue),
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('card selection replays an ambiguous lock failure and locks',
+      (tester) async {
+    final fake = FakeFareRepository();
+    final recording = _RecordingMethodFareRepository(fake);
+    final container = createContainer(fareRepository: recording);
+    readyDraft(container);
+    await signInDemoRider(container);
+    container.read(riderPaymentSelectionProvider.notifier).selectCard();
+    await pumpFareScreenRaw(tester, container);
+
+    await tester.scrollUntilVisible(
+      find.text('Lock fare'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final draftCallsBeforeLock = recording.paymentMethods.length;
+
+    fake.failNext(const FareException(FareFailure.networkFailure));
+    await tester.tap(find.text('Lock fare'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Retry fare lock'), findsOneWidget);
+    // The ambiguous failure issued no draft update behind the rider.
+    expect(recording.paymentMethods.length, draftCallsBeforeLock);
+
+    await tester.tap(find.text('Retry fare lock'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Fare locked'), findsOneWidget);
+    expect(
+      container.read(riderPaymentSelectionProvider),
+      PaymentMethod.card,
+    );
+    expect(
+      recording.paymentMethods,
+      everyElement(PaymentMethod.card.backendValue),
+    );
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
 }

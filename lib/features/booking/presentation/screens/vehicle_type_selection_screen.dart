@@ -24,10 +24,10 @@ class VehicleTypeSelectionScreen extends ConsumerWidget {
     final draft = ref.watch(bookingControllerProvider);
     final route = ref.watch(routeControllerProvider);
     final vehicle = draft.vehicleType;
-    // P6-05 Slice A: feature-local cash selection. Defaults to cash; Card
-    // stays a Coming Soon placeholder so this value is cash throughout
-    // this slice, but the fare screen now derives from this state instead
-    // of an unrelated hardcoded display value.
+    // P6-05: feature-local method selection. Defaults to cash; Card is
+    // selectable as a method only. The fare screen derives from this state
+    // instead of an unrelated hardcoded display value, and a selection change
+    // re-quotes through the normal draft-update path.
     final paymentSelection = ref.watch(riderPaymentSelectionProvider);
     return AppScaffold(
       title: 'Choose your ride',
@@ -113,12 +113,21 @@ class VehicleTypeSelectionScreen extends ConsumerWidget {
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: _OptionButton(
-                  icon: Icons.credit_card_rounded,
-                  label: 'Card',
-                  onTap: () => showComingSoonDialog(
-                    context,
-                    feature: 'Card payments',
+                child: Semantics(
+                  key: const ValueKey('card-payment-option'),
+                  selected: paymentSelection == PaymentMethod.card,
+                  label: paymentSelection == PaymentMethod.card
+                      ? 'Card, selected payment method'
+                      : 'Card',
+                  child: _OptionButton(
+                    icon: Icons.credit_card_rounded,
+                    label: 'Card',
+                    supporting: paymentSelection == PaymentMethod.card
+                        ? 'Selected'
+                        : null,
+                    onTap: () => ref
+                        .read(riderPaymentSelectionProvider.notifier)
+                        .selectCard(),
                   ),
                 ),
               ),
@@ -135,6 +144,14 @@ class VehicleTypeSelectionScreen extends ConsumerWidget {
               ),
             ],
           ),
+          if (paymentSelection == PaymentMethod.card) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Card selected as a method only. Real card payment processing '
+              'is not available yet.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
