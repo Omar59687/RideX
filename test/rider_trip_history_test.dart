@@ -70,7 +70,7 @@ void main() {
     expect(find.text('Opened trip-cancelled-1'), findsOneWidget);
   });
 
-  testWidgets('completed details show demo receipt and seed rebooking',
+  testWidgets('completed details show trip data without a fabricated receipt',
       (tester) async {
     await _setLargeTestSurface(tester);
     final completed = MockData.history().first;
@@ -88,8 +88,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Driver & vehicle'), findsOneWidget);
-    expect(find.text('Demo payment record | Visa 2048'), findsOneWidget);
     expect(find.text('Omar'), findsOneWidget);
+    expect(find.text('Payment'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('rider-payment-status-unavailable')),
+      findsOneWidget,
+    );
+    expect(find.text('Demo payment record | Visa 2048'), findsNothing);
 
     await tester.scrollUntilVisible(
       find.byKey(const Key('rebook-route')),
