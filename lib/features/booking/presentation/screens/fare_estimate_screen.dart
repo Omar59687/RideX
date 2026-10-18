@@ -862,12 +862,6 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                   ),
                 ),
               ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Unsupported route changes must be confirmed before requesting a driver.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
             const SizedBox(height: AppSpacing.md),
             AppButton(
               label: isDemo
