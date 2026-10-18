@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/app/theme/app_theme.dart';
+import 'package:ridex/core/errors/route_exception.dart';
 import 'package:ridex/core/mocks/mock_data.dart';
 import 'package:ridex/core/mocks/mock_repositories.dart';
 import 'package:ridex/core/models/fare_quote.dart';
 import 'package:ridex/core/models/pending_fare_lock.dart';
+import 'package:ridex/core/models/route_models.dart';
 import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
+import 'package:ridex/core/providers/route_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/repositories/fare_repository.dart';
 import 'package:ridex/core/repositories/mock_place_repository.dart';
@@ -329,6 +332,84 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       expect(confirmButton(tester).onPressed, isNotNull);
+      expect(
+        find.text(
+          'Unsupported route changes must be confirmed before requesting a driver.',
+        ),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'unsupported Demo route change keeps safety feedback until corrected',
+    (tester) async {
+      final container = createContainer();
+      readyDraft(container);
+      final controller = container.read(bookingControllerProvider.notifier);
+      final stop = MockData.locations[2];
+      expect(controller.addStop(stop), isTrue);
+      controller.setVehicleType(MockData.vehicleTypes.first);
+
+      await pumpFareScreen(tester, container);
+      expect(container.read(routeControllerProvider).status, RouteStatus.ready);
+      await tester.scrollUntilVisible(
+        find.text('Confirm & find a driver'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(confirmButton(tester).onPressed, isNotNull);
+
+      // A new destination that duplicates an existing stop is rejected by
+      // the actual MockRouteRepository, without a fabricated failure state.
+      controller.setDestination(stop);
+      // Reselect the ride to prove the route guard, rather than the cleared
+      // vehicle selection alone, blocks confirmation.
+      controller.setVehicleType(MockData.vehicleTypes.first);
+      await tester.pumpAndSettle();
+
+      final route = container.read(routeControllerProvider);
+      expect(route.status, RouteStatus.failure);
+      expect(route.failure, RouteFailure.unsupportedStops);
+      expect(
+        route.isReadyFor(container.read(bookingControllerProvider)),
+        isFalse,
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('route-unavailable')),
+        -300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Route unavailable'), findsOneWidget);
+      expect(
+        find.text('Intermediate stops are not available yet.'),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(
+        find.text('Confirm & find a driver'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(confirmButton(tester).onPressed, isNull);
+
+      controller.setDestination(MockData.locations[1]);
+      controller.setVehicleType(MockData.vehicleTypes.first);
+      await tester.pumpAndSettle();
+      expect(container.read(routeControllerProvider).status, RouteStatus.ready);
+      expect(find.byKey(const ValueKey('route-unavailable')), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('Confirm & find a driver'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(confirmButton(tester).onPressed, isNotNull);
+      expect(
+        find.text(
+          'Unsupported route changes must be confirmed before requesting a driver.',
+        ),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
     },
   );
 
