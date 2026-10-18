@@ -21,6 +21,71 @@ Matcher completionFailure(DriverCompletionFailure failure) =>
         .having((error) => error.failure, 'failure', failure);
 
 void main() {
+  group('additive attempt evidence contract', () {
+    test('post-write errors remain catchable as legacy unknown-result failures',
+        () {
+      final original = command();
+      final DriverTripCompletionException error =
+          DriverCompletionAttemptException.tripReread(
+              original, DriverCompletionFailure.tripNotFound);
+      expect(error.failure, DriverCompletionFailure.unknownResult);
+      final attempt = error as DriverCompletionAttemptException;
+      expect(attempt.command, same(original));
+      expect(attempt.writeEvidence, DriverCompletionWriteEvidence.acknowledged);
+      expect(attempt.confirmedTrip, isNull);
+      expect(attempt.toString(), isNot(contains(original.idempotencyKey)));
+      expect(attempt.toString(), isNot(contains(original.tripId)));
+    });
+    test('receipt recovery rejects mismatched or unverified canonical evidence',
+        () {
+      final invalid = <DriverCompleteTripResult>[
+        DriverCompleteTripResult(
+            tripId: _otherTripId,
+            status: DriverTripLifecycleStatus.completed,
+            backendVersion: 5),
+        DriverCompleteTripResult(
+            tripId: _tripId,
+            status: DriverTripLifecycleStatus.inProgress,
+            backendVersion: 5),
+        DriverCompleteTripResult(
+            tripId: _tripId, status: DriverTripLifecycleStatus.completed),
+        DriverCompleteTripResult(
+            tripId: _tripId,
+            status: DriverTripLifecycleStatus.completed,
+            backendVersion: 5,
+            receiptVerified: true,
+            receiptNumber: 'RX-PRIVATE'),
+      ];
+      for (final trip in invalid) {
+        expect(
+            () => DriverCompletionAttemptException.receiptReread(
+                  command(),
+                  DriverCompletionFailure.unknownResult,
+                  trip,
+                ),
+            throwsArgumentError);
+      }
+    });
+    test(
+        'receipt-read failure retains canonical result without leaking it in logs',
+        () {
+      final original = command();
+      final trip = DriverCompleteTripResult(
+          tripId: _tripId,
+          status: DriverTripLifecycleStatus.completed,
+          backendVersion: 8);
+      final error = DriverCompletionAttemptException.receiptReread(
+        original,
+        DriverCompletionFailure.unauthorized,
+        trip,
+      );
+      expect(error.confirmedTrip, same(trip));
+      expect(error.failure, DriverCompletionFailure.unknownResult);
+      expect(error.cause, DriverCompletionFailure.unauthorized);
+      expect(error.writeEvidence, DriverCompletionWriteEvidence.verified);
+      expect(error.toString(), isNot(contains(original.tripId)));
+    });
+  });
   group('DriverCompleteTripCommand validation', () {
     test('accepts a canonical UUID with positive version and key', () {
       final value = command();

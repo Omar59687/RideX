@@ -237,6 +237,89 @@ class DriverTripCompletionException implements Exception {
   String toString() => 'DriverTripCompletionException($failure)';
 }
 
+/// Boundary at which an adapter attempt stopped. No stage authorizes replay.
+enum DriverCompletionAttemptStage {
+  beforeDispatch,
+  rpc,
+  tripReread,
+  receiptReread
+}
+
+/// Evidence about this attempt, never about Cash settlement or Card capture.
+enum DriverCompletionWriteEvidence {
+  notDispatched,
+  rejected,
+  unknown,
+  acknowledged,
+  verified,
+}
+
+/// Additive adapter handoff for Developer 3: existing callers can keep catching
+/// [DriverTripCompletionException]. Post-write read failures expose
+/// `unknownResult` through that legacy API, so they cannot look like a rejected
+/// completion. [cause] describes only the failed boundary, not the write.
+///
+/// Preserve [command] and staged journal evidence. Reconcile canonical state;
+/// never rotate its key, replay automatically, or retire evidence from this
+/// exception. The unchanged coordinator conservatively publishes unresolved
+/// and retains its staged command; it does not yet consume [confirmedTrip].
+/// The file journal is the selected future staging authority. The separate
+/// SharedPreferences store remains inactive; this contract performs no writes.
+class DriverCompletionAttemptException extends DriverTripCompletionException {
+  DriverCompletionAttemptException.beforeDispatch(this.command, this.cause)
+      : stage = DriverCompletionAttemptStage.beforeDispatch,
+        writeEvidence = DriverCompletionWriteEvidence.notDispatched,
+        confirmedTrip = null,
+        super(cause);
+
+  DriverCompletionAttemptException.rpc(
+    this.command,
+    this.cause, {
+    bool rejectionConfirmed = false,
+  })  : stage = DriverCompletionAttemptStage.rpc,
+        writeEvidence = rejectionConfirmed
+            ? DriverCompletionWriteEvidence.rejected
+            : DriverCompletionWriteEvidence.unknown,
+        confirmedTrip = null,
+        super(cause);
+
+  DriverCompletionAttemptException.tripReread(this.command, this.cause)
+      : stage = DriverCompletionAttemptStage.tripReread,
+        writeEvidence = DriverCompletionWriteEvidence.acknowledged,
+        confirmedTrip = null,
+        super(DriverCompletionFailure.unknownResult);
+
+  DriverCompletionAttemptException.receiptReread(
+    this.command,
+    this.cause,
+    DriverCompleteTripResult trip,
+  )   : stage = DriverCompletionAttemptStage.receiptReread,
+        writeEvidence = DriverCompletionWriteEvidence.verified,
+        confirmedTrip = trip,
+        super(DriverCompletionFailure.unknownResult) {
+    if (trip.tripId.toLowerCase() != command.tripId.toLowerCase() ||
+        !trip.isCompleted ||
+        trip.backendVersion == null ||
+        trip.receiptVerified) {
+      throw ArgumentError(
+          'Matching unreceipted canonical completion required.');
+    }
+  }
+
+  final DriverCompleteTripCommand command;
+  final DriverCompletionAttemptStage stage;
+  final DriverCompletionWriteEvidence writeEvidence;
+  final DriverCompletionFailure cause;
+
+  /// Verified completed Trip/version retained after a failed receipt read.
+  /// Never contains an inferred receipt or payment outcome.
+  final DriverCompleteTripResult? confirmedTrip;
+
+  @override
+  String toString() => 'DriverCompletionAttemptException('
+      '$stage, $writeEvidence, $failure, $cause)';
+}
+
 /// Pure parsers for the existing `driver_transition_trip` JSON response.
 ///
 /// The backend returns `{'trip_id': <uuid>, 'status': <trip_status>}` on
