@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ridex/app/theme/app_motion.dart';
@@ -56,7 +58,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxWidth: 560,
-                  minHeight: constraints.maxHeight - AppSpacing.xxxl,
+                  minHeight: math.max(
+                    0.0,
+                    constraints.maxHeight - AppSpacing.xxxl,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
