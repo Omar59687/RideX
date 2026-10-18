@@ -16,6 +16,13 @@ abstract class DriverTripCompletionRepository {
   /// [DriverTripCompletionException] for every failure category, including
   /// [DriverCompletionFailure.unknownResult] when the outcome cannot be
   /// confirmed. Never returns fabricated versions or receipts.
+  ///
+  /// Adapter handoff: [DriverCompletionAttemptException] adds stage, original
+  /// command, and write evidence without changing this signature. Post-write
+  /// read errors remain unknownResult to legacy callers; receipt-read errors
+  /// additionally retain canonical completed Trip/version evidence. Receipt
+  /// absence returns completed with receiptVerified false. Neither result nor
+  /// exception authorizes replay, journal retirement, or payment success.
   Future<DriverCompleteTripResult> completeTrip(
     DriverCompleteTripCommand command,
   );

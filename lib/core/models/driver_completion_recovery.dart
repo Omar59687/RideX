@@ -120,8 +120,9 @@ class DriverCompletionErrorMapping {
 /// - [ReceiptRereadRequired]: the canonical Trip reached backend-confirmed
 ///   `completed` — the only status that permits receipt-summary rereading.
 ///   Only the authorized reread can verify a receipt. The embedded result is
-///   unverified and carries no version or receipt data.
-/// - [RejectionConfirmed]: the backend confirmed a rejection. Do not mint a
+///   unreceipted; a stage-aware adapter directive can retain the reread version.
+/// - [RejectionConfirmed]: dispatch was prevented or the backend rejected the
+///   RPC. Do not mint a
 ///   new idempotency key and retry blindly. A [DriverCompletionFailure.staleVersion]
 ///   additionally requires rereading the Trip to form a new intent, because a
 ///   bumped version is not an exact replay.
@@ -133,6 +134,7 @@ sealed class CompletionRecoveryDirective extends Equatable {
 }
 
 /// The Trip reached backend-confirmed `completed`; reread the receipt summary.
+/// Stage-aware adapter recovery can retain a canonically reread version here.
 class ReceiptRereadRequired extends CompletionRecoveryDirective {
   const ReceiptRereadRequired(this.result);
 
@@ -142,7 +144,8 @@ class ReceiptRereadRequired extends CompletionRecoveryDirective {
   List<Object?> get props => [result];
 }
 
-/// The backend confirmed a rejection; no blind retry with a fresh key.
+/// Dispatch was prevented or the backend confirmed an RPC rejection. Neither
+/// permits a blind retry with a fresh key or retirement of previous evidence.
 class RejectionConfirmed extends CompletionRecoveryDirective {
   const RejectionConfirmed(this.error);
 
@@ -165,6 +168,32 @@ class CanonicalRereadRequired extends CompletionRecoveryDirective {
 /// Pure recovery classification built on the merged completion contract.
 class CompletionRecovery {
   CompletionRecovery._();
+
+  /// Stage-aware adapter recovery. SQLSTATE mapping alone must not be used
+  /// for a read error after dispatch: a rejected read is not a rejected write.
+  /// Retain the exception's original command/journal evidence for every case.
+  /// A directive is advisory and never permits automatic replay or clearing.
+  static CompletionRecoveryDirective fromAttempt(
+    DriverCompletionAttemptException attempt,
+  ) {
+    final trip = attempt.confirmedTrip;
+    if (trip != null) return ReceiptRereadRequired(trip);
+    // Stage is carried on the exception, never added to the closed diagnostic
+    // vocabulary. No raw SQLSTATE/message is retained by the attempt contract.
+    final error = switch (attempt.failure) {
+      DriverCompletionFailure.idempotencyConflict =>
+        DriverCompletionErrorMapping.idempotencyMismatch(),
+      DriverCompletionFailure.malformedResponse =>
+        DriverCompletionErrorMapping.malformedPayload(),
+      _ => ClassifiedCompletionFailure._(attempt.failure, 'unknown-sqlstate'),
+    };
+    return switch (attempt.writeEvidence) {
+      DriverCompletionWriteEvidence.notDispatched ||
+      DriverCompletionWriteEvidence.rejected =>
+        RejectionConfirmed(error),
+      _ => CanonicalRereadRequired(error),
+    };
+  }
 
   /// Classifies a SQLSTATE rejection into a recovery directive.
   ///

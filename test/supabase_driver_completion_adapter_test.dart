@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/core/models/driver_trip_completion.dart';
+import 'package:ridex/core/models/driver_completion_recovery.dart';
+import 'package:ridex/features/trips/application/driver_completion_coordinator.dart';
 import 'package:ridex/core/repositories/supabase_driver_trip_completion_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -196,14 +198,13 @@ void main() {
       expect(result.receiptNumber, isNull);
     });
 
-    test('ignores receipt rows belonging to another trip', () async {
+    test('rejects receipt rows belonging to another trip', () async {
       final transport = _successTransport(
         receiptRows: [receiptRow(tripId: _otherTripId)],
       );
-      final result = await transport.repository.completeTrip(command());
-
-      expect(result.receiptVerified, isFalse);
-      expect(result.receiptNumber, isNull);
+      final error = await _attemptFailure(transport);
+      expect(error.cause, DriverCompletionFailure.malformedResponse);
+      expect(error.confirmedTrip?.backendVersion, 5);
     });
   });
 
@@ -262,6 +263,9 @@ void main() {
     test('maps garbled RPC payloads to malformedResponse', () async {
       final payloads = <Object?>[
         ['not', 'a', 'map'],
+        null,
+        42,
+        <String, Object?>{'status': 'completed'},
         <String, Object?>{},
         <String, Object?>{'trip_id': _tripId},
         <String, Object?>{'trip_id': _tripId, 'status': 'bogus'},
@@ -294,14 +298,14 @@ void main() {
       );
     });
 
-    test('fails closed as unauthorized when the canonical row is hidden',
+    test('retains acknowledged completion when the canonical row is hidden',
         () async {
       final transport = _successTransport()
         ..tripRow = null
         ..receiptRows = [receiptRow()];
       await expectCompletionFailure(
         () => transport.repository.completeTrip(command()),
-        DriverCompletionFailure.unauthorized,
+        DriverCompletionFailure.unknownResult,
       );
     });
 
@@ -312,12 +316,15 @@ void main() {
         tripRow(version: 0),
         tripRow(version: -2),
         tripRow(version: '5'),
+        tripRow(version: null),
+        tripRow(version: 5.0),
+        tripRow()..remove('status'),
       ];
       for (final row in rows) {
         final transport = _successTransport(tripRowOverride: row);
         await expectCompletionFailure(
           () => transport.repository.completeTrip(command()),
-          DriverCompletionFailure.malformedResponse,
+          DriverCompletionFailure.unknownResult,
         );
       }
     });
@@ -333,16 +340,12 @@ void main() {
         final asTripError = _successTransport()..tripError = error;
         await expectCompletionFailure(
           () => asTripError.repository.completeTrip(command()),
-          error is PostgrestException && error.code == '42501'
-              ? DriverCompletionFailure.unauthorized
-              : DriverCompletionFailure.unknownResult,
+          DriverCompletionFailure.unknownResult,
         );
         final asReceiptError = _successTransport()..receiptError = error;
         await expectCompletionFailure(
           () => asReceiptError.repository.completeTrip(command()),
-          error is PostgrestException && error.code == '42501'
-              ? DriverCompletionFailure.unauthorized
-              : DriverCompletionFailure.unknownResult,
+          DriverCompletionFailure.unknownResult,
         );
       }
     });
@@ -353,8 +356,365 @@ void main() {
       );
       await expectCompletionFailure(
         () => transport.repository.completeTrip(command()),
-        DriverCompletionFailure.malformedResponse,
+        DriverCompletionFailure.unknownResult,
       );
+    });
+  });
+  boundaryTests();
+}
+
+Future<DriverCompletionAttemptException> _attemptFailure(
+  _ScriptedTransport transport,
+) async {
+  final original = command();
+  try {
+    await transport.repository.completeTrip(original);
+  } on DriverCompletionAttemptException catch (error) {
+    expect(identical(error.command, original), isTrue);
+    expect(error.toString(), isNot(contains(original.idempotencyKey)));
+    expect(transport.rpcCalls, hasLength(1));
+    expect(transport.rpcCalls.single['expected_version'],
+        original.expectedTripVersion);
+    expect(
+        transport.rpcCalls.single['idempotency_key'], original.idempotencyKey);
+    return error;
+  }
+  throw StateError('Expected typed attempt failure');
+}
+
+class _CanonicalSource implements CanonicalDriverCompletionSource {
+  @override
+  Future<CanonicalDriverCompletionContext?> load() async =>
+      CanonicalDriverCompletionContext(
+        driverId: 'a7000000-0000-0000-0000-000000000001',
+        command: command(),
+      );
+}
+
+class _StagingGateway implements DriverCompletionStagingGateway {
+  final commands = <DriverCompleteTripCommand>[];
+  @override
+  Future<CoordinatorStagingDecision> stage(
+      CanonicalDriverCompletionContext context) async {
+    commands.add(context.command);
+    return commands.length == 1
+        ? StagingNewlyCreated(context.command)
+        : StagingExistingEvidence(commands.first);
+  }
+}
+
+DriverCompletionCoordinator _coordinator(
+  _ScriptedTransport transport,
+  _StagingGateway gateway,
+) =>
+    DriverCompletionCoordinator(
+      canonicalSource: _CanonicalSource(),
+      stagingGateway: gateway,
+      repository: transport.repository,
+      sessionReader: () async => const DriverCompletionSessionSnapshot(
+        driverId: 'a7000000-0000-0000-0000-000000000001',
+        epoch: 1,
+        isApprovedDriver: true,
+      ),
+    );
+
+void boundaryTests() {
+  group('identity boundaries', () {
+    for (final identity in <Object?>[_otherTripId, null, 42, 'trip-1']) {
+      test('RPC identity $identity cannot complete caller Trip', () async {
+        final transport = _successTransport()
+          ..completionResponse = {'trip_id': identity, 'status': 'completed'};
+        final error = await _attemptFailure(transport);
+        expect(error.stage, DriverCompletionAttemptStage.rpc);
+        expect(error.writeEvidence, DriverCompletionWriteEvidence.unknown);
+        expect(error.failure, DriverCompletionFailure.malformedResponse);
+        expect(error.confirmedTrip, isNull);
+        expect(transport.tripReads, isEmpty);
+        expect(transport.receiptReads, isEmpty);
+      });
+      test('canonical identity $identity cannot complete caller Trip',
+          () async {
+        final transport = _successTransport()
+          ..tripRow = {
+            'id': identity,
+            'status': 'completed',
+            'version': 5,
+          };
+        final error = await _attemptFailure(transport);
+        expect(error.stage, DriverCompletionAttemptStage.tripReread);
+        expect(error.writeEvidence, DriverCompletionWriteEvidence.acknowledged);
+        expect(error.failure, DriverCompletionFailure.unknownResult);
+        expect(error.cause, DriverCompletionFailure.malformedResponse);
+        expect(error.confirmedTrip, isNull);
+        expect(transport.receiptReads, isEmpty);
+      });
+    }
+    test('canonical reread must include id', () async {
+      final transport = _successTransport()
+        ..tripRow = (tripRow()..remove('id'));
+      final error = await _attemptFailure(transport);
+      expect(error.cause, DriverCompletionFailure.malformedResponse);
+      expect(transport.receiptReads, isEmpty);
+    });
+    test('UUID case equivalence retains backend row identity', () async {
+      final transport = _successTransport(
+          tripRowOverride: tripRow(tripId: _tripId.toUpperCase()))
+        ..completionResponse = completionOk(_tripId.toUpperCase());
+      final result = await transport.repository.completeTrip(command());
+      expect(result.tripId, _tripId.toUpperCase());
+      expect(result.backendVersion, 5);
+    });
+  });
+
+  group('attempt stages', () {
+    test('successful guard runs before the single RPC', () async {
+      final transport = _successTransport();
+      final original = command();
+      final repository = SupabaseDriverTripCompletionRepository(
+        rpc: transport.rpc,
+        readTripRow: transport.readTripRow,
+        readReceiptRows: transport.readReceiptRows,
+        beforeDispatch: (c) async {
+          expect(c, same(original));
+          expect(transport.rpcCalls, isEmpty);
+        },
+      );
+      expect((await repository.completeTrip(original)).backendVersion, 5);
+      expect(transport.rpcCalls, hasLength(1));
+    });
+    test('unknown guard failure remains not-dispatched without leaking details',
+        () async {
+      final transport = _successTransport();
+      final repository = SupabaseDriverTripCompletionRepository(
+        rpc: transport.rpc,
+        readTripRow: transport.readTripRow,
+        readReceiptRows: transport.readReceiptRows,
+        beforeDispatch: (_) async => throw StateError('PRIVATE_GUARD_DETAIL'),
+      );
+      try {
+        await repository.completeTrip(command());
+        fail('Expected blocked dispatch');
+      } on DriverCompletionAttemptException catch (error) {
+        expect(
+            error.writeEvidence, DriverCompletionWriteEvidence.notDispatched);
+        expect(error.failure, DriverCompletionFailure.unknownResult);
+        expect(error.toString(), isNot(contains('PRIVATE_GUARD_DETAIL')));
+      }
+      expect(transport.rpcCalls, isEmpty);
+    });
+    test('pre-dispatch guard failure sends no RPC and sanitizes error',
+        () async {
+      final transport = _successTransport();
+      final original = command();
+      final repository = SupabaseDriverTripCompletionRepository(
+        rpc: transport.rpc,
+        readTripRow: transport.readTripRow,
+        readReceiptRows: transport.readReceiptRows,
+        beforeDispatch: (_) async => throw const DriverTripCompletionException(
+          DriverCompletionFailure.unauthorized,
+        ),
+      );
+      try {
+        await repository.completeTrip(original);
+        fail('Expected guard failure');
+      } on DriverCompletionAttemptException catch (error) {
+        expect(error.command, same(original));
+        expect(error.stage, DriverCompletionAttemptStage.beforeDispatch);
+        expect(
+            error.writeEvidence, DriverCompletionWriteEvidence.notDispatched);
+        expect(error.failure, DriverCompletionFailure.unauthorized);
+      }
+      expect(transport.rpcCalls, isEmpty);
+      expect(transport.tripReads, isEmpty);
+      expect(transport.receiptReads, isEmpty);
+    });
+    for (final code in ['42501', 'P0002', '40001', '55000', '22023']) {
+      test('RPC SQL rejection $code is distinct from post-write read failure',
+          () async {
+        final transport = _successTransport()
+          ..completionError = PostgrestException(
+            message: 'PRIVATE_SERVER_DETAILS',
+            code: code,
+          );
+        final error = await _attemptFailure(transport);
+        expect(error.stage, DriverCompletionAttemptStage.rpc);
+        expect(error.writeEvidence, DriverCompletionWriteEvidence.rejected);
+        expect(
+            CompletionRecovery.fromAttempt(error), isA<RejectionConfirmed>());
+        expect(error.toString(), isNot(contains('PRIVATE_SERVER_DETAILS')));
+        expect(transport.tripReads, isEmpty);
+      });
+      test('Trip read SQL $code preserves acknowledged completion', () async {
+        final transport = _successTransport()
+          ..tripError = PostgrestException(
+            message: 'PRIVATE_SERVER_DETAILS',
+            code: code,
+          );
+        final error = await _attemptFailure(transport);
+        expect(error.stage, DriverCompletionAttemptStage.tripReread);
+        expect(error.writeEvidence, DriverCompletionWriteEvidence.acknowledged);
+        expect(error.failure, DriverCompletionFailure.unknownResult);
+        expect(CompletionRecovery.fromAttempt(error),
+            isA<CanonicalRereadRequired>());
+        expect(error.toString(), isNot(contains('PRIVATE_SERVER_DETAILS')));
+        expect(transport.receiptReads, isEmpty);
+      });
+    }
+    for (final error in <Object>[
+      TimeoutException('PRIVATE'),
+      const SocketException('PRIVATE')
+    ]) {
+      test('RPC transport ${error.runtimeType} has unknown write evidence',
+          () async {
+        final transport = _successTransport()..completionError = error;
+        final failure = await _attemptFailure(transport);
+        expect(failure.writeEvidence, DriverCompletionWriteEvidence.unknown);
+        expect(failure.failure, DriverCompletionFailure.unknownResult);
+        expect(CompletionRecovery.fromAttempt(failure),
+            isA<CanonicalRereadRequired>());
+        expect(transport.tripReads, isEmpty);
+      });
+    }
+    test('exact conflict envelope has known rejection evidence', () async {
+      final transport = _successTransport()
+        ..completionResponse = {
+          'error': 'idempotency_payload_mismatch',
+        };
+      final error = await _attemptFailure(transport);
+      expect(error.writeEvidence, DriverCompletionWriteEvidence.rejected);
+      expect(error.failure, DriverCompletionFailure.idempotencyConflict);
+    });
+  });
+
+  group('receipt boundaries', () {
+    test(
+        'malformed outer receipt payload retains verified Trip as recovery evidence',
+        () async {
+      final transport = _successTransport();
+      final repository = SupabaseDriverTripCompletionRepository(
+        rpc: transport.rpc,
+        readTripRow: transport.readTripRow,
+        readReceiptRows: (_) async => (null as dynamic),
+      );
+      try {
+        await repository.completeTrip(command());
+        fail('Expected malformed receipt read');
+      } on DriverCompletionAttemptException catch (error) {
+        expect(error.failure, DriverCompletionFailure.unknownResult);
+        expect(error.cause, DriverCompletionFailure.malformedResponse);
+        expect(error.confirmedTrip?.backendVersion, 5);
+        expect(error.confirmedTrip?.receiptVerified, isFalse);
+      }
+      expect(transport.rpcCalls, hasLength(1));
+    });
+    test('receipt P0002 preserves completed Trip, never becomes tripNotFound',
+        () async {
+      final transport = _successTransport()
+        ..receiptError = const PostgrestException(
+          message: 'Receipt was not found.',
+          code: 'P0002',
+        );
+      final result = await transport.repository.completeTrip(command());
+      expect(result.isCompleted, isTrue);
+      expect(result.backendVersion, 5);
+      expect(result.receiptVerified, isFalse);
+      expect(result.receiptNumber, isNull);
+      expect(transport.rpcCalls, hasLength(1));
+    });
+    final failures = <String, Object>{
+      'unauthorized':
+          const PostgrestException(message: 'PRIVATE', code: '42501'),
+      'unknown SQL':
+          const PostgrestException(message: 'PRIVATE', code: 'XX000'),
+      'timeout': TimeoutException('PRIVATE'),
+      'disconnect': const SocketException('PRIVATE'),
+    };
+    for (final entry in failures.entries) {
+      test(
+          'receipt ${entry.key} retains canonical completion for reconciliation',
+          () async {
+        final transport = _successTransport()..receiptError = entry.value;
+        final error = await _attemptFailure(transport);
+        expect(error.stage, DriverCompletionAttemptStage.receiptReread);
+        expect(error.writeEvidence, DriverCompletionWriteEvidence.verified);
+        expect(error.failure, DriverCompletionFailure.unknownResult);
+        expect(
+            error.cause,
+            entry.key == 'unauthorized'
+                ? DriverCompletionFailure.unauthorized
+                : DriverCompletionFailure.unknownResult);
+        expect(error.confirmedTrip?.tripId, _tripId);
+        expect(error.confirmedTrip?.backendVersion, 5);
+        expect(error.confirmedTrip?.receiptVerified, isFalse);
+        expect(error.confirmedTrip?.receiptNumber, isNull);
+        final recovery =
+            CompletionRecovery.fromAttempt(error) as ReceiptRereadRequired;
+        expect(recovery.result, same(error.confirmedTrip));
+        expect(error.toString(), isNot(contains('PRIVATE')));
+      });
+    }
+    final malformedRows = <List<Map<String, Object?>>>[
+      [receiptRow(tripId: _otherTripId)],
+      [receiptRow()..remove('trip_id')],
+      [receiptRow()..remove('id')],
+      [receiptRow()..['id'] = 'not-a-receipt-uuid'],
+      [receiptRow()..remove('receipt_number')],
+      [receiptRow(receiptNumber: 42)],
+      [receiptRow(receiptNumber: '')],
+      [receiptRow(), receiptRow()],
+    ];
+    for (var i = 0; i < malformedRows.length; i++) {
+      test('malformed receipt payload $i is not legitimate absence', () async {
+        final error = await _attemptFailure(
+            _successTransport(receiptRows: malformedRows[i]));
+        expect(error.cause, DriverCompletionFailure.malformedResponse);
+        expect(error.confirmedTrip?.backendVersion, 5);
+        expect(error.confirmedTrip?.receiptVerified, isFalse);
+      });
+    }
+  });
+
+  group('unchanged coordinator compatibility', () {
+    for (final receiptFailure in [false, true]) {
+      test(
+          'post-write ${receiptFailure ? "receipt" : "Trip"} error stays unresolved without replay',
+          () async {
+        final transport = _successTransport();
+        if (receiptFailure) {
+          transport.receiptError =
+              const PostgrestException(message: 'denied', code: '42501');
+        } else {
+          transport.tripError =
+              const PostgrestException(message: 'missing', code: 'P0002');
+        }
+        final gateway = _StagingGateway();
+        final coordinator = _coordinator(transport, gateway);
+        final outcome = await coordinator.complete() as CoordinatorUnresolved;
+        expect(outcome.failure, DriverCompletionFailure.unknownResult);
+        expect(outcome.stagedCommand.isExactReplayOf(command()), isTrue);
+        await coordinator.complete();
+        final recreated = _coordinator(transport, gateway);
+        expect(await recreated.complete(), isA<CoordinatorUnresolved>());
+        expect(transport.rpcCalls, hasLength(1));
+        expect(gateway.commands.every((c) => c.isExactReplayOf(command())),
+            isTrue);
+      });
+    }
+    test(
+        'legitimate receipt absence publishes completed Trip, not payment success',
+        () async {
+      final transport = _successTransport()
+        ..receiptError = const PostgrestException(
+          message: 'absent',
+          code: 'P0002',
+        );
+      final coordinator = _coordinator(transport, _StagingGateway());
+      final outcome = await coordinator.complete() as CoordinatorCompleted;
+      expect(outcome.result.backendVersion, 5);
+      expect(outcome.result.receiptVerified, isFalse);
+      expect(outcome.result.receiptNumber, isNull);
+      expect(outcome.stagedCommand.isExactReplayOf(command()), isTrue);
+      expect(transport.rpcCalls, hasLength(1));
     });
   });
 }

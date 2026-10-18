@@ -19,6 +19,86 @@ DriverCompleteTripCommand command({
 const _closedDebugCodes = ClassifiedCompletionFailure.closedDebugCodes;
 
 void main() {
+  group('adapter attempt recovery', () {
+    test('pre-dispatch failure does not imply a prior intent can be retired',
+        () {
+      final attempt = DriverCompletionAttemptException.beforeDispatch(
+        command(),
+        DriverCompletionFailure.unauthorized,
+      );
+      final directive =
+          CompletionRecovery.fromAttempt(attempt) as RejectionConfirmed;
+      expect(directive.error.failure, DriverCompletionFailure.unauthorized);
+      expect(_closedDebugCodes, contains(directive.error.debugCode));
+      expect(
+          attempt.writeEvidence, DriverCompletionWriteEvidence.notDispatched);
+    });
+    test('only confirmed RPC rejection becomes RejectionConfirmed', () {
+      final rejected = DriverCompletionAttemptException.rpc(
+        command(),
+        DriverCompletionFailure.staleVersion,
+        rejectionConfirmed: true,
+      );
+      expect(
+          CompletionRecovery.fromAttempt(rejected), isA<RejectionConfirmed>());
+      final unknown = DriverCompletionAttemptException.rpc(
+        command(),
+        DriverCompletionFailure.unauthorized,
+      );
+      expect(CompletionRecovery.fromAttempt(unknown),
+          isA<CanonicalRereadRequired>());
+    });
+    test('post-write read denial is not completion rejection', () {
+      final attempt = DriverCompletionAttemptException.tripReread(
+        command(),
+        DriverCompletionFailure.unauthorized,
+      );
+      final directive =
+          CompletionRecovery.fromAttempt(attempt) as CanonicalRereadRequired;
+      expect(directive.error.failure, DriverCompletionFailure.unknownResult);
+      expect(_closedDebugCodes, contains(directive.error.debugCode));
+      expect(attempt.cause, DriverCompletionFailure.unauthorized);
+    });
+    test(
+        'receipt reconciliation retains exact canonical version without receipt',
+        () {
+      final trip = DriverCompleteTripResult(
+        tripId: _tripId,
+        status: DriverTripLifecycleStatus.completed,
+        backendVersion: 9,
+      );
+      final attempt = DriverCompletionAttemptException.receiptReread(
+        command(),
+        DriverCompletionFailure.unknownResult,
+        trip,
+      );
+      final directive =
+          CompletionRecovery.fromAttempt(attempt) as ReceiptRereadRequired;
+      expect(directive.result, same(trip));
+      expect(directive.result.backendVersion, 9);
+      expect(directive.result.receiptVerified, isFalse);
+      expect(directive.result.receiptNumber, isNull);
+    });
+    test('malformed RPC outcome remains canonical-reread-only', () {
+      final attempt = DriverCompletionAttemptException.rpc(
+        command(),
+        DriverCompletionFailure.malformedResponse,
+      );
+      final directive =
+          CompletionRecovery.fromAttempt(attempt) as CanonicalRereadRequired;
+      expect(directive.error.debugCode, 'malformed-payload');
+    });
+    test('conflict mapping retains closed diagnostic vocabulary', () {
+      final attempt = DriverCompletionAttemptException.rpc(
+        command(),
+        DriverCompletionFailure.idempotencyConflict,
+        rejectionConfirmed: true,
+      );
+      final directive =
+          CompletionRecovery.fromAttempt(attempt) as RejectionConfirmed;
+      expect(directive.error.debugCode, 'idempotency-mismatch');
+    });
+  });
   group('SQLSTATE classification', () {
     test('maps every known completion-path code', () {
       const expectations = {

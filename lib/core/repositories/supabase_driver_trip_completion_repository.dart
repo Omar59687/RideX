@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:ridex/core/models/driver_completion_recovery.dart';
 import 'package:ridex/core/models/driver_trip_completion.dart';
 import 'package:ridex/core/repositories/driver_trip_completion_repository.dart';
@@ -41,95 +39,66 @@ typedef DriverReceiptRowsReader = Future<List<Map<String, Object?>>> Function(
   String tripId,
 );
 
-/// Production driver completion adapter over the trusted backend path.
+/// Optional eligibility check before invoking the trusted RPC. A failure here
+/// proves this adapter did not dispatch; it says nothing about earlier attempts.
+/// Future composition owns session/SDK validation. No guard is wired here.
+typedef DriverCompletionDispatchGuard = Future<void> Function(
+  DriverCompleteTripCommand command,
+);
+
+/// Unwired adapter for the existing trusted completion RPC.
 ///
-/// Invokes only `public.driver_transition_trip` with
-/// `requested_status = 'completed'` (`017:204-210`, SECURITY DEFINER,
-/// granted to `authenticated` at `016:66`). Cash settlement and receipt
-/// issuance stay trusted backend consequences of that call
-/// (`017:263-264`); this adapter never sets payment state client-side and
-/// never declares payment success — a completed Card Trip proves nothing
-/// about Card payment, and a completed Cash Trip is reported exactly as
-/// the authorized rereads confirm (version from the canonical Trip row,
-/// receipt data only from the Driver-safe receipt summary).
+/// Handoff to Developer 3: the method signature is unchanged. Failures are
+/// [DriverCompletionAttemptException] (a legacy-compatible exception subtype).
+/// Its stage, original command, and write evidence distinguish no dispatch,
+/// known RPC rejection, ambiguous dispatch, acknowledged completion with failed
+/// Trip reread, and verified completion with failed receipt reread. Legacy
+/// consumers see unknownResult for post-write read failures and stay unresolved.
+/// Use CompletionRecovery.fromAttempt for stage-aware reconciliation; it grants
+/// no replay/retirement authority. Only the selected file journal may stage a
+/// future production intent; this adapter touches neither local store.
 ///
-/// Behavior per [DriverTripCompletionRepository.completeTrip]:
-/// - Sends the caller-supplied triple byte-identically (trip UUID,
-///   expected version, idempotency key) with the fixed `completed`
-///   transition. No key is minted, rotated, persisted, or repaired here.
-/// - Maps backend rejections through the approved SQLSTATE vocabulary
-///   (`42501` unauthorized, `P0002` tripNotFound, `40001` staleVersion,
-///   `55000`/`22023` invalidTransition, anything else unknownResult) and
-///   transport loss (timeout or any other transport error) to
-///   `unknownResult`, which forces a canonical reread plus an exact replay
-///   instead of a guessed outcome.
-/// - Propagates the exact `idempotency_payload_mismatch` shape as
-///   `idempotencyConflict` and any other garbled payload as
-///   `malformedResponse`.
-/// - After a `completed` response, rereads the canonical Trip row and
-///   attaches its fresh `version` as [DriverCompleteTripResult.backendVersion].
-///   The reread version is intentionally not compared to the command
-///   version: the backend bumps `trips.version` on every transition
-///   (`008:194`), so a bumped version is the expected outcome, not a
-///   conflict. A missing row (RLS-filtered after a confirmed write)
-///   means access was lost mid-flight and fails closed as `unauthorized`;
-///   a non-`completed` status or an unparsable row fails closed as
-///   `malformedResponse`.
-/// - Rereads the Driver-safe receipt summary afterwards. An absent receipt
-///   (Card Trips carry none by design) yields an unverified result with a
-///   version but no receipt data. A present receipt number marks the result
-///   verified. Reread transport or permission failures never return a
-///   partial success; they throw instead.
-/// - Reads no payment, attempt, or refund rows and calls no
-///   `user_payment_*` function: Drivers are excluded from payment-row
-///   access and this adapter must not depend on it.
+/// Both RPC and canonical row identities must match the command UUID (UUID case
+/// is insignificant). Canonical versions are read, never calculated. Receipt
+/// P0002 from the documented user_trip_receipt_summary contract means no receipt,
+/// not no Trip. It returns verified Trip truth without receipt/payment claims.
+/// Other receipt failures retain that truth on the typed exception. Card Trips
+/// may have no receipt until trusted payment execution issues one.
 ///
-/// This class performs no hosted write beyond the single trusted RPC call,
-/// makes no settlement or execution claim (those wait on V5-01/V5-04
-/// hosted evidence), and is not wired into any provider here — provider
-/// wiring belongs to P6-09.
+/// No automatic retry, key generation, provider wiring, finance-table reads,
+/// Cash settlement, Card capture, or receipt issuance occurs in Flutter.
 class SupabaseDriverTripCompletionRepository
     implements DriverTripCompletionRepository {
   SupabaseDriverTripCompletionRepository({
     required DriverCompletionRpc rpc,
     required DriverTripRowReader readTripRow,
     required DriverReceiptRowsReader readReceiptRows,
+    DriverCompletionDispatchGuard? beforeDispatch,
   })  : _rpc = rpc,
         _readTripRow = readTripRow,
-        _readReceiptRows = readReceiptRows;
+        _readReceiptRows = readReceiptRows,
+        _beforeDispatch = beforeDispatch;
 
   final DriverCompletionRpc _rpc;
   final DriverTripRowReader _readTripRow;
   final DriverReceiptRowsReader _readReceiptRows;
+  final DriverCompletionDispatchGuard? _beforeDispatch;
 
   @override
   Future<DriverCompleteTripResult> completeTrip(
     DriverCompleteTripCommand command,
   ) async {
-    final response = await _invokeCompletion(command);
-    final parsed = DriverCompletionParsing.parseCompletionResponse(response);
-    if (!parsed.isCompleted) {
-      // Unreachable through the fixed `completed` transition, but a
-      // non-completed answer to this command is not a known response and
-      // must fail closed rather than surface as success.
-      throw const DriverTripCompletionException(
-        DriverCompletionFailure.malformedResponse,
+    try {
+      await _beforeDispatch?.call(command);
+    } on Object catch (error) {
+      throw DriverCompletionAttemptException.beforeDispatch(
+        command,
+        _failure(error),
       );
     }
-    final backendVersion = await _rereadCanonicalVersion(command);
-    final receiptNumber = await _rereadReceiptNumber(command);
-    return DriverCompleteTripResult(
-      tripId: command.tripId,
-      status: DriverTripLifecycleStatus.completed,
-      backendVersion: backendVersion,
-      receiptVerified: receiptNumber != null,
-      receiptNumber: receiptNumber,
-    );
-  }
 
-  Future<Map<String, Object?>> _invokeCompletion(
-    DriverCompleteTripCommand command,
-  ) async {
+    final DriverCompleteTripResult acknowledged;
+    var conflictEnvelope = false;
     try {
       final raw = await _rpc(
         name: 'driver_transition_trip',
@@ -140,114 +109,133 @@ class SupabaseDriverTripCompletionRepository
           'idempotency_key': command.idempotencyKey,
         },
       );
-      if (raw is Map) {
-        return <String, Object?>{
-          for (final entry in raw.entries) entry.key.toString(): entry.value,
-        };
+      if (raw is! Map<String, dynamic>) {
+        throw const DriverTripCompletionException(
+          DriverCompletionFailure.malformedResponse,
+        );
       }
-      throw const DriverTripCompletionException(
-        DriverCompletionFailure.malformedResponse,
-      );
-    } on DriverTripCompletionException {
-      rethrow;
-    } on PostgrestException catch (error) {
-      throw DriverTripCompletionException(
-        DriverCompletionErrorMapping.fromSqlState(error.code ?? '').failure,
-      );
-    } on TimeoutException {
-      throw const DriverTripCompletionException(
-        DriverCompletionFailure.unknownResult,
-      );
-    } on Object {
-      // Any other transport error (disconnect, TLS, protocol) leaves the
-      // outcome unconfirmed: fail closed to unknownResult so the caller
-      // rereads canonical state and replays the exact command.
-      throw const DriverTripCompletionException(
-        DriverCompletionFailure.unknownResult,
+      conflictEnvelope =
+          raw.length == 1 && raw['error'] == 'idempotency_payload_mismatch';
+      acknowledged = DriverCompletionParsing.parseCompletionResponse(raw);
+      if (!acknowledged.isCompleted ||
+          !_sameTrip(acknowledged.tripId, command.tripId)) {
+        throw const DriverTripCompletionException(
+          DriverCompletionFailure.malformedResponse,
+        );
+      }
+    } on Object catch (error) {
+      final failure = _failure(error);
+      // Only inspected SQL rejections or the exact backend conflict envelope
+      // prove rejection. An arbitrary injected exception is not that evidence.
+      final rejected = (error is PostgrestException &&
+              failure != DriverCompletionFailure.unknownResult) ||
+          conflictEnvelope;
+      throw DriverCompletionAttemptException.rpc(
+        command,
+        failure,
+        rejectionConfirmed: rejected,
       );
     }
-  }
 
-  Future<int> _rereadCanonicalVersion(
-    DriverCompleteTripCommand command,
-  ) async {
-    final Map<String, Object?>? row;
+    final DriverCompleteTripResult confirmed;
     try {
-      row = await _readTripRow(command.tripId);
-    } on PostgrestException catch (error) {
-      throw DriverTripCompletionException(
-        DriverCompletionErrorMapping.fromSqlState(error.code ?? '').failure,
+      final row = await _readTripRow(command.tripId);
+      if (row == null) {
+        throw const DriverTripCompletionException(
+          DriverCompletionFailure.unauthorized,
+        );
+      }
+      final id = row['id'];
+      final version = row['version'];
+      if (id is! String ||
+          !isCanonicalTripId(id) ||
+          !_sameTrip(id, command.tripId) ||
+          row['status'] != DriverTripLifecycleStatus.completed.backendValue ||
+          version is! int ||
+          version <= 0) {
+        throw const DriverTripCompletionException(
+          DriverCompletionFailure.malformedResponse,
+        );
+      }
+      confirmed = DriverCompleteTripResult(
+        tripId: id,
+        status: DriverTripLifecycleStatus.completed,
+        backendVersion: version,
       );
-    } on TimeoutException {
-      throw const DriverTripCompletionException(
-        DriverCompletionFailure.unknownResult,
-      );
-    } on Object {
-      throw const DriverTripCompletionException(
-        DriverCompletionFailure.unknownResult,
-      );
+    } on Object catch (error) {
+      throw DriverCompletionAttemptException.tripReread(
+          command, _failure(error));
     }
-    if (row == null) {
-      throw const DriverTripCompletionException(
-        DriverCompletionFailure.unauthorized,
-      );
-    }
-    final status = row['status'];
-    final version = row['version'];
-    if (status is! String || version is! int || version <= 0) {
-      throw const DriverTripCompletionException(
-        DriverCompletionFailure.malformedResponse,
-      );
-    }
-    late final DriverTripLifecycleStatus parsedStatus;
-    try {
-      parsedStatus = DriverTripLifecycleStatus.fromBackendValue(status);
-    } on ArgumentError {
-      throw const DriverTripCompletionException(
-        DriverCompletionFailure.malformedResponse,
-      );
-    }
-    if (parsedStatus != DriverTripLifecycleStatus.completed) {
-      throw const DriverTripCompletionException(
-        DriverCompletionFailure.malformedResponse,
-      );
-    }
-    return version;
-  }
 
-  Future<String?> _rereadReceiptNumber(
-    DriverCompleteTripCommand command,
-  ) async {
-    final List<Map<String, Object?>> rows;
+    final String? receiptNumber;
     try {
-      rows = await _readReceiptRows(command.tripId);
-    } on PostgrestException catch (error) {
-      throw DriverTripCompletionException(
-        DriverCompletionErrorMapping.fromSqlState(error.code ?? '').failure,
-      );
-    } on TimeoutException {
-      throw const DriverTripCompletionException(
-        DriverCompletionFailure.unknownResult,
-      );
-    } on Object {
-      throw const DriverTripCompletionException(
-        DriverCompletionFailure.unknownResult,
-      );
-    }
-    for (final row in rows) {
-      final rowTripId = row['trip_id'];
-      if (rowTripId is String &&
-          rowTripId.trim().toLowerCase() ==
-              command.tripId.trim().toLowerCase()) {
-        final receiptNumber = row['receipt_number'];
-        if (receiptNumber is! String || receiptNumber.trim().isEmpty) {
+      final rows = await _readReceiptRows(command.tripId);
+      if (rows.isEmpty) {
+        receiptNumber = null;
+      } else {
+        // One receipt per Trip. Foreign, duplicate or malformed rows are not
+        // equivalent to legitimate absence and must never be silently ignored.
+        if (rows.length != 1) {
           throw const DriverTripCompletionException(
             DriverCompletionFailure.malformedResponse,
           );
         }
-        return receiptNumber.trim();
+        final row = rows.single;
+        final receiptId = row['id'];
+        final id = row['trip_id'];
+        final number = row['receipt_number'];
+        if (receiptId is! String ||
+            !isCanonicalTripId(receiptId) ||
+            id is! String ||
+            !isCanonicalTripId(id) ||
+            !_sameTrip(id, command.tripId) ||
+            number is! String ||
+            number.trim().isEmpty) {
+          throw const DriverTripCompletionException(
+            DriverCompletionFailure.malformedResponse,
+          );
+        }
+        receiptNumber = number.trim();
       }
+    } on PostgrestException catch (error) {
+      if (error.code?.trim().toUpperCase() != 'P0002') {
+        throw DriverCompletionAttemptException.receiptReread(
+          command,
+          _failure(error),
+          confirmed,
+        );
+      }
+      // This boundary invokes only user_trip_receipt_summary: its P0002 is
+      // receipt absence. The matching completed Trip was already verified.
+      return confirmed;
+    } on Object catch (error) {
+      throw DriverCompletionAttemptException.receiptReread(
+        command,
+        _failure(error),
+        confirmed,
+      );
     }
-    return null;
+    return DriverCompleteTripResult(
+      tripId: confirmed.tripId,
+      status: confirmed.status,
+      backendVersion: confirmed.backendVersion,
+      receiptVerified: receiptNumber != null,
+      receiptNumber: receiptNumber,
+    );
+  }
+
+  static bool _sameTrip(String a, String b) =>
+      a.toLowerCase() == b.toLowerCase();
+
+  static DriverCompletionFailure _failure(Object error) {
+    if (error is DriverTripCompletionException) return error.failure;
+    if (error is TypeError || error is FormatException) {
+      return DriverCompletionFailure.malformedResponse;
+    }
+    if (error is PostgrestException) {
+      return DriverCompletionErrorMapping.fromSqlState(error.code ?? '')
+          .failure;
+    }
+    return DriverCompletionFailure.unknownResult;
   }
 }
