@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:ridex/app/theme/app_colors.dart';
 import 'package:ridex/app/theme/app_radii.dart';
 import 'package:ridex/app/theme/app_text_styles.dart';
@@ -52,6 +53,14 @@ class AppTheme {
       extensions: <ThemeExtension<dynamic>>[extension],
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
+        // Transparent app bars reveal the theme's surface behind the status bar.
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: colorScheme.brightness == Brightness.light
+              ? Brightness.dark
+              : Brightness.light,
+          statusBarBrightness: colorScheme.brightness,
+        ),
         foregroundColor: colorScheme.onSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
