@@ -189,10 +189,15 @@ final class CoordinatorUnresolved extends DriverCoordinatorOutcome {
   const CoordinatorUnresolved({
     required this.stagedCommand,
     this.failure,
+    this.attempt,
   });
 
   final DriverCompleteTripCommand stagedCommand;
   final DriverCompletionFailure? failure;
+
+  /// Validated stage-aware evidence for this exact staged command. Legacy
+  /// consumers still see unresolved; no exception grants replay or retirement.
+  final DriverCompletionAttemptException? attempt;
 }
 
 /// Staging could not prove durable evidence. No dispatch occurred.
@@ -252,8 +257,8 @@ final class CoordinatorInvalidated extends DriverCoordinatorOutcome {
 ///   after every await; logout, account switch (including A->B->A),
 ///   approval loss, [invalidate], or [dispose] retires publication rights
 ///   without erasing durable evidence or cancelling an airborne RPC.
-/// - Repository exceptions stay unresolved because this interface cannot
-///   establish whether failure occurred at RPC or during canonical rereads.
+/// - Repository exceptions stay unresolved for compatibility. Stage-aware
+///   exceptions retain their validated evidence for explicit read-only recovery.
 /// - Confirmed completion is distinct from receipt verification
 ///   ([DriverCompleteTripResult.receiptVerified]) and never declares
 ///   payment success.
@@ -535,6 +540,20 @@ class DriverCompletionCoordinator {
     final DriverCompleteTripResult result;
     try {
       result = await _repository.completeTrip(stagedCommand);
+    } on DriverCompletionAttemptException catch (error) {
+      final matches = error.command.isExactReplayOf(stagedCommand);
+      return _settleAfterDispatch(
+        generation,
+        sessionBefore,
+        stagedCommand,
+        CoordinatorUnresolved(
+          stagedCommand: stagedCommand,
+          failure: matches
+              ? error.failure
+              : DriverCompletionFailure.malformedResponse,
+          attempt: matches ? error : null,
+        ),
+      );
     } on DriverTripCompletionException catch (error) {
       return _settleAfterDispatch(
         generation,
