@@ -4,6 +4,42 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('credential names do not match inside longer SDK identifiers', () {
+    for (final source in [
+      'autoRefreshToken: authOptions.autoRefreshToken',
+      'autoRefreshToken: autoRefreshToken',
+      'cachedAccessToken = syntheticCredential123',
+      'myServiceRole: syntheticCredential123',
+      'prefixsb_secret_ = syntheticCredential123',
+      'v2refresh_token: syntheticCredential123',
+    ]) {
+      expect(source, isNot(matches(_secretValuePattern)), reason: source);
+    }
+  });
+
+  test('credential values retain baseline detection across file formats', () {
+    // Build synthetic assignments at runtime: this file is itself scanned.
+    const value = 'syntheticCredential123';
+    for (final source in [
+      'SUPABASE_ACCESS_TOKEN=$value',
+      'SUPABASE_REFRESH_TOKEN="$value"',
+      "accessToken: '$value'",
+      'refresh_token = "$value"',
+      'service_role: $value',
+      'sb_secret_ = $value',
+      'README example: access_token=$value',
+      'auth: {refresh_token: $value, retries: 2}',
+      'access_token = $value // xcconfig comment',
+      '<string>access_token=$value\$literal</string>',
+      "refresh_token = '$value\$literal'", // Groovy literal dollar.
+      "service-role = '$value!()'",
+      'accessToken = "$value\${configuredSuffix}";',
+      'refreshToken = "\${configuredPrefix}"; accessToken = "$value";',
+    ]) {
+      expect(source, matches(_secretValuePattern), reason: source);
+    }
+  });
+
   test('tracked application configuration uses injection and no credentials',
       () {
     final trackedFiles = _trackedFiles();
@@ -89,7 +125,7 @@ void main() {
 }
 
 final _secretValuePattern = RegExp(
-  r'''(?:service[_-]?role|sb_secret_|access[_-]?token|refresh[_-]?token)\s*[:=]\s*['"]?[A-Za-z0-9._-]{12,}''',
+  r'''(?<![A-Za-z0-9])(?:service[_-]?role|sb_secret_|access[_-]?token|refresh[_-]?token)\s*[:=]\s*['"]?[A-Za-z0-9._-]{12,}''',
   caseSensitive: false,
 );
 
