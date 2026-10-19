@@ -1,6 +1,28 @@
 # RideX Development Plan
 
-Last updated: 2026-10-12
+Last updated: 2026-10-19
+
+## Latest owner decision — Phase 5 core accepted; full exit gates still tracked
+
+On 2026-10-19, the project representative reported Yusuf/team agreement to accept
+the verified Phase 5 core implementation and proceed with Phase 6 foundational
+work. This is documented with checked versus **still-open** evidence in
+`docs/ai/verification/PHASE_5_OWNER_ACCEPTANCE_2026-10-19.md`.
+
+Hosted Rider A/B RLS, booking draft/quote/lock/confirmation, idempotency and
+canonical reads were verified; one further full Android Hosted Rider A booking
+and recovery flow was verified. PR #36 fixes confirmed-booking recovery UX and
+was merged to `main` at `dd377c4`. No payment or matching was executed.
+
+**Owner acceptance of the verified core does not silently complete mandatory
+exit checks:** the Phase 4 two-device task 4.38/4.40, exact two sequential
+Android bookings, multi-stop Android flow, native Google Maps verification,
+hosted draft-update/quote-invalidation, controlled live fault-injection and
+nonsettling storage/RPC liveness decision have not all been demonstrated.
+These items remain unchecked below; the unconditional `PHASE 5 APPROVED`
+and `PHASE 4 APPROVED` checkboxes remain open pending a separate recorded
+owner disposition and independent integration review. Phase 6 payment
+foundations may proceed under the contract-first dependencies.
 
 ## Active goal — Phase 5 fare verification and documentation reconciliation
 
