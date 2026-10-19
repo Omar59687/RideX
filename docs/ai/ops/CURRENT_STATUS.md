@@ -1,5 +1,15 @@
 # RideX Current Status
 
+## Current override — 2026-10-19 Phase 5 core owner acceptance and Phase 6 continuation
+
+This override supersedes the 2026-10-12 pending-*core evidence* statements below, without rewriting historical verification or treating owner acceptance as completion of missing gates.
+
+- **Owner/team decision reported 2026-10-19:** the project representative confirmed that Yusuf was consulted and the team authorized acceptance of the verified Phase 5 core and continuing into Phase 6. Documented scope and exact exceptions: `docs/ai/verification/PHASE_5_OWNER_ACCEPTANCE_2026-10-19.md`.
+- **Verified Phase 5 core:** real two-Rider hosted RLS, draft→quote→lock→confirm, same-key idempotency and canonical recovery; a separate Android hosted Rider A UI confirmation for JOD 13.30; Android login/session/cold-start recovery. These are owner-supplied T3 execution reports, with production canonical booking statuses cross-checked via Supabase. No payment or driver matching occurred in these test flows.
+- **Post-merge UX fix:** PR #36 merged in `main` at `dd377c444669e57ba9322606fb26833b2c0e7163`. T3 reported Flutter analyze and 146 focused tests PASS and earlier full 1,293 tests (2 intentional live skips); Android profile app launched and read back the confirmed JOD 13.30 booking. The exact confirmed `Check fare status` button regression passed automated tests but was NOT live-reproduced after the pending evidence was retired.
+- **Still open:** Phase 4 4.38/4.40; Phase 5 two sequential on-device bookings, authenticated multi-stop Android flow, native Google Maps rendering, hosted draft-update/invalidation check, comprehensive live fault-injection, and an explicit nonsettling storage/RPC liveness decision. These are not auto-closed by accepting the implemented core; `PHASE 4 APPROVED` and unconditional `PHASE 5 APPROVED` remain unchecked pending separate owner disposition and integration review.
+- **Phase 6:** already merged P6-01/P6-03/P6-05/P6-06 PRs were reconciled in the authoritative `docs/parallel-development/phase-6/SPRINT_TRACKER.md`. P6-02/P6-07 foundations and P6-09 harness have merged components, but no invented complete financial-execution claim. P6-08 admin sanitized UI remains unconfirmed. Continue independently allowed payment foundation work from updated `main`; Phase 7/8 financial/matching execution and release remain separately gated.
+
 ## Current override - 2026-10-12 Phase 4/5 reconciliation and integration
 
 This section supersedes older current-state statements below. Historical
