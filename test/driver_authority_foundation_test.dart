@@ -2,11 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/app/config/env_config.dart';
 import 'package:ridex/core/models/driver_authority.dart';
 import 'package:ridex/core/repositories/driver_eligibility_repository.dart';
 import 'package:ridex/core/services/supabase/auth_service.dart';
+import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:shared_preferences_platform_interface/types.dart';
@@ -164,6 +167,14 @@ Map<String, Object?> authResponse({String id = driver, bool expired = false}) {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+            const MethodChannel('com.llfbandit.app_links/events'),
+            (_) async => null);
+  });
   group('strict eligibility contract', () {
     late Transport transport;
     late DriverEligibilityRepository repository;
@@ -325,36 +336,33 @@ void main() {
     ]) {
       test('invalid or privileged configuration fails before client creation',
           () {
+        final provenance = SupabaseInitializationProvenance();
         expect(
-            () => SupabaseDriverAuthorityBinding.create(
-                environment: SupabaseEnvironment(
-                    url: environment.url, publishableKey: key),
-                approvedBackends: DriverBackendRegistry([backend()]),
-                lifecycleReader: () => throw StateError('must not be read')),
-            throwsA(isA<DriverBindingException>().having((e) => e.failure,
-                'failure', DriverBindingFailure.invalidConfiguration)));
+            () => provenance.initialize(
+                SupabaseEnvironment(url: environment.url, publishableKey: key)),
+            throwsA(isA<EnvConfigException>()));
+        expect(provenance.snapshot.state, SupabaseProvenanceState.failed);
+        expect(provenance.driverAccess(DriverBackendRegistry([backend()])),
+            isNull);
       });
     }
-    test('valid but unapproved environment fails before client creation', () {
-      expect(
-          () => SupabaseDriverAuthorityBinding.create(
-              environment: environment,
-              approvedBackends: DriverBackendRegistry([]),
-              lifecycleReader: () => throw StateError('unused')),
-          throwsA(isA<DriverBindingException>().having((e) => e.failure,
-              'failure', DriverBindingFailure.unknownBackend)));
-    });
-    test('configuration for another client endpoint cannot use this namespace',
-        () {
-      expect(
-          () => SupabaseDriverAuthorityBinding.create(
-              environment: SupabaseEnvironment(
-                  url: 'https://foreign.unit-test.invalid',
-                  publishableKey: environment.publishableKey),
-              approvedBackends: DriverBackendRegistry([backend()]),
-              lifecycleReader: () => throw StateError('unused')),
-          throwsA(isA<DriverBindingException>().having((e) => e.failure,
-              'failure', DriverBindingFailure.unknownBackend)));
+    test('valid but unapproved environment cannot issue binding access',
+        () async {
+      final provenance = SupabaseInitializationProvenance();
+      await provenance.initialize(environment);
+      try {
+        expect(provenance.driverAccess(DriverBackendRegistry([])), isNull);
+        final foreign = DriverBackendIdentity(
+            endpoint: Uri.parse('https://foreign.unit-test.invalid'),
+            namespace: backend().namespace);
+        expect(
+            provenance.driverAccess(DriverBackendRegistry([foreign])), isNull);
+        expect(
+            provenance.driverAccess(DriverBackendRegistry([backend()]))!.client,
+            same(Supabase.instance.client));
+      } finally {
+        await Supabase.instance.dispose();
+      }
     });
   });
 
@@ -425,25 +433,25 @@ void main() {
       http = LocalHttp(server.port);
       previousHttp = HttpOverrides.current;
       HttpOverrides.global = http;
-      binding = HttpOverrides.runWithHttpOverrides(
-          () => SupabaseDriverAuthorityBinding.create(
-              environment: environment,
-              approvedBackends: DriverBackendRegistry([backend()]),
-              lifecycleReader: () => lifecycle),
-          http);
+      final provenance = SupabaseInitializationProvenance();
+      await provenance.initialize(environment);
+      binding = SupabaseDriverAuthorityBinding.create(
+          access: provenance.driverAccess(DriverBackendRegistry([backend()]))!,
+          lifecycleReader: () => lifecycle);
     });
     tearDown(() async {
       expect(preferences.mutations, 0);
       expect(await journal.readAsString(), 'unchanged journal evidence');
       expect(await evidenceDirectory.list().length, 1);
       await binding.dispose();
+      await Supabase.instance.dispose();
       await server.close(force: true);
       HttpOverrides.global = previousHttp;
       SharedPreferencesAsyncPlatform.instance = previousPreferences;
       await evidenceDirectory.delete(recursive: true);
     });
     Future<void> login() async {
-      await binding.authService
+      await AuthService(Supabase.instance.client)
           .signIn(email: 'fixture@unit-test.invalid', password: 'local-only');
       requests.clear();
       http.requests.clear();
@@ -508,7 +516,7 @@ void main() {
         () async {
       final typed = <DriverAuthEvent>[];
       var legacy = 0;
-      final service = binding.authService;
+      final service = AuthService(Supabase.instance.client);
       final typedSub = service.driverAuthEvents().listen(typed.add);
       final legacySub = service.authStateChanges().listen((_) => legacy++);
       final signedIn = service
@@ -541,8 +549,8 @@ void main() {
     });
     test('actual SDK refresh remains typed and ordered for both event APIs',
         () async {
-      final client = SupabaseClient(environment.url, environment.publishableKey,
-          authOptions: const AuthClientOptions(autoRefreshToken: false));
+      final client = Supabase.instance.client;
+      client.auth.stopAutoRefresh();
       final service = AuthService(client);
       final events = <DriverAuthEvent>[];
       var legacy = 0;
@@ -570,7 +578,6 @@ void main() {
       } finally {
         await subscription.cancel();
         await oldSubscription.cancel();
-        await client.dispose();
       }
     });
   });

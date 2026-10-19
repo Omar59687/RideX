@@ -1,6 +1,6 @@
-import 'package:ridex/app/config/env_config.dart';
 import 'package:ridex/core/models/driver_authority.dart';
 import 'package:ridex/core/repositories/driver_eligibility_repository.dart';
+import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
@@ -57,7 +57,7 @@ class AuthService {
   Future<void> signOut() => _client.auth.signOut();
 }
 
-enum DriverBindingFailure { invalidConfiguration, unknownBackend }
+enum DriverBindingFailure { untrustedAccess }
 
 final class DriverBindingException implements Exception {
   const DriverBindingException(this.failure);
@@ -66,69 +66,64 @@ final class DriverBindingException implements Exception {
   String toString() => 'DriverBindingException($failure)';
 }
 
-/// Unwired construction boundary. The trusted integration owner supplies the
-/// reviewed endpoint registry and validated deployment environment, NOT a
-/// screen-provided namespace. No registry entries are activated in Slice A.
-///
-/// Creates and exclusively retains its SDK client, so an arbitrary existing
-/// client cannot be relabeled with a different endpoint/namespace or privileged
-/// headers. Slice B must explicitly adopt this client/auth boundary; it must
-/// not run a second independent authority beside the existing singleton.
-/// No authentication/session copying, automatic login or provider registration.
+/// Unwired, borrowed access to the B0-verified application singleton. Only the
+/// provenance capability supplies the client and backend identity. This binding
+/// never initializes, authenticates, signs out, or disposes the shared client.
+/// Session epochs remain the responsibility of the injected lifecycle owner.
 final class SupabaseDriverAuthorityBinding
     implements DriverEligibilityTransport {
-  SupabaseDriverAuthorityBinding._(this._client, this.backend, this._lifecycle);
+  SupabaseDriverAuthorityBinding._(
+      this._access, this._client, this.backend, this._lifecycle);
 
   factory SupabaseDriverAuthorityBinding.create({
-    required SupabaseEnvironment environment,
-    required DriverBackendRegistry approvedBackends,
+    required VerifiedSupabaseDriverAccess access,
     required DriverAuthorityLifecycleReader lifecycleReader,
   }) {
-    final SupabaseEnvironment? validated;
-    try {
-      validated = EnvConfig.validateSupabaseEnvironment(
-        url: environment.url,
-        publishableKey: environment.publishableKey,
-      );
-    } on EnvConfigException {
-      throw const DriverBindingException(
-          DriverBindingFailure.invalidConfiguration);
-    }
-    if (validated == null) {
-      throw const DriverBindingException(
-          DriverBindingFailure.invalidConfiguration);
-    }
-    final backend = approvedBackends.resolve(Uri.parse(validated.url));
-    if (backend == null) {
-      throw const DriverBindingException(DriverBindingFailure.unknownBackend);
+    final client = access.client;
+    if (client == null) {
+      throw const DriverBindingException(DriverBindingFailure.untrustedAccess);
     }
     return SupabaseDriverAuthorityBinding._(
-      SupabaseClient(validated.url, validated.publishableKey),
-      backend,
-      lifecycleReader,
-    );
+        access, client, access.backend, lifecycleReader);
   }
 
+  final VerifiedSupabaseDriverAccess _access;
   final SupabaseClient _client;
   final DriverBackendIdentity backend;
   final DriverAuthorityLifecycleReader _lifecycle;
   bool _disposed = false;
 
-  AuthService get authService => AuthService(_client);
+  // Never use the retained SDK object without rechecking its capability.
+  SupabaseClient? get _trustedClient {
+    if (_disposed) return null;
+    final current = _access.client;
+    if (!identical(current, _client) || !identical(_access.backend, backend)) {
+      return null;
+    }
+    return current;
+  }
 
   @override
   DriverAuthorityOwner get currentOwner {
-    final lifecycle = _lifecycle();
-    final session = _client.auth.currentSession;
-    return DriverAuthorityOwner(
-      driverId: session?.user.id,
-      backend: backend,
-      epoch: lifecycle.epoch,
-      hasValidSession: !_disposed &&
-          lifecycle.isActive &&
-          session != null &&
-          !session.isExpired,
-    );
+    try {
+      final lifecycle = _lifecycle();
+      final session = _trustedClient?.auth.currentSession;
+      return DriverAuthorityOwner(
+        driverId: session?.user.id,
+        backend: backend,
+        epoch: lifecycle.epoch,
+        hasValidSession:
+            lifecycle.isActive && session != null && !session.isExpired,
+      );
+    } on Object {
+      return DriverAuthorityOwner(
+          driverId: null, backend: backend, epoch: -1, hasValidSession: false);
+    }
+  }
+
+  bool _stillOwned(DriverAuthorityOwner owner) {
+    final current = currentOwner;
+    return current.isUsable && owner.sameOwner(current);
   }
 
   @override
@@ -148,18 +143,23 @@ final class SupabaseDriverAuthorityBinding
           DriverEligibilityFailure.sessionInvalidated);
     }
     try {
-      final row = await _client
+      final client = _trustedClient;
+      if (client == null || !_stillOwned(owner)) {
+        throw const DriverEligibilityReadException(
+            DriverEligibilityFailure.sessionInvalidated);
+      }
+      final row = await client
           .from(table)
           .select(columns)
           .eq(identityColumn, driverId)
           .maybeSingle();
-      if (!owner.sameOwner(currentOwner) || !currentOwner.isUsable) {
+      if (!_stillOwned(owner)) {
         throw const DriverEligibilityReadException(
             DriverEligibilityFailure.sessionInvalidated);
       }
       return row;
     } on Object catch (error) {
-      if (!owner.sameOwner(currentOwner) || !currentOwner.isUsable) {
+      if (!_stillOwned(owner)) {
         throw const DriverEligibilityReadException(
             DriverEligibilityFailure.sessionInvalidated);
       }
@@ -186,9 +186,9 @@ final class SupabaseDriverAuthorityBinding
     }
   }
 
-  Future<void> dispose() async {
-    if (_disposed) return;
+  /// Revoke local access before returning; the application owns SDK cleanup.
+  Future<void> dispose() {
     _disposed = true;
-    await _client.dispose();
+    return Future<void>.value();
   }
 }
