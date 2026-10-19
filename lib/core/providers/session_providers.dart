@@ -764,6 +764,8 @@ class PendingFareLockController extends Notifier<PendingFareLock?> {
   /// RPC replay or draft mutation. Holds the slot queue through classification
   /// and exact evidence verification, so stale reads cannot erase commands.
   /// A missing SELECT is never proof that the original request cannot commit.
+  /// A snapshot that strictly proves confirmation (Slice 3 handoff) is
+  /// recovered as confirmed; uncertain snapshots never are.
   Future<FareLockRecovery?> recoverCanonically() async {
     final generation = _generation;
     await restorePendingLock();
@@ -799,7 +801,7 @@ class PendingFareLockController extends Notifier<PendingFareLock?> {
           riderId: command.riderId,
         );
         if (!current()) return null;
-        result = FareLockRecovery.classify(command, rows);
+        result = _classifyRecoverableLineage(command, rows);
       } on FareException catch (error) {
         if (!current()) return null;
         return failed(error.failure);
@@ -1127,6 +1129,22 @@ class PendingFareLockController extends Notifier<PendingFareLock?> {
       state = stored;
     });
   }
+}
+
+/// Preserve Slice 2 lock replay; only Slice 3's strict handoff can additionally
+/// prove confirmation from the same canonical snapshot.
+FareLockRecovery _classifyRecoverableLineage(
+    PendingFareLock command, List<CanonicalFareBooking> rows) {
+  final recovery = FareLockRecovery.classify(command, rows);
+  if (recovery.status == FareLockRecoveryStatus.confirmed) return recovery;
+  final handoff = BookingHandoff.classify(command, rows);
+  if (handoff == null || !handoff.isConfirmed) return recovery;
+  return FareLockRecovery(
+    command: command,
+    status: FareLockRecoveryStatus.confirmed,
+    booking: handoff.booking,
+    quote: handoff.quote,
+  );
 }
 
 class ActiveTripController extends Notifier<MockTrip?> {

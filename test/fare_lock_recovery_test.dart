@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ridex/core/services/fare/supabase_fare_lock_reader.dart';
 import 'package:ridex/app/theme/app_theme.dart';
+import 'package:ridex/app/router/app_router.dart';
 import 'package:ridex/features/booking/presentation/screens/fare_estimate_screen.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -325,6 +326,77 @@ void main() {
       expect(find.text('Check fare status'), findsOneWidget);
       expect(h.store.slots['rider-1'], _command);
     });
+    testWidgets(
+        'confirmed booking check recovers the protected fare and review path',
+        (tester) async {
+      var reads = 0;
+      final h = _Harness(({required bookingRequestId, required riderId}) async {
+        reads++;
+        return [_bookingRow(version: 3, status: 'confirmed')];
+      });
+      addTearDown(h.container.dispose);
+      await h.authenticate();
+      final router = h.container.read(appRouterProvider);
+      addTearDown(router.dispose);
+      router.go('/rider/fare');
+      await tester.pumpWidget(UncontrolledProviderScope(
+          container: h.container,
+          child: MaterialApp.router(
+              theme: AppTheme.light(), routerConfig: router)));
+      await tester.pumpAndSettle();
+      expect(find.text('Fare recovery blocked'), findsNothing);
+      await tester.ensureVisible(find.text('Check fare status'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Check fare status'));
+      await tester.pumpAndSettle();
+      expect(find.text('Fare recovery blocked'), findsNothing);
+      expect(
+          find.text('Recovered the fare for your original booking. '
+              'Current route selections may differ.'),
+          findsOneWidget);
+      expect(
+          find.text('Your locked fare is protected. Review your original '
+              'booking to continue. Replacement remains paused.'),
+          findsOneWidget);
+      expect(find.text('Review original booking'), findsOneWidget);
+      expect(find.text('Fare locked'), findsOneWidget);
+      expect(reads, 1);
+      await tester.ensureVisible(find.text('Review original booking'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Review original booking'));
+      await tester.pumpAndSettle();
+      expect(find.text('Booking confirmed'), findsOneWidget);
+      expect(find.text('Locked fare: ${formatFareFils(2000)}'), findsOneWidget);
+      expect(find.text('Confirm original booking'), findsNothing);
+      expect(reads, 2); // Review revalidates canonical evidence independently.
+      expect(h.store.slots['rider-1'], _command);
+      expect(h.container.read(pendingFareLockControllerProvider), _command);
+      expect(h.store.deletes, 0);
+      await expectLater(_createDraft(h), _mutationBlocked);
+    });
+    testWidgets('advanced confirmed shapes still block instead of recovering',
+        (tester) async {
+      final h = _Harness((
+              {required bookingRequestId, required riderId}) async =>
+          [_bookingRow(version: 4, status: 'confirmed')]);
+      addTearDown(h.container.dispose);
+      await h.authenticate();
+      await tester.pumpWidget(UncontrolledProviderScope(
+          container: h.container,
+          child: MaterialApp(
+              theme: AppTheme.light(), home: const FareEstimateScreen())));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Check fare status'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Check fare status'));
+      await tester.pumpAndSettle();
+      expect(find.text('Fare recovery blocked'), findsOneWidget);
+      expect(
+          find.textContaining('Recovered the fare for your original booking.'),
+          findsNothing);
+      expect(h.store.slots['rider-1'], _command);
+      expect(h.store.deletes, 0);
+    });
   });
 
   group('canonical read boundary', () {
@@ -399,6 +471,39 @@ void main() {
       // Same-Rider restart/re-entry still cannot abandon the confirmed fare.
       await expectLater(_createDraft(h), _mutationBlocked);
     });
+    test(
+        'canonically confirmed lineage is recovered as confirmed without a replacement',
+        () async {
+      final h = _Harness((
+              {required bookingRequestId, required riderId}) async =>
+          [_bookingRow(version: 3, status: 'confirmed')]);
+      addTearDown(h.container.dispose);
+      await h.authenticate();
+      final result = await h.pending.recoverCanonically();
+      expect(result!.status, FareLockRecoveryStatus.confirmed);
+      expect(result.booking!.version, 3);
+      expect(result.booking!.status, 'confirmed');
+      expect(result.quote!.id, _command.fareQuoteId);
+      expect(result.quote!.status, FareQuoteStatus.locked);
+      expect(h.store.slots['rider-1'], _command);
+      expect(h.container.read(pendingFareLockControllerProvider), _command);
+      expect(h.store.deletes, 0);
+      await expectLater(_createDraft(h), _mutationBlocked);
+    });
+    test('locked draft lineage still recovers through the Slice 2 result',
+        () async {
+      final h = _Harness((
+              {required bookingRequestId, required riderId}) async =>
+          [_bookingRow()]);
+      addTearDown(h.container.dispose);
+      await h.authenticate();
+      final result = await h.pending.recoverCanonically();
+      expect(result!.status, FareLockRecoveryStatus.confirmed);
+      expect(result.booking!.version, 2);
+      expect(result.booking!.status, 'draft');
+      expect(h.store.slots['rider-1'], _command);
+      expect(h.store.deletes, 0);
+    });
     test('lost response after commit restores from persisted command',
         () async {
       final h = _Harness((
@@ -455,6 +560,34 @@ void main() {
           {..._quoteRow(), 'locked_at': null}
         ])
       ],
+      'confirmed booking with an advanced version': [
+        _bookingRow(version: 4, status: 'confirmed')
+      ],
+      'confirmed booking with a different linked quote': [
+        _bookingRow(version: 3, status: 'confirmed', link: 'different')
+      ],
+      'confirmed booking with a mismatched quote version': [
+        _bookingRow(
+            version: 3, status: 'confirmed', quotes: [_quoteRow(version: 2)])
+      ],
+      'confirmed booking without a lock timestamp': [
+        _bookingRow(version: 3, status: 'confirmed', quotes: [
+          {..._quoteRow(), 'locked_at': null}
+        ])
+      ],
+      'multiple confirmed candidates': [
+        _bookingRow(version: 3, status: 'confirmed'),
+        _bookingRow(version: 3, status: 'confirmed')
+      ],
+      'confirmed booking owned by another rider': [
+        {..._bookingRow(version: 3, status: 'confirmed'), 'rider_id': 'rider-2'}
+      ],
+      'confirmed booking with another riders quote': [
+        _bookingRow(
+            version: 3,
+            status: 'confirmed',
+            quotes: [_quoteRow(rider: 'rider-2')])
+      ],
     };
     for (final entry in uncertainCases.entries) {
       test(entry.key, () async {
@@ -468,6 +601,7 @@ void main() {
         expect(h.store.slots['rider-1'], _command);
         expect(h.container.read(pendingFareLockControllerProvider), _command);
         expect(h.store.deletes, 0);
+        await expectLater(_createDraft(h), _mutationBlocked);
       });
     }
     for (final failure in [
@@ -550,6 +684,46 @@ void main() {
       expect(h.store.slots['rider-1'], _command);
       expect(h.store.deletes, 0);
     });
+    for (final change in [
+      'sign out',
+      'different rider',
+      'same rider reauthentication'
+    ]) {
+      test('$change during SELECT discards a late confirmed read', () async {
+        final started = Completer<void>();
+        final gate = Completer<List<Map<String, dynamic>>>();
+        final h = _Harness(({required bookingRequestId, required riderId}) {
+          started.complete();
+          return gate.future;
+        });
+        addTearDown(h.container.dispose);
+        await h.authenticate();
+        final recovery = h.pending.recoverCanonically();
+        await started.future;
+        if (change == 'sign out') {
+          h.auth.user = null;
+        } else if (change == 'different rider') {
+          h.auth.user = AppUser(
+              id: 'rider-2',
+              name: 'Another rider',
+              email: 'another@example.test',
+              role: MockData.demoRider.role);
+        } else {
+          h.auth.user = null;
+          await h.container
+              .read(sessionControllerProvider.notifier)
+              .refreshSession();
+          h.auth.user = MockData.demoRider;
+        }
+        await h.container
+            .read(sessionControllerProvider.notifier)
+            .refreshSession();
+        gate.complete([_bookingRow(version: 3, status: 'confirmed')]);
+        expect(await recovery, isNull);
+        expect(h.store.slots['rider-1'], _command);
+        expect(h.store.deletes, 0);
+      });
+    }
     test('disposal during SELECT preserves evidence', () async {
       final started = Completer<void>();
       final gate = Completer<List<Map<String, dynamic>>>();
