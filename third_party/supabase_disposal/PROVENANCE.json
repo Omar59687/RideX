@@ -1,0 +1,77 @@
+{
+  "repository": "https://github.com/supabase/supabase-flutter",
+  "packages": [
+    {
+      "name": "supabase",
+      "version": "2.13.4",
+      "upstream_commit": "42c7224097e50afe8c7246096940235880f89ff8",
+      "upstream_path": "packages/supabase",
+      "archive_url": "https://pub.dev/api/archives/supabase-2.13.4.tar.gz",
+      "archive_sha256": "6933e60614652fa10749eb29fdcc6f2adb6515f5638e5ce28376ae08a626d745",
+      "upstream_sha256": {
+        "pubspec.yaml": "512d6c99e842da0495c0633711d1c6df47e98d8c241bab868849c39d885dd649",
+        "lib/supabase.dart": "31209daf06c6a60d7c5f80b7bc1e749c7cc8b2426a54635d27c93d7f97b24df1",
+        "lib/src/platform_stub.dart": "36c39205dd90cd9c7904fdea21250e46a861e2ce5d0675386bddd494ae768832",
+        "lib/src/remove_subscription_result.dart": "0ffffa150e62b095e109fa5d89fec5efd90bbb7d99a6d7fb659d11a23f5f54a6",
+        "lib/src/auth_http_client.dart": "f0f92dd356d26c0bd2a8e53a4c0ac11b4215c1d69b4d502ee2715748b3afea26",
+        "lib/src/auth_user.dart": "f4c5d5fe8665490c9fcafb695d9e64bb9b3073800e8c9da637d38e151f7fd126",
+        "lib/src/supabase_client_options.dart": "5da2e9b7bd194fc143b3017dc77f177caf406309528e1ed1b10e545bf74f589d",
+        "lib/src/supabase_stream_filter_builder.dart": "6c9a67a289226a6f3f617196d7fb2ac1eb406a58d3548182adade4b7c870cfd5",
+        "lib/src/supabase_client.dart": "5dc98aaf68e842d1c245ef825060e6f3700be1855acd666f45fe0bf569cce090",
+        "lib/src/supabase_query_schema.dart": "43652ebc7f7f799ea34aaab0135d737f97160cde916598c71ac951ffb716551d",
+        "lib/src/platform_io.dart": "41d55058115c86207c0136a2ea7368f5b7777391d4b0c90495d65743324cf7e3",
+        "lib/src/supabase_query_builder.dart": "c525b1fced01972292c20dd5e21a3593b5494c4350836c555b4271207a34399d",
+        "lib/src/version.dart": "a8900503ce2d366322fb5f20158ca09f98247aebafd85d8d9d162a7ba8be9508",
+        "lib/src/supabase_stream_builder.dart": "e79d527fcf54e44200e0e18542f2222d10e957a9db302e52de08389fb5908ccc",
+        "lib/src/realtime_client_options.dart": "5fee8cf0c130c19da3f48862e8d088ec8d9d589b944f9bb45b7b3f145f8cb9b9",
+        "lib/src/counter.dart": "5591a03ddbae4ec1b4cf634cbfc1e26b4d90616053e6804ac5d306ece6303635",
+        "lib/src/supabase_event_types.dart": "034cb7a89020a42d895094ce4116de8ca215b620037f3c47ad3fec331aa6ca36",
+        "lib/src/supabase_realtime_error.dart": "625bf04b8288132fc6711105c5fa17affacb420ebcd6f3b0b095f64ed874642d",
+        "lib/src/constants.dart": "ac27bea04fd9a3d618146d02738e3627e9bec8dee7dc8afec27432c8806c6620",
+        "LICENSE": "334dd6820e2eaeab2064e7c59001b810566728a28a41a7c1dbf69bbee17d0936"
+      },
+      "patched_sha256": {
+        "lib/src/supabase_client.dart": "d1b79f7a5a8238c293042c6ba16098f5a5d968f1ae6bebaa4611618fa2a15940"
+      }
+    },
+    {
+      "name": "supabase_flutter",
+      "version": "2.15.4",
+      "upstream_commit": "42c7224097e50afe8c7246096940235880f89ff8",
+      "upstream_path": "packages/supabase_flutter",
+      "archive_url": "https://pub.dev/api/archives/supabase_flutter-2.15.4.tar.gz",
+      "archive_sha256": "b6d34558565c14f1b44ff7bc9ca2979ed38ee2907b80ed73e699150cec08b739",
+      "upstream_sha256": {
+        "pubspec.yaml": "4116dfd55cd06129555c6ba6b759e5c840cd5c9f1bd9c11745ad88ede4b22756",
+        "lib/src/platform_stub.dart": "015aee95f2da5faebc7a66446ea1ba597ad84c251fd16e5168f7ee0427525688",
+        "lib/src/clear_auth_url_parameters_stub.dart": "ae53aa8b91578672ece43d9917d2e4c3864e9afa241e35b2be97e49741e0588f",
+        "lib/src/passkey/passkey_options_mapper.dart": "199d203fe31e5cc3169083b9f4d6f368bbe4936999f1de9d81f3b62f3f6070b9",
+        "lib/src/flutter_go_true_client_options.dart": "ac66addf6508a3917408d85d3301e6266f1ae27ca26c30ca66a7d9f63a4f1225",
+        "lib/src/local_storage_web.dart": "dedfa88583dcb4954a45c4f65b736445b0e729737906951a9645ac27df34ddee",
+        "lib/src/hot_restart_cleanup_web.dart": "38291287e74c0f4a60ae0218057205974a81967484a987125e8b6e3cc0cc6c72",
+        "lib/src/clear_auth_url_parameters.dart": "0485b67f906bd2f50c32528ca54af63213a11339a58a92695e2593e0c55f4522",
+        "lib/src/supabase.dart": "d1930f099effb6c69c60b8e299ba91ee92a66b36aa179520a97b0590f3c37ce4",
+        "lib/src/platform_io.dart": "1c688c4115b86cb79e4640abb963a64a85c6f44089e33cc571aab05e999d910a",
+        "lib/src/hot_restart_cleanup_stub.dart": "885012460ad1af082936583b5cff3b3a0a573ee51941d0233299c214f4d267cc",
+        "lib/src/supabase_passkey.dart": "e59927c683492c43f48dc00f15e0528afbb37f6d3075d81dcbc68dc1c33e70c4",
+        "lib/src/local_storage.dart": "2f9302d9b8c09f8f16eceaf84b8bea3008c4e087df8eb071cab1753f7e48ebf1",
+        "lib/src/version.dart": "2cdcd83e2890391aa6a644d8c25192807704ab2b5b5e4a521d17202b2d65ff3a",
+        "lib/src/supabase_auth.dart": "6ccfc37d9f8ae7188cb90ae8e11110d880cb44e2e2415752e35f2812f7380ccb",
+        "lib/src/clear_auth_url_parameters_web.dart": "a30106323432fece7217a6253701e553dde843158fec8857d003d38c64f772a6",
+        "lib/src/constants.dart": "fda85ddd8f4d62f3c2172aa2ab3cdb11ee9e88ca5e0e239ed36267441f52a439",
+        "lib/src/local_storage_stub.dart": "f47328f0d525416c18385ea72e790b1f35e09dbdcda6c9d7bc8b017b971b019f",
+        "lib/supabase_flutter.dart": "1b0c7b2602ca64323e292a258b9b6caf3010796a9ecbab530061ca1336d61916",
+        "LICENSE": "334dd6820e2eaeab2064e7c59001b810566728a28a41a7c1dbf69bbee17d0936"
+      },
+      "patched_sha256": {
+        "lib/src/supabase.dart": "17606c41b019b7246d67c86c2ab58dde4b9d6a5c41b05cecdd8798c4e840786e"
+      }
+    }
+  ],
+  "test_helpers_sha256": {
+    "test/helpers/sdk_disposal_socket.dart": "1839f4dd1b6fcb8ecac56c67778a1d9abe50fa93fce4e8d2d2b426352083e5cd",
+    "test/helpers/sdk_web_disposal.dart": "d3f8dc090dcfe51e0ef154fc78d9c2c593d6150a1f3517d5ad47f2b434465375",
+    "test/helpers/sdk_web_disposal_stub.dart": "7d654b803674bfd42916ade9f8fc17b983addf36088b396fb62dbe4c1e8a6450"
+  },
+  "patch_sha256": "625cb2e6ac8bfe03cd34d41510066b663446d6402a0d66e9b3de541d2e2cfb7e"
+}

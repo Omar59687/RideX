@@ -46,6 +46,8 @@ dependencies:
   supabase_flutter: ^2.15.4
 
 dev_dependencies:
+  # Existing resolved version, directly named for offline SDK disposal fixtures.
+  web_socket_channel: 3.0.3
   integration_test:
     sdk: flutter
   flutter_test:
@@ -67,6 +69,12 @@ dev_dependencies:
 # The Maps federated packages otherwise resolve to releases requiring newer
 # Flutter versions when pub get runs on a newer developer SDK.
 dependency_overrides:
+  # Reviewed snapshots of 2.13.4 / 2.15.4 with disposal observability only.
+  # Exact upstream commit, archive hashes and patch hashes: third_party/supabase_disposal.
+  supabase:
+    path: third_party/supabase_disposal/supabase
+  supabase_flutter:
+    path: third_party/supabase_disposal/supabase_flutter
   flutter_plugin_android_lifecycle: 2.0.20
   google_maps_flutter_android: 2.16.1
   google_maps_flutter_ios: 2.15.4

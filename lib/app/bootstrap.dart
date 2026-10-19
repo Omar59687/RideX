@@ -3,19 +3,14 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/app/app.dart';
 import 'package:ridex/app/config/env_config.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
 
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
     final environment = EnvConfig.supabaseEnvironment;
-    if (environment != null) {
-      await Supabase.initialize(
-        url: environment.url,
-        publishableKey: environment.publishableKey,
-      );
-    }
+    await SupabaseInitializationProvenance.application.initialize(environment);
   } on EnvConfigException {
     _reportStartupFailure('Backend configuration was rejected.');
     runApp(const RideXInitializationFailureApp());
