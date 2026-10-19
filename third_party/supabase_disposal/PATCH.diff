@@ -1,0 +1,118 @@
+--- upstream/supabase/lib/src/supabase_client.dart
++++ patched/supabase/lib/src/supabase_client.dart
+@@ -277,6 +277,34 @@
+-  Future<void> dispose() async {
+-    _log.fine('Dispose SupabaseClient');
+-    await realtime.disconnect();
+-    await _authStateSubscription?.cancel();
+-    await functions.dispose();
+-    await rest.dispose();
++  bool _disposeStarted = false;
++  Future<void>? _disposeFuture;
++
++  /// True from the start of disposal, even if cleanup fails. Never resets.
++  bool get isDisposingOrDisposed => _disposeStarted;
++
++  /// Starts disposal synchronously and shares one cleanup result across calls.
++  Future<void> dispose() {
++    final pending = _disposeFuture;
++    if (pending != null) return pending;
++    final completion = Completer<void>();
++    _disposeFuture = completion.future;
++    _disposeStarted = true;
++    _dispose().then(completion.complete, onError: completion.completeError);
++    return completion.future;
++  }
++
++  Future<void> _dispose() async {
++    Object? firstError;
++    StackTrace? firstStack;
++    Future<void> attempt(FutureOr<void> Function() cleanup) async {
++      try {
++        await cleanup();
++      } catch (error, stack) {
++        firstError ??= error;
++        firstStack ??= stack;
++      }
++    }
++
++    await attempt(() => _log.fine('Dispose SupabaseClient'));
++    await attempt(() => realtime.disconnect());
++    await attempt(() => _authStateSubscription?.cancel());
++    await attempt(functions.dispose);
++    await attempt(rest.dispose);
+@@ -284 +312 @@
+-      await _isolate.dispose();
++      await attempt(_isolate.dispose);
+@@ -287,3 +315,6 @@
+-      _authHttpClient.close();
+-    }
+-    _authInstance?.dispose();
++      await attempt(_authHttpClient.close);
++    }
++    await attempt(() => _authInstance?.dispose());
++    if (firstError != null) {
++      Error.throwWithStackTrace(firstError!, firstStack!);
++    }
+--- upstream/supabase_flutter/lib/src/supabase.dart
++++ patched/supabase_flutter/lib/src/supabase.dart
+@@ -18,0 +19,8 @@
++
++/// Monotonic disposal evidence for one initialization of the reusable singleton.
++/// Retaining this marker preserves evidence across later SDK initialization.
++final class SupabaseDisposalState {
++  SupabaseDisposalState._();
++  bool _hasStarted = false;
++  bool get hasStarted => _hasStarted;
++}
+@@ -168,0 +177,7 @@
++  SupabaseDisposalState _disposalState = SupabaseDisposalState._();
++  Future<void>? _disposeFuture;
++
++  /// Disposal evidence for the current initialization; retain it across awaits.
++  SupabaseDisposalState get disposalState => _disposalState;
++  bool get isDisposingOrDisposed => _disposalState.hasStarted;
++
+@@ -199 +214,23 @@
+-  Future<void> dispose() async {
++  Future<void> dispose() {
++    final pending = _disposeFuture;
++    if (pending != null) return pending;
++    final completion = Completer<void>();
++    _disposeFuture = completion.future;
++    _disposalState._hasStarted = true;
++    _dispose(client)
++        .then(completion.complete, onError: completion.completeError);
++    return completion.future;
++  }
++
++  Future<void> _dispose(SupabaseClient disposalClient) async {
++    Object? firstError;
++    StackTrace? firstStack;
++    Future<void> attempt(FutureOr<void> Function() cleanup) async {
++      try {
++        await cleanup();
++      } catch (error, stack) {
++        firstError ??= error;
++        firstStack ??= stack;
++      }
++    }
++
+@@ -201,5 +238,5 @@
+-    await _restoreSessionCancellableOperation?.cancel();
+-    await _logSubscription?.cancel();
+-    await client.dispose();
+-    _instance._supabaseAuth?.dispose();
+-    _lifecycleListener?.dispose();
++    await attempt(() => _restoreSessionCancellableOperation?.cancel());
++    await attempt(() => _logSubscription?.cancel());
++    await attempt(disposalClient.dispose);
++    await attempt(() => _instance._supabaseAuth?.dispose());
++    await attempt(() => _lifecycleListener?.dispose());
+@@ -206,0 +244,3 @@
++    if (firstError != null) {
++      Error.throwWithStackTrace(firstError!, firstStack!);
++    }
+@@ -219,0 +260,2 @@
++    _disposalState = SupabaseDisposalState._();
++    _disposeFuture = null;

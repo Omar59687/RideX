@@ -129,6 +129,7 @@ const _supabaseInfrastructureFiles = {
   'lib/core/services/supabase/auth_service.dart',
   'lib/core/services/supabase/profile_service.dart',
   'lib/core/services/supabase/supabase_client_provider.dart',
+  'lib/core/services/supabase/supabase_initialization_provenance.dart',
 };
 
 Iterable<File> _dartFilesUnder(String relativeDirectory) {
