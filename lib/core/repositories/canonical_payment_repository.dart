@@ -94,8 +94,6 @@ class SupabaseCanonicalPaymentRepository
     implements PaymentRepository, CardPaymentRepository {
   SupabaseCanonicalPaymentRepository(this._client);
   final SupabaseClient _client;
-  static const projection = 'id,booking_request_id,trip_id,rider_id,method,'
-      'final_amount_fils,currency,cash_status,card_status,version,card_brand,card_last_four';
   static const adminPageSize = 50;
 
   Session _owner() {
@@ -161,10 +159,11 @@ class SupabaseCanonicalPaymentRepository
         }
         final owner = _owner();
         final role = await _financeRole(owner);
+        // Intentionally deny direct Data API SELECT on payments (migration 019).
+        // This scoped definer RPC authorizes the exact Rider or a live Admin.
         final row = await _client
-            .from('payments')
-            .select(projection)
-            .eq('id', paymentId)
+            .rpc('user_canonical_payment_record',
+                params: {'target_payment_id': paymentId})
             .maybeSingle();
         _requireCurrent(owner);
         if (await _financeRole(owner) != role) {
@@ -204,12 +203,14 @@ class SupabaseCanonicalPaymentRepository
       _read(() async {
         final owner = _owner();
         await _financeRole(owner, adminOnly: true);
-        final rows = await _client
-            .from('payments')
-            .select(projection)
-            .order('created_at', ascending: false)
-            .order('id', ascending: true)
-            .limit(adminPageSize);
+        // Server-side role gate, fixed ordering and LIMIT 50; never
+        // issue a whole-table finance SELECT from the authenticated SDK.
+        final response = await _client.rpc('admin_recent_canonical_payments');
+        if (response is! List) {
+          throw const CanonicalPaymentReadException(
+              CanonicalPaymentReadFailure.invalidResponse);
+        }
+        final rows = response;
         _requireCurrent(owner);
         await _financeRole(owner, adminOnly: true);
         if (rows.length > adminPageSize) {
