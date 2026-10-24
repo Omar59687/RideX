@@ -46,6 +46,10 @@ verify the identified integration failure was resolved.
 1. B1-B must provide the reviewed, synchronously revocable lifecycle/epoch owner,
    approved backend registry and canonical active-Trip/UI composition. These were
    not present in main or registered worktrees here; no replacement was invented.
+   A final coordination refresh found concurrent PR #45 (6e8b316) open for
+   B1-B review. It is not merged or included in the test counts above. Its
+   documented B1-C prerequisites still include explicitly approved endpoint-to-
+   namespace mappings and separate provider/consumer activation acceptance.
 2. No approved hosted Driver/Cash Trip fixture was completed. Trusted Cash
    settlement and issued-receipt end-to-end acceptance remain NOT VERIFIED.
    This work made no hosted financial call and created no booking, Trip or payment.

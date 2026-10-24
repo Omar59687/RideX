@@ -115,3 +115,5 @@ V4-01/V4-02 and V5-02/V5-03/V5-04 evidence tails remain separate; no Phase 5 And
 or hosted tests were repeated during this implementation.
 V5-03 multi-stop physical verification remains OPEN; V5-04 recovery/negative-case
 testing remains PARTIAL (full live fault injection not established).
+
+Concurrent B1-B ownership work is now open in [#45](https://github.com/Omar59687/RideX/pull/45) at `6e8b316`. It is outside this tested integration tree and remains review/merge pending; B1-C approved backend mappings and activation acceptance are still open. No teammate branch or source was changed.
