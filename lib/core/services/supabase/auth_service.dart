@@ -1,12 +1,56 @@
 import 'package:ridex/core/models/driver_authority.dart';
+import 'package:ridex/core/services/session_epoch_owner.dart';
 import 'package:ridex/core/repositories/driver_eligibility_repository.dart';
 import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
-  const AuthService(this._client);
+  factory AuthService(SupabaseClient client) =>
+      _services[client] ??= AuthService._(client);
+
+  AuthService._(this._client) {
+    _epochs = SessionEpochOwner(
+      currentIdentity: () {
+        if (_client.isDisposingOrDisposed) return null;
+        return _client.auth.currentSession?.user.id;
+      },
+      hasValidSession: () {
+        final session = _client.auth.currentSession;
+        return !_client.isDisposingOrDisposed &&
+            session != null &&
+            !session.isExpired;
+      },
+      events: driverAuthEvents(),
+      // Supabase initialize can return while expired-session recovery awaits.
+      // This one-shot startup window is cancelled by every revocation.
+      startupIdentity: _client.auth.currentSession?.user.id,
+    );
+  }
+
+  // Wrappers around the same application client must share one authority.
+  static final _services = Expando<AuthService>();
+  late final SessionEpochOwner _epochs;
+  Future<void>? _signingOut;
+  bool _authenticationPending = false;
 
   final SupabaseClient _client;
+
+  DriverAuthorityLifecycle get driverLifecycle => _epochs.lifecycle;
+
+  /// Must precede tracking cleanup and every other logout await.
+  void revokeSession() => _epochs.revoke();
+
+  /// B1-B composition seam. No registry default or live completion wiring.
+  SupabaseDriverAuthorityBinding driverBinding(
+      VerifiedSupabaseDriverAccess access) {
+    if (!identical(access.client, _client)) {
+      throw const DriverBindingException(DriverBindingFailure.untrustedAccess);
+    }
+    return SupabaseDriverAuthorityBinding.create(
+        access: access, lifecycleReader: () => driverLifecycle);
+  }
+
+  Future<void> dispose() => _epochs.dispose();
 
   Stream<void> authStateChanges() {
     return _client.auth.onAuthStateChange.map((_) {});
@@ -39,7 +83,8 @@ class AuthService {
     required String email,
     required String password,
   }) {
-    return _client.auth.signInWithPassword(email: email, password: password);
+    return _authenticate(() =>
+        _client.auth.signInWithPassword(email: email, password: password));
   }
 
   Future<AuthResponse> signUp({
@@ -47,14 +92,67 @@ class AuthService {
     required String password,
     required Map<String, dynamic> metadata,
   }) {
-    return _client.auth.signUp(
-      email: email,
-      password: password,
-      data: metadata,
-    );
+    return _authenticate(() => _client.auth.signUp(
+          email: email,
+          password: password,
+          data: metadata,
+        ));
   }
 
-  Future<void> signOut() => _client.auth.signOut();
+  Future<AuthResponse> _authenticate(
+      Future<AuthResponse> Function() run) async {
+    final ticket = _epochs.beginAuthentication();
+    if (_authenticationPending ||
+        _signingOut != null ||
+        _epochs.isDisposed ||
+        _client.isDisposingOrDisposed) {
+      throw const AuthException('Authentication is unavailable.');
+    }
+    // Prevent overlapping SDK logins from installing an older session over a
+    // newer accepted identity. A concurrent attempt revokes and fails closed;
+    // callers can explicitly retry after the pending operation finishes.
+    _authenticationPending = true;
+    try {
+      final response = await run();
+      if (response.session == null) {
+        return response; // Confirmation-only signup.
+      }
+      if (!_epochs.completeAuthentication(ticket, response.session?.user.id)) {
+        // GoTrue installs and emits the session before its future completes.
+        // Remove this rejected session so a cold start cannot restore it. No
+        // newer login can be accepted while this owned cleanup is outstanding.
+        if (identical(_client.auth.currentSession, response.session) &&
+            !_client.isDisposingOrDisposed) {
+          try {
+            await _client.auth.signOut();
+          } on Object {
+            // The SDK removes the local session before awaiting remote logout.
+            // Authority stays revoked regardless of remote cleanup failure.
+          }
+        }
+        throw const AuthException('Authentication is unavailable.');
+      }
+      return response;
+    } on Object {
+      if (_epochs.lifecycle.epoch == ticket) _epochs.revoke();
+      rethrow;
+    } finally {
+      _authenticationPending = false;
+    }
+  }
+
+  Future<void> signOut() {
+    revokeSession();
+    return _signingOut ??= _finishSignOut();
+  }
+
+  Future<void> _finishSignOut() async {
+    try {
+      await _client.auth.signOut();
+    } finally {
+      _signingOut = null;
+    }
+  }
 }
 
 enum DriverBindingFailure { untrustedAccess }

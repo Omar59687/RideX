@@ -483,7 +483,8 @@ void main() {
     });
     test('expired actual SDK session prevents profile I/O', () async {
       expired = true;
-      await login();
+      await expectLater(login(), throwsA(isA<AuthException>()));
+      requests.clear();
       failed(await DriverEligibilityRepository(binding).validate(),
           DriverEligibilityFailure.sessionInvalidated);
       expect(requests, isEmpty);

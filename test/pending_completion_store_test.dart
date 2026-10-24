@@ -37,7 +37,9 @@ DriverCompleteTripCommand originalCommand() => DriverCompleteTripCommand(
 SharedPreferencesCompletionCommandStore store({DateTime? now}) =>
     SharedPreferencesCompletionCommandStore(
       SharedPreferencesAsync(),
-      clock: now == null ? null : (() => now),
+      // Keep ordinary fixtures fresh regardless of the calendar date. Expiry
+      // boundary tests below explicitly supply their own later clock.
+      clock: () => now ?? _createdAt,
     );
 
 String slotKey([String driverId = _driverId]) =>

@@ -35,7 +35,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 final authServiceProvider = Provider<AuthService?>((ref) {
   final client = ref.watch(supabaseClientProvider);
   if (client == null) return null;
-  return AuthService(client);
+  final service = AuthService(client);
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 final profileServiceProvider = Provider<ProfileService?>((ref) {
