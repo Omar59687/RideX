@@ -260,6 +260,14 @@ void main() {
       await expectLater(
           backend.repository.readRecentAdminPayments(), unauthorized);
     });
+    test('missing canonical payment RPC row preserves notFound', () async {
+      backend.status = 404;
+      backend.errorCode = 'P0002';
+      await expectLater(
+          backend.repository.readCashPayment(paymentId: paymentId),
+          throwsA(isA<PaymentException>().having(
+              (e) => e.failure, 'failure', PaymentFailure.notFound)));
+    });
     test('missing RPC is unavailable, not a successful empty history', () async {
       backend.status = 404;
       backend.errorCode = 'PGRST202';
