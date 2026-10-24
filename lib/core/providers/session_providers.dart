@@ -88,62 +88,120 @@ class SessionState {
 
 class SessionController extends Notifier<SessionState> {
   StreamSubscription<void>? _authSubscription;
+  int _generation = 0;
+  bool _disposed = false;
+  bool _authenticating = false;
+  bool _loggedOut = false;
+  Future<void>? _signingOut;
+
+  void _publish(int generation, SessionState next) {
+    if (_disposed || generation != _generation) return;
+    final service = ref.read(authServiceProvider);
+    if (next.user != null &&
+        service != null &&
+        (!service.driverLifecycle.isActive ||
+            service.currentSession?.user.id != next.user!.id)) {
+      state = const SessionState.unauthenticated();
+      return;
+    }
+    state = next;
+  }
 
   @override
   SessionState build() {
+    final service = ref.read(authServiceProvider);
     _authSubscription ??=
         ref.read(authRepositoryProvider).authStateChanges().listen((_) {
       unawaited(refreshSession());
+    }, onError: (Object _, StackTrace __) {
+      service?.revokeSession();
+      _loggedOut = true;
+      _authenticating = false;
+      _publish(++_generation, const SessionState.unauthenticated());
     });
 
-    ref.onDispose(() => _authSubscription?.cancel());
-    Future<void>.microtask(refreshSession);
+    ref.onDispose(() {
+      _disposed = true;
+      _generation++;
+      service?.revokeSession();
+      unawaited(_authSubscription?.cancel());
+    });
+    Future<void>.microtask(() {
+      // An explicit session operation may start before this startup microtask.
+      // It already owns publication; do not supersede it with a second restore.
+      if (_generation == 0) return refreshSession();
+    });
     return const SessionState.loading();
   }
 
   Future<void> refreshSession() async {
+    if (_disposed || _loggedOut || _authenticating || _signingOut != null) {
+      return;
+    }
+    final generation = ++_generation;
     try {
       final user = await ref.read(authRepositoryProvider).restoreSession();
-      state = user == null
-          ? const SessionState.unauthenticated()
-          : SessionState.fromUser(user);
+      _publish(
+          generation,
+          user == null
+              ? const SessionState.unauthenticated()
+              : SessionState.fromUser(user));
     } on ProfileException catch (error) {
-      state = SessionState.profileError(errorMessage: error.message);
+      _publish(
+          generation, SessionState.profileError(errorMessage: error.message));
     } on AuthException catch (error) {
-      state = SessionState.unauthenticated(errorMessage: error.message);
+      _publish(generation,
+          SessionState.unauthenticated(errorMessage: error.message));
     } catch (_) {
-      state = const SessionState.unauthenticated(
-        errorMessage: 'Unable to restore your session.',
-      );
+      _publish(
+          generation,
+          const SessionState.unauthenticated(
+            errorMessage: 'Unable to restore your session.',
+          ));
     }
   }
 
   Future<void> continueAsDemo() async {
+    if (_disposed || _signingOut != null) return;
+    final generation = ++_generation;
+    _loggedOut = false;
     final user = await ref.read(authRepositoryProvider).continueAsDemo();
-    state = SessionState.fromUser(user);
+    _publish(generation, SessionState.fromUser(user));
   }
 
   Future<String?> signIn({
     required String email,
     required String password,
   }) async {
+    if (_disposed || _signingOut != null) {
+      return 'Authentication is unavailable.';
+    }
+    final generation = ++_generation;
+    _loggedOut = false;
+    _authenticating = true;
+    ref.read(authServiceProvider)?.revokeSession();
     state = const SessionState.loading();
     try {
       final user = await ref
           .read(authRepositoryProvider)
           .signIn(email: email, password: password);
-      state = SessionState.fromUser(user);
+      _publish(generation, SessionState.fromUser(user));
       return null;
     } on ProfileException catch (error) {
-      state = SessionState.profileError(errorMessage: error.message);
+      _publish(
+          generation, SessionState.profileError(errorMessage: error.message));
       return error.message;
     } on AuthException catch (error) {
-      state = SessionState.unauthenticated(errorMessage: error.message);
+      _publish(generation,
+          SessionState.unauthenticated(errorMessage: error.message));
       return error.message;
     } catch (_) {
       const message = 'Unable to sign in right now.';
-      state = const SessionState.unauthenticated(errorMessage: message);
+      _publish(generation,
+          const SessionState.unauthenticated(errorMessage: message));
       return message;
+    } finally {
+      if (generation == _generation) _authenticating = false;
     }
   }
 
@@ -152,6 +210,13 @@ class SessionController extends Notifier<SessionState> {
     required String email,
     required String password,
   }) async {
+    if (_disposed || _signingOut != null) {
+      return 'Authentication is unavailable.';
+    }
+    final generation = ++_generation;
+    _loggedOut = false;
+    _authenticating = true;
+    ref.read(authServiceProvider)?.revokeSession();
     state = const SessionState.loading();
     try {
       final user = await ref.read(authRepositoryProvider).signUp(
@@ -159,24 +224,52 @@ class SessionController extends Notifier<SessionState> {
             email: email,
             password: password,
           );
-      state = SessionState.fromUser(user);
+      _publish(generation, SessionState.fromUser(user));
       return null;
     } on ProfileException catch (error) {
-      state = SessionState.profileError(errorMessage: error.message);
+      _publish(
+          generation, SessionState.profileError(errorMessage: error.message));
       return error.message;
     } on AuthException catch (error) {
-      state = SessionState.unauthenticated(errorMessage: error.message);
+      _publish(generation,
+          SessionState.unauthenticated(errorMessage: error.message));
       return error.message;
     } catch (_) {
       const message = 'Unable to create your account right now.';
-      state = const SessionState.unauthenticated(errorMessage: message);
+      _publish(generation,
+          const SessionState.unauthenticated(errorMessage: message));
       return message;
+    } finally {
+      if (generation == _generation) _authenticating = false;
     }
   }
 
-  Future<void> signOut() async {
-    await ref.read(driverTrackingControllerProvider.notifier).stopForSignOut();
-    await ref.read(authRepositoryProvider).signOut();
+  Future<void> signOut() {
+    if (_disposed) return Future<void>.value();
+    ref.read(authServiceProvider)?.revokeSession();
+    _generation++;
+    _loggedOut = true;
+    _authenticating = false;
+    state = const SessionState.unauthenticated();
+    return _signingOut ??= _finishSignOut();
+  }
+
+  Future<void> _finishSignOut() async {
+    final tracking = ref.read(driverTrackingControllerProvider.notifier);
+    final repository = ref.read(authRepositoryProvider);
+    try {
+      try {
+        await tracking.stopForSignOut();
+      } finally {
+        await repository.signOut();
+      }
+    } finally {
+      _signingOut = null;
+      if (!_disposed) _clearSessionState();
+    }
+  }
+
+  void _clearSessionState() {
     ref.invalidate(bookingControllerProvider);
     // Drop the pending lock from visible in-memory state. The persisted
     // per-rider slot is intentionally retained: it is recovery evidence,

@@ -346,7 +346,12 @@ void main() {
       await container.read(sessionControllerProvider.notifier).signOut();
       expect(container.read(pendingFareLockControllerProvider), isNull);
 
-      await _signInAs(container, MockData.demoRider);
+      // A revoked session requires explicit authentication; a refresh of the
+      // old repository snapshot must never stand in for reauthentication.
+      await container.read(sessionControllerProvider.notifier).signIn(
+            email: 'demo@ridex.app',
+            password: '123456',
+          );
       await container
           .read(pendingFareLockControllerProvider.notifier)
           .restorePendingLock();
@@ -837,9 +842,13 @@ void main() {
 
       final saveGate = Completer<void>();
       store.saveGate = saveGate;
+      store.saveEntered = Completer<void>();
       final stage = container
           .read(pendingFareLockControllerProvider.notifier)
           .stageForDispatch(testCommand());
+      // Cross the persistence boundary before synchronous logout revokes the
+      // owner; work still queued before that boundary must now fail earlier.
+      await store.saveEntered!.future;
       await container.read(sessionControllerProvider.notifier).signOut();
       saveGate.complete();
       await expectLater(
@@ -1154,11 +1163,14 @@ class _MemoryPendingFareLockStore implements PendingFareLockStore {
   Error? failNextClear;
   Error? failNextInspect;
   Completer<void>? saveGate;
+  Completer<void>? saveEntered;
   Completer<void>? loadGate;
   Completer<void>? clearGate;
 
   @override
   Future<void> save(PendingFareLock command) async {
+    saveEntered?.complete();
+    saveEntered = null;
     final gate = saveGate;
     if (gate != null) {
       saveGate = null;

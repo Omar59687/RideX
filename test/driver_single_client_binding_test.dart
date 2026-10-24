@@ -4,9 +4,12 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ridex/core/errors/auth_exception.dart' as domain;
 import 'package:ridex/core/models/driver_authority.dart';
 import 'package:ridex/core/repositories/driver_eligibility_repository.dart';
+import 'package:ridex/core/repositories/supabase_auth_repository.dart';
 import 'package:ridex/core/services/supabase/auth_service.dart';
+import 'package:ridex/core/services/supabase/profile_service.dart';
 import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -32,6 +35,9 @@ void main() {
   int readStatus = 200;
   bool cleanupFails = false;
   String authId = fixture.driver;
+  Completer<void>? authEntered;
+  Completer<void>? authGate;
+  int authStatus = 200;
 
   setUp(() async {
     requests.clear();
@@ -41,6 +47,9 @@ void main() {
     readStatus = 200;
     cleanupFails = false;
     authId = fixture.driver;
+    authEntered = null;
+    authGate = null;
+    authStatus = 200;
     lifecycle = const DriverAuthorityLifecycle(epoch: 50, isActive: true);
     SharedPreferences.setMockInitialValues({'evidence': 'preserved'});
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -57,7 +66,15 @@ void main() {
       await request.drain<void>();
       request.response.headers.contentType = ContentType.json;
       if (request.uri.path == '/auth/v1/token') {
-        request.response.write(jsonEncode(fixture.authResponse(id: authId)));
+        authEntered?.complete();
+        await authGate?.future;
+        request.response.statusCode = authStatus;
+        request.response.write(jsonEncode(authStatus == 200
+            ? fixture.authResponse(id: authId)
+            : {
+                'error': 'invalid_grant',
+                'error_description': 'private-canary'
+              }));
       } else if (request.uri.path == '/auth/v1/logout') {
         request.response.statusCode = 204;
       } else {
@@ -91,6 +108,7 @@ void main() {
   });
 
   tearDown(() async {
+    if (authGate != null && !authGate!.isCompleted) authGate!.complete();
     if (gate != null && !gate!.isCompleted) gate!.complete();
     await binding.dispose();
     // A failed real SDK cleanup remains failed and idempotent.
@@ -300,4 +318,257 @@ void main() {
       }
     }
   }
+
+  group('B1-B application-owned epoch', () {
+    late AuthService service;
+    setUp(() async {
+      await binding.dispose();
+      service = AuthService(original);
+      binding = service.driverBinding(access);
+    });
+
+    test('unknown authentication details never enter domain/UI errors',
+        () async {
+      authStatus = 400;
+      final repository = SupabaseAuthRepository(
+          authService: service, profileService: ProfileService(original));
+      await expectLater(
+          repository.signIn(
+              email: 'fixture@unit-test.invalid', password: 'local-only'),
+          throwsA(isA<domain.AuthException>().having(
+              (error) => error.message,
+              'sanitized message',
+              'Authentication is unavailable. Please try again.')));
+      expect(binding.currentOwner.isUsable, isFalse);
+    });
+
+    test('overlapping SDK login fails closed, then explicit retry succeeds',
+        () async {
+      authEntered = Completer<void>();
+      authGate = Completer<void>();
+      final first = service.signIn(
+          email: 'fixture@unit-test.invalid', password: 'local-only');
+      final rejected = expectLater(first, throwsA(isA<AuthException>()));
+      await authEntered!.future;
+      await expectLater(
+          service.signIn(
+              email: 'other@unit-test.invalid', password: 'local-only'),
+          throwsA(isA<AuthException>()));
+      expect(binding.currentOwner.isUsable, isFalse);
+      authGate!.complete();
+      await rejected;
+      expect(original.auth.currentSession, isNull);
+      authEntered = null;
+      authGate = null;
+      await service.signIn(
+          email: 'fixture@unit-test.invalid', password: 'local-only');
+      expect(await DriverEligibilityRepository(binding).validate(),
+          isA<DriverEligible>());
+    });
+
+    for (final fails in [false, true]) {
+      test('logout rejects late SDK authentication fails=$fails', () async {
+        authEntered = Completer<void>();
+        authGate = Completer<void>();
+        final login = service.signIn(
+            email: 'fixture@unit-test.invalid', password: 'local-only');
+        final rejected = expectLater(login, throwsA(isA<AuthException>()));
+        await authEntered!.future;
+        await service.signOut();
+        expect(binding.currentOwner.isUsable, isFalse);
+        if (fails) authStatus = 400;
+        authGate!.complete();
+        await rejected;
+        await Future<void>.delayed(Duration.zero);
+        expect(original.auth.currentSession, isNull);
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.containsKey('sb-authority-auth-token'), isFalse);
+        await denied();
+      });
+    }
+
+    test(
+        'startup accepts restored SDK session once, wrapper recreation cannot restore logout',
+        () async {
+      final restoredClient = SupabaseClient(
+          fixture.environment.url, fixture.environment.publishableKey);
+      try {
+        await restoredClient.auth.signInWithPassword(
+            email: 'fixture@unit-test.invalid', password: 'local-only');
+        final restored = AuthService(restoredClient);
+        expect(restored.driverLifecycle.isActive, isTrue);
+        restored.revokeSession();
+        expect(AuthService(restoredClient).driverLifecycle.isActive, isFalse);
+        await restored.dispose();
+        final before = requests.length;
+        await expectLater(
+            restored.signIn(
+                email: 'fixture@unit-test.invalid', password: 'local-only'),
+            throwsA(isA<AuthException>()));
+        expect(requests.length, before);
+      } finally {
+        await restoredClient.dispose();
+      }
+    });
+
+    for (final logout in [false, true]) {
+      test('delayed expired SDK startup restoration logout=$logout', () async {
+        final restoredClient = SupabaseClient(
+            fixture.environment.url, fixture.environment.publishableKey);
+        try {
+          await restoredClient.auth.setInitialSession(
+              jsonEncode(fixture.authResponse(expired: true)));
+          final restored = AuthService(restoredClient);
+          expect(restored.driverLifecycle.isActive, isFalse);
+          authEntered = Completer<void>();
+          authGate = Completer<void>();
+          final refresh = restoredClient.auth.refreshSession();
+          await authEntered!.future;
+          if (logout) await restored.signOut();
+          authGate!.complete();
+          await refresh;
+          await Future<void>.delayed(Duration.zero);
+          expect(restored.driverLifecycle.isActive, !logout);
+          if (logout) expect(restoredClient.auth.currentSession, isNull);
+          await restored.dispose();
+        } finally {
+          await restoredClient.dispose();
+        }
+      });
+    }
+
+    test('wrappers share one owner; refresh preserves legitimate ownership',
+        () async {
+      expect(AuthService(original), same(service));
+      final epoch = binding.currentOwner.epoch;
+      expect(await DriverEligibilityRepository(binding).validate(),
+          isA<DriverEligible>());
+      await original.auth.refreshSession();
+      await Future<void>.delayed(Duration.zero);
+      expect(binding.currentOwner.epoch, epoch);
+      expect(await DriverEligibilityRepository(binding).validate(),
+          isA<DriverEligible>());
+    });
+
+    test('expiry during owned SDK refresh suspends, then renews a fresh epoch',
+        () async {
+      final before = binding.currentOwner;
+      await original.auth
+          .setInitialSession(jsonEncode(fixture.authResponse(expired: true)));
+      expect(binding.currentOwner.isUsable, isFalse);
+      expect(binding.currentOwner.epoch, greaterThan(before.epoch));
+      authEntered = Completer<void>();
+      authGate = Completer<void>();
+      final refresh = original.auth.refreshSession();
+      await authEntered!.future;
+      expect(binding.currentOwner.isUsable, isFalse);
+      authGate!.complete();
+      await refresh;
+      await Future<void>.delayed(Duration.zero);
+      expect(binding.currentOwner.isUsable, isTrue);
+      expect(before.sameOwner(binding.currentOwner), isFalse);
+      expect(await DriverEligibilityRepository(binding).validate(),
+          isA<DriverEligible>());
+    });
+
+    test('synchronous logout and repeated logout cannot be undone by refresh',
+        () async {
+      final old = binding.currentOwner;
+      final first = service.signOut();
+      expect(binding.currentOwner.isUsable, isFalse);
+      final second = service.signOut();
+      expect(second, same(first));
+      expect(binding.currentOwner.epoch, greaterThan(old.epoch));
+      await first;
+      await second;
+      await denied();
+    });
+
+    test('same account reauthentication owns a fresh epoch', () async {
+      final old = binding.currentOwner;
+      final login = service.signIn(
+          email: 'fixture@unit-test.invalid', password: 'local-only');
+      expect(binding.currentOwner.isUsable, isFalse);
+      await login;
+      final fresh = binding.currentOwner;
+      expect(fresh.driverId, old.driverId);
+      expect(fresh.epoch, greaterThan(old.epoch));
+      expect(old.sameOwner(fresh), isFalse);
+      expect(await DriverEligibilityRepository(binding).validate(),
+          isA<DriverEligible>());
+    });
+
+    test('binding rejects another client even for the same configured endpoint',
+        () async {
+      final foreign = SupabaseClient(
+          fixture.environment.url, fixture.environment.publishableKey);
+      try {
+        expect(() => AuthService(foreign).driverBinding(access),
+            throwsA(isA<DriverBindingException>()));
+      } finally {
+        await foreign.dispose();
+      }
+    });
+
+    for (final table in ['users', 'driver_profiles']) {
+      for (final fails in [false, true]) {
+        for (final invalidation in [
+          'logout',
+          'reauthenticate',
+          'switch',
+          'dispose',
+          'client',
+          'provenance'
+        ]) {
+          test(
+              'late $table fails=$fails after $invalidation cannot restore authority',
+              () async {
+            gatedTable = table;
+            entered = Completer<void>();
+            gate = Completer<void>();
+            final before = binding.currentOwner;
+            final pending = DriverEligibilityRepository(binding).validate();
+            await entered!.future;
+            switch (invalidation) {
+              case 'logout':
+                final logout = service.signOut();
+                expect(binding.currentOwner.isUsable, isFalse);
+                await logout;
+              case 'reauthenticate':
+                final login = service.signIn(
+                    email: 'fixture@unit-test.invalid', password: 'local-only');
+                expect(binding.currentOwner.isUsable, isFalse);
+                await login;
+              case 'switch':
+                authId = fixture.other;
+                final login = service.signIn(
+                    email: 'other@unit-test.invalid', password: 'local-only');
+                expect(binding.currentOwner.isUsable, isFalse);
+                await login;
+              case 'dispose':
+                final disposal = service.dispose();
+                expect(binding.currentOwner.isUsable, isFalse);
+                await disposal;
+                await service.dispose();
+              case 'client':
+                final disposal = original.dispose();
+                expect(binding.currentOwner.isUsable, isFalse);
+                await disposal;
+              case 'provenance':
+                await provenance.initialize(fixture.environment);
+                expect(binding.currentOwner.isUsable, isFalse);
+            }
+            expect(before.sameOwner(binding.currentOwner), isFalse);
+            if (fails) readStatus = 403;
+            gate!.complete();
+            fixture.failed(
+                await pending, DriverEligibilityFailure.sessionInvalidated);
+            if (invalidation != 'reauthenticate' && invalidation != 'switch') {
+              await denied();
+            }
+          });
+        }
+      }
+    }
+  });
 }

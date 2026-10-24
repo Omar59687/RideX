@@ -105,6 +105,6 @@ class SupabaseAuthRepository implements AuthRepository {
     if (message.contains('user already registered')) {
       return 'This email is already registered.';
     }
-    return error.message;
+    return 'Authentication is unavailable. Please try again.';
   }
 }

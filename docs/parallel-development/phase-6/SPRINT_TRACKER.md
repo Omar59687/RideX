@@ -1,5 +1,50 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## B1-B session ownership handoff — 2026-10-24
+
+Status: implemented on `feature/p6-driver-lifecycle-b1b`, pending repository
+review and merge. This is a B1-B foundation handoff, not Phase 6 exit approval.
+Base: `22d98c5a418effeba062ebea629fe20b6c9b70eb` (includes merged #39 and #40).
+
+- One application auth-client owner supplies monotonic epochs. Logout and
+  explicit account entry revoke before tracking cleanup or SDK authentication
+  awaits. Repeated logout coalesces SDK cleanup; disposal remains closed.
+- The B1-B binding seam accepts only the same B0-verified SDK client/backend.
+  Existing strict eligibility checks and before/after-await ownership checks
+  remain intact. Late profile/auth successes and failures cannot restore an old
+  owner. Rejected SDK login sessions are signed out before another login can
+  be accepted, including removal from default SDK session persistence.
+- Startup recovery has a one-shot window bound to its original account.
+  Expiry suspends an existing owner and advances its epoch; valid same-owner
+  refresh resumes under a fresh epoch. Logout, identity loss, stream errors,
+  and disposal cancel both restoration and refresh admission.
+- SessionController rejects superseded/disposed async publication, keeps
+  explicit startup refresh ordering, and retains Rider/Demo entry and durable
+  Rider recovery evidence. Unknown authentication errors use fixed UI copy.
+- Independent read-only security review found three issues during development
+  (expired startup admission, stale SDK login persistence, and expiry refresh
+  suspension). All were corrected and re-reviewed with no remaining concrete
+  B1-B blocker. Repository approval is still required; no self-approval/merge.
+- Regression fixtures now use explicit post-logout authentication, await an
+  entered persistence boundary for the logout race, and pin the completion-store
+  fixture clock to its creation date. Explicit seven-day expiry checks remain;
+  production completion/storage behavior was not changed.
+- Focused verification across 12 security/session/Rider/recovery test files:
+  **340 PASS / 0 FAIL / 0 SKIP**. Flutter analysis: no issues. Read-only format:
+  **277 files / 0 changed**. `git diff --check`: clean.
+- Full `flutter test --no-pub` verification: **1,396 PASS / 0 FAIL / 2 SKIP**.
+  The two existing live Supabase tests skip without intentional configuration;
+  no hosted authentication or financial mutation was performed. Verification
+  used the installed Flutter 3.35.3 / Dart 3.9.2 toolchain.
+
+B1-C prerequisites: reviewed/merged B1-B; an explicitly approved deployment
+endpoint-to-namespace registry (no default mapping exists); separately authorized
+B1-C provider/consumer wiring with identity/client/backend/epoch checks at every
+async publication and dispatch boundary. Retain the existing no-execution gates
+until that slice's own acceptance/review. This change does not activate Driver
+completion RPCs, recovery replay, journal retirement, settlement, Stripe, Admin
+UI, migrations/RLS, or production financial operations.
+
 This file is the ONLY Phase 6 task-status authority. Other docs reference it; do not duplicate
 status elsewhere. Historical planning rows initially used `TODO`; update only from evidence.
 
