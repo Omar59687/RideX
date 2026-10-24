@@ -7,7 +7,6 @@ import 'package:ridex/core/repositories/driver_trip_completion_repository.dart';
 import 'package:ridex/core/repositories/supabase_driver_trip_completion_repository.dart';
 import 'package:ridex/core/services/supabase/auth_service.dart';
 import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Explicit composition over the verified B1-A singleton. The B1-B lifecycle
 /// owner and existing coordinator/journal must be supplied by integration.

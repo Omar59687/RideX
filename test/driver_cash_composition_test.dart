@@ -251,8 +251,9 @@ void main() {
   }
   test('B1-B epoch revocation while preflight awaits prevents RPC', () async {
     boundary = (path) async {
-      if (path.endsWith('/trips'))
+      if (path.endsWith('/trips')) {
         lifecycle = const DriverAuthorityLifecycle(epoch: 2, isActive: false);
+      }
     };
     await expectLater(composition.completeTrip(command),
         throwsA(isA<DriverCompletionAttemptException>()));
@@ -261,8 +262,9 @@ void main() {
   test('late RPC success after revocation is unresolved with journal retained',
       () async {
     boundary = (path) async {
-      if (path.endsWith('/driver_transition_trip'))
+      if (path.endsWith('/driver_transition_trip')) {
         lifecycle = const DriverAuthorityLifecycle(epoch: 2, isActive: false);
+      }
     };
     expect(await coordinator().complete(), isA<CoordinatorInvalidated>());
     expect(rpcBodies, hasLength(1));
