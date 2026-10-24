@@ -117,6 +117,8 @@ const _supabaseInfrastructureFiles = {
   'lib/app/bootstrap.dart',
   'lib/core/providers/driver_tracking_providers.dart',
   'lib/core/providers/repositories_providers.dart',
+  // Complete RLS-protected payment reads remain in this infrastructure adapter.
+  'lib/core/repositories/canonical_payment_repository.dart',
   'lib/core/repositories/canonical_trip_reconciliation_repository.dart',
   'lib/core/repositories/supabase_auth_repository.dart',
   'lib/core/repositories/supabase_driver_trip_completion_repository.dart',
