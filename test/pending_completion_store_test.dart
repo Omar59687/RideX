@@ -37,7 +37,9 @@ DriverCompleteTripCommand originalCommand() => DriverCompleteTripCommand(
 SharedPreferencesCompletionCommandStore store({DateTime? now}) =>
     SharedPreferencesCompletionCommandStore(
       SharedPreferencesAsync(),
-      clock: now == null ? null : (() => now),
+      // Fixtures and expiry assertions share a deterministic clock. Wall time
+      // must not make ordinary replay tests expire seven days after creation.
+      clock: () => now ?? _createdAt,
     );
 
 String slotKey([String driverId = _driverId]) =>
