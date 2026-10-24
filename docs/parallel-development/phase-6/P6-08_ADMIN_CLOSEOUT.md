@@ -5,8 +5,10 @@ integration branch from main `fc1d28b` after #41/#43 closed without merge.
 
 The existing `/admin` route and guard are unchanged. Its screen now hosts the
 existing sanitized Cash/Card widgets through a feature-local read boundary.
-No fixture reader is installed in production. The recovered canonical reader
-borrows the existing application client and existing RLS-protected columns.
+No fixture reader is installed in production. PR #48 corrects the recovered
+reader to borrow the existing application client and call restricted RPCs in
+proposed migration 027; migration 019 denies direct payments SELECT. Migration
+review and database-first rollout remain required; nothing is deployed here.
 An absent configured client explicitly renders unavailable rather than fake or
 empty payment data.
 

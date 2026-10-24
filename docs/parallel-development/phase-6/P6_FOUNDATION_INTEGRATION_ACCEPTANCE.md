@@ -1,5 +1,11 @@
 # Recovered Phase 6 foundation integration — 2026-10-24
 
+PR #48 correction: the direct payments reader below was not hosted-operational
+because migration 019 intentionally removed direct SELECT policies. PR #48
+replaces it with locally tested restricted RPCs in proposed, undeployed migration
+027. The counts below are historical PR #47 evidence, not PR #48 evidence. Current
+results and rollout gates are in `P6_PAYMENT_RLS_RPC_REMEDIATION.md`.
+
 Base main: `fc1d28b27a6d6432031eb05e562e5bec61c133e4`, including merged PR #45
 (B1-B session epochs and synchronous Driver authority revocation).
 Integration branch: `feature/p6-integration-recovered`, in one new isolated worktree.

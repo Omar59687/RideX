@@ -97,6 +97,8 @@ select throws_ok($$select public.user_canonical_payment_record(
 select throws_ok($$select public.admin_recent_canonical_payments()$$,
   '42501', 'Active administrator access is required.',
   'Driver cannot enumerate canonical payments');
+select is_empty($$select id from public.payments$$,
+  'Driver still cannot SELECT raw payments');
 reset role;
 
 -- Separate authenticated Rider who does not own the fixture Payment.
@@ -112,10 +114,12 @@ values ('00000000-0000-0000-0000-000000000000',
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'fa000000-0000-0000-0000-000000000006', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
-select throws_ok($select public.user_canonical_payment_record(
-  'fa200000-0000-0000-0000-000000000005')$,
+select throws_ok($$select public.user_canonical_payment_record(
+  'fa200000-0000-0000-0000-000000000005')$$,
   '42501', 'Finance data does not belong to this user.',
   'Foreign Rider cannot read another Rider payment identity or version');
+select is_empty($$select id from public.payments$$,
+  'Foreign Rider still cannot SELECT raw payments');
 reset role;
 
 set local role authenticated;
@@ -138,6 +142,25 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 select throws_ok($$select public.admin_recent_canonical_payments()$$,
   '42501', 'Active administrator access is required.',
   'Demoted Admin is denied by canonical server role');
+select throws_ok($$select public.user_canonical_payment_record(
+  'fa200000-0000-0000-0000-000000000005')$$,
+  '42501', 'Finance data does not belong to this user.',
+  'Demoted Admin cannot use exact-payment RPC with old JWT role claims');
+reset role;
+
+update public.users set role = 'admin', is_blocked = true
+  where id = 'fa000000-0000-0000-0000-000000000004';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'fa000000-0000-0000-0000-000000000004', true);
+select throws_ok($$select public.admin_recent_canonical_payments()$$,
+  '42501', 'Active administrator access is required.',
+  'Blocked Admin cannot enumerate canonical payments');
+select throws_ok($$select public.user_canonical_payment_record(
+  'fa200000-0000-0000-0000-000000000005')$$,
+  '42501', 'A non-blocked finance participant is required.',
+  'Blocked Admin cannot read exact canonical payment');
+select is_empty($$select id from public.payments$$,
+  'Blocked Admin still cannot SELECT raw payments');
 reset role;
 
 set local role anon;

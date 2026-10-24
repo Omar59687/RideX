@@ -152,10 +152,11 @@ conflict decisions, reproducible commands and actual runtime limits.
 | P6-04 Test Mode interface | Dev 1 | Server-only unconfirmed preparation interface/fake/HTTP transport implemented; 32 tests and strict TypeScript PASS | Account/JOD approval, server configuration and trusted actor/attempt runtime composition; no provider request or P8 authorization/capture/webhook/refund execution |
 | P6-09 local compatibility | Dev 1 / Integration Owner | 959 focused PASS across 32 files; full suite 1,480 PASS / 0 FAIL / 2 live skipped; analyze clean; read-only format 286 files / 0 changed | Independent technical review, approved merge/stable main and explicit scoped final disposition; no financial runtime approval |
 
-The canonical payment reader gap is resolved in recovered code through complete
-existing RLS-protected columns, without changing the reduced summary RPC,
-deployed migrations or fabricating booking identity/Payment version. Sanitized
-Admin reads are composed; Driver financial reads are denied. This does not grant
+PR #48 corrects the parent reader: migration 019 denies direct payments SELECT.
+Proposed, undeployed migration 027 exposes restricted canonical read RPCs; the
+dependent reader preserves persisted identity/version and finance authorization.
+No existing migration or SELECT policy is changed. Sanitized Admin reads are
+composed locally; Driver financial reads are denied. This does not grant
 receipt issuance, completed-Trip linkage or Rider financial success authority.
 
 All 11 PR #45 source/test paths are retained unchanged from main. Its test-clock
@@ -175,3 +176,5 @@ acceptance remain open. Stripe execution stays Phase 8. V4-01/V4-02 and V5-02
 remain as recorded above; V5-03 multi-stop physical remains OPEN and V5-04 full
 live fault injection remains PARTIAL. No Phase 5 tests or production financial
 operations, deployment, migrations, secrets or merges were performed.
+
+PR #48 local verification: 60 focused Flutter PASS; one full non-live run 1,487 PASS / 0 FAIL / 2 live skips; analysis clean and format 286 files / 0 changed. Fresh native PostgreSQL 17.10 applied 001-027; pgTAP 019: 15 PASS, 020: 36 PASS, 027: 26 PASS (77 total / 0 FAIL). Test fixtures rolled back and the local server stopped. Independent migration review, database-first rollout and hosted Auth/PostgREST role acceptance remain open; no deployment/merge. See P6_PAYMENT_RLS_RPC_REMEDIATION.md.

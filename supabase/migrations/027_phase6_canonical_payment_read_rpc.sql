@@ -39,7 +39,8 @@ returns table (
 language plpgsql security definer set search_path = '' as $$
 declare caller public.users%rowtype;
 begin
-  select * into caller from public.users where id = auth.uid();
+  select source_user.* into caller from public.users as source_user
+    where source_user.id = auth.uid();
   if not found or caller.is_blocked is distinct from false
     or caller.role is distinct from 'admin' then
     raise exception using errcode = '42501',

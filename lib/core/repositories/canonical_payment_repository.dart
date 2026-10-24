@@ -87,9 +87,10 @@ String _id(Object? value) {
 
 bool _sameId(String a, String b) => a.toLowerCase() == b.toLowerCase();
 
-/// SELECT-only read contracts using complete existing RLS-protected columns,
-/// not the reduced summary RPC. No inferred identity/version, migrations,
-/// financial writes or trusted Trip/receipt-success claims. No Driver reads.
+/// Read-only RPC contracts projecting persisted identity/version via migration
+/// 027's restricted finance authorization, never direct payments SELECT.
+/// No inferred identity/version, financial writes or trusted Trip/receipt-success
+/// claims. No Driver finance reads; missing RPCs remain unavailable.
 class SupabaseCanonicalPaymentRepository
     implements PaymentRepository, CardPaymentRepository {
   SupabaseCanonicalPaymentRepository(this._client);
@@ -164,16 +165,25 @@ class SupabaseCanonicalPaymentRepository
         final role = await _financeRole(owner);
         // Intentionally deny direct Data API SELECT on payments (migration 019).
         // This scoped definer RPC authorizes the exact Rider or a live Admin.
-        final row = await _client
-            .rpc('user_canonical_payment_record',
-                params: {'target_payment_id': paymentId})
-            .maybeSingle();
+        final response = await _client.rpc('user_canonical_payment_record',
+            params: {'target_payment_id': paymentId});
         _requireCurrent(owner);
         if (await _financeRole(owner) != role) {
           throw const CanonicalPaymentReadException(
               CanonicalPaymentReadFailure.unauthorized);
         }
-        if (row == null) throw const PaymentException(PaymentFailure.notFound);
+        if (response is! List) {
+          throw const CanonicalPaymentReadException(
+              CanonicalPaymentReadFailure.invalidResponse);
+        }
+        if (response.isEmpty) {
+          throw const PaymentException(PaymentFailure.notFound);
+        }
+        if (response.length != 1 || response.single is! Map<String, dynamic>) {
+          throw const CanonicalPaymentReadException(
+              CanonicalPaymentReadFailure.invalidResponse);
+        }
+        final row = response.single as Map<String, dynamic>;
         final record = CanonicalPaymentRecord.fromRow(row);
         final actualId = switch (record) {
           CanonicalCashPayment(:final payment) => payment.paymentId!,

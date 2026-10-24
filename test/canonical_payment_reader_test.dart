@@ -41,6 +41,7 @@ class _Backend {
   late HttpServer server;
   late SupabaseClient client;
   final requests = <(String, Uri)>[];
+  final rpcBodies = <Map<String, dynamic>>[];
   String role = 'admin';
   bool blocked = false;
   int userReads = 0;
@@ -59,6 +60,19 @@ class _Backend {
           {'id': actorId, 'role': role, 'is_blocked': blocked}
         ]));
       } else {
+        if (!request.uri.path.endsWith('/rpc/user_canonical_payment_record') &&
+            !request.uri.path
+                .endsWith('/rpc/admin_recent_canonical_payments')) {
+          request.response.statusCode = 403;
+          request.response.write(jsonEncode({'code': '42501'}));
+          await request.response.close();
+          return;
+        }
+        if (request.method == 'POST') {
+          final body = jsonDecode(await utf8.decoder.bind(request).join());
+          rpcBodies
+              .add(body == null ? {} : Map<String, dynamic>.from(body as Map));
+        }
         await paymentBoundary?.call();
         request.response.statusCode = status;
         request.response.write(jsonEncode(status == 200
@@ -161,11 +175,13 @@ void main() {
           await backend.repository.readCashPayment(paymentId: paymentId);
       expect(payment.version, 7);
       expect(backend.userReads, 2);
+      expect(backend.rpcBodies.single, {'target_payment_id': paymentId});
       expect(backend.requests.any((r) => r.$2.path.endsWith('/payments')),
           isFalse);
       expect(
           backend.requests
-              .where((r) => r.$2.path.endsWith('/rpc/user_canonical_payment_record'))
+              .where((r) =>
+                  r.$2.path.endsWith('/rpc/user_canonical_payment_record'))
               .map((r) => r.$1),
           ['POST']);
       expect(
@@ -204,6 +220,11 @@ void main() {
           throwsA(isA<PaymentException>()
               .having((e) => e.failure, 'failure', PaymentFailure.notFound)));
     });
+    test('duplicate single-record RPC rows fail closed', () async {
+      backend.rows = [row(), row()];
+      await expectLater(
+          backend.repository.readCashPayment(paymentId: paymentId), invalid);
+    });
     for (final role in ['rider', 'driver', 'unknown']) {
       test('$role cannot enumerate Admin payments', () async {
         backend.role = role;
@@ -224,12 +245,11 @@ void main() {
         () async {
       final records = await backend.repository.readRecentAdminPayments();
       expect(records, hasLength(1));
-      final rpc = backend.requests.singleWhere((r) =>
-          r.$2.path.endsWith('/rpc/admin_recent_canonical_payments'));
+      final rpc = backend.requests.singleWhere(
+          (r) => r.$2.path.endsWith('/rpc/admin_recent_canonical_payments'));
       expect(rpc.$1, 'POST');
       expect(rpc.$2.queryParameters, isEmpty);
-      expect(
-          backend.requests.any((r) => r.$2.path.endsWith('/payments')),
+      expect(backend.requests.any((r) => r.$2.path.endsWith('/payments')),
           isFalse);
       backend.rows = [row(), row()];
       await expectLater(backend.repository.readRecentAdminPayments(), invalid);
@@ -265,21 +285,44 @@ void main() {
       backend.errorCode = 'P0002';
       await expectLater(
           backend.repository.readCashPayment(paymentId: paymentId),
-          throwsA(isA<PaymentException>().having(
-              (e) => e.failure, 'failure', PaymentFailure.notFound)));
+          throwsA(isA<PaymentException>()
+              .having((e) => e.failure, 'failure', PaymentFailure.notFound)));
     });
-    test('missing RPC is unavailable, not a successful empty history', () async {
+    test('missing RPC is unavailable, not a successful empty history',
+        () async {
       backend.status = 404;
       backend.errorCode = 'PGRST202';
       await expectLater(
           backend.repository.readRecentAdminPayments(),
-          throwsA(isA<CanonicalPaymentReadException>().having(
-              (e) => e.failure,
-              'failure',
-              CanonicalPaymentReadFailure.unavailable)));
+          throwsA(isA<CanonicalPaymentReadException>().having((e) => e.failure,
+              'failure', CanonicalPaymentReadFailure.unavailable)));
+    });
+    test('missing exact-payment RPC is unavailable, never payment notFound',
+        () async {
+      backend.role = 'rider';
+      backend.status = 404;
+      backend.errorCode = 'PGRST202';
+      await expectLater(
+          backend.repository.readCashPayment(paymentId: paymentId),
+          throwsA(isA<CanonicalPaymentReadException>().having((e) => e.failure,
+              'failure', CanonicalPaymentReadFailure.unavailable)));
+    });
+    test('exact-payment RPC permission denial is sanitized', () async {
+      backend.role = 'rider';
+      backend.status = 403;
+      await expectLater(
+          backend.repository.readCashPayment(paymentId: paymentId),
+          unauthorized);
+    });
+    test('oversized Admin RPC result fails closed', () async {
+      backend.rows = List.generate(51, (_) => row());
+      await expectLater(backend.repository.readRecentAdminPayments(), invalid);
     });
     test('malformed canonical RPC records fail closed', () async {
-      backend.rows = [row(), {'unexpected': true}];
+      backend.rows = [
+        row(),
+        {'unexpected': true}
+      ];
       await expectLater(backend.repository.readRecentAdminPayments(), invalid);
     });
     test(
@@ -299,11 +342,11 @@ void main() {
       expect(summaries.single.maskedCardLastFourDisplay, contains('4242'));
       expect(
           backend.requests
-              .where((r) => r.$2.path.endsWith('/rpc/admin_recent_canonical_payments'))
+              .where((r) =>
+                  r.$2.path.endsWith('/rpc/admin_recent_canonical_payments'))
               .map((r) => r.$1),
           ['POST']);
-      expect(
-          backend.requests.any((r) => r.$2.path.endsWith('/payments')),
+      expect(backend.requests.any((r) => r.$2.path.endsWith('/payments')),
           isFalse);
     });
   });

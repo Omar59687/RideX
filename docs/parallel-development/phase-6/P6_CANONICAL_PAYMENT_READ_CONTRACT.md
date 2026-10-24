@@ -1,14 +1,21 @@
 # Complete canonical payment read contract
 
-## Resolution without a migration
+## Restricted RPC contract (PR #48; migration 027 remains undeployed)
 
 The summary RPC is intentionally reduced and remains unchanged. The existing
 `payments` table already contains `id`, `booking_request_id`, `trip_id`, `rider_id`,
 `version`, method/status, integer `final_amount_fils`, currency and sanitized card
-brand/last4. Its existing SELECT grant and `private.can_read_payment` RLS admit
-Admins and the owning Rider, not Drivers (migrations 009/020).
+brand/last4. Migration 019 removed the earlier direct SELECT policies. The SELECT
+grant does not bypass RLS: even Admins and owning Riders cannot read the raw table.
+The parent PR's direct-table reader was therefore not hosted-operational.
 
-`SupabaseCanonicalPaymentRepository` selects only those columns. It implements
+Migration 027 adds `user_canonical_payment_record(uuid)` and
+`admin_recent_canonical_payments()` with empty search paths and explicit canonical
+finance authorization. Only authenticated callers receive EXECUTE; owning active
+Riders and nonblocked Admins receive the limited projection. Drivers are denied.
+No direct SELECT policy is introduced. The functions perform no financial writes.
+
+`SupabaseCanonicalPaymentRepository` invokes those restricted RPCs. It implements
 the existing Cash and Card read-only contracts, rejects missing or malformed
 identity/version, enforces method/status compatibility, and never guesses fields
 from a booking, mock Trip, summary response or arithmetic version increment.
@@ -19,8 +26,10 @@ the actor's role and blocked flag before and after payment reads. The exact SDK
 session object must still match after every await, including A→B→A replacement.
 Rider single-record reads additionally validate returned ownership and payment ID.
 Admin enumeration requires the canonical Admin role, returns at most 50 records
-in deterministic order, and rejects duplicate identities. RLS remains the
-server-side authority; UI checks do not replace it.
+in deterministic order, and rejects duplicate identities. The exact-record RPC
+must return one list row (or a not-found outcome), never duplicate or invented data.
+RLS plus the restricted server finance gate remain authoritative; UI checks do not
+replace them. Missing RPCs report unavailable rather than a successful empty list.
 
 ## Composition
 
@@ -36,13 +45,13 @@ Drivers must continue using Driver-safe Trip/receipt contracts, never this reade
 
 ## Evidence and limits
 
-32 canonical parse/SDK/provider tests pass; the combined reader/Admin selection
-passes 74 tests. Tests use an isolated loopback HTTP server and the real installed
-Supabase SDK, with explicit fixtures and no hosted calls. These verify GET-only
-transport, projection, role/session races, missing fields, identity mismatch and
-sanitized output. They do not assert deployed schema/RLS state or live payments.
+The original parent reader results do not verify the RPC repair. Current PR #48
+results, local PostgreSQL/pgTAP environment and limitations are recorded in
+`P6_PAYMENT_RLS_RPC_REMEDIATION.md`. SDK tests use loopback users GET and explicit
+read-only RPC POST paths; direct payments requests are rejected. They verify role/
+session races, missing RPCs/fields, identity mismatch and sanitized output.
 
-No migration, SQL contract, backend configuration, production record or financial
-operation was changed. If a future environment lacks these existing columns or
-grants, the reader fails closed; any schema remediation requires a separately
-reviewed additive migration and safety plan before deployment.
+Migration 027 is additive, proposed and locally tested only. Dev 1 numbering and
+security review plus database-first rollout/hosted acceptance remain required.
+No applied migration, hosted configuration, production record or financial
+operation was changed. Independent approval is required before deployment.
