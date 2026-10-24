@@ -153,21 +153,25 @@ void main() {
       await backend.start();
     });
     tearDown(() => backend.dispose());
-    test('Rider reads exact canonical Cash record; no mutations or summary RPC',
+    test('Rider reads exact canonical Cash record via authorized RPC only',
         () async {
       backend.role = 'rider';
       final payment =
           await backend.repository.readCashPayment(paymentId: paymentId);
       expect(payment.version, 7);
       expect(backend.userReads, 2);
-      expect(backend.requests.every((r) => r.$1 == 'GET'), isTrue);
-      final read = backend.requests
-          .singleWhere((r) => r.$2.path.endsWith('/payments'))
-          .$2;
-      expect(read.queryParameters['id'], 'eq.$paymentId');
-      expect(read.queryParameters['select'],
-          SupabaseCanonicalPaymentRepository.projection);
-      expect(read.queryParameters['select'], isNot(contains('provider_name')));
+      expect(backend.requests.any((r) => r.$2.path.endsWith('/payments')),
+          isFalse);
+      expect(
+          backend.requests
+              .where((r) => r.$2.path.endsWith('/rpc/user_canonical_payment_record'))
+              .map((r) => r.$1),
+          ['POST']);
+      expect(
+          backend.requests
+              .where((r) => r.$2.path.endsWith('/users'))
+              .every((r) => r.$1 == 'GET'),
+          isTrue);
     });
     test('method mismatch never coerces Cash to Card', () async {
       await expectLater(
@@ -204,7 +208,9 @@ void main() {
         backend.role = role;
         await expectLater(
             backend.repository.readRecentAdminPayments(), unauthorized);
-        expect(backend.requests.any((r) => r.$2.path.endsWith('/payments')),
+        expect(
+            backend.requests.any((r) =>
+                r.$2.path.endsWith('/rpc/admin_recent_canonical_payments')),
             isFalse);
       });
     }
@@ -217,12 +223,13 @@ void main() {
         () async {
       final records = await backend.repository.readRecentAdminPayments();
       expect(records, hasLength(1));
-      final query = backend.requests
-          .singleWhere((r) => r.$2.path.endsWith('/payments'))
-          .$2;
-      expect(query.queryParameters['limit'], '50');
-      expect(query.queryParameters['order'], startsWith('created_at.desc'));
-      expect(query.queryParameters['order'], contains(',id.asc'));
+      final rpc = backend.requests.singleWhere((r) =>
+          r.$2.path.endsWith('/rpc/admin_recent_canonical_payments'));
+      expect(rpc.$1, 'POST');
+      expect(rpc.$2.queryParameters, isEmpty);
+      expect(
+          backend.requests.any((r) => r.$2.path.endsWith('/payments')),
+          isFalse);
       backend.rows = [row(), row()];
       await expectLater(backend.repository.readRecentAdminPayments(), invalid);
     });
@@ -267,7 +274,14 @@ void main() {
       expect(summaries.single.amountDisplay, 'JOD 13.30');
       expect(summaries.single.cardBrandDisplay, 'Visa');
       expect(summaries.single.maskedCardLastFourDisplay, contains('4242'));
-      expect(backend.requests.every((r) => r.$1 == 'GET'), isTrue);
+      expect(
+          backend.requests
+              .where((r) => r.$2.path.endsWith('/rpc/admin_recent_canonical_payments'))
+              .map((r) => r.$1),
+          ['POST']);
+      expect(
+          backend.requests.any((r) => r.$2.path.endsWith('/payments')),
+          isFalse);
     });
   });
 }
