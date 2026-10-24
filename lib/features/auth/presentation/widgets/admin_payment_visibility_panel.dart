@@ -24,6 +24,8 @@ class AdminPaymentVisibilityPanel extends ConsumerWidget {
           ),
           data: (payments) => Column(
             children: [
+              const Text(
+                  'Up to 50 recent payment records. Statuses are read-only.'),
               if (payments.isEmpty)
                 const Text('No payment records are available.'),
               for (final payment in payments)
