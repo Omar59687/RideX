@@ -217,7 +217,13 @@ class SupabaseCanonicalPaymentRepository
           throw const CanonicalPaymentReadException(
               CanonicalPaymentReadFailure.invalidResponse);
         }
-        final records = rows.map(CanonicalPaymentRecord.fromRow).toList();
+        final records = rows.map((raw) {
+          if (raw is! Map<String, dynamic>) {
+            throw const CanonicalPaymentReadException(
+                CanonicalPaymentReadFailure.invalidResponse);
+          }
+          return CanonicalPaymentRecord.fromRow(raw);
+        }).toList();
         final ids = <String>{};
         for (final record in records) {
           final id = switch (record) {
