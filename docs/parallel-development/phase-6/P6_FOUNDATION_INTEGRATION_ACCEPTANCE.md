@@ -3,6 +3,7 @@
 Base main: `fc1d28b27a6d6432031eb05e562e5bec61c133e4`, including merged PR #45
 (B1-B session epochs and synchronous Driver authority revocation).
 Integration branch: `feature/p6-integration-recovered`, in one new isolated worktree.
+Independent review: [replacement PR #47](https://github.com/Omar59687/RideX/pull/47).
 
 ## Recovery provenance
 
