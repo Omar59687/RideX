@@ -40,7 +40,8 @@ language plpgsql security definer set search_path = '' as $$
 declare caller public.users%rowtype;
 begin
   select * into caller from public.users where id = auth.uid();
-  if not found or caller.is_blocked or caller.role <> 'admin' then
+  if not found or caller.is_blocked is distinct from false
+    or caller.role is distinct from 'admin' then
     raise exception using errcode = '42501',
       message = 'Active administrator access is required.';
   end if;
