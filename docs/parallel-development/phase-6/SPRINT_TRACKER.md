@@ -2,8 +2,8 @@
 
 ## B1-B session ownership handoff — 2026-10-24
 
-Status: implemented on `feature/p6-driver-lifecycle-b1b`, pending repository
-review and merge. This is a B1-B foundation handoff, not Phase 6 exit approval.
+Status: MERGED via PR #45 at `fc1d28b`. The handoff evidence below describes
+that reviewed B1-B slice; this is not Phase 6 exit approval.
 Base: `22d98c5a418effeba062ebea629fe20b6c9b70eb` (includes merged #39 and #40).
 
 - One application auth-client owner supplies monotonic epochs. Logout and
@@ -24,7 +24,8 @@ Base: `22d98c5a418effeba062ebea629fe20b6c9b70eb` (includes merged #39 and #40).
 - Independent read-only security review found three issues during development
   (expired startup admission, stale SDK login persistence, and expiry refresh
   suspension). All were corrected and re-reviewed with no remaining concrete
-  B1-B blocker. Repository approval is still required; no self-approval/merge.
+  B1-B blocker. Repository approval/merge subsequently completed via #45; no
+  additional financial/runtime approval is implied.
 - Regression fixtures now use explicit post-logout authentication, await an
   entered persistence boundary for the logout race, and pin the completion-store
   fixture clock to its creation date. Explicit seven-day expiry checks remain;
@@ -37,7 +38,7 @@ Base: `22d98c5a418effeba062ebea629fe20b6c9b70eb` (includes merged #39 and #40).
   no hosted authentication or financial mutation was performed. Verification
   used the installed Flutter 3.35.3 / Dart 3.9.2 toolchain.
 
-B1-C prerequisites: reviewed/merged B1-B; an explicitly approved deployment
+B1-C prerequisites: B1-B is merged via #45; an explicitly approved deployment
 endpoint-to-namespace registry (no default mapping exists); separately authorized
 B1-C provider/consumer wiring with identity/client/backend/epoch checks at every
 async publication and dispatch boundary. Retain the existing no-execution gates
@@ -58,7 +59,7 @@ Owner rotation: Sprint 1 Dev 1 → Sprint 2 Dev 2 → Sprint 3 Dev 3 → Sprint 
 |---|---|---|---|---|---|---|
 | P6-01 cash domain contract | Dev 1 | `feature/p6-cash-contract` | none | DONE (merged) | [#14](https://github.com/Omar59687/RideX/pull/14) | Read-only Cash contract + fake and 16 focused tests merged 2026-10-13; no Cash settlement execution claim. Historical handoff text below records pre-merge state. |
 | P6-05 rider selection + handoff (mock) | Dev 2 | `feature/p6-rider-payment-ui` | P6-01 draft | DONE (merged) | [#18](https://github.com/Omar59687/RideX/pull/18), [#25](https://github.com/Omar59687/RideX/pull/25) | Cash/Card method selection and canonical booking/fare handoff merged 2026-10-17; no Stripe charge claim. |
-| P6-08 admin sanitized visibility | Dev 3 | `feature/p6-admin-payment-visibility` | P6-01 draft (cash scope) | PARTIAL (standalone foundation) | — | 2026-10-19 verification reported sanitized mapper/card and redaction tests PASS; guarded Admin screen remains a placeholder, asynchronous reader/loading/empty/error/access integration not implemented. |
+| P6-08 admin sanitized visibility | Dev 3 | `feature/p6-integration-recovered` | P6-01 | IMPLEMENTED (replacement integration review pending) | replacement integration PR | Recovered guarded Admin UI plus canonical RLS reader from closed/unmerged #41/#43. Loading/empty/error/access/role/account/disposal coverage passes; no fake production data or financial writes. See P6_FOUNDATION_INTEGRATION_ACCEPTANCE.md. |
 | V4-02 blank-map diagnosis | Dev 3 | n/a (evidence) | device/logs | OPEN | — | 2026-10-19 hosted Android test used GOOGLE_MAPS_ENABLED=false with fallback routing; native Google map tiles/route geometry still unverified. |
 | V5-01 hosted RLS checks | Dev 2 | n/a (evidence) | hosted access | PASS (scoped) | [Phase 5 owner record](../../ai/verification/PHASE_5_OWNER_ACCEPTANCE_2026-10-19.md) | Two distinct hosted Riders: own vs foreign booking/stop/quote RLS positive/negative checks and canonical lock/confirmation passed; hosted draft-update/quote-invalidation still open in Phase 5 exit. |
 
@@ -101,7 +102,7 @@ new admin widgets). `repositories_providers.dart`/`app_router.dart`: no producti
 |---|---|---|---|---|---|---|
 | P6-03 card domain contract | Dev 1 | `feature/p6-card-contract` | P6-01 | DONE (merged) | [#15](https://github.com/Omar59687/RideX/pull/15) | Read-only Card contract + fake and 20 focused tests merged 2026-10-13; executable payment adapter still deferred. Historical handoff below reflects pre-merge state. |
 | P6-06 rider states + receipts | Dev 2 | `feature/p6-rider-payment-states` | P6-01, P6-03, P6-05 | DONE (merged) | [#24](https://github.com/Omar59687/RideX/pull/24) | Payment state/receipt/history presentation (mock-backed read surface) merged 2026-10-17; persistent History remains Phase 8. |
-| P6-07 driver cash-completion hook | Dev 3 | `feature/p6-driver-cash-completion` | P6-01 (+P6-02 draft) | PARTIAL (integrated foundation) | [#23](https://github.com/Omar59687/RideX/pull/23), [#33](https://github.com/Omar59687/RideX/pull/33) | Driver journal/coordinator and read-only completion recovery merged; no authenticated full trusted Cash settlement/device completion claim. |
+| P6-07 driver cash-completion hook | Dev 3 | `feature/p6-integration-recovered` | P6-01, P6-02, merged B1-B #45 | PARTIAL (composition verified; runtime gated) | merged #23/#33/#45; replacement integration PR | Cash composition recovered from closed/unmerged #44 and tested with actual B1-B AuthService authority. 26 composition tests pass; B1-C approved registry/active-Trip/provider/UI activation and hosted Cash/receipt acceptance remain open. |
 | V4-01 two-device (4.38) | Dev 3 | n/a (evidence) | devices | OPEN | — | Two physical/equivalent Rider/Driver GPS-device evidence not established in this tracked verification; 4.38 and Phase 4 owner gate remain unchecked. |
 | V5-02 confirm + B1/B2 | Dev 2 | n/a (evidence) | hosted+device | PARTIAL | [Phase 5 owner record](../../ai/verification/PHASE_5_OWNER_ACCEPTANCE_2026-10-19.md) | Hosted A/B confirmations + one Android UI confirmation PASS; exact sequential B1→B2 both from Android with original preserved still not shown. |
 
@@ -137,9 +138,40 @@ driver UI). No shared production-file overlap. Full non-live suite at boundary.
   and verify merge and stable `main`. Integration Owner updates this row only
   after those gates.
 
-## Later (high-level; reconcile from latest main after merged S1–S2 work)
+## Recovered integration — 2026-10-24 (independent review pending)
 
-- Sprint 3 (Owner Dev 3): P6-02 Cash backend/completion integration has multiple merged foundation PRs (#19–#23, #26, #31) but still needs end-to-end trusted settlement verification; P6-04 is design-only in merged #17 (no executable Stripe adapter); V5-03 multi-stop physical remains OPEN and V5-04 recovery/negative-case testing is PARTIAL (automated and Android cold-start PASS, full live fault-injection not shown).
-- Sprint 4 (Owner Dev 1): P6-09 foundation harness merged via #27; finish integration acceptance and P6→P8 readiness review. P6-08 Admin sanitized visibility has a tested standalone mapper/card/redaction foundation but guarded Admin-screen integration remains PARTIAL (no confirming end-to-end integration PR).
-- Phase 6 exit: contracts + mock-backed UI + harness green; hosted/device tails
-  still tracked above; no P4/P5 APPROVED claim.
+Current base main: `fc1d28b` (PR #45 merged). PRs #41–#44 and #46 were closed
+without merge and remain closed. Their needed code was recovered once into
+`feature/p6-integration-recovered`; this is not a merge or reopening of those PRs.
+See `P6_FOUNDATION_INTEGRATION_ACCEPTANCE.md` for source commit provenance,
+conflict decisions, reproducible commands and actual runtime limits.
+
+| Task | Owner | Verified state on replacement branch | Remaining gate |
+|---|---|---|---|
+| P6-02 Cash backend composition | Dev 1 | Trusted completion and read-only recovery composed; compatible with actual B1-B owner | B1-C approved registry, canonical active-Trip/provider/UI composition, independent review and hosted Cash/receipt acceptance; runtime remains gated |
+| P6-04 Test Mode interface | Dev 1 | Server-only unconfirmed preparation interface/fake/HTTP transport implemented; 32 tests and strict TypeScript PASS | Account/JOD approval, server configuration and trusted actor/attempt runtime composition; no provider request or P8 authorization/capture/webhook/refund execution |
+| P6-09 local compatibility | Dev 1 / Integration Owner | 959 focused PASS across 32 files; full suite 1,480 PASS / 0 FAIL / 2 live skipped; analyze clean; read-only format 286 files / 0 changed | Independent technical review, approved merge/stable main and explicit scoped final disposition; no financial runtime approval |
+
+The canonical payment reader gap is resolved in recovered code through complete
+existing RLS-protected columns, without changing the reduced summary RPC,
+deployed migrations or fabricating booking identity/Payment version. Sanitized
+Admin reads are composed; Driver financial reads are denied. This does not grant
+receipt issuance, completed-Trip linkage or Rider financial success authority.
+
+All 11 PR #45 source/test paths are retained unchanged from main. Its test-clock
+fix was not duplicated. Eight new Cash/AuthService cross-component regressions
+bring that subset to 26 PASS; revocation blocks preflight and late publication,
+retains journal evidence and cannot trigger replay. No session/provider ownership
+rule was weakened or replaced.
+
+P6-01/P6-03/P6-05/P6-06 remain DONE within approved scope; no Rider feature was
+reimplemented. P6-08 and bounded P6-04/read-contract work are implemented for
+review, not labeled merged. P6-02/P6-07 remain PARTIAL at runtime. Phase 6 final
+closeout is NOT APPROVED; Phase 7 planning may proceed using these contracts and
+explicit open dependencies, without claiming payment/Trip execution readiness.
+
+B1-C approved mappings/activation and separately scoped hosted Cash/receipt
+acceptance remain open. Stripe execution stays Phase 8. V4-01/V4-02 and V5-02
+remain as recorded above; V5-03 multi-stop physical remains OPEN and V5-04 full
+live fault injection remains PARTIAL. No Phase 5 tests or production financial
+operations, deployment, migrations, secrets or merges were performed.
