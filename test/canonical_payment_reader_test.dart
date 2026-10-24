@@ -45,6 +45,7 @@ class _Backend {
   bool blocked = false;
   int userReads = 0;
   int status = 200;
+  String errorCode = '42501';
   List<Map<String, dynamic>> rows = [row()];
   Future<void> Function()? paymentBoundary;
   Future<void> start() async {
@@ -63,7 +64,7 @@ class _Backend {
         request.response.write(jsonEncode(status == 200
             ? rows
             : {
-                'code': '42501',
+                'code': errorCode,
                 'message': 'private-provider-error',
               }));
       }
@@ -258,6 +259,20 @@ void main() {
       backend.status = 403;
       await expectLater(
           backend.repository.readRecentAdminPayments(), unauthorized);
+    });
+    test('missing RPC is unavailable, not a successful empty history', () async {
+      backend.status = 404;
+      backend.errorCode = 'PGRST202';
+      await expectLater(
+          backend.repository.readRecentAdminPayments(),
+          throwsA(isA<CanonicalPaymentReadException>().having(
+              (e) => e.failure,
+              'failure',
+              CanonicalPaymentReadFailure.unavailable)));
+    });
+    test('malformed canonical RPC records fail closed', () async {
+      backend.rows = [row(), {'unexpected': true}];
+      await expectLater(backend.repository.readRecentAdminPayments(), invalid);
     });
     test(
         'production provider composes SDK reader and existing sanitized mapper',
