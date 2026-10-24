@@ -141,6 +141,9 @@ class SupabaseCanonicalPaymentRepository
     } on PaymentException {
       rethrow;
     } on PostgrestException catch (error) {
+      if (error.code == 'P0002') {
+        throw const PaymentException(PaymentFailure.notFound);
+      }
       throw CanonicalPaymentReadException(error.code == '42501' ||
               error.code == '401' ||
               error.code == '403' ||
