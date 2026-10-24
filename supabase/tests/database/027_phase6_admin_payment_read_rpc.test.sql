@@ -61,7 +61,7 @@ select ('fa500000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
        case when n = 1 then 'cardPaymentPending'::public.card_payment_status end,
        case when n = 1 then 'visa' end,
        case when n = 1 then '4242' end,
-       now() - n * interval '1 minute', 7,
+       now(), 7,
        case when n = 1 then 'provider-private' end
   from generate_series(1, 55) as n;
 
@@ -87,6 +87,30 @@ values ('fa600000-0000-0000-0000-000000000003',
         'fa600000-0000-0000-0000-000000000001',
         'fa000000-0000-0000-0000-000000000003', 'cash',
         'fa600000-0000-0000-0000-000000000002', 1000, 1000, 'cashSelected');
+
+create temporary table payment_read_snapshots (
+  snapshot_name text primary key,
+  row_count bigint not null,
+  content_digest text not null
+) on commit drop;
+create temporary table canonical_payment_snapshots (
+  snapshot_name text primary key,
+  payment_id uuid not null,
+  version integer not null,
+  booking_request_id uuid not null,
+  cash_status text,
+  card_status text
+) on commit drop;
+grant select on payment_read_snapshots, canonical_payment_snapshots to authenticated;
+insert into payment_read_snapshots
+select 'before_rpc_reads', count(*),
+       md5(coalesce(string_agg(to_jsonb(payment_row)::text, ',' order by payment_row.id), ''))
+  from public.payments as payment_row;
+insert into canonical_payment_snapshots
+select 'before_exact_read', id, version, booking_request_id,
+       cash_status::text, card_status::text
+  from public.payments
+ where id = 'fa500000-0000-0000-0000-000000000001';
 
 select is((select count(*) from pg_policies where schemaname = 'public'
   and tablename = 'payments' and cmd = 'SELECT'), 0::bigint,
@@ -117,11 +141,73 @@ select is((select booking_request_id from public.user_canonical_payment_record(
 select is((select version from public.user_canonical_payment_record(
   'fa500000-0000-0000-0000-000000000001')), 7,
   'Rider receives persisted Payment version without fabrication');
-select is((select md5(string_agg(to_jsonb(payment_record)::text, ',' order by payment_record.id))
-  from public.user_canonical_payment_record('fa500000-0000-0000-0000-000000000001') as payment_record),
-  (select md5(string_agg(to_jsonb(payment_record)::text, ',' order by payment_record.id))
-  from public.user_canonical_payment_record('fa500000-0000-0000-0000-000000000001') as payment_record),
-  'repeated canonical reads return the same persisted record');
+select is((select card_status::text from public.user_canonical_payment_record(
+  'fa500000-0000-0000-0000-000000000001')), 'cardPaymentPending',
+  'Rider receives the persisted canonical Payment status');
+reset role;
+insert into canonical_payment_snapshots
+select 'after_first_exact_read', id, version, booking_request_id,
+       cash_status::text, card_status::text
+  from public.payments
+ where id = 'fa500000-0000-0000-0000-000000000001';
+insert into payment_read_snapshots
+select 'after_first_exact_read', count(*),
+       md5(coalesce(string_agg(to_jsonb(payment_row)::text, ',' order by payment_row.id), ''))
+  from public.payments as payment_row;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'fa000000-0000-0000-0000-000000000001', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select is((select id from public.user_canonical_payment_record(
+  'fa500000-0000-0000-0000-000000000001')),
+  'fa500000-0000-0000-0000-000000000001'::uuid,
+  'repeated exact read retains the canonical Payment ID');
+select is((select version from public.user_canonical_payment_record(
+  'fa500000-0000-0000-0000-000000000001')),
+  (select version from canonical_payment_snapshots where snapshot_name = 'before_exact_read'),
+  'repeated exact read retains the captured Payment version');
+select is((select card_status::text from public.user_canonical_payment_record(
+  'fa500000-0000-0000-0000-000000000001')),
+  (select card_status from canonical_payment_snapshots where snapshot_name = 'before_exact_read'),
+  'repeated exact read retains the captured Payment status');
+reset role;
+insert into canonical_payment_snapshots
+select 'after_second_exact_read', id, version, booking_request_id,
+       cash_status::text, card_status::text
+  from public.payments
+ where id = 'fa500000-0000-0000-0000-000000000001';
+insert into payment_read_snapshots
+select 'after_second_exact_read', count(*),
+       md5(coalesce(string_agg(to_jsonb(payment_row)::text, ',' order by payment_row.id), ''))
+  from public.payments as payment_row;
+select is((select payment_id from canonical_payment_snapshots where snapshot_name = 'after_first_exact_read'),
+  (select payment_id from canonical_payment_snapshots where snapshot_name = 'before_exact_read'),
+  'first exact read did not change the stored Payment ID');
+select is((select version from canonical_payment_snapshots where snapshot_name = 'after_first_exact_read'),
+  (select version from canonical_payment_snapshots where snapshot_name = 'before_exact_read'),
+  'first exact read did not mutate the stored Payment version');
+select is((select card_status from canonical_payment_snapshots where snapshot_name = 'after_first_exact_read'),
+  (select card_status from canonical_payment_snapshots where snapshot_name = 'before_exact_read'),
+  'first exact read did not mutate the stored Payment status');
+select is((select payment_id from canonical_payment_snapshots where snapshot_name = 'after_second_exact_read'),
+  (select payment_id from canonical_payment_snapshots where snapshot_name = 'before_exact_read'),
+  'repeated exact read did not change the stored Payment ID');
+select is((select version from canonical_payment_snapshots where snapshot_name = 'after_second_exact_read'),
+  (select version from canonical_payment_snapshots where snapshot_name = 'before_exact_read'),
+  'repeated exact read did not mutate the stored Payment version');
+select is((select card_status from canonical_payment_snapshots where snapshot_name = 'after_second_exact_read'),
+  (select card_status from canonical_payment_snapshots where snapshot_name = 'before_exact_read'),
+  'repeated exact read did not mutate the stored Payment status');
+select is((select row_count from payment_read_snapshots where snapshot_name = 'after_second_exact_read'),
+  (select row_count from payment_read_snapshots where snapshot_name = 'before_rpc_reads'),
+  'exact reads do not change the number of Payment records');
+select is((select content_digest from payment_read_snapshots where snapshot_name = 'after_second_exact_read'),
+  (select content_digest from payment_read_snapshots where snapshot_name = 'before_rpc_reads'),
+  'exact reads do not mutate any Payment record');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'fa000000-0000-0000-0000-000000000001', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
 select is_empty($$select id from public.user_canonical_payment_record(
   'fa600000-0000-0000-0000-000000000003')$$,
   'another Rider cannot read a foreign payment ID');
@@ -146,11 +232,40 @@ select throws_ok($$select * from public.admin_recent_canonical_payments()$$,
   'Driver is rejected by the Admin listing RPC');
 reset role;
 
+insert into payment_read_snapshots
+select 'before_admin_reads', count(*),
+       md5(coalesce(string_agg(to_jsonb(payment_row)::text, ',' order by payment_row.id), ''))
+  from public.payments as payment_row;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'fa000000-0000-0000-0000-000000000004', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select is((select count(*) from public.admin_recent_canonical_payments()), 50::bigint,
   'Admin listing is capped at 50 rows');
+select is((select id from public.admin_recent_canonical_payments() limit 1),
+  'fa500000-0000-0000-0000-000000000001'::uuid,
+  'Admin listing returns the expected first canonical Payment with deterministic ID tie-break');
+select is((select id from public.admin_recent_canonical_payments() offset 49 limit 1),
+  'fa500000-0000-0000-0000-000000000050'::uuid,
+  'Admin listing returns the expected fiftieth row in deterministic order');
+select is((select id from public.admin_recent_canonical_payments()
+  where id = 'fa500000-0000-0000-0000-000000000001'),
+  'fa500000-0000-0000-0000-000000000001'::uuid,
+  'known Payment ID appears in the Admin listing');
+select is((select booking_request_id from public.admin_recent_canonical_payments()
+  where id = 'fa500000-0000-0000-0000-000000000001'),
+  (select booking_request_id from public.user_canonical_payment_record(
+  'fa500000-0000-0000-0000-000000000001')),
+  'Admin listing booking identity agrees with exact canonical read');
+select is((select version from public.admin_recent_canonical_payments()
+  where id = 'fa500000-0000-0000-0000-000000000001'),
+  (select version from public.user_canonical_payment_record(
+  'fa500000-0000-0000-0000-000000000001')),
+  'Admin listing Payment version agrees with exact canonical read');
+select is((select card_status::text from public.admin_recent_canonical_payments()
+  where id = 'fa500000-0000-0000-0000-000000000001'),
+  (select card_status::text from public.user_canonical_payment_record(
+  'fa500000-0000-0000-0000-000000000001')),
+  'Admin listing Payment status agrees with exact canonical read');
 select is((select booking_request_id from public.user_canonical_payment_record(
   'fa500000-0000-0000-0000-000000000001')),
   'fa300000-0000-0000-0000-000000000001'::uuid,
@@ -165,12 +280,26 @@ select ok(not ((select proargnames from pg_proc where oid =
   && array['provider_name', 'provider_transaction_reference',
            'provider_refund_reference', 'sanitized_failure_message']),
   'Admin RPC result contains no provider references or raw failure messages');
-select is((select md5(string_agg(to_jsonb(payment_record)::text, ',' order by payment_record.id))
-  from public.admin_recent_canonical_payments() as payment_record),
-  (select md5(string_agg(to_jsonb(payment_record)::text, ',' order by payment_record.id))
-  from public.admin_recent_canonical_payments() as payment_record),
-  'repeated Admin listing reads return the same bounded records');
+select ok(not ((select to_jsonb(payment_record) from public.admin_recent_canonical_payments() as payment_record
+  where payment_record.id = 'fa500000-0000-0000-0000-000000000001')
+  ?| array['provider_name', 'provider_transaction_reference',
+           'provider_refund_reference', 'sanitized_failure_message']),
+  'Admin listing row omits sensitive provider and raw failure fields');
+select is((select id from public.admin_recent_canonical_payments()
+  where id = 'fa500000-0000-0000-0000-000000000001'),
+  'fa500000-0000-0000-0000-000000000001'::uuid,
+  'repeated Admin listing retains the same canonical Payment ID');
 reset role;
+insert into payment_read_snapshots
+select 'after_admin_reads', count(*),
+       md5(coalesce(string_agg(to_jsonb(payment_row)::text, ',' order by payment_row.id), ''))
+  from public.payments as payment_row;
+select is((select row_count from payment_read_snapshots where snapshot_name = 'after_admin_reads'),
+  (select row_count from payment_read_snapshots where snapshot_name = 'before_admin_reads'),
+  'Admin exact/list reads do not change Payment record count');
+select is((select content_digest from payment_read_snapshots where snapshot_name = 'after_admin_reads'),
+  (select content_digest from payment_read_snapshots where snapshot_name = 'before_admin_reads'),
+  'Admin exact/list reads do not mutate Payment records');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'fa000000-0000-0000-0000-000000000005', true);
@@ -199,6 +328,46 @@ reset role;
 set local role anon;
 select throws_ok($$select * from public.admin_recent_canonical_payments()$$,
   '42501', null, 'anonymous caller has no Admin listing execution privilege');
+reset role;
+
+-- A valid auth identity with no public.users profile must not gain either
+-- exact-payment or Admin-list access.
+insert into auth.users (instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at,
+  updated_at, confirmation_token, email_change, email_change_token_new,
+  recovery_token)
+values ('00000000-0000-0000-0000-000000000000',
+  'fa000000-0000-0000-0000-000000000006', 'authenticated', 'authenticated',
+  'missing-profile-027@example.com', '', now(), '{}', '{"display_name":"Missing Profile"}',
+  now(), now(), '', '', '', '');
+delete from public.users where id = 'fa000000-0000-0000-0000-000000000006';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'fa000000-0000-0000-0000-000000000006', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select is_empty($$select id from public.user_canonical_payment_record(
+  'fa500000-0000-0000-0000-000000000001')$$,
+  'authenticated identity without a public.users profile fails closed');
+select throws_ok($$select * from public.admin_recent_canonical_payments()$$,
+  '42501', 'Only a non-blocked Admin can manage Drivers.',
+  'identity without a public.users profile cannot list Admin Payments');
+reset role;
+
+-- Missing and malformed signed-subject claims fail closed as well.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select is_empty($$select id from public.user_canonical_payment_record(
+  'fa500000-0000-0000-0000-000000000001')$$,
+  'missing auth.uid() fails closed for exact reads');
+select throws_ok($$select * from public.admin_recent_canonical_payments()$$,
+  '42501', 'Only a non-blocked Admin can manage Drivers.',
+  'missing auth.uid() fails closed for Admin listing');
+select set_config('request.jwt.claim.sub', 'not-a-uuid', true);
+select throws_ok($$select * from public.user_canonical_payment_record(
+  'fa500000-0000-0000-0000-000000000001')$$,
+  '22P02', null, 'malformed auth identity cannot read a Payment');
+select throws_ok($$select * from public.admin_recent_canonical_payments()$$,
+  '22P02', null, 'malformed auth identity cannot list Payments');
 reset role;
 
 select * from finish();
