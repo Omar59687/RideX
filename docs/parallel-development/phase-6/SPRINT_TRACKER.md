@@ -2,8 +2,10 @@
 
 ## B1-B session ownership handoff — 2026-10-24
 
-Status: implemented on `feature/p6-driver-lifecycle-b1b`, pending repository
-review and merge. This is a B1-B foundation handoff, not Phase 6 exit approval.
+Status: MERGED to `main` by PR #45 at
+`fc1d28b27a6d6432031eb05e562e5bec61c133e4` on 2026-10-24. This is a B1-B
+foundation handoff, not Phase 6 exit approval. PR-local verification is reported;
+no post-merge GitHub CI status was recorded.
 Base: `22d98c5a418effeba062ebea629fe20b6c9b70eb` (includes merged #39 and #40).
 
 - One application auth-client owner supplies monotonic epochs. Logout and
@@ -24,7 +26,7 @@ Base: `22d98c5a418effeba062ebea629fe20b6c9b70eb` (includes merged #39 and #40).
 - Independent read-only security review found three issues during development
   (expired startup admission, stale SDK login persistence, and expiry refresh
   suspension). All were corrected and re-reviewed with no remaining concrete
-  B1-B blocker. Repository approval is still required; no self-approval/merge.
+  B1-B blocker before PR #45 was merged.
 - Regression fixtures now use explicit post-logout authentication, await an
   entered persistence boundary for the logout race, and pin the completion-store
   fixture clock to its creation date. Explicit seven-day expiry checks remain;
@@ -58,9 +60,21 @@ Owner rotation: Sprint 1 Dev 1 → Sprint 2 Dev 2 → Sprint 3 Dev 3 → Sprint 
 |---|---|---|---|---|---|---|
 | P6-01 cash domain contract | Dev 1 | `feature/p6-cash-contract` | none | DONE (merged) | [#14](https://github.com/Omar59687/RideX/pull/14) | Read-only Cash contract + fake and 16 focused tests merged 2026-10-13; no Cash settlement execution claim. Historical handoff text below records pre-merge state. |
 | P6-05 rider selection + handoff (mock) | Dev 2 | `feature/p6-rider-payment-ui` | P6-01 draft | DONE (merged) | [#18](https://github.com/Omar59687/RideX/pull/18), [#25](https://github.com/Omar59687/RideX/pull/25) | Cash/Card method selection and canonical booking/fare handoff merged 2026-10-17; no Stripe charge claim. |
-| P6-08 admin sanitized visibility | Dev 3 | `feature/p6-admin-payment-visibility` | P6-01 draft (cash scope) | PARTIAL (standalone foundation) | — | 2026-10-19 verification reported sanitized mapper/card and redaction tests PASS; guarded Admin screen remains a placeholder, asynchronous reader/loading/empty/error/access integration not implemented. |
+| P6-08 admin sanitized visibility | Dev 3 | `feature/p6-admin-reader-recovery` | P6-01/03; approved Admin read contract required | PARTIAL (guarded UI on recovery branch; canonical reader blocked) | Recovery PR pending | Existing mapper/card remain on main. This branch adds Admin-only UI states and fake-backed tests, but production data stays unavailable: migration 019 drops authenticated SELECT policies on `payments`, and merged RPCs provide neither Admin listing nor the identity/version projection. No migration/RLS change is authorized in this task; no hosted acceptance is claimed. |
 | V4-02 blank-map diagnosis | Dev 3 | n/a (evidence) | device/logs | OPEN | — | 2026-10-19 hosted Android test used GOOGLE_MAPS_ENABLED=false with fallback routing; native Google map tiles/route geometry still unverified. |
 | V5-01 hosted RLS checks | Dev 2 | n/a (evidence) | hosted access | PASS (scoped) | [Phase 5 owner record](../../ai/verification/PHASE_5_OWNER_ACCEPTANCE_2026-10-19.md) | Two distinct hosted Riders: own vs foreign booking/stop/quote RLS positive/negative checks and canonical lock/confirmation passed; hosted draft-update/quote-invalidation still open in Phase 5 exit. |
+
+### P6-08 recovery audit — 2026-10-24
+
+- Selectively recovered the guarded Admin UI boundary from closed PR #41; the
+  production reader provider intentionally remains unavailable until an approved
+  server-side Admin list/read contract exists.
+- Did not recover PR #43's direct `payments` table SELECT adapter: migration 019
+  drops its authenticated SELECT policy. Existing per-payment summary RPCs do not
+  provide an Admin list or the required booking identity and payment version.
+- Deterministic test readers are test-only. Loopback/fake verification is not
+  hosted RLS or production data acceptance. P6-08 remains PARTIAL and Phase 6
+  remains NOT READY for approval.
 
 Conflict check Sprint 1: production writers disjoint (new contract files / booking UI /
 new admin widgets). `repositories_providers.dart`/`app_router.dart`: no production edits.
