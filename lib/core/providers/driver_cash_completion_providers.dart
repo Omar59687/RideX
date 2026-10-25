@@ -15,10 +15,22 @@ import 'package:ridex/features/trips/application/driver_cash_completion_controll
 import 'package:ridex/features/trips/application/driver_completion_coordinator.dart';
 import 'package:ridex/features/trips/application/driver_cash_recovery_controller.dart';
 
-/// Integration-owned deployment allowlist. Deliberately empty pending explicit
-/// endpoint/namespace approval. No dart-define or URL-derived namespace fallback.
+/// Owner-approved graduation-project test backend identity.
+/// The journal namespace is stable and unique to this Supabase deployment.
+/// Financial completion remains disabled by default until separate hosted
+/// fixture/operation authorization and canonical Driver UI acceptance.
+const bool _enableTestDriverCash =
+    bool.fromEnvironment('RIDEX_ENABLE_TEST_DRIVER_CASH', defaultValue: false);
+
 final approvedDriverCompletionBackendsProvider =
-    Provider<DriverBackendRegistry>((ref) => DriverBackendRegistry([]));
+    Provider<DriverBackendRegistry>((ref) => DriverBackendRegistry(
+      _enableTestDriverCash
+          ? [DriverBackendIdentity(
+              endpoint: Uri.parse('https://ykasivejjchupswqyxpm.supabase.co'),
+              namespace: 'ridex-grad-ykasivejjchupswqyxpm-v1',
+            )]
+          : [],
+    ));
 
 /// Native app support directory; errors are handled by the staging gateway.
 final driverCompletionStoreFactoryProvider =
