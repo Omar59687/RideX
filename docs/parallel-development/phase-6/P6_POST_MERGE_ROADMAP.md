@@ -243,26 +243,34 @@ Trip presentation. No hosted reads were made. **R05 remains PARTIAL.**
 
 ### P6-R06 - Compose trusted Stripe Test Mode preparation endpoint (P6-04)
 
-- Current implementation: server-only injected interface/fake/HTTP transport exists;
-  canonical actor/attempt reader and public authenticated handler are absent.
-- Files/components: `supabase/functions/_shared/payments/test_intent_provider.ts`,
-  `test_intent_fake.ts`, `test_intent_provider_test.ts`; existing payment/attempt and
-  Trip contracts. A new handler path must be selected only in that authorized slice.
-- Required work: approve account/JOD Test Mode support and exact amount precision;
-  resolve the conservative rejection of nonmultiples of ten fils without rounding
-  canonical fares. Supply server-managed Test Mode credentials, trusted actor and
-  canonical accepted Card Trip/payment/attempt context, original operation key/version,
-  secure handler and unknown-result reconciliation. Reuse existing attempt contracts.
-- Acceptance: invalid actor/Trip/version/key rejected before provider dispatch;
-  live keys rejected; no raw secret/client secret logged or exposed; original key
-  preserved; no blind timeout retry; exact canonical amount and non-live unconfirmed
-  response required. Record authorized sandbox-only preparation evidence.
-- Dependencies: owner account/currency approval and credentials outside the repo,
-  authenticated canonical attempt source and assigned accepted Trip. Before Phase 7
-  this can use an explicitly authorized isolated test fixture, never a fabricated
-  production assignment. Hosted changes/deployments require their own approval.
-- Physical device: **not required** for server work, injected tests or sandbox preparation.
-
+- Implementation update - 2026-10-25 from `552b0f7`: an authenticated
+  `stripe-test-intent` Edge Function, server-side Rider/profile validation, and
+  filtered canonical Payment/Trip/attempt reader are implemented. Exact Payment,
+  Trip and attempt IDs, both current versions, pending initial-authorization status,
+  amount/currency consistency and the persisted idempotency key are checked before
+  any provider seam. The handler rejects client financial fields and stale authority.
+- Production provider dispatch remains hard-disabled in `supabase/functions/stripe-test-intent/index.ts`.
+  No Stripe secret is read and no outbound provider request is possible from the
+  production entrypoint. The existing Stripe adapter is only reachable in injected
+  local tests. Its in-memory replay/unknown guard is not a durable cross-instance
+  claim; durable attempt reservation and reconciliation are still missing.
+- JOD is stored in 1/1000-dinar fils. The adapter now rejects nonmultiples of 10 and
+  converts exact hundredths to Stripe's documented currency minor unit without
+  rounding. This does not establish RideX account support or JOD Test Mode approval.
+  The historical 2026-07-29 decision approves Test Mode only for the Graduation MVP demonstration; it does not approve this account/JOD endpoint configuration. Server-managed test credentials are not configured.
+- Focused local Deno tests: **55 PASS / 0 FAIL**; Deno type check and format
+  pass. No hosted calls, credentials, Stripe requests, DB mutations, migrations or
+  deployment were performed. See [R06 implementation record](P6_R06_IMPLEMENTATION.md).
+  R06 remains **PARTIAL**, and R08/Phase 6 remain open.
+- Remaining work: approve the Test Mode account and JOD/currency precision; provide
+  an isolated accepted Card Trip, its persisted Payment and pending initial
+  authorization attempt; approve a durable reservation/unknown-outcome reconciliation
+  contract; only then enable dispatch behind the same approval checks and collect
+  sandbox-only evidence. The current request carries IDs and versions only, never
+  amount/status. R08 secure UI/session contract and Phase 8 authorization/capture stay
+  outside this slice.
+- Physical device: **not required** for server work or injected tests. Hosted
+  acceptance/deployment requires separate authorization.
 ### P6-R07 - Collect controlled hosted Cash completion/recovery evidence (P6-02/P6-07)
 
 - Current implementation: trusted completion/receipt backend foundations and local

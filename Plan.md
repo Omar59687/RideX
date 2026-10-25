@@ -1,5 +1,18 @@
 # RideX Development Plan
 
+## Phase 6 R06 checkpoint - 2026-10-25
+
+An authenticated Stripe Test preparation Edge handler and server-side canonical
+Rider/Trip/Payment/attempt reader have been implemented. The handler validates the
+accepted Card Trip, pending initial authorization, exact identities, Payment and
+Trip versions, fare and original idempotency key. Production provider dispatch is
+hard-disabled. R06 remains **PARTIAL** until Test Mode/JOD approval, isolated
+canonical attempt fixtures and durable unknown-outcome reconciliation are approved
+and verified. No Stripe request or hosted operation was made. See the
+[R06 implementation record](docs/parallel-development/phase-6/P6_R06_IMPLEMENTATION.md)
+and [Phase 6 tracker](docs/parallel-development/phase-6/SPRINT_TRACKER.md).
+
+
 ## Phase 6 R05 checkpoint - 2026-10-25
 
 Rider Cash/Card canonical read providers now bind to the existing application

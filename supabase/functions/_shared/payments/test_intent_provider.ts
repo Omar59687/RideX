@@ -1,8 +1,14 @@
 /** Server-only preparation seam. Not an HTTP endpoint or a payment authority.
  * No confirmation, authorization, capture, refund, webhook or client secret API.
  */
-export type IntentFailure = "invalid_request" | "forbidden" | "stale_version" |
-  "not_configured" | "provider_rejected" | "unknown_result" | "invalid_response";
+export type IntentFailure =
+  | "invalid_request"
+  | "forbidden"
+  | "stale_version"
+  | "not_configured"
+  | "provider_rejected"
+  | "unknown_result"
+  | "invalid_response";
 
 export class TestIntentError extends Error {
   readonly code: IntentFailure;
@@ -15,7 +21,9 @@ export class TestIntentError extends Error {
 
 export interface IntentCommand {
   readonly paymentId: string;
+  readonly attemptId: string;
   readonly expectedPaymentVersion: number;
+  readonly expectedTripVersion: number;
   readonly idempotencyKey: string;
 }
 
@@ -24,8 +32,11 @@ export interface IntentCommand {
  */
 export interface CanonicalIntentContext {
   readonly paymentId: string;
+  readonly attemptId: string;
+  readonly riderId: string;
   readonly paymentVersion: number;
   readonly tripId: string;
+  readonly tripVersion: number;
   readonly driverId: string;
   readonly tripStatus: string;
   readonly method: string;
@@ -47,7 +58,8 @@ export interface TestIntentProvider {
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function valid(context: CanonicalIntentContext): boolean {
-  return uuid.test(context.paymentId) && uuid.test(context.tripId) &&
+  return uuid.test(context.paymentId) && uuid.test(context.attemptId) &&
+    uuid.test(context.riderId) && uuid.test(context.tripId) &&
     uuid.test(context.driverId) && context.tripStatus === "accepted" &&
     context.method === "card" && context.paymentStatus === "cardPaymentPending" &&
     context.currency === "JOD" && Number.isSafeInteger(context.amountFils) &&
@@ -55,6 +67,7 @@ function valid(context: CanonicalIntentContext): boolean {
     // Conservative supported precision: reject instead of rounding canonical fare.
     context.amountFils % 10 === 0 &&
     Number.isSafeInteger(context.paymentVersion) && context.paymentVersion > 0 &&
+    Number.isSafeInteger(context.tripVersion) && context.tripVersion > 0 &&
     /^[A-Za-z0-9:_-]{8,128}$/.test(context.idempotencyKey);
 }
 
@@ -63,20 +76,32 @@ export async function prepareTestIntent(
   readAuthorizedContext: (paymentId: string) => Promise<CanonicalIntentContext | null>,
   provider: TestIntentProvider,
 ): Promise<PreparedTestIntent> {
-  if (!uuid.test(command.paymentId) ||
+  if (
+    !uuid.test(command.paymentId) || !uuid.test(command.attemptId) ||
     !Number.isSafeInteger(command.expectedPaymentVersion) ||
     command.expectedPaymentVersion < 1 ||
-    !/^[A-Za-z0-9:_-]{8,128}$/.test(command.idempotencyKey)) {
+    !Number.isSafeInteger(command.expectedTripVersion) || command.expectedTripVersion < 1 ||
+    !/^[A-Za-z0-9:_-]{8,128}$/.test(command.idempotencyKey)
+  ) {
     throw new TestIntentError("invalid_request");
   }
   let context: CanonicalIntentContext | null;
-  try { context = await readAuthorizedContext(command.paymentId); }
-  catch { throw new TestIntentError("forbidden"); }
-  if (!context || !valid(context) || context.paymentId !== command.paymentId ||
-    context.idempotencyKey !== command.idempotencyKey) {
+  try {
+    context = await readAuthorizedContext(command.paymentId);
+  } catch {
     throw new TestIntentError("forbidden");
   }
-  if (context.paymentVersion !== command.expectedPaymentVersion) {
+  if (
+    !context || !valid(context) || context.paymentId !== command.paymentId ||
+    context.attemptId !== command.attemptId ||
+    context.idempotencyKey !== command.idempotencyKey
+  ) {
+    throw new TestIntentError("forbidden");
+  }
+  if (
+    context.paymentVersion !== command.expectedPaymentVersion ||
+    context.tripVersion !== command.expectedTripVersion
+  ) {
     throw new TestIntentError("stale_version");
   }
   // Copy and freeze the canonical snapshot before the asynchronous provider seam.
@@ -100,43 +125,67 @@ export class StripeTestIntentProvider implements TestIntentProvider {
   async prepare(context: CanonicalIntentContext): Promise<PreparedTestIntent> {
     if (!valid(context)) throw new TestIntentError("invalid_request");
     let secret: string | undefined;
-    try { secret = this.#configuration.readSecret(); }
-    catch { throw new TestIntentError("not_configured"); }
-    if (!this.#configuration.jodTestModeApproved || !secret ||
-      !/^(sk|rk)_test_[A-Za-z0-9_]+$/.test(secret)) {
+    try {
+      secret = this.#configuration.readSecret();
+    } catch {
       throw new TestIntentError("not_configured");
     }
+    if (
+      !this.#configuration.jodTestModeApproved || !secret ||
+      !/^(sk|rk)_test_[A-Za-z0-9_]+$/.test(secret)
+    ) {
+      throw new TestIntentError("not_configured");
+    }
+    const stripeAmount = context.amountFils / 10;
     const body = new URLSearchParams({
-      amount: String(context.amountFils), currency: "jod",
-      capture_method: "manual", confirmation_method: "manual", confirm: "false",
+      amount: String(stripeAmount),
+      currency: "jod",
+      capture_method: "manual",
+      confirmation_method: "manual",
+      confirm: "false",
       "payment_method_types[]": "card",
     });
     let response: Response;
     try {
       response = await this.#configuration.transport(
-        "https://api.stripe.com/v1/payment_intents", {
-          method: "POST", redirect: "error", signal: AbortSignal.timeout(10000),
-          headers: { Authorization: `Bearer ${secret}`,
+        "https://api.stripe.com/v1/payment_intents",
+        {
+          method: "POST",
+          redirect: "error",
+          signal: AbortSignal.timeout(10000),
+          headers: {
+            Authorization: `Bearer ${secret}`,
             "Content-Type": "application/x-www-form-urlencoded",
-            "Idempotency-Key": context.idempotencyKey },
+            "Idempotency-Key": context.idempotencyKey,
+          },
           body,
-        });
-    } catch { throw new TestIntentError("unknown_result"); }
+        },
+      );
+    } catch {
+      throw new TestIntentError("unknown_result");
+    }
     if (!response.ok) throw new TestIntentError("provider_rejected");
     try {
       const text = await response.text();
       if (text.length > 16384) throw new Error();
       const result = JSON.parse(text);
-      if (result.object !== "payment_intent" || result.livemode !== false ||
+      if (
+        result.object !== "payment_intent" || result.livemode !== false ||
         !/^pi_[A-Za-z0-9]+$/.test(result.id) ||
-        result.amount !== context.amountFils || result.currency !== "jod" ||
+        result.amount !== stripeAmount || result.currency !== "jod" ||
         result.capture_method !== "manual" || result.confirmation_method !== "manual" ||
         result.status !== "requires_payment_method" || result.payment_method !== null ||
         result.amount_received !== 0 || result.amount_capturable !== 0 ||
-        result.latest_charge !== null) throw new Error();
+        result.latest_charge !== null
+      ) throw new Error();
       // Intentionally discard client_secret and every other provider field.
-      return Object.freeze({ provider: "stripe", reference: result.id,
-        requiresCanonicalVerification: true });
-    } catch { throw new TestIntentError("invalid_response"); }
+      return Object.freeze({
+        provider: "stripe",
+        reference: result.id,
+        requiresCanonicalVerification: true,
+      });
+    } catch {
+      throw new TestIntentError("invalid_response");
+    }
   }
 }
