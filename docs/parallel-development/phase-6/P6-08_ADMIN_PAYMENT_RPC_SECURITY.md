@@ -1,5 +1,16 @@
 # P6-08 Admin payment RPC recovery
 
+## Post-merge correction - 2026-10-25
+
+Migration 027 merged through PR #50 (`b1f74c4`), and its Flutter RPC consumers
+merged through PR #52 (`59be9b7`). PR #48 is CLOSED without merge; its competing
+migration must not be deployed. The proposal/collision text and local database
+results below are historical. A later handoff reports hosted catalog deployment;
+this audit performed no hosted inspection, migration or role test. The current
+[tracker](SPRINT_TRACKER.md) distinguishes merged integration from open hosted
+acceptance. Retain the documented listing performance risk for a separately
+reviewed representative-data assessment; no index or migration change is made here.
+
 Status: local proposal on `feature/p6-admin-payment-rpc-hardening`; not deployed.
 Base: `5c2eb010182be57a04160e2a6226d79399916cea` (`origin/main`, merged PR #49).
 Historical source: open PR #48, `fix/p6-payment-rpc-rls-contract` at

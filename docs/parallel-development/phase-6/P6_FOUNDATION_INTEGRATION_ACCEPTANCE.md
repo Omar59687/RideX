@@ -1,5 +1,16 @@
 # Recovered Phase 6 foundation integration — 2026-10-24
 
+## Post-merge correction - 2026-10-25
+
+The recovery snapshot and test counts below are historical #47 evidence, not final
+#52 verification. PR #52 merged at `59be9b7`; #47/#51 are now closed as superseded.
+The [tracker](SPRINT_TRACKER.md) records the owner's #52 results and remaining gates.
+The canonical reader's direct-table description below is superseded: migration
+019 denies direct payment SELECT; both exact/list reads now use migration 027's
+authorized RPCs. Production Admin uses `SupabaseAdminPaymentReader`, not the removed
+`CanonicalAdminPaymentReader`. B1-B remains preserved; Cash production consumers
+and Stripe runtime activation remain unfinished. No Phase 6 final approval.
+
 Base main: `fc1d28b27a6d6432031eb05e562e5bec61c133e4`, including merged PR #45
 (B1-B session epochs and synchronous Driver authority revocation).
 Integration branch: `feature/p6-integration-recovered`, in one new isolated worktree.

@@ -1,5 +1,14 @@
 # Phase 6 — Detailed Execution Plan (Payment Foundations)
 
+## Current reading guide - 2026-10-25
+
+The baseline/starting facts below are historical planning context. Merged PR #52
+(`59be9b7`) now includes canonical RPC readers, production Admin composition,
+Driver Cash composition and the bounded Stripe preparation interface. Consult
+[SPRINT_TRACKER.md](SPRINT_TRACKER.md) for current status and
+[P6_POST_MERGE_ROADMAP.md](P6_POST_MERGE_ROADMAP.md) for remaining execution.
+No final Phase 6 approval, hosted financial acceptance or release is implied.
+
 Baseline `6bae92e`. Status authority: `SPRINT_TRACKER.md`.
 Phase 4/5 remain unapproved; their verification is tracked separately (V-tasks).
 

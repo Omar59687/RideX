@@ -1,5 +1,48 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## Current reconciliation - 2026-10-25, after PR #52
+
+This section supersedes older current-status statements below. Historical handoffs,
+test counts and restrictions remain dated evidence. This tracker remains the sole
+Phase 6 task-status authority; the [execution roadmap](P6_POST_MERGE_ROADMAP.md)
+details the remaining work without granting approval.
+
+- Fetched `origin/main`: `59be9b7712894c695e9c8efa580a1ffc2013bec7` (`59be9b7`).
+  [PR #52](https://github.com/Omar59687/RideX/pull/52) merged 2026-10-25.
+- [PR #47](https://github.com/Omar59687/RideX/pull/47) and
+  [PR #51](https://github.com/Omar59687/RideX/pull/51) were compared with that tree
+  and closed without merge as superseded. No unique necessary implementation was
+  found. The legacy Admin adapter/direct payment SELECT path was deliberately
+  replaced; current-main Admin UI, session ownership and historical tracker were retained.
+- Migration `027_phase6_admin_payment_read_rpc.sql` was already in main through
+  PR #50 (`b1f74c4`); #52 integrates its Flutter readers, rather than introducing
+  or deploying a migration. Conflicting PR #48 is already CLOSED without merge.
+- **Historical owner-provided #52 verification:** focused Flutter **45 PASS / 0 FAIL**;
+  full Flutter **1,489 PASS / 0 FAIL / 2 SKIP**; Flutter Analyze **No issues found**
+  on the preceding implementation commit. These were not rerun in this documentation
+  audit. The owner report does not identify an exact SHA for each run; do not assign
+  these results to the merge SHA or claim a fresh combined-tree run here.
+- No hosted Supabase, live payment execution, Stripe credentials, real-device
+  acceptance, deployment or financial transaction was verified in this audit.
+  Older local database/TypeScript and reported hosted-catalog evidence retain their
+  original scopes; catalog existence does not establish authenticated role acceptance.
+
+| Workstream | Implemented | Integrated | Verified | Remaining |
+|---|---|---|---|---|
+| Admin Payment Visibility (P6-08) | Sanitized UI, strict RPC parser, exact SDK Session identity pinning | Production provider uses `SupabaseAdminPaymentReader` and `admin_recent_canonical_payments`; guarded Admin screen | Local loopback/widget coverage exists; historical owner #52 results above; hosted/runtime acceptance unverified | Hosted role/blocked-account matrix, logout and A-to-B-to-A acceptance, UI redaction and performance review (R04) |
+| Canonical Payment Reader (P6-01/03 read integration) | Cash/Card parser and authorized exact/list RPC adapter; persisted identity/version | Adapter merged; Admin uses its dedicated RPC reader; Rider Cash/Card reader providers still null | Local SDK/contract regressions include no direct `/payments` SELECT; no hosted reader verification here | Trusted Rider payment-ID/Trip linkage and approved consumer wiring (R05); owning/foreign role checks (R04) |
+| Driver Cash Completion (P6-02/P6-07) | Journal, coordinator, trusted completion adapter, B1-A/B1-B-compatible composition | Foundation merged; no production provider or Driver-screen activation; Trips remain mock-backed | Local journal/coordinator/SDK loopback coverage; no hosted atomic completion/receipt acceptance | Approved registry/context (R01), staging/provider/UI wiring (R02), hosted acceptance (R07) |
+| Cash Recovery (P6-02/P6-07) | Durable command inspection and read-only canonical Trip reconciliation; retained strongest evidence | Injectable composition merged; startup/resume/UI consumer unwired | Deterministic recovery/session-race coverage; no hosted recovery or device acceptance | Lifecycle consumer wiring, explicit unresolved/receipt states and journal-retention policy (R03/R07); never replay from stored evidence |
+| Stripe Test Mode (P6-04) | Server-only unconfirmed preparation interface, fake, injected HTTP adapter | Shared module only; no handler, trusted actor/attempt implementation or Flutter card entry | Historical injected transport/TypeScript evidence; no real Stripe request or credentials verified | Account/JOD precision approval, trusted handler/attempt composition (R06), secure UI scope decision and acceptance (R08) |
+| Phase 6 Acceptance (P6-09) | Compatibility harness and fixture mappings | Foundations merged through #52 | Historical owner local results; no final hosted/runtime/device acceptance | Resolve R01-R08, independent integration review, evidence ledger and explicit owner exit decision (R09); Phase 6 NOT APPROVED and NOT release-ready |
+
+P6-01/P6-03/P6-05/P6-06 remain complete only for their previously approved
+contract/presentation scope. This does not complete their deferred production
+readers or financial workflows. Merged, locally tested, hosted verified and
+approved for release are separate states. Phase 7 planning may use the contracts;
+execution across the payment/matching boundary needs the explicit dependency
+and gate disposition in R09. Phase 4/5 carry-over gates remain unchanged.
+
 ## B1-B session ownership handoff — 2026-10-24
 
 Status: MERGED to `main` by PR #45 at
@@ -60,11 +103,11 @@ Owner rotation: Sprint 1 Dev 1 → Sprint 2 Dev 2 → Sprint 3 Dev 3 → Sprint 
 |---|---|---|---|---|---|---|
 | P6-01 cash domain contract | Dev 1 | `feature/p6-cash-contract` | none | DONE (merged) | [#14](https://github.com/Omar59687/RideX/pull/14) | Read-only Cash contract + fake and 16 focused tests merged 2026-10-13; no Cash settlement execution claim. Historical handoff text below records pre-merge state. |
 | P6-05 rider selection + handoff (mock) | Dev 2 | `feature/p6-rider-payment-ui` | P6-01 draft | DONE (merged) | [#18](https://github.com/Omar59687/RideX/pull/18), [#25](https://github.com/Omar59687/RideX/pull/25) | Cash/Card method selection and canonical booking/fare handoff merged 2026-10-17; no Stripe charge claim. |
-| P6-08 admin sanitized visibility | Dev 3 | `feature/p6-admin-reader-recovery` | P6-01/03; approved Admin read contract required | PARTIAL (guarded UI on recovery branch; canonical reader blocked) | Recovery PR pending | Existing mapper/card remain on main. This branch adds Admin-only UI states and fake-backed tests, but production data stays unavailable: migration 019 drops authenticated SELECT policies on `payments`, and merged RPCs provide neither Admin listing nor the identity/version projection. No migration/RLS change is authorized in this task; no hosted acceptance is claimed. |
+| P6-08 admin sanitized visibility | Dev 3 | `feature/p6-admin-reader-recovery` | P6-01/03; approved Admin read contract required | IMPLEMENTED / INTEGRATED; runtime acceptance OPEN | [#50](https://github.com/Omar59687/RideX/pull/50), [#52](https://github.com/Omar59687/RideX/pull/52) | Migration 027 supplies authorized canonical reads; production Admin RPC reader/session protection and guarded sanitized UI merged. Hosted role/runtime acceptance remains open; see current reconciliation above. |
 | V4-02 blank-map diagnosis | Dev 3 | n/a (evidence) | device/logs | OPEN | — | 2026-10-19 hosted Android test used GOOGLE_MAPS_ENABLED=false with fallback routing; native Google map tiles/route geometry still unverified. |
 | V5-01 hosted RLS checks | Dev 2 | n/a (evidence) | hosted access | PASS (scoped) | [Phase 5 owner record](../../ai/verification/PHASE_5_OWNER_ACCEPTANCE_2026-10-19.md) | Two distinct hosted Riders: own vs foreign booking/stop/quote RLS positive/negative checks and canonical lock/confirmation passed; hosted draft-update/quote-invalidation still open in Phase 5 exit. |
 
-### P6-08 recovery audit — 2026-10-24
+### Historical P6-08 recovery audit - 2026-10-24 (superseded above)
 
 - Selectively recovered the guarded Admin UI boundary from closed PR #41; the
   production reader provider intentionally remains unavailable until an approved
@@ -153,7 +196,7 @@ driver UI). No shared production-file overlap. Full non-live suite at boundary.
 
 ## Later (high-level; reconcile from latest main after merged S1–S2 work)
 
-- Sprint 3 (Owner Dev 3): P6-02 Cash backend/completion integration has multiple merged foundation PRs (#19–#23, #26, #31) but still needs end-to-end trusted settlement verification; P6-04 is design-only in merged #17 (no executable Stripe adapter); V5-03 multi-stop physical remains OPEN and V5-04 recovery/negative-case testing is PARTIAL (automated and Android cold-start PASS, full live fault-injection not shown).
-- Sprint 4 (Owner Dev 1): P6-09 foundation harness merged via #27; finish integration acceptance and P6→P8 readiness review. P6-08 Admin sanitized visibility has a tested standalone mapper/card/redaction foundation but guarded Admin-screen integration remains PARTIAL (no confirming end-to-end integration PR).
+- Sprint 3 (Owner Dev 3): P6-02 Cash backend/completion integration has multiple merged foundation PRs (#19–#23, #26, #31) but still needs end-to-end trusted settlement verification; P6-04 began design-only in #17; #52 now adds the unconfirmed server-only preparation interface/transport, without runtime activation; V5-03 multi-stop physical remains OPEN and V5-04 recovery/negative-case testing is PARTIAL (automated and Android cold-start PASS, full live fault-injection not shown).
+- Sprint 4 (Owner Dev 1): P6-09 foundation harness merged via #27; finish integration acceptance and P6→P8 readiness review. P6-08 guarded UI and production RPC integration are now merged in #52; hosted/runtime acceptance remains open.
 - Phase 6 exit: contracts + mock-backed UI + harness green; hosted/device tails
   still tracked above; no P4/P5 APPROVED claim.

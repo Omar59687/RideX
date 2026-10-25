@@ -1,5 +1,29 @@
 # RideX Current Status
 
+## Current override - 2026-10-25 Phase 6 post-merge reconciliation
+
+PR #52 merged into `main` at `59be9b7712894c695e9c8efa580a1ffc2013bec7`
+(`59be9b7`), verified after fetching origin. Superseded PRs #47/#51 were compared
+and closed without merge. The authoritative workstream/status table and historical
+owner verification are in [SPRINT_TRACKER.md](../../parallel-development/phase-6/SPRINT_TRACKER.md);
+remaining tasks, files, dependencies and acceptance criteria are in the
+[post-merge roadmap](../../parallel-development/phase-6/P6_POST_MERGE_ROADMAP.md).
+
+Canonical reads now use migration 027's authorized RPCs; production Admin visibility
+uses `admin_recent_canonical_payments` with SDK Session identity protection.
+Driver Cash composition/read-only recovery and the server-only Stripe Test Mode
+preparation interface are merged foundations. Driver production consumer wiring,
+Rider payment reader wiring, trusted Stripe handler and secure card-entry flow
+remain unfinished. Merged code does not establish hosted financial readiness.
+
+The owner reported #52 focused 45 PASS / 0 FAIL and full 1,489 PASS / 0 FAIL /
+2 SKIP; Analyze reported no issues on the preceding implementation commit.
+These are historical owner-provided results, not tests executed by this audit.
+No hosted Supabase/payment, Stripe credential or real-device verification was
+performed. Phase 6 final approval and release readiness remain open. Earlier
+Phase 4/5 gates and approved decisions are preserved. Next: R01's approved registry
+and canonical context, then bounded B1-C Cash integration (R02), under its own authorization.
+
 ## Current override — 2026-10-19 Phase 5 core owner acceptance and Phase 6 continuation
 
 This override supersedes the 2026-10-12 pending-*core evidence* statements below, without rewriting historical verification or treating owner acceptance as completion of missing gates.

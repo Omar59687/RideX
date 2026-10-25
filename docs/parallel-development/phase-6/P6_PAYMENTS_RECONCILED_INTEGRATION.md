@@ -1,5 +1,16 @@
 # Phase 6 Payments — Reconciled Integration (Draft)
 
+## Post-merge record - 2026-10-25
+
+This candidate merged as PR #52 at `59be9b7712894c695e9c8efa580a1ffc2013bec7`.
+Its follow-up commits `af87aae` and `c7314bf` migrate canonical reads to authorized
+RPCs, pin the Admin SDK Session and assert no direct payment SELECT. #47/#51 were
+compared and closed without merge as superseded. Historical candidate text below
+is retained; its pre-merge status and untested-tree statements are superseded by
+[the current tracker and owner-provided verification](SPRINT_TRACKER.md).
+No new tests or hosted verification are claimed by this documentation audit.
+Financial runtime activation, independent acceptance and phase approval remain open.
+
 Base: main at b1f74c493d15a2fef6d62f761e29372805229571 (merged PR #50).
 Sources: PR #47 at af5942730445feb2413e2bef611f323137f7ba7b; PR #51 at 180b0cc6073a113552c923b24afa7334c8254c27.
 

@@ -1,5 +1,16 @@
 # P6-08 — Live Admin payment reader (proposed)
 
+## Post-merge record - 2026-10-25
+
+The proposed reader is now production-composed in merged PR #52 (`59be9b7`);
+#51 is closed without merge as superseded. The constructor pins the original,
+unexpired SDK Session object and checks it before/after RPC; the provider also
+requires matching app/SDK identity. The historical proposal/gates below are retained,
+but draft/no-Flutter-verification wording is superseded by the historical owner
+results in [SPRINT_TRACKER.md](SPRINT_TRACKER.md). Hosted catalog deployment was
+reported by the prior record, not reverified here. Authenticated hosted role checks,
+UI redaction and runtime transitions still need acceptance; no release approval.
+
 ## Scope
 - Read-only Flutter adapter for migration 027's `public.admin_recent_canonical_payments()` RPC.
 - Compose the adapter only for an authenticated, unblocked Admin whose app session identity matches the Supabase SDK identity.
