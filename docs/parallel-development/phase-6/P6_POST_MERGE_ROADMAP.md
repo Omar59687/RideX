@@ -52,7 +52,7 @@ Paths in this section are repository-relative, and exist in the audited tree.
 | Admin production integration | `lib/core/repositories/supabase_admin_payment_reader.dart`; `lib/features/auth/presentation/providers/admin_payment_providers.dart`; existing Admin screen/panel/mapper | App/SDK identity match plus initial Session object pinning; sanitized display; no mutation |
 | Driver composition | `lib/core/repositories/supabase_driver_cash_completion_composition.dart`; `lib/core/repositories/supabase_driver_trip_completion_repository.dart` | Existing verified SDK/backend/B1-B owner required; original command only; trusted `driver_transition_trip` plus canonical Trip/receipt rereads; not production-activated |
 | Durable completion/recovery | `lib/features/trips/application/driver_completion_coordinator.dart`; `lib/features/trips/application/driver_completion_recovery_coordinator.dart`; `lib/core/services/trips/file_driver_completion_command_store.dart` | Staging gateway and canonical source are interfaces, not production composition; recovery is read-only, no dispatch/retirement; receipt absence is not payment failure |
-| Rider reads | `lib/features/history/presentation/providers/rider_payment_providers.dart` | Cash/Card providers remain null; no trusted production ID/Trip linkage |
+| Rider reads | `lib/features/history/presentation/providers/rider_payment_providers.dart` | Cash/Card providers bind the app client and exact canonical RPC reader for the current Rider; no trusted production Payment ID source or Trip-to-Payment lookup |
 | Trip UI source | `lib/core/providers/repositories_providers.dart`; `lib/features/trips/presentation/screens/driver_active_trip_screen.dart` | `tripsRepositoryProvider` still uses `MockTripsRepository`; do not turn mock completion into financial authority |
 | Stripe preparation | `supabase/functions/_shared/payments/test_intent_provider.ts`, `test_intent_fake.ts`, `test_intent_provider_test.ts` | Injected canonical context and account approval required; accepted Card Trip only; manual modes, confirm=false, no payment method/client secret/financial success |
 
@@ -201,16 +201,38 @@ Historical migration catalog reports do not prove the authenticated role matrix.
   A native repeat can remain a separately tracked release gate.
 
 ### P6-R05 - Finish approved Rider canonical read consumer integration (P6-06 follow-through)
+**Implementation update - 2026-10-25:** provider wiring and focused local guards
+are implemented on `feature/p6-r05-rider-payment-reader` from main `3c83c78`.
+The shared production repository is available only to an authenticated,
+unblocked Rider whose profile identity matches the exact SDK Session. Rider
+exact reads reject non-Rider roles, pin session identity, and accept valid null
+Trip linkage; presentation reports "Trip not yet linked" without asserting
+payment success. Local tests cover loopback RPC-only reads, SDK/app mismatch,
+Admin role rejection, A-B-A session change, foreign Rider rows, and nullable
+Trip presentation. No hosted reads were made. **R05 remains PARTIAL.**
 
-- Current implementation: canonical Cash/Card adapter is merged, but Rider repository
-  providers default to null. Display guards intentionally reject caller-built success.
+- Trusted identity today: Rider identity is from the application SessionController
+  and server profile. No trusted persisted Payment ID is exposed by booking,
+  history, or current Trip UI. Migration 027 only reads by exact
+  `target_payment_id`; booking IDs and Trip IDs are not interchangeable. Do not
+  activate the demo-backed history screen.
+- Remaining dependency: a backend-issued Payment ID scoped to the Rider and
+  linked to its canonical Trip. Assigned canonical Trip identity belongs to the
+  Phase 7 boundary; payment creation and durable history/receipt restoration
+  belong to Phase 8. The exact backend source/contract must be provided before
+  wiring a production UI consumer. R04 hosted authorization acceptance also
+  remains blocked by missing approved environment provenance and fixtures.
+
+- Current implementation: canonical Cash/Card adapter and app-client provider
+  integration exist. The production history surface has no trusted Payment ID,
+  so no screen consumer is activated. Display guards reject caller-built success.
 - Files/components: `lib/features/history/presentation/providers/rider_payment_providers.dart`,
   `lib/features/history/presentation/models/rider_payment_presentation.dart`,
   `lib/features/history/presentation/widgets/rider_payment_status_card.dart`, canonical
   reader and existing `test/rider_payment_provider_test.dart` / state-mapping tests.
-- Required work: confirm the P6 versus P8 consumer boundary, supply only backend-issued
-  payment identity and authorized canonical Trip linkage, then wire existing read
-  contracts to the application SDK. Keep persistent History/receipt restoration in P8.
+- Required work: establish the trusted backend-issued Payment ID and canonical
+  Trip association; then connect the authorized exact-ID reader to the canonical
+  Rider Trip/history surface. Keep persistent History/receipt restoration in P8.
 - Acceptance: missing identity/configuration fails closed; no mock ID inference;
   foreign/stale session responses rejected; amounts/status are canonical; paid status
   alone cannot produce an issued receipt or trusted completion/capture success.

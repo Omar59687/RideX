@@ -13,16 +13,15 @@ CashPayment _cash({
   String? bookingRequestId = 'booking-1',
   int amountFils = 7350,
   String? idempotencyKey,
-}) =>
-    CashPayment(
-      paymentId: paymentId,
-      tripId: tripId,
-      bookingRequestId: bookingRequestId,
-      amountFils: amountFils,
-      status: status,
-      version: 3,
-      idempotencyKey: idempotencyKey,
-    );
+}) => CashPayment(
+  paymentId: paymentId,
+  tripId: tripId,
+  bookingRequestId: bookingRequestId,
+  amountFils: amountFils,
+  status: status,
+  version: 3,
+  idempotencyKey: idempotencyKey,
+);
 
 CardPayment _card({
   CardPaymentStatus status = CardPaymentStatus.cardPaymentSucceeded,
@@ -33,55 +32,53 @@ CardPayment _card({
   String? idempotencyKey,
   String? cardBrand,
   String? cardLastFour,
-}) =>
-    CardPayment(
-      paymentId: paymentId,
-      tripId: tripId,
-      bookingRequestId: bookingRequestId,
-      amountFils: amountFils,
-      status: status,
-      version: 3,
-      idempotencyKey: idempotencyKey,
-      cardBrand: cardBrand,
-      cardLastFour: cardLastFour,
-    );
+}) => CardPayment(
+  paymentId: paymentId,
+  tripId: tripId,
+  bookingRequestId: bookingRequestId,
+  amountFils: amountFils,
+  status: status,
+  version: 3,
+  idempotencyKey: idempotencyKey,
+  cardBrand: cardBrand,
+  cardLastFour: cardLastFour,
+);
 
 Map<String, Object?> _cashValues(CashPayment payment) => {
-      'paymentId': payment.paymentId,
-      'bookingRequestId': payment.bookingRequestId,
-      'tripId': payment.tripId,
-      'amountFils': payment.amountFils,
-      'currency': payment.currency,
-      'status': payment.status,
-      'version': payment.version,
-      'idempotencyKey': payment.idempotencyKey,
-    };
+  'paymentId': payment.paymentId,
+  'bookingRequestId': payment.bookingRequestId,
+  'tripId': payment.tripId,
+  'amountFils': payment.amountFils,
+  'currency': payment.currency,
+  'status': payment.status,
+  'version': payment.version,
+  'idempotencyKey': payment.idempotencyKey,
+};
 
 Map<String, Object?> _cardValues(CardPayment payment) => {
-      'paymentId': payment.paymentId,
-      'bookingRequestId': payment.bookingRequestId,
-      'tripId': payment.tripId,
-      'amountFils': payment.amountFils,
-      'currency': payment.currency,
-      'status': payment.status,
-      'version': payment.version,
-      'idempotencyKey': payment.idempotencyKey,
-      'cardBrand': payment.cardBrand,
-      'cardLastFour': payment.cardLastFour,
-    };
+  'paymentId': payment.paymentId,
+  'bookingRequestId': payment.bookingRequestId,
+  'tripId': payment.tripId,
+  'amountFils': payment.amountFils,
+  'currency': payment.currency,
+  'status': payment.status,
+  'version': payment.version,
+  'idempotencyKey': payment.idempotencyKey,
+  'cardBrand': payment.cardBrand,
+  'cardLastFour': payment.cardLastFour,
+};
 
 RiderPaymentTripEvidence _evidence({
   String? paymentId = 'payment-1',
   String? tripId = 'trip-1',
   String? bookingRequestId = 'booking-1',
   TripStatus tripStatus = TripStatus.completed,
-}) =>
-    RiderPaymentTripEvidence(
-      paymentId: paymentId,
-      tripId: tripId,
-      bookingRequestId: bookingRequestId,
-      tripStatus: tripStatus,
-    );
+}) => RiderPaymentTripEvidence(
+  paymentId: paymentId,
+  tripId: tripId,
+  bookingRequestId: bookingRequestId,
+  tripStatus: tripStatus,
+);
 
 void _expectUnverified(RiderPaymentPresentation presentation) {
   expect(presentation.canDescribeAsPaid, isFalse);
@@ -135,6 +132,19 @@ void main() {
       expect(presentation.statusLabel, 'Paid status reported');
       expect(presentation.statusDescription, contains('evidence must match'));
     });
+
+    test(
+      'canonical nullable Trip linkage is retained without success proof',
+      () {
+        final presentation = RiderPaymentPresentation.fromCash(
+          _cash(tripId: null),
+        );
+
+        expect(presentation.tripNotLinked, isTrue);
+        expect(presentation.canDescribeAsPaid, isFalse);
+        expect(presentation.issuedReceiptExists, isNull);
+      },
+    );
   });
 
   group('Card state presentation', () {
@@ -253,8 +263,9 @@ void main() {
           final evidence = _evidence(
             paymentId: field == 'paymentId' ? entry.value : 'payment-1',
             tripId: field == 'tripId' ? entry.value : 'trip-1',
-            bookingRequestId:
-                field == 'bookingRequestId' ? entry.value : 'booking-1',
+            bookingRequestId: field == 'bookingRequestId'
+                ? entry.value
+                : 'booking-1',
           );
 
           _expectUnverified(
@@ -270,14 +281,16 @@ void main() {
         final cash = _cash(
           paymentId: field == 'paymentId' ? 'another-payment' : 'payment-1',
           tripId: field == 'tripId' ? 'another-trip' : 'trip-1',
-          bookingRequestId:
-              field == 'bookingRequestId' ? 'another-booking' : 'booking-1',
+          bookingRequestId: field == 'bookingRequestId'
+              ? 'another-booking'
+              : 'booking-1',
         );
         final card = _card(
           paymentId: field == 'paymentId' ? 'another-payment' : 'payment-1',
           tripId: field == 'tripId' ? 'another-trip' : 'trip-1',
-          bookingRequestId:
-              field == 'bookingRequestId' ? 'another-booking' : 'booking-1',
+          bookingRequestId: field == 'bookingRequestId'
+              ? 'another-booking'
+              : 'booking-1',
         );
 
         _expectUnverified(

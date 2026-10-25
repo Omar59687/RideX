@@ -15,6 +15,7 @@ import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/repositories/auth_repository.dart';
+import 'package:ridex/core/repositories/canonical_payment_repository.dart';
 import 'package:ridex/core/repositories/card_payment_repository.dart';
 import 'package:ridex/core/repositories/payment_repository.dart';
 import 'package:ridex/features/history/presentation/providers/rider_payment_providers.dart';
@@ -40,15 +41,14 @@ CashPayment _cash({
   String? tripId = 'trip-1',
   String? bookingRequestId = 'booking-1',
   int amountFils = 7350,
-}) =>
-    CashPayment(
-      paymentId: paymentId,
-      tripId: tripId,
-      bookingRequestId: bookingRequestId,
-      amountFils: amountFils,
-      status: status,
-      version: 3,
-    );
+}) => CashPayment(
+  paymentId: paymentId,
+  tripId: tripId,
+  bookingRequestId: bookingRequestId,
+  amountFils: amountFils,
+  status: status,
+  version: 3,
+);
 
 CardPayment _card({
   CardPaymentStatus status = CardPaymentStatus.cardPaymentSucceeded,
@@ -58,17 +58,16 @@ CardPayment _card({
   int amountFils = 7350,
   String? cardBrand,
   String? cardLastFour,
-}) =>
-    CardPayment(
-      paymentId: paymentId,
-      tripId: tripId,
-      bookingRequestId: bookingRequestId,
-      amountFils: amountFils,
-      status: status,
-      version: 3,
-      cardBrand: cardBrand,
-      cardLastFour: cardLastFour,
-    );
+}) => CardPayment(
+  paymentId: paymentId,
+  tripId: tripId,
+  bookingRequestId: bookingRequestId,
+  amountFils: amountFils,
+  status: status,
+  version: 3,
+  cardBrand: cardBrand,
+  cardLastFour: cardLastFour,
+);
 
 /// Recording reader wrapper around the canonical fixture fake.
 ///
@@ -78,7 +77,7 @@ CardPayment _card({
 /// [CashPayment] fixture unchanged.
 class _RecordingCashRepository implements PaymentRepository {
   _RecordingCashRepository([FakePaymentRepository? inner])
-      : inner = inner ?? FakePaymentRepository();
+    : inner = inner ?? FakePaymentRepository();
 
   final FakePaymentRepository inner;
   final List<String> readIds = [];
@@ -107,7 +106,7 @@ class _RecordingCashRepository implements PaymentRepository {
 /// Card-side counterpart of [_RecordingCashRepository].
 class _RecordingCardRepository implements CardPaymentRepository {
   _RecordingCardRepository([FakeCardPaymentRepository? inner])
-      : inner = inner ?? FakeCardPaymentRepository();
+    : inner = inner ?? FakeCardPaymentRepository();
 
   final FakeCardPaymentRepository inner;
   final List<String> readIds = [];
@@ -203,8 +202,9 @@ void main() {
     test('missing or blank payment ID resolves to unavailable', () async {
       final repository = _RecordingCashRepository();
       final container = await _container(cashRepository: repository);
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
+      final notifier = container.read(
+        riderPaymentReadControllerProvider.notifier,
+      );
 
       await notifier.readPayment(paymentId: null, method: PaymentMethod.cash);
       expect(_stateOf(container), isA<RiderPaymentUnavailable>());
@@ -215,20 +215,27 @@ void main() {
       expect(repository.readIds, isEmpty);
     });
 
-    test('default configuration has no approved reader and fails closed',
-        () async {
-      final container = await _container();
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
+    test(
+      'default configuration has no approved reader and fails closed',
+      () async {
+        final container = await _container();
+        final notifier = container.read(
+          riderPaymentReadControllerProvider.notifier,
+        );
 
-      await notifier.readPayment(
-          paymentId: 'payment-1', method: PaymentMethod.cash);
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        await notifier.readPayment(
+          paymentId: 'payment-1',
+          method: PaymentMethod.cash,
+        );
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
 
-      await notifier.readPayment(
-          paymentId: 'payment-1', method: PaymentMethod.card);
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
-    });
+        await notifier.readPayment(
+          paymentId: 'payment-1',
+          method: PaymentMethod.card,
+        );
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+      },
+    );
 
     test('reads a canonical Cash record through the injected reader', () async {
       final inner = FakePaymentRepository()..seedCashPayment(_cash());
@@ -279,8 +286,9 @@ void main() {
       final gate = Completer<CashPayment>();
       repository.gate = gate;
       final container = await _container(cashRepository: repository);
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
+      final notifier = container.read(
+        riderPaymentReadControllerProvider.notifier,
+      );
 
       final read = notifier.readPayment(
         paymentId: 'payment-1',
@@ -293,32 +301,36 @@ void main() {
       expect(_stateOf(container), isA<RiderPaymentReady>());
     });
 
-    test('successful read never produces unauthorized success claims',
-        () async {
-      final inner = FakeCardPaymentRepository()
-        ..seedCardPayment(
-          _card(status: CardPaymentStatus.cardPaymentSucceeded),
+    test(
+      'successful read never produces unauthorized success claims',
+      () async {
+        final inner = FakeCardPaymentRepository()
+          ..seedCardPayment(
+            _card(status: CardPaymentStatus.cardPaymentSucceeded),
+          );
+        final repository = _RecordingCardRepository(inner);
+        final container = await _container(cardRepository: repository);
+
+        await container
+            .read(riderPaymentReadControllerProvider.notifier)
+            .readPayment(paymentId: 'payment-1', method: PaymentMethod.card);
+
+        final state = _stateOf(container);
+        expect(state, isA<RiderPaymentReady>());
+        final presentation = (state as RiderPaymentReady).presentation;
+        expect(presentation.canDescribeAsPaid, isFalse);
+        expect(presentation.statusLabel, 'Success status reported');
+
+        final display = RiderPaymentStatusDisplay.failClosed(presentation);
+        expect(display.title, 'Success status reported');
+        expect(
+          display.title,
+          isNot(anyOf('Payment captured', 'Payment completed')),
         );
-      final repository = _RecordingCardRepository(inner);
-      final container = await _container(cardRepository: repository);
-
-      await container
-          .read(riderPaymentReadControllerProvider.notifier)
-          .readPayment(paymentId: 'payment-1', method: PaymentMethod.card);
-
-      final state = _stateOf(container);
-      expect(state, isA<RiderPaymentReady>());
-      final presentation = (state as RiderPaymentReady).presentation;
-      expect(presentation.canDescribeAsPaid, isFalse);
-      expect(presentation.statusLabel, 'Success status reported');
-
-      final display = RiderPaymentStatusDisplay.failClosed(presentation);
-      expect(display.title, 'Success status reported');
-      expect(
-          display.title, isNot(anyOf('Payment captured', 'Payment completed')));
-      expect(display.unverifiedSuccess, isFalse);
-      expect(display.markerLabel, isNull);
-    });
+        expect(display.unverifiedSuccess, isFalse);
+        expect(display.markerLabel, isNull);
+      },
+    );
 
     test('a missing canonical record resolves to unavailable', () async {
       final repository = _RecordingCashRepository();
@@ -332,49 +344,73 @@ void main() {
       expect(repository.readIds, ['missing-1']);
     });
 
-    test('invalidRequest resolves to unavailable, not a read failure',
-        () async {
-      final repository = _RecordingCashRepository()
-        ..nextError = const PaymentException(PaymentFailure.invalidRequest);
-      final container = await _container(cashRepository: repository);
+    test(
+      'invalidRequest resolves to unavailable, not a read failure',
+      () async {
+        final repository = _RecordingCashRepository()
+          ..nextError = const PaymentException(PaymentFailure.invalidRequest);
+        final container = await _container(cashRepository: repository);
 
-      await container
-          .read(riderPaymentReadControllerProvider.notifier)
-          .readPayment(paymentId: 'payment-1', method: PaymentMethod.cash);
+        await container
+            .read(riderPaymentReadControllerProvider.notifier)
+            .readPayment(paymentId: 'payment-1', method: PaymentMethod.cash);
 
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
-      expect(repository.readIds, ['payment-1']);
-    });
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        expect(repository.readIds, ['payment-1']);
+      },
+    );
 
-    testWidgets('unexpected repository errors render a sanitized read failure',
-        (tester) async {
-      final repository = _RecordingCashRepository()
-        ..nextError = StateError('internal detail db-42');
-      final container = await _container(cashRepository: repository);
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
+    test(
+      'canonical authorization rejection has a distinct safe state',
+      () async {
+        final repository = _RecordingCashRepository()
+          ..nextError = const CanonicalPaymentReadException(
+            CanonicalPaymentReadFailure.unauthorized,
+          );
+        final container = await _container(cashRepository: repository);
 
-      await notifier.readPayment(
-        paymentId: 'payment-1',
-        method: PaymentMethod.cash,
-      );
-      final state = _stateOf(container);
-      expect(state, isA<RiderPaymentReadFailure>());
+        await container
+            .read(riderPaymentReadControllerProvider.notifier)
+            .readPayment(paymentId: 'payment-1', method: PaymentMethod.cash);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light(),
-          home: Scaffold(
-            body: RiderPaymentStatusCard(
-                readState: state, onRetry: notifier.retry),
+        expect(_stateOf(container), isA<RiderPaymentAuthorizationFailure>());
+      },
+    );
+
+    testWidgets(
+      'unexpected repository errors render a sanitized read failure',
+      (tester) async {
+        final repository = _RecordingCashRepository()
+          ..nextError = StateError('internal detail db-42');
+        final container = await _container(cashRepository: repository);
+        final notifier = container.read(
+          riderPaymentReadControllerProvider.notifier,
+        );
+
+        await notifier.readPayment(
+          paymentId: 'payment-1',
+          method: PaymentMethod.cash,
+        );
+        final state = _stateOf(container);
+        expect(state, isA<RiderPaymentReadFailure>());
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: RiderPaymentStatusCard(
+                readState: state,
+                onRetry: notifier.retry,
+              ),
+            ),
           ),
-        ),
-      );
-      expect(find.text('Payment status could not be loaded'), findsOneWidget);
-      expect(find.text('Payment failed'), findsNothing);
-      expect(find.textContaining('db-42'), findsNothing);
-      expect(find.textContaining('internal detail'), findsNothing);
-    });
+        );
+        expect(find.text('Payment status could not be loaded'), findsOneWidget);
+        expect(find.text('Payment failed'), findsNothing);
+        expect(find.textContaining('db-42'), findsNothing);
+        expect(find.textContaining('internal detail'), findsNothing);
+      },
+    );
 
     test('retry re-reads after a failed read and no-ops otherwise', () async {
       final inner = FakePaymentRepository()
@@ -382,8 +418,9 @@ void main() {
       final repository = _RecordingCashRepository(inner)
         ..nextError = StateError('transient');
       final container = await _container(cashRepository: repository);
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
+      final notifier = container.read(
+        riderPaymentReadControllerProvider.notifier,
+      );
 
       await notifier.readPayment(
         paymentId: 'payment-1',
@@ -409,8 +446,9 @@ void main() {
       final repository = _RecordingCardRepository(inner)
         ..nextError = StateError('transient');
       final container = await _container(cardRepository: repository);
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
+      final notifier = container.read(
+        riderPaymentReadControllerProvider.notifier,
+      );
 
       await notifier.readPayment(
         paymentId: 'payment-1',
@@ -448,8 +486,9 @@ void main() {
         );
       final repository = _RecordingCashRepository(inner);
       final container = await _container(cashRepository: repository);
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
+      final notifier = container.read(
+        riderPaymentReadControllerProvider.notifier,
+      );
 
       final firstGate = Completer<CashPayment>();
       repository.gate = firstGate;
@@ -492,47 +531,52 @@ void main() {
       expect(repository.readIds, ['pay-a', 'pay-b']);
     });
 
-    test('logout while a read is pending cannot publish the response',
-        () async {
-      final inner = FakePaymentRepository()..seedCashPayment(_cash());
-      final repository = _RecordingCashRepository(inner);
-      final auth = _SwitchableAuthRepository(_riderA);
-      final container = await _container(
-        cashRepository: repository,
-        authRepository: auth,
-      );
-      expect(
-        container.read(sessionControllerProvider).status,
-        SessionStatus.authenticated,
-      );
+    test(
+      'logout while a read is pending cannot publish the response',
+      () async {
+        final inner = FakePaymentRepository()..seedCashPayment(_cash());
+        final repository = _RecordingCashRepository(inner);
+        final auth = _SwitchableAuthRepository(_riderA);
+        final container = await _container(
+          cashRepository: repository,
+          authRepository: auth,
+        );
+        expect(
+          container.read(sessionControllerProvider).status,
+          SessionStatus.authenticated,
+        );
 
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
-      final gate = Completer<CashPayment>();
-      repository.gate = gate;
-      final read = notifier.readPayment(
-        paymentId: 'payment-1',
-        method: PaymentMethod.cash,
-      );
-      expect(_stateOf(container), isA<RiderPaymentLoading>());
+        final notifier = container.read(
+          riderPaymentReadControllerProvider.notifier,
+        );
+        final gate = Completer<CashPayment>();
+        repository.gate = gate;
+        final read = notifier.readPayment(
+          paymentId: 'payment-1',
+          method: PaymentMethod.cash,
+        );
+        expect(_stateOf(container), isA<RiderPaymentLoading>());
 
-      auth.user = null;
-      await container.read(sessionControllerProvider.notifier).refreshSession();
-      expect(
-        container.read(sessionControllerProvider).status,
-        SessionStatus.unauthenticated,
-      );
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        auth.user = null;
+        await container
+            .read(sessionControllerProvider.notifier)
+            .refreshSession();
+        expect(
+          container.read(sessionControllerProvider).status,
+          SessionStatus.unauthenticated,
+        );
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
 
-      gate.complete(_cash());
-      await read;
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
-      expect(repository.readIds, ['payment-1']);
+        gate.complete(_cash());
+        await read;
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        expect(repository.readIds, ['payment-1']);
 
-      await notifier.retry();
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
-      expect(repository.readIds, ['payment-1']);
-    });
+        await notifier.retry();
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        expect(repository.readIds, ['payment-1']);
+      },
+    );
 
     test('rider identity change cannot expose the previous response', () async {
       final inner = FakePaymentRepository()..seedCashPayment(_cash());
@@ -560,17 +604,54 @@ void main() {
       expect(_stateOf(container), isA<RiderPaymentUnavailable>());
     });
 
-    test('retry racing a newer payment request discards the older completion',
-        () async {
-      final inner = FakePaymentRepository()
-        ..seedCashPayment(
-          _cash(
-            paymentId: 'pay-a',
-            tripId: 'trip-a',
-            bookingRequestId: 'book-a',
-          ),
-        )
-        ..seedCashPayment(
+    test(
+      'retry racing a newer payment request discards the older completion',
+      () async {
+        final inner = FakePaymentRepository()
+          ..seedCashPayment(
+            _cash(
+              paymentId: 'pay-a',
+              tripId: 'trip-a',
+              bookingRequestId: 'book-a',
+            ),
+          )
+          ..seedCashPayment(
+            _cash(
+              paymentId: 'pay-b',
+              tripId: 'trip-b',
+              bookingRequestId: 'book-b',
+              status: CashPaymentStatus.paid,
+            ),
+          );
+        final repository = _RecordingCashRepository(inner)
+          ..nextError = StateError('transient');
+        final container = await _container(cashRepository: repository);
+        final notifier = container.read(
+          riderPaymentReadControllerProvider.notifier,
+        );
+
+        await notifier.readPayment(
+          paymentId: 'pay-a',
+          method: PaymentMethod.cash,
+        );
+        expect(_stateOf(container), isA<RiderPaymentReadFailure>());
+        expect(repository.readIds, ['pay-a']);
+
+        final retryGate = Completer<CashPayment>();
+        repository.gate = retryGate;
+        final retryRead = notifier.retry();
+        expect(_stateOf(container), isA<RiderPaymentLoading>());
+        expect(repository.readIds, ['pay-a', 'pay-a']);
+
+        final newerGate = Completer<CashPayment>();
+        repository.gate = newerGate;
+        final newerRead = notifier.readPayment(
+          paymentId: 'pay-b',
+          method: PaymentMethod.cash,
+        );
+        expect(repository.readIds, ['pay-a', 'pay-a', 'pay-b']);
+
+        newerGate.complete(
           _cash(
             paymentId: 'pay-b',
             tripId: 'trip-b',
@@ -578,180 +659,161 @@ void main() {
             status: CashPaymentStatus.paid,
           ),
         );
-      final repository = _RecordingCashRepository(inner)
-        ..nextError = StateError('transient');
-      final container = await _container(cashRepository: repository);
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
+        await newerRead;
+        expect(
+          (_stateOf(container) as RiderPaymentReady).presentation.statusLabel,
+          'Paid status reported',
+        );
 
-      await notifier.readPayment(
-        paymentId: 'pay-a',
-        method: PaymentMethod.cash,
-      );
-      expect(_stateOf(container), isA<RiderPaymentReadFailure>());
-      expect(repository.readIds, ['pay-a']);
-
-      final retryGate = Completer<CashPayment>();
-      repository.gate = retryGate;
-      final retryRead = notifier.retry();
-      expect(_stateOf(container), isA<RiderPaymentLoading>());
-      expect(repository.readIds, ['pay-a', 'pay-a']);
-
-      final newerGate = Completer<CashPayment>();
-      repository.gate = newerGate;
-      final newerRead = notifier.readPayment(
-        paymentId: 'pay-b',
-        method: PaymentMethod.cash,
-      );
-      expect(repository.readIds, ['pay-a', 'pay-a', 'pay-b']);
-
-      newerGate.complete(
-        _cash(
-          paymentId: 'pay-b',
-          tripId: 'trip-b',
-          bookingRequestId: 'book-b',
-          status: CashPaymentStatus.paid,
-        ),
-      );
-      await newerRead;
-      expect(
-        (_stateOf(container) as RiderPaymentReady).presentation.statusLabel,
-        'Paid status reported',
-      );
-
-      retryGate.complete(
-        _cash(
-          paymentId: 'pay-a',
-          tripId: 'trip-a',
-          bookingRequestId: 'book-a',
-        ),
-      );
-      await retryRead;
-      expect(
-        (_stateOf(container) as RiderPaymentReady).presentation.statusLabel,
-        'Paid status reported',
-      );
-      expect(repository.readIds, ['pay-a', 'pay-a', 'pay-b']);
-    });
-
-    test('a stale read error after identity change cannot publish a failure',
-        () async {
-      final inner = FakePaymentRepository()..seedCashPayment(_cash());
-      final repository = _RecordingCashRepository(inner);
-      final auth = _SwitchableAuthRepository(_riderA);
-      final container = await _container(
-        cashRepository: repository,
-        authRepository: auth,
-      );
-
-      final gate = Completer<CashPayment>();
-      repository.gate = gate;
-      final read = container
-          .read(riderPaymentReadControllerProvider.notifier)
-          .readPayment(paymentId: 'payment-1', method: PaymentMethod.cash);
-      expect(_stateOf(container), isA<RiderPaymentLoading>());
-
-      auth.user = _riderB;
-      await container.read(sessionControllerProvider.notifier).refreshSession();
-      expect(container.read(sessionControllerProvider).user?.id, 'rider-b');
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
-
-      gate.completeError(StateError('stale transport error'));
-      await read;
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
-      expect(repository.readIds, ['payment-1']);
-    });
-
-    test('provider invalidation during an in-flight read discards it',
-        () async {
-      final inner = FakePaymentRepository()..seedCashPayment(_cash());
-      final repository = _RecordingCashRepository(inner);
-      final container = await _container(cashRepository: repository);
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
-
-      final gate = Completer<CashPayment>();
-      repository.gate = gate;
-      final read = notifier.readPayment(
-        paymentId: 'payment-1',
-        method: PaymentMethod.cash,
-      );
-      expect(_stateOf(container), isA<RiderPaymentLoading>());
-
-      container.invalidate(riderPaymentReadControllerProvider);
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
-
-      gate.complete(_cash());
-      await read;
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
-      expect(repository.readIds, ['payment-1']);
-    });
+        retryGate.complete(
+          _cash(
+            paymentId: 'pay-a',
+            tripId: 'trip-a',
+            bookingRequestId: 'book-a',
+          ),
+        );
+        await retryRead;
+        expect(
+          (_stateOf(container) as RiderPaymentReady).presentation.statusLabel,
+          'Paid status reported',
+        );
+        expect(repository.readIds, ['pay-a', 'pay-a', 'pay-b']);
+      },
+    );
 
     test(
-        'read initiated while logged out fails closed without repository calls',
-        () async {
-      final cash = _RecordingCashRepository();
-      final card = _RecordingCardRepository();
-      final container = await _container(
-        cashRepository: cash,
-        cardRepository: card,
-        authRepository: _SwitchableAuthRepository(null),
-      );
-      expect(
-        container.read(sessionControllerProvider).status,
-        SessionStatus.unauthenticated,
-      );
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
+      'a stale read error after identity change cannot publish a failure',
+      () async {
+        final inner = FakePaymentRepository()..seedCashPayment(_cash());
+        final repository = _RecordingCashRepository(inner);
+        final auth = _SwitchableAuthRepository(_riderA);
+        final container = await _container(
+          cashRepository: repository,
+          authRepository: auth,
+        );
 
-      await notifier.readPayment(
-        paymentId: 'payment-1',
-        method: PaymentMethod.cash,
-      );
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        final gate = Completer<CashPayment>();
+        repository.gate = gate;
+        final read = container
+            .read(riderPaymentReadControllerProvider.notifier)
+            .readPayment(paymentId: 'payment-1', method: PaymentMethod.cash);
+        expect(_stateOf(container), isA<RiderPaymentLoading>());
 
-      await notifier.readPayment(
-        paymentId: 'payment-1',
-        method: PaymentMethod.card,
-      );
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        auth.user = _riderB;
+        await container
+            .read(sessionControllerProvider.notifier)
+            .refreshSession();
+        expect(container.read(sessionControllerProvider).user?.id, 'rider-b');
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
 
-      expect(cash.readIds, isEmpty);
-      expect(card.readIds, isEmpty);
-    });
+        gate.completeError(StateError('stale transport error'));
+        await read;
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        expect(repository.readIds, ['payment-1']);
+      },
+    );
 
-    test('read during session loading fails closed without repository calls',
-        () async {
-      final repository = _RecordingCashRepository();
-      final container = ProviderContainer(
-        overrides: [
-          riderCashPaymentRepositoryProvider.overrideWithValue(repository),
-          authRepositoryProvider
-              .overrideWithValue(_SwitchableAuthRepository(_riderA)),
-        ],
-      );
-      addTearDown(container.dispose);
-      expect(
-        container.read(sessionControllerProvider).status,
-        SessionStatus.loading,
-      );
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
+    test(
+      'provider invalidation during an in-flight read discards it',
+      () async {
+        final inner = FakePaymentRepository()..seedCashPayment(_cash());
+        final repository = _RecordingCashRepository(inner);
+        final container = await _container(cashRepository: repository);
+        final notifier = container.read(
+          riderPaymentReadControllerProvider.notifier,
+        );
 
-      await notifier.readPayment(
-        paymentId: 'payment-1',
-        method: PaymentMethod.cash,
-      );
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
-      expect(repository.readIds, isEmpty);
+        final gate = Completer<CashPayment>();
+        repository.gate = gate;
+        final read = notifier.readPayment(
+          paymentId: 'payment-1',
+          method: PaymentMethod.cash,
+        );
+        expect(_stateOf(container), isA<RiderPaymentLoading>());
 
-      await container.read(sessionControllerProvider.notifier).refreshSession();
-      expect(
-        container.read(sessionControllerProvider).status,
-        SessionStatus.authenticated,
-      );
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
-    });
+        container.invalidate(riderPaymentReadControllerProvider);
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+
+        gate.complete(_cash());
+        await read;
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        expect(repository.readIds, ['payment-1']);
+      },
+    );
+
+    test(
+      'read initiated while logged out fails closed without repository calls',
+      () async {
+        final cash = _RecordingCashRepository();
+        final card = _RecordingCardRepository();
+        final container = await _container(
+          cashRepository: cash,
+          cardRepository: card,
+          authRepository: _SwitchableAuthRepository(null),
+        );
+        expect(
+          container.read(sessionControllerProvider).status,
+          SessionStatus.unauthenticated,
+        );
+        final notifier = container.read(
+          riderPaymentReadControllerProvider.notifier,
+        );
+
+        await notifier.readPayment(
+          paymentId: 'payment-1',
+          method: PaymentMethod.cash,
+        );
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+
+        await notifier.readPayment(
+          paymentId: 'payment-1',
+          method: PaymentMethod.card,
+        );
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+
+        expect(cash.readIds, isEmpty);
+        expect(card.readIds, isEmpty);
+      },
+    );
+
+    test(
+      'read during session loading fails closed without repository calls',
+      () async {
+        final repository = _RecordingCashRepository();
+        final container = ProviderContainer(
+          overrides: [
+            riderCashPaymentRepositoryProvider.overrideWithValue(repository),
+            authRepositoryProvider.overrideWithValue(
+              _SwitchableAuthRepository(_riderA),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        expect(
+          container.read(sessionControllerProvider).status,
+          SessionStatus.loading,
+        );
+        final notifier = container.read(
+          riderPaymentReadControllerProvider.notifier,
+        );
+
+        await notifier.readPayment(
+          paymentId: 'payment-1',
+          method: PaymentMethod.cash,
+        );
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        expect(repository.readIds, isEmpty);
+
+        await container
+            .read(sessionControllerProvider.notifier)
+            .refreshSession();
+        expect(
+          container.read(sessionControllerProvider).status,
+          SessionStatus.authenticated,
+        );
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+      },
+    );
 
     test('read with an authenticated non-Rider role fails closed', () async {
       const driver = AppUser(
@@ -815,8 +877,9 @@ void main() {
         cashRepository: repository,
         authRepository: auth,
       );
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
+      final notifier = container.read(
+        riderPaymentReadControllerProvider.notifier,
+      );
 
       await notifier.readPayment(
         paymentId: 'payment-1',
@@ -841,79 +904,91 @@ void main() {
       expect(repository.readIds, ['payment-1']);
     });
 
-    test('logout then another Rider login cannot resurrect the prior state',
-        () async {
-      final inner = FakePaymentRepository()
-        ..seedCashPayment(_cash(status: CashPaymentStatus.paid));
-      final repository = _RecordingCashRepository(inner);
-      final auth = _SwitchableAuthRepository(_riderA);
-      final container = await _container(
-        cashRepository: repository,
-        authRepository: auth,
-      );
-      final notifier =
-          container.read(riderPaymentReadControllerProvider.notifier);
+    test(
+      'logout then another Rider login cannot resurrect the prior state',
+      () async {
+        final inner = FakePaymentRepository()
+          ..seedCashPayment(_cash(status: CashPaymentStatus.paid));
+        final repository = _RecordingCashRepository(inner);
+        final auth = _SwitchableAuthRepository(_riderA);
+        final container = await _container(
+          cashRepository: repository,
+          authRepository: auth,
+        );
+        final notifier = container.read(
+          riderPaymentReadControllerProvider.notifier,
+        );
 
-      await notifier.readPayment(
-        paymentId: 'payment-1',
-        method: PaymentMethod.cash,
-      );
-      expect(_stateOf(container), isA<RiderPaymentReady>());
+        await notifier.readPayment(
+          paymentId: 'payment-1',
+          method: PaymentMethod.cash,
+        );
+        expect(_stateOf(container), isA<RiderPaymentReady>());
 
-      auth.user = null;
-      await container.read(sessionControllerProvider.notifier).refreshSession();
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        auth.user = null;
+        await container
+            .read(sessionControllerProvider.notifier)
+            .refreshSession();
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
 
-      await notifier.readPayment(
-        paymentId: 'payment-1',
-        method: PaymentMethod.cash,
-      );
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
-      expect(repository.readIds, ['payment-1']);
+        await notifier.readPayment(
+          paymentId: 'payment-1',
+          method: PaymentMethod.cash,
+        );
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        expect(repository.readIds, ['payment-1']);
 
-      auth.user = _riderB;
-      await container.read(sessionControllerProvider.notifier).refreshSession();
-      expect(container.read(sessionControllerProvider).user?.id, 'rider-b');
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        auth.user = _riderB;
+        await container
+            .read(sessionControllerProvider.notifier)
+            .refreshSession();
+        expect(container.read(sessionControllerProvider).user?.id, 'rider-b');
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
 
-      await notifier.retry();
-      expect(_stateOf(container), isA<RiderPaymentUnavailable>());
-      expect(repository.readIds, ['payment-1']);
+        await notifier.retry();
+        expect(_stateOf(container), isA<RiderPaymentUnavailable>());
+        expect(repository.readIds, ['payment-1']);
 
-      await notifier.readPayment(
-        paymentId: 'payment-1',
-        method: PaymentMethod.cash,
-      );
-      expect(_stateOf(container), isA<RiderPaymentReady>());
-      expect(repository.readIds, ['payment-1', 'payment-1']);
-    });
+        await notifier.readPayment(
+          paymentId: 'payment-1',
+          method: PaymentMethod.cash,
+        );
+        expect(_stateOf(container), isA<RiderPaymentReady>());
+        expect(repository.readIds, ['payment-1', 'payment-1']);
+      },
+    );
 
-    test('disposal discards a pending completion without touching state',
-        () async {
-      final inner = FakePaymentRepository()..seedCashPayment(_cash());
-      final repository = _RecordingCashRepository(inner);
-      final container = ProviderContainer(
-        overrides: [
-          riderCashPaymentRepositoryProvider.overrideWithValue(repository),
-          authRepositoryProvider
-              .overrideWithValue(_SwitchableAuthRepository(_riderA)),
-        ],
-      );
-      await container.read(sessionControllerProvider.notifier).refreshSession();
-      expect(
-        container.read(sessionControllerProvider).status,
-        SessionStatus.authenticated,
-      );
-      final gate = Completer<CashPayment>();
-      repository.gate = gate;
-      final read = container
-          .read(riderPaymentReadControllerProvider.notifier)
-          .readPayment(paymentId: 'payment-1', method: PaymentMethod.cash);
+    test(
+      'disposal discards a pending completion without touching state',
+      () async {
+        final inner = FakePaymentRepository()..seedCashPayment(_cash());
+        final repository = _RecordingCashRepository(inner);
+        final container = ProviderContainer(
+          overrides: [
+            riderCashPaymentRepositoryProvider.overrideWithValue(repository),
+            authRepositoryProvider.overrideWithValue(
+              _SwitchableAuthRepository(_riderA),
+            ),
+          ],
+        );
+        await container
+            .read(sessionControllerProvider.notifier)
+            .refreshSession();
+        expect(
+          container.read(sessionControllerProvider).status,
+          SessionStatus.authenticated,
+        );
+        final gate = Completer<CashPayment>();
+        repository.gate = gate;
+        final read = container
+            .read(riderPaymentReadControllerProvider.notifier)
+            .readPayment(paymentId: 'payment-1', method: PaymentMethod.cash);
 
-      container.dispose();
-      gate.complete(_cash());
-      await read;
-    });
+        container.dispose();
+        gate.complete(_cash());
+        await read;
+      },
+    );
 
     test('disposal swallows a late read error without throwing', () async {
       final repository = _RecordingCashRepository();
@@ -922,8 +997,9 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           riderCashPaymentRepositoryProvider.overrideWithValue(repository),
-          authRepositoryProvider
-              .overrideWithValue(_SwitchableAuthRepository(_riderA)),
+          authRepositoryProvider.overrideWithValue(
+            _SwitchableAuthRepository(_riderA),
+          ),
         ],
       );
       await container.read(sessionControllerProvider.notifier).refreshSession();
@@ -940,54 +1016,58 @@ void main() {
       await read;
     });
 
-    testWidgets('read failure is never rendered as a canonical payment failure',
-        (tester) async {
-      final failing = _RecordingCashRepository()
-        ..nextError = StateError('transport');
-      final failingContainer = await _container(cashRepository: failing);
-      await failingContainer
-          .read(riderPaymentReadControllerProvider.notifier)
-          .readPayment(paymentId: 'payment-1', method: PaymentMethod.cash);
-      final failureState = _stateOf(failingContainer);
-      expect(failureState, isA<RiderPaymentReadFailure>());
+    testWidgets(
+      'read failure is never rendered as a canonical payment failure',
+      (tester) async {
+        final failing = _RecordingCashRepository()
+          ..nextError = StateError('transport');
+        final failingContainer = await _container(cashRepository: failing);
+        await failingContainer
+            .read(riderPaymentReadControllerProvider.notifier)
+            .readPayment(paymentId: 'payment-1', method: PaymentMethod.cash);
+        final failureState = _stateOf(failingContainer);
+        expect(failureState, isA<RiderPaymentReadFailure>());
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light(),
-          home: Scaffold(body: RiderPaymentStatusCard(readState: failureState)),
-        ),
-      );
-      expect(find.text('Payment status could not be loaded'), findsOneWidget);
-      expect(find.text('Payment failed'), findsNothing);
-      expect(find.text('Refunded'), findsNothing);
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: RiderPaymentStatusCard(readState: failureState),
+            ),
+          ),
+        );
+        expect(find.text('Payment status could not be loaded'), findsOneWidget);
+        expect(find.text('Payment failed'), findsNothing);
+        expect(find.text('Refunded'), findsNothing);
 
-      final canonical = _RecordingCardRepository(
-        FakeCardPaymentRepository()
-          ..seedCardPayment(
+        final canonical = _RecordingCardRepository(
+          FakeCardPaymentRepository()..seedCardPayment(
             _card(status: CardPaymentStatus.cardPaymentFailed),
           ),
-      );
-      final canonicalContainer = await _container(cardRepository: canonical);
-      await canonicalContainer
-          .read(riderPaymentReadControllerProvider.notifier)
-          .readPayment(paymentId: 'payment-1', method: PaymentMethod.card);
-      final canonicalState = _stateOf(canonicalContainer);
-      expect(canonicalState, isA<RiderPaymentReady>());
-      expect(
-        (canonicalState as RiderPaymentReady).presentation.statusLabel,
-        'Payment failed',
-      );
+        );
+        final canonicalContainer = await _container(cardRepository: canonical);
+        await canonicalContainer
+            .read(riderPaymentReadControllerProvider.notifier)
+            .readPayment(paymentId: 'payment-1', method: PaymentMethod.card);
+        final canonicalState = _stateOf(canonicalContainer);
+        expect(canonicalState, isA<RiderPaymentReady>());
+        expect(
+          (canonicalState as RiderPaymentReady).presentation.statusLabel,
+          'Payment failed',
+        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light(),
-          home:
-              Scaffold(body: RiderPaymentStatusCard(readState: canonicalState)),
-        ),
-      );
-      expect(find.text('Payment failed'), findsOneWidget);
-      expect(find.text('Payment status could not be loaded'), findsNothing);
-    });
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            home: Scaffold(
+              body: RiderPaymentStatusCard(readState: canonicalState),
+            ),
+          ),
+        );
+        expect(find.text('Payment failed'), findsOneWidget);
+        expect(find.text('Payment status could not be loaded'), findsNothing);
+      },
+    );
 
     test('canonical success never infers receipt issuance', () async {
       final cashRepository = _RecordingCashRepository(
@@ -1004,10 +1084,9 @@ void main() {
       expect(cashReady.presentation.issuedReceiptExists, isNull);
 
       final cardRepository = _RecordingCardRepository(
-        FakeCardPaymentRepository()
-          ..seedCardPayment(
-            _card(status: CardPaymentStatus.cardPaymentSucceeded),
-          ),
+        FakeCardPaymentRepository()..seedCardPayment(
+          _card(status: CardPaymentStatus.cardPaymentSucceeded),
+        ),
       );
       final cardContainer = await _container(cardRepository: cardRepository);
       await cardContainer
@@ -1034,7 +1113,7 @@ void main() {
       ]) {
         expect(source, isNot(contains(forbidden)), reason: forbidden);
       }
-      expect(source.toLowerCase(), isNot(contains('supabase')));
+      expect(source, isNot(contains(".from('payments')")));
     });
   });
 }
