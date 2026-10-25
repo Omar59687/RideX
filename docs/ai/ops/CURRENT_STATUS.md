@@ -6,6 +6,26 @@ The R03 recovery-state fix has merged as PR #56 (`8b1ee51`), Admin F01/F02 read 
 
 R03's per-Trip evidence remains read-only; R05 still lacks a trusted backend-issued Payment ID from real Trip/history UI; R04 hosted authenticated actor acceptance is still blocked. Driver registry remains empty and its canonical non-mock UI is not mounted; hosted trusted Cash/receipt and Stripe runtime are not verified. **Phase 6 is not approved**. See [the merged-code closeout and remaining gates](../../parallel-development/phase-6/P6_CURRENT_CLOSEOUT_GATES_2026-10-25.md). No Phase 4/5 release gate was changed by this reconciliation.
 
+## Current override - 2026-10-25 P6-R06 Stripe preparation
+
+R06 implementation is **PARTIAL** on `feature/p6-r06-stripe-test-preparation`,
+based on main `552b0f7`. The new `stripe-test-intent` Edge handler keeps JWT
+verification enabled and independently requires an active Rider profile. Its
+server-side reader scopes Payment, Trip and authorization-attempt reads to that
+Rider, cross-checks exact identities, accepted Card/pending state, fare/currency,
+versions and the persisted idempotency key. It accepts no client amount/status.
+
+Production provider dispatch is hard-disabled; the entrypoint does not read Stripe
+secrets. No Stripe, hosted Supabase, mutation, migration or deployment test was run.
+JOD conversion rejects precision not exactly representable in Stripe minor units;
+this is not approval of JOD support or an account. The historical approval is
+limited to the Graduation MVP Test Mode scope. Owner approvals, isolated Payment/
+attempt data and a durable cross-instance claim/reconciliation contract are still
+required. Phase 8 authorization/capture and R08 secure UI remain out of scope.
+See the [R06 implementation record](../../parallel-development/phase-6/P6_R06_IMPLEMENTATION.md)
+and [authoritative tracker](../../parallel-development/phase-6/SPRINT_TRACKER.md).
+Phase 6 remains NOT APPROVED.
+
 ## Current override - 2026-10-25 P6-R05 Rider reader integration
 
 R05 implementation is **PARTIAL** on `feature/p6-r05-rider-payment-reader`, based
