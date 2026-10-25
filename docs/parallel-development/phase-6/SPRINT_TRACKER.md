@@ -1,5 +1,15 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## Current verified merge reconciliation — 2026-10-25
+
+Verified GitHub `main` at `552b0f78f3e72b84cc7d5b446968a0b5e519f765`. Source and blockers: [Current Phase 6 closeout gates](P6_CURRENT_CLOSEOUT_GATES_2026-10-25.md). This is an implementation checkpoint, **not** acceptance of hosted financial operations.
+
+- **R03 read-only recovery correction MERGED:** original #55 (`34801bc`), follow-up #56 (`8b1ee51`). Per-Trip canonical/receipt evidence and aggregate unresolved cases are preserved. Previous "awaiting #56 review" statements below are historical.
+- **R04 local Admin F01/F02 hardening MERGED** via #58 (`3c83c78`); hosted authenticated role acceptance remains BLOCKED.
+- **R05 Rider exact-ID reader integration MERGED** via #59 (`552b0f7`). SDK app/Rider identity and role guards are installed; **no trusted Payment ID** from booking/demo/Trip UI yet. R05 remains PARTIAL as a runtime feature.
+- R01/R02 production namespace mapping, non-mock canonical Driver screen mounting, R03 retention/operator policy, R06 Stripe server/account activation, R07 hosted Cash/receipt acceptance, R08 card UI scope and R09 exit evidence remain OPEN.
+- Latest *reported* local tests are per-PR only (R03 #56 full 1,554 PASS/2 live skips; R04 #58 51 focused PASS; R05 #59 focused 5 files PASS with no number). They **cannot be combined** as a single current-main run. No tests performed in this documentation reconciliation.
+
 ## P6-R06 implementation update - 2026-10-25
 
 Based on main `552b0f7`, implementation is on
@@ -19,7 +29,6 @@ injected providers. Focused Deno tests: 55 PASS / 0 FAIL; Deno type check and fo
 pass. No hosted operation, financial mutation, deployment or secret use occurred.
 See [R06 implementation record](P6_R06_IMPLEMENTATION.md). Phase 6 remains NOT
 APPROVED.
-
 
 ## R05 Rider canonical reader implementation update - 2026-10-25
 
@@ -80,9 +89,7 @@ Base: main `34801bcb5b89607e79a2736e83b87d82d4447bb5`.
   runtime acceptance. F03/F04 and hosted readiness remain open. No hosted
   mutation/deployment or Phase 6 approval.
 
-# Phase 6 — Sprint Tracker (authoritative status)
-
-## R01/R02 implementation handoff - 2026-10-25
+## Historical R01/R02 implementation handoff - 2026-10-25
 
 PR #54 merged the R01/R02 branch at main `f9e6807` (original base `fc3224c`).
 [Implementation/evidence record](P6_R01_R02_IMPLEMENTATION.md).
@@ -172,7 +179,7 @@ details the remaining work without granting approval.
 | Canonical Payment Reader (P6-01/03 read integration) | Cash/Card parser and authorized exact/list RPC adapter; persisted identity/version | Admin uses dedicated RPC reader; Rider providers use the shared app client and Rider-scoped exact reader; history remains unactivated without trusted Payment ID | Focused local provider/session/RPC/nullable-link tests; no hosted Rider reader verification | Backend-issued Rider Payment ID and canonical Trip association; hosted role acceptance (R04); Phase 7 Trip identity and Phase 8 payment/history source |
 | Driver Cash Completion (P6-02/P6-07) | Journal, coordinator, trusted completion adapter, B1-A/B1-B-compatible composition | Foundation merged; no production provider or Driver-screen activation; Trips remain mock-backed | Local journal/coordinator/SDK loopback coverage; no hosted atomic completion/receipt acceptance | Approved registry/context (R01), staging/provider/UI wiring (R02), hosted acceptance (R07) |
 | Cash Recovery (P6-02/P6-07) | Read-only discovery, canonical Cash Trip and Driver-safe receipt reads; original #55 merged at 34801bc, follow-up aggregate correction pending | Per-Trip strongest facts are separate from latest outcomes; unresolved/failed/unprocessed commands prevent aggregate success; ten-command rotation retained | 215 focused local PASS / 0 FAIL across four files; no hosted/runtime/device acceptance | Independent follow-up re-review, approved namespace, canonical screen mounting, retention/operator policy and R07 hosted/session/restart evidence; never replay, dispatch or retire from recovery |
-| Stripe Test Mode (P6-04) | Server-only unconfirmed adapter, fake, authenticated handler, filtered canonical reader, exact JOD minor-unit conversion | Handler validates Rider, accepted Card Trip, exact Payment/pending authorization attempt, versions/key; production provider dispatch disabled | 54 focused local Deno tests PASS; type check/format clean; no hosted read or provider call | Owner Test Mode/JOD approval, isolated canonical attempt fixture, durable attempt claim/unknown-outcome reconciliation, then sandbox evidence (R06); secure UI scope (R08); no release approval |
+| Stripe Test Mode (P6-04) | Server-only unconfirmed adapter, fake, authenticated handler, filtered canonical reader, exact JOD minor-unit conversion | Handler validates Rider, accepted Card Trip, exact Payment/pending authorization attempt, versions/key; production provider dispatch disabled | 55 focused local Deno tests PASS; type check/format clean; no hosted read or provider call | Owner Test Mode/JOD approval, isolated canonical attempt fixture, durable attempt claim/unknown-outcome reconciliation, then sandbox evidence (R06); secure UI scope (R08); no release approval |
 | Phase 6 Acceptance (P6-09) | Compatibility harness and fixture mappings | Foundations merged through #52 | Historical owner local results; no final hosted/runtime/device acceptance | Resolve R01-R08, independent integration review, evidence ledger and explicit owner exit decision (R09); Phase 6 NOT APPROVED and NOT release-ready |
 
 P6-01/P6-03/P6-05/P6-06 remain complete only for their previously approved
