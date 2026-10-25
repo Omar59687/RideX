@@ -7,6 +7,15 @@ import 'package:ridex/core/repositories/driver_trip_completion_repository.dart';
 import 'package:ridex/core/repositories/supabase_driver_trip_completion_repository.dart';
 import 'package:ridex/core/services/supabase/auth_service.dart';
 import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+enum DriverReceiptReadStatus { verified, missing, unavailable, unauthorized }
+
+final class DriverReceiptReadResult {
+  const DriverReceiptReadResult(this.status, {this.receiptNumber});
+  final DriverReceiptReadStatus status;
+  final String? receiptNumber;
+}
 
 /// Explicit composition over the verified B1-A singleton. The B1-B lifecycle
 /// owner and existing coordinator/journal must be supplied by integration.
@@ -23,6 +32,76 @@ final class SupabaseDriverCashCompletionComposition
         _authority = authority;
   final VerifiedSupabaseDriverAccess _access;
   final SupabaseDriverAuthorityBinding _authority;
+
+  /// Driver-safe read-only receipt reconciliation using the existing RPC.
+  Future<DriverReceiptReadResult> readReceipt({
+    required String tripId,
+    required String capturedDriverId,
+    required String capturedBackendNamespace,
+  }) async {
+    final owner = _authority.currentOwner;
+    final client = _access.client;
+    final session = client?.auth.currentSession;
+    bool current() => owner.isUsable &&
+        owner.driverId?.toLowerCase() == capturedDriverId.toLowerCase() &&
+        owner.backend.namespace == capturedBackendNamespace &&
+        client != null &&
+        session != null &&
+        !session.isExpired &&
+        session.user.id.toLowerCase() == capturedDriverId.toLowerCase() &&
+        identical(_access.backend, owner.backend) &&
+        identical(_access.client, client) &&
+        identical(client.auth.currentSession, session) &&
+        owner.sameOwner(_authority.currentOwner);
+    if (!isCanonicalTripId(tripId) || !current()) {
+      return const DriverReceiptReadResult(DriverReceiptReadStatus.unauthorized);
+    }
+    final eligible = await DriverEligibilityRepository(_authority).validate();
+    if (!current()) {
+      return const DriverReceiptReadResult(DriverReceiptReadStatus.unauthorized);
+    }
+    if (eligible is! DriverEligible || !owner.sameOwner(eligible.owner)) {
+      return const DriverReceiptReadResult(DriverReceiptReadStatus.unauthorized);
+    }
+    try {
+      final rows = await client!.rpc('user_trip_receipt_summary',
+          params: {'target_trip_id': tripId});
+      if (!current()) {
+        return const DriverReceiptReadResult(DriverReceiptReadStatus.unauthorized);
+      }
+      if (rows is! List || rows.length > 1 || rows.any((row) => row is! Map)) {
+        return const DriverReceiptReadResult(DriverReceiptReadStatus.unavailable);
+      }
+      if (rows.isEmpty) {
+        return const DriverReceiptReadResult(DriverReceiptReadStatus.missing);
+      }
+      final row = Map<String, Object?>.from(rows.single as Map);
+      final id = row['id'];
+      final linkedTrip = row['trip_id'];
+      final number = row['receipt_number'];
+      if (id is! String || !isCanonicalTripId(id) ||
+          linkedTrip is! String || !isCanonicalTripId(linkedTrip) ||
+          linkedTrip.toLowerCase() != tripId.toLowerCase() ||
+          number is! String || number.trim().isEmpty) {
+        return const DriverReceiptReadResult(DriverReceiptReadStatus.unavailable);
+      }
+      return DriverReceiptReadResult(DriverReceiptReadStatus.verified,
+          receiptNumber: number.trim());
+    } on PostgrestException catch (error) {
+      if (!current()) {
+        return const DriverReceiptReadResult(DriverReceiptReadStatus.unauthorized);
+      }
+      return DriverReceiptReadResult(
+          error.code?.toUpperCase() == 'P0002'
+              ? DriverReceiptReadStatus.missing
+              : DriverReceiptReadStatus.unavailable);
+    } on Object {
+      if (!current()) {
+        return const DriverReceiptReadResult(DriverReceiptReadStatus.unauthorized);
+      }
+      return const DriverReceiptReadResult(DriverReceiptReadStatus.unavailable);
+    }
+  }
 
   /// Recovery performs authenticated SELECT only. Existing reconciliation owns
   /// status/identity/version classification; no outcome authorizes a replay.

@@ -31,10 +31,12 @@ final class CanonicalTripEvidence {
     required this.driverId,
     required this.status,
     required this.backendVersion,
+    required this.paymentMethod,
   }) {
     if (!isCanonicalTripId(tripId) ||
         !isCanonicalTripId(driverId) ||
-        backendVersion <= 0) {
+        backendVersion <= 0 ||
+        paymentMethod != 'cash') {
       throw ArgumentError(
           'Canonical UUIDs and positive Trip version required.');
     }
@@ -44,6 +46,7 @@ final class CanonicalTripEvidence {
   final String driverId;
   final DriverTripLifecycleStatus status;
   final int backendVersion;
+  final String paymentMethod;
 }
 
 enum CanonicalTripReadFailure {
@@ -54,6 +57,7 @@ enum CanonicalTripReadFailure {
   malformedEvidence,
   foreignEvidence,
   unsupportedStatus,
+  unsupportedPaymentMethod,
   invalidVersion,
 }
 

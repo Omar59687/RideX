@@ -92,6 +92,16 @@ class Journal implements DriverCompletionCommandStore {
   final inspected = <(String, String, String)>[];
   int stages = 0;
   @override
+  Future<CompletionDriverSnapshot> inspectDriver(
+      {required String backendNamespace, required String driverId}) async =>
+      switch (slot) {
+        CompletionValid(command: final c) => CompletionDriverCommands([c]),
+        CompletionAbsent() => const CompletionDriverCommands([]),
+        CompletionCorrupt(issue: final issue) ||
+        CompletionUnavailable(issue: final issue) =>
+          CompletionDriverUnavailable(issue),
+      };
+  @override
   Future<CompletionSlot> inspect(
       {required String backendNamespace,
       required String driverId,
@@ -137,7 +147,8 @@ CanonicalTripVisible visible(CanonicalTripReadSession owner,
             tripId: id,
             driverId: driverId,
             status: status,
-            backendVersion: version),
+            backendVersion: version,
+            paymentMethod: 'cash'),
         owner);
 
 final class NoPreferences extends SharedPreferencesAsyncPlatform {
@@ -715,6 +726,39 @@ void main() {
       expect(reader.commands, isEmpty);
       expect(io.writes, 0);
     });
+    test('startup discovery is a pure journal read with no lock or writes', () async {
+      final before = await io.journal!.readAsBytes();
+      io.writes = 0;
+      final snapshot = await store.inspectDriver(
+          backendNamespace: backend, driverId: driver);
+      expect(snapshot, isA<CompletionDriverCommands>());
+      expect((snapshot as CompletionDriverCommands).commands.single.tripId, trip);
+      expect(await io.journal!.readAsBytes(), before);
+      expect(io.writes, 0);
+      final lock = File.fromUri(io.journal!.parent.uri.resolve('writer.lock'));
+      expect(await lock.exists(), isFalse);
+      await lock.create(exclusive: true);
+      final locked = await store.inspectDriver(
+          backendNamespace: backend, driverId: driver);
+      expect(locked, isA<CompletionDriverUnavailable>());
+      expect((locked as CompletionDriverUnavailable).issue,
+          CompletionJournalIssue.synchronizationUnavailable);
+      expect(await lock.exists(), isTrue);
+      expect(await io.journal!.readAsBytes(), before);
+      expect(io.writes, 0);
+    });
+    test('canonical version older than original command is conflicting evidence', () async {
+      final transport = RowTransport()..version = 3;
+      final coordinator = DriverCompletionRecoveryCoordinator(
+          tripId: trip,
+          owner: session(),
+          journal: store,
+          repository: ReadOnlyCanonicalTripReconciliationRepository(transport),
+          sessionReader: session);
+      expect((await coordinator.recover()).disposition,
+          DriverReadOnlyRecoveryDisposition.conflictingEvidence);
+      expect(io.writes, 0);
+    });
     test('invalid backend version from actual reader stays typed', () async {
       final transport = RowTransport()..version = 0;
       final coordinator = DriverCompletionRecoveryCoordinator(
@@ -744,7 +788,8 @@ class RowTransport implements CanonicalTripReadTransport {
       'id': trip,
       'driver_id': driver,
       'status': 'completed',
-      'version': version
+      'version': version,
+      'payment_method': 'cash'
     };
   }
 }

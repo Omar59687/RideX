@@ -121,23 +121,33 @@ Historical migration catalog reports do not prove the authenticated role matrix.
 
 ### P6-R03 - Wire read-only Cash recovery and unresolved UI (P6-02/P6-07)
 
-- Current implementation: recovery coordinator/classifier and authenticated canonical
-  Trip transport are implemented but unwired. Recovery reads no fresh receipt and
-  cannot prove an old command executed, replay it or retire its journal record.
+- Current implementation on stacked PR #55: per-Driver read-only journal discovery,
+  startup-on-provider-creation/resume/explicit triggers, canonical Cash Trip checks,
+  receipt-summary reads and bounded panel states are composed locally. See
+  [P6_R03_IMPLEMENTATION.md](P6_R03_IMPLEMENTATION.md). R03 remains PARTIAL: PR #54
+  is still open; the approved backend registry is empty; the canonical panel is not
+  mounted; hosted/runtime and journal/operator policy acceptance remain open.
+- Receipt reuse: `user_trip_receipt_summary(target_trip_id)` is already authorized
+  for authenticated participants by migration 019/020. R03 calls only that RPC;
+  its P0002 result means receipt absent and never means payment failure.
 - Files/components: `lib/features/trips/application/driver_completion_recovery_coordinator.dart`,
+  `lib/features/trips/application/driver_cash_recovery_controller.dart`,
   `lib/core/repositories/canonical_trip_reconciliation_repository.dart`,
-  `lib/core/models/driver_completion_recovery.dart`, existing journal, session owner
-  and Driver completion UI; `test/canonical_trip_reconciliation_test.dart` and
-  existing completion/recovery regressions.
-- Required work: connect startup/resume/explicit read-only reconciliation to the same
-  owner/backend/known canonical Trip; preserve original command and strongest evidence;
-  surface completed-but-receipt-unverified, not-visible and unknown outcomes distinctly.
-  If fresh receipt reconciliation is needed, add a bounded Driver-safe read seam over
-  the existing receipt RPC; do not infer receipt absence from failure or a Trip row.
-  Record retention/operator-resolution policy; no automatic replay, clear or retirement.
-- Acceptance: restart, storage failures, stale reads, account/backend changes and
-  out-of-order responses retain evidence without writes; no read outcome grants
-  financial dispatch; weaker reads never downgrade a previously verified completion.
+  `lib/core/repositories/supabase_driver_cash_completion_composition.dart`,
+  `lib/core/services/trips/file_driver_completion_command_store.dart`, the R02
+  session-scoped provider/panel; focused recovery, canonical reader and production
+  composition tests.
+- Required remaining work: wait for #54 merge and namespace owner approval before
+  activation; mount the canonical panel in a non-mock Driver Trip screen; establish
+  owner-approved journal retention/export and operator-resolution policy; collect
+  hosted role/session/restart evidence under R07. The read-only local composition
+  already preserves exact command evidence and surfaces completed-but-receipt-
+  unverified, not-visible and unknown outcomes. No automatic replay, clear or retirement.
+- Acceptance: local tests cover restart discovery, evidence preservation, no write,
+  missing receipt, stale version, and no dispatch. Full R03 acceptance still requires
+  hosted runtime/role/session/restart evidence, canonical UI activation after the
+  approved registry, and a policy for operator resolution; weaker reads never
+  downgrade a previously verified completion.
 - Dependencies: R01 and R02's production storage/lifecycle binding; an independently
   approved receipt/retention policy where needed, without inventing journal deletion.
 - Physical device: **not required** for local/restart-simulation acceptance; native

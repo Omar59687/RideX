@@ -105,10 +105,116 @@ class FileDriverCompletionCommandStore implements DriverCompletionCommandStore {
         _io = io;
 
   static const maxJournalBytes = 4 * 1024 * 1024;
+  static const maxJournalCommands = 1024;
   static const _magic = 'RXCJ1\n';
   static final Map<String, Future<void>> _queues = {};
   final Directory _directory;
   final NativeCompletionJournalIo _io;
+
+  @override
+  Future<CompletionDriverSnapshot> inspectDriver({
+    required String backendNamespace,
+    required String driverId,
+  }) async {
+    if (!isCompletionJournalIdentityValid(
+      backendNamespace: backendNamespace,
+      driverId: driverId,
+      tripId: driverId,
+    )) {
+      return const CompletionDriverUnavailable(
+          CompletionJournalIssue.invalidIdentity);
+    }
+    try {
+      // Recovery reads the command journal without creating directories or
+      // lock sentinels, flushing, appending, repairing or retiring evidence.
+      // A concurrent partial append fails closed and can be read again later.
+      final root = _directory.absolute;
+      final rootExists = await _directoryExistsSafely(root);
+      if (rootExists == null) {
+        return const CompletionDriverUnavailable(
+            CompletionJournalIssue.storageUnavailable);
+      }
+      if (!rootExists) return const CompletionDriverCommands([]);
+      final rootPath = await root.resolveSymbolicLinks();
+      final rootKey = _pathKey(rootPath);
+      final encoded = utf8.encode(backendNamespace)
+          .map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+      final backendDir = Directory.fromUri(
+          Directory(rootPath).uri.resolve('backend-$encoded/'));
+      final backendExists = await _directoryExistsSafely(backendDir);
+      if (backendExists == null) {
+        return const CompletionDriverUnavailable(
+            CompletionJournalIssue.storageUnavailable);
+      }
+      if (!backendExists) return const CompletionDriverCommands([]);
+      final backendPath = await backendDir.resolveSymbolicLinks();
+      if (!_pathKey(backendPath).startsWith('$rootKey/')) {
+        return const CompletionDriverUnavailable(
+            CompletionJournalIssue.storageUnavailable);
+      }
+      final accountDir = Directory.fromUri(Directory(backendPath).uri
+          .resolve('driver-${driverId.toLowerCase()}/'));
+      final accountExists = await _directoryExistsSafely(accountDir);
+      if (accountExists == null) {
+        return const CompletionDriverUnavailable(
+            CompletionJournalIssue.storageUnavailable);
+      }
+      if (!accountExists) return const CompletionDriverCommands([]);
+      final accountPath = await accountDir.resolveSymbolicLinks();
+      if (!_pathKey(accountPath).startsWith('$rootKey/')) {
+        return const CompletionDriverUnavailable(
+            CompletionJournalIssue.storageUnavailable);
+      }
+      final file = File.fromUri(
+          Directory(accountPath).uri.resolve('commands.rxcj'));
+      const lockName = 'writer.lock';
+      var lockPresent = false;
+      await for (final entry in Directory(accountPath).list(followLinks: false)) {
+        final candidate = entry.uri.pathSegments
+            .where((segment) => segment.isNotEmpty).last;
+        if (Platform.isWindows
+            ? candidate.toLowerCase() == lockName.toLowerCase()
+            : candidate == lockName) {
+          lockPresent = true;
+          break;
+        }
+      }
+      if (lockPresent) {
+        return const CompletionDriverUnavailable(
+            CompletionJournalIssue.synchronizationUnavailable);
+      }
+      final records = _decode(await _io.read(file), backendNamespace, driverId);
+      if (records.length > maxJournalCommands) {
+        return const CompletionDriverUnavailable(
+            CompletionJournalIssue.sizeLimit);
+      }
+      return CompletionDriverCommands(List.unmodifiable(records.values));
+    } on _Corrupt catch (error) {
+      return CompletionDriverUnavailable(error.issue);
+    } on Object {
+      return const CompletionDriverUnavailable(
+          CompletionJournalIssue.storageUnavailable);
+    }
+  }
+
+  Future<bool?> _directoryExistsSafely(Directory directory) async {
+    final type =
+        await FileSystemEntity.type(directory.path, followLinks: false);
+    if (type == FileSystemEntityType.directory) return true;
+    if (type != FileSystemEntityType.notFound) return null;
+    final name = directory.uri.pathSegments
+        .where((segment) => segment.isNotEmpty).last;
+    await for (final entry in directory.parent.list(followLinks: false)) {
+      final candidate = entry.uri.pathSegments
+          .where((segment) => segment.isNotEmpty).last;
+      if (Platform.isWindows
+          ? candidate.toLowerCase() == name.toLowerCase()
+          : candidate == name) {
+        return null;
+      }
+    }
+    return false;
+  }
 
   @override
   Future<CompletionSlot> inspect({

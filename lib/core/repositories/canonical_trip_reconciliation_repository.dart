@@ -55,7 +55,7 @@ final class SupabaseCanonicalTripReadTransport
   @override
   Future<Map<String, Object?>?> readTrip(String tripId) async => _client
       .from('trips')
-      .select('id, driver_id, status, version')
+      .select('id, driver_id, status, version, payment_method')
       .eq('id', tripId)
       .maybeSingle();
 }
@@ -136,6 +136,9 @@ final class ReadOnlyCanonicalTripReconciliationRepository
     if (version is! int || version <= 0) {
       return _failed(CanonicalTripReadFailure.invalidVersion);
     }
+    if (row['payment_method'] != 'cash') {
+      return _failed(CanonicalTripReadFailure.unsupportedPaymentMethod);
+    }
     final rawStatus = row['status'];
     if (rawStatus is! String) {
       return _failed(CanonicalTripReadFailure.malformedEvidence);
@@ -152,6 +155,7 @@ final class ReadOnlyCanonicalTripReconciliationRepository
         driverId: driver,
         status: status,
         backendVersion: version,
+        paymentMethod: 'cash',
       ),
       owner,
     );
