@@ -12,12 +12,13 @@ Phase 4/5 exit checks below remain unchanged.
 
 Last updated: 2026-10-25
 
-R04 verification on main `34801bc` is PARTIAL: hosted catalog/migration/grant/RLS
-and estimated-plan evidence is recorded, but dedicated hosted role fixtures and
-environment authorization remain unavailable. Local checks passed 117 Flutter
-tests and 103 SQL assertions; open Admin revocation and nullable-Trip integration
-findings prevent acceptance. See [R04 evidence](docs/parallel-development/phase-6/P6_R04_HOSTED_RPC_VERIFICATION.md).
-This does not check the hosted-reader or Phase 6 approval gates below.
+R04 verification is PARTIAL: hosted catalog/migration/grant/RLS and estimated-plan
+evidence is recorded, but dedicated hosted role fixtures and environment
+authorization remain unavailable. This follow-up locally remediates Admin
+profile revalidation and nullable-Trip parsing (51 focused tests pass; Analyze clean).
+The bounded profile check cannot promise instantaneous revocation. See the
+[R04 evidence](docs/parallel-development/phase-6/P6_R04_HOSTED_RPC_VERIFICATION.md).
+Hosted-reader and Phase 6 approval gates below remain unchecked.
 
 ## Latest owner decision — Phase 5 core accepted; full exit gates still tracked
 

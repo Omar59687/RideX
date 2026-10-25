@@ -103,6 +103,14 @@ void main() {
     expect(card.payment.status, CardPaymentStatus.cardPaymentAuthorized);
     expect(card.payment.cardLastFour, '4242');
   });
+  test('canonical Cash and Card records allow an explicitly null Trip link', () {
+    final cash = CanonicalPaymentRecord.fromRow(
+        {...row(), 'trip_id': null}) as CanonicalCashPayment;
+    final card = CanonicalPaymentRecord.fromRow(
+        {...row(card: true), 'trip_id': null}) as CanonicalCardPayment;
+    expect(cash.payment.tripId, isNull);
+    expect(card.payment.tripId, isNull);
+  });
   for (final field in [
     'id',
     'booking_request_id',
@@ -127,6 +135,8 @@ void main() {
     {'method': 'unknown'},
     {'card_status': 'cardPaymentSucceeded'},
     {'trip_id': 'local-trip'},
+    {'trip_id': ''},
+    {'trip_id': 42},
   ]) {
     test('invalid canonical value ${change.keys.single} fails closed $change',
         () {

@@ -21,7 +21,7 @@ sealed class CanonicalPaymentRecord {
     try {
       final id = _id(row['id']);
       final booking = _id(row['booking_request_id']);
-      final trip = _id(row['trip_id']);
+      final trip = _nullableId(row, 'trip_id');
       final rider = _id(row['rider_id']);
       final amount = row['final_amount_fils'];
       final version = row['version'];
@@ -83,6 +83,12 @@ final _uuid = RegExp(
 String _id(Object? value) {
   if (value is! String || !_uuid.hasMatch(value)) throw const FormatException();
   return value;
+}
+
+String? _nullableId(Map<String, dynamic> row, String key) {
+  if (!row.containsKey(key)) throw const FormatException();
+  final value = row[key];
+  return value == null ? null : _id(value);
 }
 
 bool _sameId(String a, String b) => a.toLowerCase() == b.toLowerCase();

@@ -25,20 +25,45 @@ final class SupabaseAdminPaymentReader implements AdminPaymentReader {
       adminUserId.isNotEmpty &&
       _initialSession.user.id == adminUserId;
 
+  Future<void> _requireCurrentAdminProfile() async {
+    if (!_sameSession) {
+      throw const AdminPaymentReadException(
+        AdminPaymentReadFailure.unauthorized,
+      );
+    }
+    final profile = await _client
+        .from('users')
+        .select('id,role,is_blocked')
+        .eq('id', adminUserId)
+        .maybeSingle();
+    if (!_sameSession) {
+      throw const AdminPaymentReadException(
+        AdminPaymentReadFailure.unauthorized,
+      );
+    }
+    if (profile == null ||
+        profile['id'] is! String ||
+        (profile['id'] as String).toLowerCase() != adminUserId.toLowerCase() ||
+        profile['role'] != 'admin' ||
+        profile['is_blocked'] != false) {
+      throw const AdminPaymentReadException(
+        AdminPaymentReadFailure.unauthorized,
+      );
+    }
+  }
+
   @override
   Future<List<AdminSanitizedPayment>> readPayments() async {
-    if (!_sameSession) {
-      throw const AdminPaymentReadException(
-        AdminPaymentReadFailure.unauthorized,
-      );
-    }
+    await _requireCurrentAdminProfile();
     final dynamic response = await _client.rpc('admin_recent_canonical_payments');
+    await _requireCurrentAdminProfile();
+    final payments = parseAdminCanonicalPayments(response);
     if (!_sameSession) {
       throw const AdminPaymentReadException(
         AdminPaymentReadFailure.unauthorized,
       );
     }
-    return parseAdminCanonicalPayments(response);
+    return payments;
   }
 }
 
@@ -73,7 +98,15 @@ List<AdminSanitizedPayment> parseAdminCanonicalPayments(Object? response) {
 
     final paymentId = requiredString('id');
     final bookingId = requiredString('booking_request_id');
-    final tripId = requiredString('trip_id');
+    if (!row.containsKey('trip_id')) {
+      throw const FormatException('Invalid canonical payment field');
+    }
+    final tripValue = row['trip_id'];
+    final tripId = tripValue == null
+        ? null
+        : tripValue is String && tripValue.trim().isNotEmpty
+            ? tripValue
+            : throw const FormatException('Invalid canonical payment field');
     requiredString('rider_id');
     final amount = row['final_amount_fils'];
     final version = row['version'];

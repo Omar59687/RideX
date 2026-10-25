@@ -169,6 +169,12 @@ Historical migration catalog reports do not prove the authenticated role matrix.
   [R04 evidence record](P6_R04_HOSTED_RPC_VERIFICATION.md) for the role matrix,
   environment/identity blockers and findings. A passing local characterization
   test is not acceptance of unobserved remote revocation or nullable-Trip rendering.
+- Hardening update based on main `a637f5e` (after PR #57): F01/F02 are locally remediated.
+  The production Admin reader rechecks the pinned SDK session and live Admin
+  profile before/after its RPC; nullable `trip_id` is supported by the Admin and
+  canonical readers with strict checks retained for missing/malformed fields.
+  51 focused tests pass and Analyze is clean. This bounded client revalidation
+  cannot promise instantaneous remote revocation; no hosted acceptance is claimed.
 - Current implementation: production Admin RPC composition is merged; exact canonical
   RPC and strict parsing/session guards exist. Authenticated hosted acceptance is open.
 - Files/components: both payment reader adapters, Admin providers/panel/mapper,
@@ -180,10 +186,9 @@ Historical migration catalog reports do not prove the authenticated role matrix.
   reads; verify app logout, role changes, SDK A-to-B-to-A and redacted error/display behavior.
   Inspect representative listing plans/latency; the earlier synthetic top-N scan is
   a scale risk, not proof that a new index is required for this deployment.
-- Required follow-through before acceptance: separately scope the Admin post-RPC
-  profile/cached-data revocation gap (R04-F01) and decide how schema-valid pre-Trip
-  payments with null Trip linkage are represented (R04-F02). No production logic
-  or migration was changed by the audit. Runtime latency is still unmeasured;
+- Required follow-through before acceptance: run approved hosted profile-revocation
+  and nullable-Trip read cases, then verify bounded UI/session publication behavior.
+  No migration was changed. Runtime latency is still unmeasured;
   the hosted estimated listing plan scans/sorts, while the exact read uses the
   primary-key index with an authorization filter.
 - Acceptance: exact read returns only authorized persisted identity/version; foreign
