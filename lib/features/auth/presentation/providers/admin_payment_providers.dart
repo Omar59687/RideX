@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
+import 'package:ridex/features/auth/data/supabase_admin_payment_reader.dart';
 import 'package:ridex/features/auth/presentation/widgets/admin_sanitized_payment_mapper.dart';
 
 /// Read-only boundary. Implementations must authorize the current Admin and
@@ -23,8 +25,18 @@ bool canReadAdminPayments(SessionState session) =>
     session.user?.isBlocked == false &&
     session.user?.id.trim().isNotEmpty == true;
 
-/// No fixture fallback. Canonical reader composition is a separate boundary.
-final adminPaymentReaderProvider = Provider<AdminPaymentReader?>((ref) => null);
+/// Production composition uses only migration 027's authorized RPC.
+/// Without backend configuration or an authenticated Admin, fail closed.
+/// Tests can override this provider with a deterministic fixture reader.
+final adminPaymentReaderProvider = Provider<AdminPaymentReader?>((ref) {
+  final session = ref.watch(sessionControllerProvider);
+  if (!canReadAdminPayments(session)) return null;
+  final client = ref.watch(supabaseClientProvider);
+  if (client == null || client.auth.currentUser?.id != session.user!.id) {
+    return null;
+  }
+  return SupabaseAdminPaymentReader(client, adminUserId: session.user!.id);
+});
 
 final adminPaymentsProvider =
     FutureProvider.autoDispose<List<AdminSanitizedPayment>>((ref) async {
