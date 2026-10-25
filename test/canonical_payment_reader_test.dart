@@ -151,7 +151,7 @@ void main() {
       final read = backend.requests.singleWhere((r) =>
           r.$2.path.endsWith('/rpc/user_canonical_payment_record'));
       expect(read.$1, 'POST');
-      expect(backend.requests.any((r) => r.$2.path.contains('/rpc/')),
+      expect(backend.requests.any((r) => r.$2.path.endsWith('/payments')),
           isFalse);
     });
     test('method mismatch never coerces Cash to Card', () async {
