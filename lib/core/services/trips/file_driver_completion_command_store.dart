@@ -137,8 +137,10 @@ class FileDriverCompletionCommandStore implements DriverCompletionCommandStore {
       if (!rootExists) return const CompletionDriverCommands([]);
       final rootPath = await root.resolveSymbolicLinks();
       final rootKey = _pathKey(rootPath);
-      final encoded = utf8.encode(backendNamespace)
-          .map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+      final encoded = utf8
+          .encode(backendNamespace)
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join();
       final backendDir = Directory.fromUri(
           Directory(rootPath).uri.resolve('backend-$encoded/'));
       final backendExists = await _directoryExistsSafely(backendDir);
@@ -152,7 +154,8 @@ class FileDriverCompletionCommandStore implements DriverCompletionCommandStore {
         return const CompletionDriverUnavailable(
             CompletionJournalIssue.storageUnavailable);
       }
-      final accountDir = Directory.fromUri(Directory(backendPath).uri
+      final accountDir = Directory.fromUri(Directory(backendPath)
+          .uri
           .resolve('driver-${driverId.toLowerCase()}/'));
       final accountExists = await _directoryExistsSafely(accountDir);
       if (accountExists == null) {
@@ -165,13 +168,14 @@ class FileDriverCompletionCommandStore implements DriverCompletionCommandStore {
         return const CompletionDriverUnavailable(
             CompletionJournalIssue.storageUnavailable);
       }
-      final file = File.fromUri(
-          Directory(accountPath).uri.resolve('commands.rxcj'));
+      final file =
+          File.fromUri(Directory(accountPath).uri.resolve('commands.rxcj'));
       const lockName = 'writer.lock';
       var lockPresent = false;
-      await for (final entry in Directory(accountPath).list(followLinks: false)) {
-        final candidate = entry.uri.pathSegments
-            .where((segment) => segment.isNotEmpty).last;
+      await for (final entry
+          in Directory(accountPath).list(followLinks: false)) {
+        final candidate =
+            entry.uri.pathSegments.where((segment) => segment.isNotEmpty).last;
         if (Platform.isWindows
             ? candidate.toLowerCase() == lockName.toLowerCase()
             : candidate == lockName) {
@@ -202,11 +206,11 @@ class FileDriverCompletionCommandStore implements DriverCompletionCommandStore {
         await FileSystemEntity.type(directory.path, followLinks: false);
     if (type == FileSystemEntityType.directory) return true;
     if (type != FileSystemEntityType.notFound) return null;
-    final name = directory.uri.pathSegments
-        .where((segment) => segment.isNotEmpty).last;
+    final name =
+        directory.uri.pathSegments.where((segment) => segment.isNotEmpty).last;
     await for (final entry in directory.parent.list(followLinks: false)) {
-      final candidate = entry.uri.pathSegments
-          .where((segment) => segment.isNotEmpty).last;
+      final candidate =
+          entry.uri.pathSegments.where((segment) => segment.isNotEmpty).last;
       if (Platform.isWindows
           ? candidate.toLowerCase() == name.toLowerCase()
           : candidate == name) {

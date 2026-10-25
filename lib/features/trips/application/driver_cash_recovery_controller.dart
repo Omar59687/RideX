@@ -39,6 +39,9 @@ final class DriverCashRecoveryController extends ChangeNotifier
   final SupabaseDriverCashCompletionComposition repository;
   final Future<DriverCompletionCommandStore> Function() openJournal;
   final Map<String, CanonicalTripEvidence> _strongest = {};
+  final Set<String> _verifiedReceipts = {};
+  final Map<String, DriverCompleteTripCommand> _commands = {};
+  final Map<String, DriverCashRecoveryState> _outcomes = {};
   static const maxCommandsPerRun = 10;
   int _nextCommandOffset = 0;
   DriverCashRecoveryState _state =
@@ -46,10 +49,17 @@ final class DriverCashRecoveryController extends ChangeNotifier
   Future<void>? _running;
   bool _disposed = false;
   int _generation = 0;
-  DriverCashRecoveryState? _strongestState;
 
   DriverCashRecoveryState get state =>
       source.isCurrent ? _state : DriverCashRecoveryState.authorizationRevoked;
+
+  // Retained canonical facts are distinct from the latest reconciliation result.
+  // Neither a later failed read nor a different Trip can replace these facts.
+  Map<String, CanonicalTripEvidence> get canonicalEvidence =>
+      !_disposed && source.isCurrent ? Map.unmodifiable(_strongest) : const {};
+  Set<String> get receiptVerifiedTrips => !_disposed && source.isCurrent
+      ? Set.unmodifiable(_verifiedReceipts)
+      : const {};
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -83,10 +93,25 @@ final class DriverCashRecoveryController extends ChangeNotifier
           return;
         case CompletionDriverCommands(commands: final commands):
           if (commands.isEmpty) {
-            _publish(generation, DriverCashRecoveryState.noPendingRecovery);
+            _publish(
+                generation,
+                _commands.isEmpty
+                    ? DriverCashRecoveryState.noPendingRecovery
+                    : DriverCashRecoveryState.outcomeUnknown);
             return;
           }
-          var result = DriverCashRecoveryState.completionNotVisible;
+          final visible = <String>{};
+          for (final command in commands) {
+            final key = command.tripId.toLowerCase();
+            final previous = _commands[key];
+            if (previous != null && previous != command) {
+              _publish(generation,
+                  DriverCashRecoveryState.journalCorruptedOrUnavailable);
+              return;
+            }
+            _commands[key] = command;
+            visible.add(key);
+          }
           final count = commands.length < maxCommandsPerRun
               ? commands.length
               : maxCommandsPerRun;
@@ -111,11 +136,17 @@ final class DriverCashRecoveryController extends ChangeNotifier
             coordinator.dispose();
             await source.readSession();
             if (!_owns(generation)) return;
+            final key = command.tripId.toLowerCase();
+            final observed = outcome.observedTrip;
+            if (observed != null && !_retainStrongest(observed)) {
+              _outcomes[key] = DriverCashRecoveryState.outcomeUnknown;
+              continue;
+            }
             switch (outcome.disposition) {
               case DriverReadOnlyRecoveryDisposition.completedTrip:
                 final trip = outcome.observedTrip;
-                if (trip == null || !_retainStrongest(trip)) {
-                  result = DriverCashRecoveryState.outcomeUnknown;
+                if (trip == null) {
+                  _outcomes[key] = DriverCashRecoveryState.outcomeUnknown;
                   continue;
                 }
                 // Revalidate eligibility after the canonical read, before the
@@ -136,19 +167,24 @@ final class DriverCashRecoveryController extends ChangeNotifier
                   );
                   return;
                 }
-                result = receipt.status == DriverReceiptReadStatus.verified
+                if (receipt.status == DriverReceiptReadStatus.verified) {
+                  _verifiedReceipts.add(key);
+                }
+                _outcomes[key] = receipt.status ==
+                        DriverReceiptReadStatus.verified
                     ? DriverCashRecoveryState.completionVerifiedReceiptVerified
                     : DriverCashRecoveryState
                         .completionVerifiedReceiptUnverified;
               case DriverReadOnlyRecoveryDisposition.notVisible:
               case DriverReadOnlyRecoveryDisposition.terminalNonCompletedTrip:
               case DriverReadOnlyRecoveryDisposition.nonterminalTrip:
-                result = DriverCashRecoveryState.completionNotVisible;
+                _outcomes[key] = DriverCashRecoveryState.completionNotVisible;
               case DriverReadOnlyRecoveryDisposition.journalBlocked:
               case DriverReadOnlyRecoveryDisposition.conflictingEvidence:
-                result = DriverCashRecoveryState.journalCorruptedOrUnavailable;
+                _outcomes[key] =
+                    DriverCashRecoveryState.journalCorruptedOrUnavailable;
               case DriverReadOnlyRecoveryDisposition.readFailed:
-                result = DriverCashRecoveryState.networkReadFailure;
+                _outcomes[key] = DriverCashRecoveryState.networkReadFailure;
               case DriverReadOnlyRecoveryDisposition.invalidated:
                 _publish(
                   generation,
@@ -156,14 +192,11 @@ final class DriverCashRecoveryController extends ChangeNotifier
                 );
                 return;
               case DriverReadOnlyRecoveryDisposition.noJournalEvidence:
-                result = DriverCashRecoveryState.outcomeUnknown;
+                _outcomes[key] = DriverCashRecoveryState.outcomeUnknown;
             }
           }
           _nextCommandOffset = (start + count) % commands.length;
-          if (commands.length > count) {
-            result = DriverCashRecoveryState.additionalPendingRecovery;
-          }
-          _publish(generation, result);
+          _publish(generation, _aggregate(visible));
       }
     } on DriverCashContextException catch (error) {
       _publish(
@@ -212,33 +245,35 @@ final class DriverCashRecoveryController extends ChangeNotifier
 
   void _publish(int generation, DriverCashRecoveryState value) {
     if (!_owns(generation)) return;
-    if (value != DriverCashRecoveryState.authorizationRevoked &&
-        value != DriverCashRecoveryState.checkingCanonicalTrip) {
-      final previous = _strongestState;
-      if (previous != null && _rank(value) < _rank(previous)) value = previous;
-      if (_strongestState == null || _rank(value) >= _rank(_strongestState!)) {
-        _strongestState = value;
-      }
-    }
-    if (value == DriverCashRecoveryState.authorizationRevoked) {
-      _strongestState = value;
-    }
     _state = value;
     notifyListeners();
   }
 
-  int _rank(DriverCashRecoveryState state) => switch (state) {
-        DriverCashRecoveryState.noPendingRecovery => 0,
-        DriverCashRecoveryState.checkingCanonicalTrip => 0,
-        DriverCashRecoveryState.completionNotVisible => 1,
-        DriverCashRecoveryState.additionalPendingRecovery => 4,
-        DriverCashRecoveryState.networkReadFailure => 2,
-        DriverCashRecoveryState.journalCorruptedOrUnavailable => 3,
-        DriverCashRecoveryState.outcomeUnknown => 4,
-        DriverCashRecoveryState.completionVerifiedReceiptUnverified => 5,
-        DriverCashRecoveryState.completionVerifiedReceiptVerified => 6,
-        DriverCashRecoveryState.authorizationRevoked => 7,
-      };
+  DriverCashRecoveryState _aggregate(Set<String> visible) {
+    // A missing previously discovered command is not evidence of retirement.
+    if (_commands.keys.any((key) => !visible.contains(key))) {
+      return DriverCashRecoveryState.outcomeUnknown;
+    }
+    final outcomes = visible.map((key) => _outcomes[key]).toSet();
+    for (final unresolved in [
+      DriverCashRecoveryState.journalCorruptedOrUnavailable,
+      DriverCashRecoveryState.networkReadFailure,
+      DriverCashRecoveryState.outcomeUnknown,
+    ]) {
+      if (outcomes.contains(unresolved)) return unresolved;
+    }
+    if (outcomes.contains(null)) {
+      return DriverCashRecoveryState.additionalPendingRecovery;
+    }
+    if (outcomes.contains(DriverCashRecoveryState.completionNotVisible)) {
+      return DriverCashRecoveryState.completionNotVisible;
+    }
+    if (outcomes.contains(
+        DriverCashRecoveryState.completionVerifiedReceiptUnverified)) {
+      return DriverCashRecoveryState.completionVerifiedReceiptUnverified;
+    }
+    return DriverCashRecoveryState.completionVerifiedReceiptVerified;
+  }
 
   void observeAuthority() {
     if (!source.isCurrent) {

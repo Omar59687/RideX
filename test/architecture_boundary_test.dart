@@ -123,6 +123,8 @@ const _supabaseInfrastructureFiles = {
   'lib/core/repositories/supabase_admin_payment_reader.dart',
   'lib/core/repositories/supabase_auth_repository.dart',
   'lib/core/repositories/supabase_driver_trip_completion_repository.dart',
+  // The R03 receipt RPC remains inside this verified infrastructure adapter.
+  'lib/core/repositories/supabase_driver_cash_completion_composition.dart',
   'lib/core/repositories/supabase_profile_repository.dart',
   'lib/core/services/driver_location/supabase_driver_location_service.dart',
   'lib/core/services/driver_location/supabase_driver_tracking_connection.dart',

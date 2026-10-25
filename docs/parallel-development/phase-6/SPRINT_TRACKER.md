@@ -23,10 +23,12 @@ Base: main `34801bcb5b89607e79a2736e83b87d82d4447bb5`.
   finish R04 runtime acceptance. No migrations/production logic changed, no
   hosted mutation/deployment, and no Phase 6 approval.
 
+# Phase 6 — Sprint Tracker (authoritative status)
+
 ## R01/R02 implementation handoff - 2026-10-25
 
-Branch `feature/p6-r01-r02-driver-cash-integration`, based on merged docs #53 at
-`fc3224c`. [Implementation/evidence record](P6_R01_R02_IMPLEMENTATION.md).
+PR #54 merged the R01/R02 branch at main `f9e6807` (original base `fc3224c`).
+[Implementation/evidence record](P6_R01_R02_IMPLEMENTATION.md).
 
 - **R01 PARTIAL:** canonical availability/Trip source and pinned application SDK /
   B1-B eligibility checks implemented and locally tested. Production registry remains
@@ -42,14 +44,19 @@ Branch `feature/p6-r01-r02-driver-cash-integration`, based on merged docs #53 at
 - Required decision: approve a stable unique journal namespace for the configured
   `https://ykasivejjchupswqyxpm.supabase.co` endpoint (or explicitly choose another
   target). No namespace was invented; default activation is disabled.
-- Next independent implementation: **R03 read-only recovery composition**. Registry
+- R03 original composition merged externally via #55 at `34801bc`; its independent
+  aggregate-state correction awaits follow-up review. Registry
   approval/canonical mounting precede activation, and R07 hosted Cash/receipt evidence
   remains separately authorized. Phase 6 remains NOT APPROVED.
 
 ## R03 read-only recovery implementation handoff - 2026-10-25
 
-Stacked branch `feature/p6-r03-cash-recovery-integration` from open PR #54 head
-`9ba703a`. See [R03 implementation record](P6_R03_IMPLEMENTATION.md).
+PR #54 is merged at `f9e6807`. The original #55 was externally merged at
+`34801bc` during review correction, before these fixes were pushed. The existing
+`feature/p6-r03-cash-recovery-integration` branch is reconciled with both main
+commits; its correction requires independent review on
+[follow-up #56](https://github.com/Omar59687/RideX/pull/56). See
+[R03 implementation record](P6_R03_IMPLEMENTATION.md).
 
 - **R03 PARTIAL:** recovery discovers immutable per-Driver journal entries on
   provider creation, app resume and explicit request. Each exact original
@@ -61,9 +68,13 @@ Stacked branch `feature/p6-r03-cash-recovery-integration` from open PR #54 head
   The legacy mock Driver screen remains unchanged and the canonical panel is not
   mounted in the live app. The empty production registry still disables the
   provider pending endpoint-to-stable-namespace owner approval.
-- Local focused verification: **185 PASS / 0 FAIL** across recovery, canonical
-  reconciliation and Driver Cash production-composition tests. No hosted/runtime/
-  device acceptance. Analyzer status is recorded in the R03 implementation record.
+- Local focused verification: **215 PASS / 0 FAIL** across recovery, canonical
+  reconciliation, Driver Cash production-composition and architecture tests (210
+  in the original three-file selection plus 5 architecture cases). No hosted/runtime/
+  device acceptance. Analyze: no issues. Final full suite: **1,554 PASS / 0 FAIL /
+  2 live skips**. All 14 R03/architecture Dart files pass read-only formatting.
+  The initial full sweep exposed a missing exact SDK-infrastructure allowlist
+  entry; after correction the final sweep passed. See the R03 record.
 - Journal retention/operator resolution policy remains unapproved. Existing
   records are retained by this work; no automatic cleanup or replay. Phase 6
   remains NOT APPROVED.
@@ -100,10 +111,10 @@ details the remaining work without granting approval.
 
 | Workstream | Implemented | Integrated | Verified | Remaining |
 |---|---|---|---|---|
-| Admin Payment Visibility (P6-08) | Sanitized UI, strict RPC parser, exact SDK Session identity pinning | Production provider uses `SupabaseAdminPaymentReader` and `admin_recent_canonical_payments`; guarded Admin screen | R04 hosted project/027 body/grants/RLS and estimated plan inspection; 117 focused Flutter and 103 local SQL assertions pass; authenticated hosted matrix/latency unverified | Dedicated hosted identity/data authorization; remote revocation freshness/hardening (F01), nullable-Trip display contract (F02), runtime role/redaction/latency acceptance (R04) |
-| Canonical Payment Reader (P6-01/03 read integration) | Cash/Card parser and authorized exact/list RPC adapter; persisted identity/version | Adapter merged; Admin uses its dedicated RPC reader; Rider Cash/Card reader providers still null | R04 hosted exact RPC definition/grants match; generic plan uses primary-key index plus authorization filter; local session/foreign-identity guards pass | Hosted owning/foreign actor matrix (R04); trusted Rider payment-ID/Trip linkage and approved consumer wiring (R05); no live Rider acceptance claimed |
+| Admin Payment Visibility (P6-08) | Sanitized UI, strict RPC parser, exact SDK Session identity pinning | Production provider uses `SupabaseAdminPaymentReader` and `admin_recent_canonical_payments`; guarded Admin screen | Local loopback/widget coverage exists; historical owner #52 results above; hosted/runtime acceptance unverified | Hosted role/blocked-account matrix, logout and A-to-B-to-A acceptance, UI redaction and performance review (R04) |
+| Canonical Payment Reader (P6-01/03 read integration) | Cash/Card parser and authorized exact/list RPC adapter; persisted identity/version | Adapter merged; Admin uses its dedicated RPC reader; Rider Cash/Card reader providers still null | Local SDK/contract regressions include no direct `/payments` SELECT; no hosted reader verification here | Trusted Rider payment-ID/Trip linkage and approved consumer wiring (R05); owning/foreign role checks (R04) |
 | Driver Cash Completion (P6-02/P6-07) | Journal, coordinator, trusted completion adapter, B1-A/B1-B-compatible composition | Foundation merged; no production provider or Driver-screen activation; Trips remain mock-backed | Local journal/coordinator/SDK loopback coverage; no hosted atomic completion/receipt acceptance | Approved registry/context (R01), staging/provider/UI wiring (R02), hosted acceptance (R07) |
-| Cash Recovery (P6-02/P6-07) | Read-only Driver journal discovery, canonical Cash Trip reconciliation, receipt RPC reader and lifecycle controller on #55 branch | Startup-on-provider-creation, app resume, explicit panel action and bounded states are composed in the R02 canonical seam; live app remains registry-disabled and mock-screen-backed | 184 focused local PASS / 0 FAIL on the stacked branch; no hosted/runtime/device acceptance | Merge #54 and stack, approve exact namespace, mount canonical non-mock screen, approve journal retention/operator resolution, then hosted/session/restart evidence (R07); never replay or retire from recovery |
+| Cash Recovery (P6-02/P6-07) | Read-only discovery, canonical Cash Trip and Driver-safe receipt reads; original #55 merged at 34801bc, follow-up aggregate correction pending | Per-Trip strongest facts are separate from latest outcomes; unresolved/failed/unprocessed commands prevent aggregate success; ten-command rotation retained | 215 focused local PASS / 0 FAIL across four files; no hosted/runtime/device acceptance | Independent follow-up re-review, approved namespace, canonical screen mounting, retention/operator policy and R07 hosted/session/restart evidence; never replay, dispatch or retire from recovery |
 | Stripe Test Mode (P6-04) | Server-only unconfirmed preparation interface, fake, injected HTTP adapter | Shared module only; no handler, trusted actor/attempt implementation or Flutter card entry | Historical injected transport/TypeScript evidence; no real Stripe request or credentials verified | Account/JOD precision approval, trusted handler/attempt composition (R06), secure UI scope decision and acceptance (R08) |
 | Phase 6 Acceptance (P6-09) | Compatibility harness and fixture mappings | Foundations merged through #52 | Historical owner local results; no final hosted/runtime/device acceptance | Resolve R01-R08, independent integration review, evidence ledger and explicit owner exit decision (R09); Phase 6 NOT APPROVED and NOT release-ready |
 

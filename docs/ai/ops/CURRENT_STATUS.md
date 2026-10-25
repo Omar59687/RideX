@@ -24,17 +24,24 @@ Next: narrowly scoped Admin reader/profile-revalidation and pre-Trip visibility
 contract decisions/remediation, then the approved hosted role/runtime matrix.
 Older R01-R03 handoffs below are preserved as historical branch-local evidence.
 
-## Current override - 2026-10-25 P6-R03 read-only recovery (stacked PR #55)
+## Current override - 2026-10-25 P6-R03 read-only recovery (PR #55 review correction)
 
 R03 read-only local integration is implemented on
-`feature/p6-r03-cash-recovery-integration`, stacked on the still-open PR #54
-head `9ba703a`. It adds no production financial mutation: provider creation,
+`feature/p6-r03-cash-recovery-integration`, reconciled with main `f9e6807`
+after PR #54 merged. The original PR #55 was then externally merged at `34801bc`
+before these local corrections were pushed; a follow-up review is required.
+It adds no production financial mutation: provider creation,
 app resume and explicit panel reconciliation only discover durable Driver journal
 commands, read canonical Cash Trip evidence and call the existing Driver-safe
 receipt summary RPC. It never completes, retries, repairs, deletes or retires a
 command. The optional panel remains unmounted on the existing mock Driver route.
 
-Local focused recovery/canonical/composition tests report **184 PASS / 0 FAIL**.
+Local focused recovery/canonical/composition tests report **210 PASS / 0 FAIL**;
+including the 5 architecture cases, the four-file focused total is **215 PASS**.
+Final full non-live suite: **1,554 PASS / 0 FAIL / 2 live skips**; analyze clean.
+The independent review's global success-rank concern is corrected with per-Trip
+canonical/receipt evidence and separate outcomes: one verified Trip cannot hide
+another Trip's unresolved, failed or unprocessed recovery. Re-review is pending.
 Flutter Analyze result and limits are in the
 [R03 implementation record](../../parallel-development/phase-6/P6_R03_IMPLEMENTATION.md).
 The empty backend registry still prevents activation until the owner approves the
@@ -45,8 +52,9 @@ remains NOT APPROVED. See the [authoritative tracker](../../parallel-development
 
 ## Current implementation handoff - 2026-10-25 R01/R02
 
-R01/R02 implementation is prepared on `feature/p6-r01-r02-driver-cash-integration`
-from main `fc3224c`. Canonical Driver availability/Trip source, application-support
+R01/R02 implementation merged via PR #54 at `f9e6807`, originally prepared on
+`feature/p6-r01-r02-driver-cash-integration` from `fc3224c`.
+Canonical Driver availability/Trip source, application-support
 journal gateway, existing-owner Cash provider and bounded canonical UI seam are
 implemented. The current Driver mock screen is preserved. Production activation
 remains disabled by an empty approved registry; the endpoint-to-stable-namespace

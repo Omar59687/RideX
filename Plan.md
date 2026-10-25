@@ -12,6 +12,13 @@ Phase 4/5 exit checks below remain unchanged.
 
 Last updated: 2026-10-25
 
+R04 verification on main `34801bc` is PARTIAL: hosted catalog/migration/grant/RLS
+and estimated-plan evidence is recorded, but dedicated hosted role fixtures and
+environment authorization remain unavailable. Local checks passed 117 Flutter
+tests and 103 SQL assertions; open Admin revocation and nullable-Trip integration
+findings prevent acceptance. See [R04 evidence](docs/parallel-development/phase-6/P6_R04_HOSTED_RPC_VERIFICATION.md).
+This does not check the hosted-reader or Phase 6 approval gates below.
+
 ## Latest owner decision — Phase 5 core accepted; full exit gates still tracked
 
 On 2026-10-19, the project representative reported Yusuf/team agreement to accept
@@ -1509,13 +1516,6 @@ separate future scope; no such work is authorized by this reconciliation.
 
 Current status: [SPRINT_TRACKER.md](docs/parallel-development/phase-6/SPRINT_TRACKER.md).
 The checklist separates merged foundations from unfinished runtime integration.
-
-R04 verification on main `34801bc` is PARTIAL: hosted catalog/migration/grant/RLS
-and estimated-plan evidence is recorded, but dedicated hosted role fixtures and
-environment authorization remain unavailable. Local checks passed 117 Flutter
-tests and 103 SQL assertions; open Admin revocation and nullable-Trip integration
-findings prevent acceptance. See [R04 evidence](docs/parallel-development/phase-6/P6_R04_HOSTED_RPC_VERIFICATION.md).
-This does not check the hosted-reader or Phase 6 approval gates below.
 
 - [x] Implement Cash domain/journal/coordinator and injectable trusted composition foundations (production activation remains below).
 - [x] Implement provider-independent Card read contracts and presentation foundations.
