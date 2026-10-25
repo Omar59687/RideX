@@ -31,8 +31,13 @@ their passing count does not approve those behaviors or Phase 6.
   fixtures were available. Existing tests named `admin_payment_live_reader_test`
   use a local loopback HTTP server, not the hosted project. Existing live-auth
   tests perform signup and were deliberately excluded from this read-only task.
-- An environment/fixture clarification was requested; no response was available
-  at handoff. Hosted role testing remains blocked, rather than assuming consent.
+- The owner explicitly confirmed the intended project and that environment
+  classification, hosted R04 role-test authorization and dedicated isolated
+  account/payment-fixture availability have not been formally established.
+  The owner restricted hosted work to metadata/catalog inspection and existing
+  permission/security review, with local mocks/existing fixtures permitted.
+  Hosted accounts, roles, payment records, financial mutations and authenticated
+  role-matrix execution remain prohibited without separate explicit approval.
 
 ## Migration and hosted catalog evidence
 
