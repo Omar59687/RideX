@@ -1,5 +1,28 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## R04 read-only verification handoff - 2026-10-25
+
+Base: main `34801bcb5b89607e79a2736e83b87d82d4447bb5`.
+[Evidence, actor matrix and findings](P6_R04_HOSTED_RPC_VERIFICATION.md).
+
+- **R04 PARTIAL; authenticated hosted acceptance BLOCKED.** The connected project
+  matches the intended endpoint. Migration 027 history/function bodies, grants,
+  financial RLS/no SELECT policies and estimated plans are verified as hosted
+  configuration. No dedicated identity/record fixture or testing-environment
+  classification was available; no hosted actor/financial-row reads were made.
+- **117 focused Flutter PASS / 0 FAIL**, **103 isolated local SQL assertions
+  PASS / 0 FAIL**, Analyze **No issues found**. Local fixtures are not hosted
+  identity acceptance. Characterization tests document F01/F02 limitations.
+- **Open findings:** Medium F01, unobserved remote Admin demotion/blocking can
+  publish an already-authorized delayed response; Medium F02, nullable Trip
+  linkage allowed by schema/RPC rejects the whole strict Admin list. Low F03,
+  listing scan/sort scale observation without representative latency. Low F04,
+  raw adapter errors rely on the provider's sanitization boundary.
+- Next: approve remote-revocation freshness/pre-Trip display scope, narrowly
+  remediate F01/F02, provide dedicated hosted identity/data authorization and
+  finish R04 runtime acceptance. No migrations/production logic changed, no
+  hosted mutation/deployment, and no Phase 6 approval.
+
 ## R01/R02 implementation handoff - 2026-10-25
 
 Branch `feature/p6-r01-r02-driver-cash-integration`, based on merged docs #53 at
@@ -77,8 +100,8 @@ details the remaining work without granting approval.
 
 | Workstream | Implemented | Integrated | Verified | Remaining |
 |---|---|---|---|---|
-| Admin Payment Visibility (P6-08) | Sanitized UI, strict RPC parser, exact SDK Session identity pinning | Production provider uses `SupabaseAdminPaymentReader` and `admin_recent_canonical_payments`; guarded Admin screen | Local loopback/widget coverage exists; historical owner #52 results above; hosted/runtime acceptance unverified | Hosted role/blocked-account matrix, logout and A-to-B-to-A acceptance, UI redaction and performance review (R04) |
-| Canonical Payment Reader (P6-01/03 read integration) | Cash/Card parser and authorized exact/list RPC adapter; persisted identity/version | Adapter merged; Admin uses its dedicated RPC reader; Rider Cash/Card reader providers still null | Local SDK/contract regressions include no direct `/payments` SELECT; no hosted reader verification here | Trusted Rider payment-ID/Trip linkage and approved consumer wiring (R05); owning/foreign role checks (R04) |
+| Admin Payment Visibility (P6-08) | Sanitized UI, strict RPC parser, exact SDK Session identity pinning | Production provider uses `SupabaseAdminPaymentReader` and `admin_recent_canonical_payments`; guarded Admin screen | R04 hosted project/027 body/grants/RLS and estimated plan inspection; 117 focused Flutter and 103 local SQL assertions pass; authenticated hosted matrix/latency unverified | Dedicated hosted identity/data authorization; remote revocation freshness/hardening (F01), nullable-Trip display contract (F02), runtime role/redaction/latency acceptance (R04) |
+| Canonical Payment Reader (P6-01/03 read integration) | Cash/Card parser and authorized exact/list RPC adapter; persisted identity/version | Adapter merged; Admin uses its dedicated RPC reader; Rider Cash/Card reader providers still null | R04 hosted exact RPC definition/grants match; generic plan uses primary-key index plus authorization filter; local session/foreign-identity guards pass | Hosted owning/foreign actor matrix (R04); trusted Rider payment-ID/Trip linkage and approved consumer wiring (R05); no live Rider acceptance claimed |
 | Driver Cash Completion (P6-02/P6-07) | Journal, coordinator, trusted completion adapter, B1-A/B1-B-compatible composition | Foundation merged; no production provider or Driver-screen activation; Trips remain mock-backed | Local journal/coordinator/SDK loopback coverage; no hosted atomic completion/receipt acceptance | Approved registry/context (R01), staging/provider/UI wiring (R02), hosted acceptance (R07) |
 | Cash Recovery (P6-02/P6-07) | Read-only Driver journal discovery, canonical Cash Trip reconciliation, receipt RPC reader and lifecycle controller on #55 branch | Startup-on-provider-creation, app resume, explicit panel action and bounded states are composed in the R02 canonical seam; live app remains registry-disabled and mock-screen-backed | 184 focused local PASS / 0 FAIL on the stacked branch; no hosted/runtime/device acceptance | Merge #54 and stack, approve exact namespace, mount canonical non-mock screen, approve journal retention/operator resolution, then hosted/session/restart evidence (R07); never replay or retire from recovery |
 | Stripe Test Mode (P6-04) | Server-only unconfirmed preparation interface, fake, injected HTTP adapter | Shared module only; no handler, trusted actor/attempt implementation or Flutter card entry | Historical injected transport/TypeScript evidence; no real Stripe request or credentials verified | Account/JOD precision approval, trusted handler/attempt composition (R06), secure UI scope decision and acceptance (R08) |
