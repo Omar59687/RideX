@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ridex/features/auth/data/supabase_admin_payment_reader.dart';
+import 'package:ridex/core/repositories/supabase_admin_payment_reader.dart';
 
 Map<String, Object?> row({
   String method = 'cash',
