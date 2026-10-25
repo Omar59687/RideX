@@ -1,5 +1,29 @@
 # RideX Current Status
 
+## Current override - 2026-10-25 P6-R05 Rider reader integration
+
+R05 implementation is **PARTIAL** on `feature/p6-r05-rider-payment-reader`, based
+on main `3c83c78`. Cash/Card providers now use the existing canonical repository
+and application-owned Supabase client only for an authenticated, unblocked Rider
+whose app identity matches the pinned SDK session. Reader responses are rejected
+after Rider/session changes, and Admin identity is not admitted through the Rider
+reader. Nullable canonical Trip linkage is retained and presented as “Trip not yet
+linked”; it is not success evidence. Authorization failure is distinct from read
+failure. The demo-backed history surface remains unavailable.
+
+The trusted Rider identity is `SessionController`/profile identity. There is no
+trusted persisted Payment ID on the current booking, history, or Trip UI path:
+migration 027's `user_canonical_payment_record(target_payment_id)` is exact-ID
+only, while existing history and booking IDs are not Payment IDs. The app must not
+derive one from those IDs. A backend-issued, Rider-scoped Payment ID associated
+with the canonical Trip is required before the UI can activate. Phase 7 assigned
+Trip identity and Phase 8 payment/history restoration remain dependencies. Local
+focused tests and Analyze were run; no hosted financial read or R04 acceptance is
+claimed. R04 remains PARTIAL and Phase 6 remains NOT APPROVED.
+
+See the [R05 roadmap](../../parallel-development/phase-6/P6_POST_MERGE_ROADMAP.md)
+and [authoritative tracker](../../parallel-development/phase-6/SPRINT_TRACKER.md).
+
 ## Current override - 2026-10-25 P6-R04 Admin hardening
 
 Based on main `a637f5e` (PR #57). The Admin reader now checks the current,

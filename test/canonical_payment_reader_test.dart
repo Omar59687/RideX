@@ -13,23 +13,33 @@ const bookingId = 'cccccccc-bbbb-4ccc-9ddd-eeeeeeeeeeee';
 const tripId = 'dddddddd-bbbb-4ccc-9ddd-eeeeeeeeeeee';
 const otherId = 'eeeeeeee-bbbb-4ccc-9ddd-eeeeeeeeeeee';
 Map<String, dynamic> row({bool card = false}) => {
-      'id': paymentId,
-      'booking_request_id': bookingId,
-      'trip_id': tripId,
-      'rider_id': actorId,
-      'method': card ? 'card' : 'cash',
-      'final_amount_fils': 13300,
-      'currency': 'JOD',
-      'version': 7,
-      'cash_status': card ? null : 'cashSelected',
-      'card_status': card ? 'cardPaymentAuthorized' : null,
-      'card_brand': card ? 'Visa' : null,
-      'card_last_four': card ? '4242' : null,
-    };
-final invalid = throwsA(isA<CanonicalPaymentReadException>().having(
-    (e) => e.failure, 'failure', CanonicalPaymentReadFailure.invalidResponse));
-final unauthorized = throwsA(isA<CanonicalPaymentReadException>().having(
-    (e) => e.failure, 'failure', CanonicalPaymentReadFailure.unauthorized));
+  'id': paymentId,
+  'booking_request_id': bookingId,
+  'trip_id': tripId,
+  'rider_id': actorId,
+  'method': card ? 'card' : 'cash',
+  'final_amount_fils': 13300,
+  'currency': 'JOD',
+  'version': 7,
+  'cash_status': card ? null : 'cashSelected',
+  'card_status': card ? 'cardPaymentAuthorized' : null,
+  'card_brand': card ? 'Visa' : null,
+  'card_last_four': card ? '4242' : null,
+};
+final invalid = throwsA(
+  isA<CanonicalPaymentReadException>().having(
+    (e) => e.failure,
+    'failure',
+    CanonicalPaymentReadFailure.invalidResponse,
+  ),
+);
+final unauthorized = throwsA(
+  isA<CanonicalPaymentReadException>().having(
+    (e) => e.failure,
+    'failure',
+    CanonicalPaymentReadFailure.unauthorized,
+  ),
+);
 
 class _Backend {
   late HttpServer server;
@@ -48,18 +58,21 @@ class _Backend {
       request.response.headers.contentType = ContentType.json;
       if (request.uri.path.endsWith('/users')) {
         userReads++;
-        request.response.write(jsonEncode([
-          {'id': actorId, 'role': role, 'is_blocked': blocked}
-        ]));
+        request.response.write(
+          jsonEncode([
+            {'id': actorId, 'role': role, 'is_blocked': blocked},
+          ]),
+        );
       } else if (request.uri.path.contains('/rpc/')) {
         await paymentBoundary?.call();
         request.response.statusCode = status;
-        request.response.write(jsonEncode(status == 200
-            ? rows
-            : {
-                'code': '42501',
-                'message': 'private-provider-error',
-              }));
+        request.response.write(
+          jsonEncode(
+            status == 200
+                ? rows
+                : {'code': '42501', 'message': 'private-provider-error'},
+          ),
+        );
       } else {
         request.response.statusCode = 404;
         request.response.write(jsonEncode({'message': 'Unexpected endpoint'}));
@@ -67,19 +80,22 @@ class _Backend {
       await request.response.close();
     });
     client = SupabaseClient(
-        'http://127.0.0.1:${server.port}', 'offline-publishable');
+      'http://127.0.0.1:${server.port}',
+      'offline-publishable',
+    );
     await session(actorId);
   }
 
-  Future<void> session(String id) => client.auth.setInitialSession(jsonEncode({
-        'access_token': 'offline-session',
-        'token_type': 'bearer',
-        'expires_at': DateTime.now()
-                .add(const Duration(hours: 1))
-                .millisecondsSinceEpoch ~/
-            1000,
-        'user': {'id': id, 'aud': 'authenticated'},
-      }));
+  Future<void> session(String id) => client.auth.setInitialSession(
+    jsonEncode({
+      'access_token': 'offline-session',
+      'token_type': 'bearer',
+      'expires_at':
+          DateTime.now().add(const Duration(hours: 1)).millisecondsSinceEpoch ~/
+          1000,
+      'user': {'id': id, 'aud': 'authenticated'},
+    }),
+  );
   SupabaseCanonicalPaymentRepository get repository =>
       SupabaseCanonicalPaymentRepository(client);
   Future<void> dispose() async {
@@ -90,27 +106,35 @@ class _Backend {
 
 void main() {
   test(
-      'complete Cash and Card rows preserve persisted identity, fils and version',
-      () {
-    final cash = CanonicalPaymentRecord.fromRow(row()) as CanonicalCashPayment;
-    expect(cash.payment.bookingRequestId, bookingId);
-    expect(cash.payment.tripId, tripId);
-    expect(cash.payment.version, 7);
-    expect(cash.payment.amountFils, 13300);
-    expect(cash.payment.status, CashPaymentStatus.cashSelected);
-    final card =
-        CanonicalPaymentRecord.fromRow(row(card: true)) as CanonicalCardPayment;
-    expect(card.payment.status, CardPaymentStatus.cardPaymentAuthorized);
-    expect(card.payment.cardLastFour, '4242');
-  });
-  test('canonical Cash and Card records allow an explicitly null Trip link', () {
-    final cash = CanonicalPaymentRecord.fromRow(
-        {...row(), 'trip_id': null}) as CanonicalCashPayment;
-    final card = CanonicalPaymentRecord.fromRow(
-        {...row(card: true), 'trip_id': null}) as CanonicalCardPayment;
-    expect(cash.payment.tripId, isNull);
-    expect(card.payment.tripId, isNull);
-  });
+    'complete Cash and Card rows preserve persisted identity, fils and version',
+    () {
+      final cash =
+          CanonicalPaymentRecord.fromRow(row()) as CanonicalCashPayment;
+      expect(cash.payment.bookingRequestId, bookingId);
+      expect(cash.payment.tripId, tripId);
+      expect(cash.payment.version, 7);
+      expect(cash.payment.amountFils, 13300);
+      expect(cash.payment.status, CashPaymentStatus.cashSelected);
+      final card =
+          CanonicalPaymentRecord.fromRow(row(card: true))
+              as CanonicalCardPayment;
+      expect(card.payment.status, CardPaymentStatus.cardPaymentAuthorized);
+      expect(card.payment.cardLastFour, '4242');
+    },
+  );
+  test(
+    'canonical Cash and Card records allow an explicitly null Trip link',
+    () {
+      final cash =
+          CanonicalPaymentRecord.fromRow({...row(), 'trip_id': null})
+              as CanonicalCashPayment;
+      final card =
+          CanonicalPaymentRecord.fromRow({...row(card: true), 'trip_id': null})
+              as CanonicalCardPayment;
+      expect(cash.payment.tripId, isNull);
+      expect(card.payment.tripId, isNull);
+    },
+  );
   for (final field in [
     'id',
     'booking_request_id',
@@ -119,7 +143,7 @@ void main() {
     'version',
     'final_amount_fils',
     'currency',
-    'cash_status'
+    'cash_status',
   ]) {
     test('missing $field is rejected, never invented from summary data', () {
       final value = row()..remove(field);
@@ -138,11 +162,15 @@ void main() {
     {'trip_id': ''},
     {'trip_id': 42},
   ]) {
-    test('invalid canonical value ${change.keys.single} fails closed $change',
-        () {
-      expect(
-          () => CanonicalPaymentRecord.fromRow({...row(), ...change}), invalid);
-    });
+    test(
+      'invalid canonical value ${change.keys.single} fails closed $change',
+      () {
+        expect(
+          () => CanonicalPaymentRecord.fromRow({...row(), ...change}),
+          invalid,
+        );
+      },
+    );
   }
   group('SDK read-only boundary', () {
     late _Backend backend;
@@ -151,111 +179,191 @@ void main() {
       await backend.start();
     });
     tearDown(() => backend.dispose());
-    test('Rider reads exact canonical Cash record through authorized RPC',
-        () async {
-      backend.role = 'rider';
-      final payment =
-          await backend.repository.readCashPayment(paymentId: paymentId);
-      expect(payment.version, 7);
-      expect(backend.userReads, 2);
-      final read = backend.requests.singleWhere((r) =>
-          r.$2.path.endsWith('/rpc/user_canonical_payment_record'));
-      expect(read.$1, 'POST');
-      expect(backend.requests.any((r) => r.$2.path.endsWith('/payments')),
-          isFalse);
-    });
+    test(
+      'Rider reads exact canonical Cash record through authorized RPC',
+      () async {
+        backend.role = 'rider';
+        final payment = await backend.repository.readCashPayment(
+          paymentId: paymentId,
+        );
+        expect(payment.version, 7);
+        expect(backend.userReads, 2);
+        final read = backend.requests.singleWhere(
+          (r) => r.$2.path.endsWith('/rpc/user_canonical_payment_record'),
+        );
+        expect(read.$1, 'POST');
+        expect(
+          backend.requests.any((r) => r.$2.path.endsWith('/payments')),
+          isFalse,
+        );
+      },
+    );
+    test(
+      'non-Rider role cannot use the Rider exact-payment interface',
+      () async {
+        backend.role = 'admin';
+        await expectLater(
+          backend.repository.readCashPayment(paymentId: paymentId),
+          unauthorized,
+        );
+        expect(
+          backend.requests.any(
+            (request) =>
+                request.$2.path.endsWith('/rpc/user_canonical_payment_record'),
+          ),
+          isFalse,
+        );
+      },
+    );
     test('method mismatch never coerces Cash to Card', () async {
+      backend.role = 'rider';
       await expectLater(
-          backend.repository.readCardPayment(paymentId: paymentId), invalid);
+        backend.repository.readCardPayment(paymentId: paymentId),
+        invalid,
+      );
     });
-    test('Rider cannot consume a foreign record even if transport returns one',
-        () async {
+    test(
+      'Rider cannot consume a foreign record even if transport returns one',
+      () async {
+        backend.role = 'rider';
+        backend.rows = [
+          {...row(), 'rider_id': otherId},
+        ];
+        await expectLater(
+          backend.repository.readCashPayment(paymentId: paymentId),
+          unauthorized,
+        );
+      },
+    );
+    test('wrong returned payment identity is rejected', () async {
       backend.role = 'rider';
       backend.rows = [
-        {...row(), 'rider_id': otherId}
+        {...row(), 'id': otherId},
       ];
       await expectLater(
-          backend.repository.readCashPayment(paymentId: paymentId),
-          unauthorized);
+        backend.repository.readCashPayment(paymentId: paymentId),
+        unauthorized,
+      );
     });
-    test('wrong returned payment identity is rejected', () async {
-      backend.rows = [
-        {...row(), 'id': otherId}
-      ];
-      await expectLater(
+    test(
+      'missing row stays notFound, not an empty successful payment',
+      () async {
+        backend.role = 'rider';
+        backend.rows = [];
+        await expectLater(
           backend.repository.readCashPayment(paymentId: paymentId),
-          unauthorized);
-    });
-    test('missing row stays notFound, not an empty successful payment',
-        () async {
-      backend.rows = [];
-      await expectLater(
-          backend.repository.readCashPayment(paymentId: paymentId),
-          throwsA(isA<PaymentException>()
-              .having((e) => e.failure, 'failure', PaymentFailure.notFound)));
-    });
+          throwsA(
+            isA<PaymentException>().having(
+              (e) => e.failure,
+              'failure',
+              PaymentFailure.notFound,
+            ),
+          ),
+        );
+      },
+    );
     for (final role in ['rider', 'driver', 'unknown']) {
       test('$role cannot enumerate Admin payments', () async {
         backend.role = role;
         await expectLater(
-            backend.repository.readRecentAdminPayments(), unauthorized);
-        expect(backend.requests.any((r) => r.$2.path.endsWith('/payments')),
-            isFalse);
+          backend.repository.readRecentAdminPayments(),
+          unauthorized,
+        );
+        expect(
+          backend.requests.any((r) => r.$2.path.endsWith('/payments')),
+          isFalse,
+        );
       });
     }
     test('blocked Admin cannot read', () async {
+      backend.role = 'admin';
       backend.blocked = true;
       await expectLater(
-          backend.repository.readRecentAdminPayments(), unauthorized);
+        backend.repository.readRecentAdminPayments(),
+        unauthorized,
+      );
     });
-    test('Admin list uses authorized bounded RPC; duplicate evidence is invalid',
-        () async {
-      final records = await backend.repository.readRecentAdminPayments();
-      expect(records, hasLength(1));
-      expect(backend.requests.any((r) =>
-          r.$1 == 'POST' &&
-          r.$2.path.endsWith('/rpc/admin_recent_canonical_payments')), isTrue);
-      expect(backend.requests.any((r) => r.$2.path.endsWith('/payments')),
-          isFalse);
-      backend.rows = [row(), row()];
-      await expectLater(backend.repository.readRecentAdminPayments(), invalid);
-    });
+    test(
+      'Admin list uses authorized bounded RPC; duplicate evidence is invalid',
+      () async {
+        backend.role = 'admin';
+        final records = await backend.repository.readRecentAdminPayments();
+        expect(records, hasLength(1));
+        expect(
+          backend.requests.any(
+            (r) =>
+                r.$1 == 'POST' &&
+                r.$2.path.endsWith('/rpc/admin_recent_canonical_payments'),
+          ),
+          isTrue,
+        );
+        expect(
+          backend.requests.any((r) => r.$2.path.endsWith('/payments')),
+          isFalse,
+        );
+        backend.rows = [row(), row()];
+        await expectLater(
+          backend.repository.readRecentAdminPayments(),
+          invalid,
+        );
+      },
+    );
     test('role revocation during RPC prevents publication', () async {
       backend.paymentBoundary = () async {
         backend.role = 'rider';
       };
       await expectLater(
-          backend.repository.readRecentAdminPayments(), unauthorized);
+        backend.repository.readRecentAdminPayments(),
+        unauthorized,
+      );
     });
     test('SDK account switch during RPC discards its result', () async {
       backend.paymentBoundary = () => backend.session(otherId);
       await expectLater(
-          backend.repository.readRecentAdminPayments(), unauthorized);
+        backend.repository.readRecentAdminPayments(),
+        unauthorized,
+      );
     });
-    test('SDK A-B-A session replacement cannot resurrect the old result',
-        () async {
-      backend.paymentBoundary = () async {
-        await backend.session(otherId);
-        await backend.session(actorId);
-      };
-      await expectLater(
-          backend.repository.readRecentAdminPayments(), unauthorized);
-    });
+    test(
+      'SDK A-B-A session replacement cannot resurrect the old result',
+      () async {
+        backend.paymentBoundary = () async {
+          await backend.session(otherId);
+          await backend.session(actorId);
+        };
+        await expectLater(
+          backend.repository.readRecentAdminPayments(),
+          unauthorized,
+        );
+      },
+    );
     test('RLS rejection is sanitized', () async {
       backend.status = 403;
       await expectLater(
-          backend.repository.readRecentAdminPayments(), unauthorized);
+        backend.repository.readRecentAdminPayments(),
+        unauthorized,
+      );
     });
-    test('legacy canonical reader remains isolated from production Admin RPC', () async {
-      backend.rows = [row(card: true)];
-      final records = await backend.repository.readRecentAdminPayments();
-      expect(records, hasLength(1));
-      expect(records.single, isA<CanonicalCardPayment>());
-      expect(backend.requests.any((r) =>
-          r.$1 == 'POST' &&
-          r.$2.path.endsWith('/rpc/admin_recent_canonical_payments')), isTrue);
-      expect(backend.requests.any((r) => r.$2.path.endsWith('/payments')),
-          isFalse);
-    });
+    test(
+      'legacy canonical reader remains isolated from production Admin RPC',
+      () async {
+        backend.rows = [row(card: true)];
+        final records = await backend.repository.readRecentAdminPayments();
+        expect(records, hasLength(1));
+        expect(records.single, isA<CanonicalCardPayment>());
+        expect(
+          backend.requests.any(
+            (r) =>
+                r.$1 == 'POST' &&
+                r.$2.path.endsWith('/rpc/admin_recent_canonical_payments'),
+          ),
+          isTrue,
+        );
+        expect(
+          backend.requests.any((r) => r.$2.path.endsWith('/payments')),
+          isFalse,
+        );
+      },
+    );
   });
 }

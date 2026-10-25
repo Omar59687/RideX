@@ -1,5 +1,17 @@
 # RideX Development Plan
 
+## Phase 6 R05 checkpoint - 2026-10-25
+
+Rider Cash/Card canonical read providers now bind to the existing application
+Supabase client and exact-ID authorized RPC reader with Rider/profile and SDK
+session checks. The implementation is **PARTIAL**: current booking, demo-backed
+history, and Trip UI do not expose a trusted persisted Payment ID, and migration
+027 has no Trip/booking-to-Payment lookup. Do not substitute those identifiers or
+show payment success. Phase 7 canonical assigned Trip identity, Phase 8 payment
+creation/history restoration, and R04 hosted authorization acceptance remain
+open. See the [Phase 6 tracker](docs/parallel-development/phase-6/SPRINT_TRACKER.md)
+and [R05 roadmap](docs/parallel-development/phase-6/P6_POST_MERGE_ROADMAP.md).
+
 ## Latest integration checkpoint - Phase 6, 2026-10-25
 
 PR #52 is merged into `main` at `59be9b7`; superseded #47/#51 are closed without

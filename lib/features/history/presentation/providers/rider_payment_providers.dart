@@ -4,7 +4,9 @@ import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/repositories/card_payment_repository.dart';
+import 'package:ridex/core/repositories/canonical_payment_repository.dart';
 import 'package:ridex/core/repositories/payment_repository.dart';
+import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
 import 'package:ridex/features/history/presentation/models/rider_payment_presentation.dart';
 import 'package:ridex/features/history/presentation/widgets/rider_payment_status_card.dart';
 
@@ -17,11 +19,11 @@ import 'package:ridex/features/history/presentation/widgets/rider_payment_status
 /// payment is created, settled, captured, refunded, or cancelled here, and a
 /// read grants no financial authority.
 ///
-/// No production reader is approved yet (F1 deferred integration blocker).
-/// Both reader providers default to null, so the default (production)
-/// configuration always fails closed as [RiderPaymentUnavailable]; a
-/// concrete fake is never substituted as authoritative live data. Tests and
-/// isolated demos inject an explicit reader through these providers.
+/// The production reader uses the application-owned Supabase client only for
+/// an authenticated, nonblocked Rider whose SDK identity matches the app
+/// session. No Payment ID is inferred here: callers must provide a
+/// backend-issued ID from a trusted source. The current demo-backed history
+/// does not provide one, so its payment surface remains unavailable.
 ///
 /// Trust safeguards: payment IDs are backend-issued identities supplied by
 /// the caller, never derived from demo trip records or reconstructed from
@@ -31,18 +33,41 @@ import 'package:ridex/features/history/presentation/widgets/rider_payment_status
 /// payment status. Rendered success wording stays behind
 /// [RiderPaymentStatusDisplay.failClosed].
 
-/// Cash-side reader injection point for [RiderPaymentReadController].
-///
-/// Null means no approved reader is configured: reads fail closed as
-/// [RiderPaymentUnavailable] without calling any repository.
+/// The shared canonical repository is bound to the active app Rider and the
+/// existing application Supabase client. It performs participant-scoped reads
+/// through migration 027's authorized RPC, never finance-table SELECT.
+final riderCanonicalPaymentRepositoryProvider =
+    Provider<SupabaseCanonicalPaymentRepository?>((ref) {
+      final session = ref.watch(sessionControllerProvider);
+      final user = session.user;
+      if (session.status != SessionStatus.authenticated ||
+          session.role != RideRole.rider ||
+          user == null ||
+          user.isBlocked ||
+          user.id.trim().isEmpty) {
+        return null;
+      }
+      final client = ref.watch(supabaseClientProvider);
+      final sdkSession = client?.auth.currentSession;
+      if (client == null ||
+          sdkSession == null ||
+          sdkSession.isExpired ||
+          sdkSession.user.id != user.id) {
+        return null;
+      }
+      return SupabaseCanonicalPaymentRepository(client);
+    });
+
+/// Cash-side repository injection point. Null means the app Rider/session or
+/// authenticated application client is not available.
 final riderCashPaymentRepositoryProvider = Provider<PaymentRepository?>(
-  (ref) => null,
+  (ref) => ref.watch(riderCanonicalPaymentRepositoryProvider),
 );
 
 /// Card-side reader injection point; see
 /// [riderCashPaymentRepositoryProvider].
 final riderCardPaymentRepositoryProvider = Provider<CardPaymentRepository?>(
-  (ref) => null,
+  (ref) => ref.watch(riderCanonicalPaymentRepositoryProvider),
 );
 
 /// The last accepted read request, retained for
@@ -141,13 +166,30 @@ class RiderPaymentReadController extends Notifier<RiderPaymentReadState> {
       state = const RiderPaymentUnavailable();
       return;
     }
+
+    // Pin the application SDK session too. The canonical repository pins its
+    // own RPC session; this outer pin prevents a valid response from a newer
+    // SDK account (including A-B-A switching) being published under an older
+    // app SessionState that has not refreshed yet.
+    final client = ref.read(supabaseClientProvider);
+    final sdkSession = client?.auth.currentSession;
+    if (client != null &&
+        (sdkSession == null ||
+            sdkSession.isExpired ||
+            sdkSession.user.id != riderId)) {
+      _lastRequest = null;
+      state = const RiderPaymentAuthorizationFailure();
+      return;
+    }
     _lastRequest = _RiderPaymentReadRequest(paymentId: id, method: method);
 
     final bool useCash = method == PaymentMethod.cash;
-    final PaymentRepository? cashRepository =
-        useCash ? ref.read(riderCashPaymentRepositoryProvider) : null;
-    final CardPaymentRepository? cardRepository =
-        useCash ? null : ref.read(riderCardPaymentRepositoryProvider);
+    final PaymentRepository? cashRepository = useCash
+        ? ref.read(riderCashPaymentRepositoryProvider)
+        : null;
+    final CardPaymentRepository? cardRepository = useCash
+        ? null
+        : ref.read(riderCardPaymentRepositoryProvider);
     if (cashRepository == null && cardRepository == null) {
       state = const RiderPaymentUnavailable();
       return;
@@ -164,6 +206,13 @@ class RiderPaymentReadController extends Notifier<RiderPaymentReadState> {
         final payment = await cardRepository!.readCardPayment(paymentId: id);
         presentation = RiderPaymentPresentation.fromCard(payment);
       }
+    } on CanonicalPaymentReadException catch (error) {
+      if (!_isCurrent(generation)) return;
+      _lastRequest = null;
+      state = error.failure == CanonicalPaymentReadFailure.unauthorized
+          ? const RiderPaymentAuthorizationFailure()
+          : const RiderPaymentReadFailure();
+      return;
     } on PaymentException {
       if (!_isCurrent(generation)) return;
       state = const RiderPaymentUnavailable();
@@ -175,9 +224,11 @@ class RiderPaymentReadController extends Notifier<RiderPaymentReadState> {
     }
 
     if (!_isCurrent(generation)) return;
-    if (_authenticatedRiderId(ref.read(sessionControllerProvider)) != riderId) {
+    if (_authenticatedRiderId(ref.read(sessionControllerProvider)) != riderId ||
+        (client != null &&
+            !identical(client.auth.currentSession, sdkSession))) {
       _lastRequest = null;
-      state = const RiderPaymentUnavailable();
+      state = const RiderPaymentAuthorizationFailure();
       return;
     }
     state = RiderPaymentReady(presentation);
@@ -199,5 +250,5 @@ class RiderPaymentReadController extends Notifier<RiderPaymentReadState> {
 
 final riderPaymentReadControllerProvider =
     NotifierProvider<RiderPaymentReadController, RiderPaymentReadState>(
-  RiderPaymentReadController.new,
-);
+      RiderPaymentReadController.new,
+    );

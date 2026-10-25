@@ -165,6 +165,10 @@ class SupabaseCanonicalPaymentRepository
         }
         final owner = _owner();
         final role = await _financeRole(owner);
+        if (role != 'rider') {
+          throw const CanonicalPaymentReadException(
+              CanonicalPaymentReadFailure.unauthorized);
+        }
         final dynamic response = await _client.rpc(
           'user_canonical_payment_record',
           params: {'target_payment_id': paymentId},
@@ -190,7 +194,7 @@ class SupabaseCanonicalPaymentRepository
           CanonicalCardPayment(:final payment) => payment.paymentId!,
         };
         if (!_sameId(actualId, paymentId) ||
-            (role == 'rider' && !_sameId(record.riderId, owner.user.id))) {
+            !_sameId(record.riderId, owner.user.id)) {
           throw const CanonicalPaymentReadException(
               CanonicalPaymentReadFailure.unauthorized);
         }

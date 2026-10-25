@@ -59,13 +59,15 @@ final class RiderPaymentPresentation {
     required this.amountFils,
     required this.currency,
     required this.canDescribeAsPaid,
+    required this.tripNotLinked,
   });
 
   factory RiderPaymentPresentation.fromCash(
     CashPayment payment, {
     RiderPaymentTripEvidence? tripEvidence,
   }) {
-    final canDescribeAsPaid = payment.status == CashPaymentStatus.paid &&
+    final canDescribeAsPaid =
+        payment.status == CashPaymentStatus.paid &&
         _matchesCompletedTrip(
           paymentId: payment.paymentId,
           tripId: payment.tripId,
@@ -74,23 +76,24 @@ final class RiderPaymentPresentation {
         );
     final (label, description) = switch (payment.status) {
       CashPaymentStatus.cashSelected => (
-          'Cash selected (unpaid)',
-          'Cash is selected; payment is still unpaid.',
-        ),
-      CashPaymentStatus.paid => canDescribeAsPaid
-          ? (
-              'Payment completed',
-              'Cash payment is confirmed for this completed trip.',
-            )
-          : (
-              'Paid status reported',
-              'Payment identity and completed-trip evidence must match '
-                  'before confirming payment.',
-            ),
+        'Cash selected (unpaid)',
+        'Cash is selected; payment is still unpaid.',
+      ),
+      CashPaymentStatus.paid =>
+        canDescribeAsPaid
+            ? (
+                'Payment completed',
+                'Cash payment is confirmed for this completed trip.',
+              )
+            : (
+                'Paid status reported',
+                'Payment identity and completed-trip evidence must match '
+                    'before confirming payment.',
+              ),
       CashPaymentStatus.cancelled => (
-          'Payment cancelled',
-          'Cash payment was cancelled; it is not a paid payment.',
-        ),
+        'Payment cancelled',
+        'Cash payment was cancelled; it is not a paid payment.',
+      ),
     };
     return RiderPaymentPresentation._(
       methodLabel: 'Cash',
@@ -99,6 +102,7 @@ final class RiderPaymentPresentation {
       amountFils: payment.amountFils,
       currency: payment.currency,
       canDescribeAsPaid: canDescribeAsPaid,
+      tripNotLinked: payment.tripId == null,
     );
   }
 
@@ -108,47 +112,48 @@ final class RiderPaymentPresentation {
   }) {
     final canDescribeAsPaid =
         payment.status == CardPaymentStatus.cardPaymentSucceeded &&
-            _matchesCompletedTrip(
-              paymentId: payment.paymentId,
-              tripId: payment.tripId,
-              bookingRequestId: payment.bookingRequestId,
-              evidence: tripEvidence,
-            );
+        _matchesCompletedTrip(
+          paymentId: payment.paymentId,
+          tripId: payment.tripId,
+          bookingRequestId: payment.bookingRequestId,
+          evidence: tripEvidence,
+        );
     final (label, description) = switch (payment.status) {
       CardPaymentStatus.cardPaymentPending => (
-          'Payment pending',
-          'Card payment is pending; capture is not confirmed.',
-        ),
+        'Payment pending',
+        'Card payment is pending; capture is not confirmed.',
+      ),
       CardPaymentStatus.cardPaymentAuthorized => (
-          'Authorized (not captured)',
-          'Card payment is authorized; authorization is not capture.',
-        ),
-      CardPaymentStatus.cardPaymentSucceeded => canDescribeAsPaid
-          ? (
-              'Payment captured',
-              'Card payment was successfully captured for this completed trip.',
-            )
-          : (
-              'Success status reported',
-              'Payment identity and completed-trip evidence must match '
-                  'before confirming capture.',
-            ),
+        'Authorized (not captured)',
+        'Card payment is authorized; authorization is not capture.',
+      ),
+      CardPaymentStatus.cardPaymentSucceeded =>
+        canDescribeAsPaid
+            ? (
+                'Payment captured',
+                'Card payment was successfully captured for this completed trip.',
+              )
+            : (
+                'Success status reported',
+                'Payment identity and completed-trip evidence must match '
+                    'before confirming capture.',
+              ),
       CardPaymentStatus.cardPaymentFailed => (
-          'Payment failed',
-          'Card payment failed. Trip completion is a separate state.',
-        ),
+        'Payment failed',
+        'Card payment failed. Trip completion is a separate state.',
+      ),
       CardPaymentStatus.paymentCancelled => (
-          'Payment cancelled',
-          'Card payment was cancelled; it is not a paid payment.',
-        ),
+        'Payment cancelled',
+        'Card payment was cancelled; it is not a paid payment.',
+      ),
       CardPaymentStatus.refundPending => (
-          'Refund pending',
-          'A refund is pending for this card payment.',
-        ),
+        'Refund pending',
+        'A refund is pending for this card payment.',
+      ),
       CardPaymentStatus.refunded => (
-          'Refunded',
-          'Card payment is refunded; it is not a current completed payment.',
-        ),
+        'Refunded',
+        'Card payment is refunded; it is not a current completed payment.',
+      ),
     };
     return RiderPaymentPresentation._(
       methodLabel: 'Card',
@@ -157,6 +162,7 @@ final class RiderPaymentPresentation {
       amountFils: payment.amountFils,
       currency: payment.currency,
       canDescribeAsPaid: canDescribeAsPaid,
+      tripNotLinked: payment.tripId == null,
     );
   }
 
@@ -180,6 +186,10 @@ final class RiderPaymentPresentation {
   /// production integration requirement (see the evidence class docs).
   /// Refund states are never ordinary paid presentation.
   final bool canDescribeAsPaid;
+
+  /// True when the canonical Payment is valid but does not yet have a Trip ID.
+  /// It is informational only and must never be filled from booking identity.
+  final bool tripNotLinked;
 
   /// Uses the existing fils formatter's two-decimal display rounding only.
   /// [amountFils] retains the exact amount; no fare components are inferred.

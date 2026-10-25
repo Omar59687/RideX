@@ -25,6 +25,12 @@ final class RiderPaymentUnavailable extends RiderPaymentReadState {
   const RiderPaymentUnavailable();
 }
 
+/// The current session is expired, mismatched or no longer authorized to read
+/// this Rider's payment.
+final class RiderPaymentAuthorizationFailure extends RiderPaymentReadState {
+  const RiderPaymentAuthorizationFailure();
+}
+
 /// The payment record could not be read (for example a connection problem).
 final class RiderPaymentReadFailure extends RiderPaymentReadState {
   const RiderPaymentReadFailure();
@@ -75,7 +81,8 @@ final class RiderPaymentStatusDisplay {
     }
     return RiderPaymentStatusDisplay._(
       title: 'Payment status unverified',
-      message: 'A successful payment status was reported, but no approved '
+      message:
+          'A successful payment status was reported, but no approved '
           'canonical Trip-to-payment linkage can confirm it. Treat this '
           'payment as unconfirmed.',
       amountDisplay: presentation.formattedAmount,
@@ -145,8 +152,8 @@ class RiderPaymentStatusCard extends StatelessWidget {
     super.key,
     required RiderPaymentPresentation presentation,
     this.onRetry,
-  })  : readState = RiderPaymentReady(presentation),
-        isSimulated = true;
+  }) : readState = RiderPaymentReady(presentation),
+       isSimulated = true;
 
   final RiderPaymentReadState readState;
 
@@ -161,30 +168,40 @@ class RiderPaymentStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (readState) {
       RiderPaymentLoading() => const _ReadStateCard(
-          cardKey: ValueKey('rider-payment-status-loading'),
-          child: AppLoading(label: 'Loading payment status'),
-        ),
+        cardKey: ValueKey('rider-payment-status-loading'),
+        child: AppLoading(label: 'Loading payment status'),
+      ),
       RiderPaymentUnavailable() => const _ReadStateCard(
-          cardKey: ValueKey('rider-payment-status-unavailable'),
-          icon: Icons.receipt_long_outlined,
-          title: 'Payment record unavailable',
-          message: 'No payment record is available for this trip yet. '
-              'This is not a payment failure.',
-        ),
+        cardKey: ValueKey('rider-payment-status-unavailable'),
+        icon: Icons.receipt_long_outlined,
+        title: 'Payment record unavailable',
+        message:
+            'No payment record is available for this trip yet. '
+            'This is not a payment failure.',
+      ),
+      RiderPaymentAuthorizationFailure() => const _ReadStateCard(
+        cardKey: ValueKey('rider-payment-status-authorization-failure'),
+        icon: Icons.lock_outline,
+        title: 'Payment access could not be verified',
+        message:
+            'Sign in again or use the Rider account that owns this '
+            'payment. No payment outcome is inferred.',
+      ),
       RiderPaymentReadFailure() => _ReadStateCard(
-          cardKey: const ValueKey('rider-payment-status-read-failure'),
-          icon: Icons.cloud_off_outlined,
-          title: 'Payment status could not be loaded',
-          message: 'A connection or read problem occurred. '
-              'This is not a payment failure.',
-          onRetry: onRetry,
-        ),
+        cardKey: const ValueKey('rider-payment-status-read-failure'),
+        icon: Icons.cloud_off_outlined,
+        title: 'Payment status could not be loaded',
+        message:
+            'A connection or read problem occurred. '
+            'This is not a payment failure.',
+        onRetry: onRetry,
+      ),
       RiderPaymentReady(:final presentation) => _ReadyStatusCard(
-          presentation: presentation,
-          display: isSimulated
-              ? RiderPaymentStatusDisplay.simulated(presentation)
-              : RiderPaymentStatusDisplay.failClosed(presentation),
-        ),
+        presentation: presentation,
+        display: isSimulated
+            ? RiderPaymentStatusDisplay.simulated(presentation)
+            : RiderPaymentStatusDisplay.failClosed(presentation),
+      ),
     };
   }
 }
@@ -216,7 +233,8 @@ class _ReadStateCard extends StatelessWidget {
         key: cardKey,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
-          child: child ??
+          child:
+              child ??
               Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,10 +275,7 @@ class _ReadStateCard extends StatelessWidget {
 }
 
 class _ReadyStatusCard extends StatelessWidget {
-  const _ReadyStatusCard({
-    required this.presentation,
-    required this.display,
-  });
+  const _ReadyStatusCard({required this.presentation, required this.display});
 
   final RiderPaymentPresentation presentation;
   final RiderPaymentStatusDisplay display;
@@ -319,6 +334,16 @@ class _ReadyStatusCard extends StatelessWidget {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+              if (presentation.tripNotLinked) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Trip not yet linked',
+                  key: const ValueKey('rider-payment-trip-unlinked'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -340,6 +365,11 @@ class _ReadyStatusCard extends StatelessWidget {
       buffer
         ..write('. ')
         ..write(marker);
+    }
+    if (presentation.tripNotLinked) {
+      buffer
+        ..write('. ')
+        ..write('Trip not yet linked');
     }
     buffer.write('.');
     return buffer.toString();

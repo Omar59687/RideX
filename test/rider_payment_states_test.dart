@@ -17,15 +17,14 @@ CashPayment _cash({
   String? tripId = 'trip-1',
   String? bookingRequestId = 'booking-1',
   int amountFils = 7350,
-}) =>
-    CashPayment(
-      paymentId: paymentId,
-      tripId: tripId,
-      bookingRequestId: bookingRequestId,
-      amountFils: amountFils,
-      status: status,
-      version: 3,
-    );
+}) => CashPayment(
+  paymentId: paymentId,
+  tripId: tripId,
+  bookingRequestId: bookingRequestId,
+  amountFils: amountFils,
+  status: status,
+  version: 3,
+);
 
 CardPayment _card({
   CardPaymentStatus status = CardPaymentStatus.cardPaymentSucceeded,
@@ -35,30 +34,28 @@ CardPayment _card({
   int amountFils = 7350,
   String? cardBrand,
   String? cardLastFour,
-}) =>
-    CardPayment(
-      paymentId: paymentId,
-      tripId: tripId,
-      bookingRequestId: bookingRequestId,
-      amountFils: amountFils,
-      status: status,
-      version: 3,
-      cardBrand: cardBrand,
-      cardLastFour: cardLastFour,
-    );
+}) => CardPayment(
+  paymentId: paymentId,
+  tripId: tripId,
+  bookingRequestId: bookingRequestId,
+  amountFils: amountFils,
+  status: status,
+  version: 3,
+  cardBrand: cardBrand,
+  cardLastFour: cardLastFour,
+);
 
 RiderPaymentTripEvidence _evidence({
   String? paymentId = 'payment-1',
   String? tripId = 'trip-1',
   String? bookingRequestId = 'booking-1',
   TripStatus tripStatus = TripStatus.completed,
-}) =>
-    RiderPaymentTripEvidence(
-      paymentId: paymentId,
-      tripId: tripId,
-      bookingRequestId: bookingRequestId,
-      tripStatus: tripStatus,
-    );
+}) => RiderPaymentTripEvidence(
+  paymentId: paymentId,
+  tripId: tripId,
+  bookingRequestId: bookingRequestId,
+  tripStatus: tripStatus,
+);
 
 Future<void> _pump(
   WidgetTester tester,
@@ -127,6 +124,25 @@ void main() {
       expect(find.byType(AppButton), findsNothing);
     });
 
+    testWidgets('authorization failure is distinct from payment failure', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const RiderPaymentStatusCard(
+          readState: RiderPaymentAuthorizationFailure(),
+        ),
+      );
+      expect(
+        find.byKey(
+          const ValueKey('rider-payment-status-authorization-failure'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Payment access could not be verified'), findsOneWidget);
+      expect(find.text('Payment failed'), findsNothing);
+    });
+
     testWidgets('read failure is distinct and can be retried', (tester) async {
       var retries = 0;
       await _pump(
@@ -186,6 +202,25 @@ void main() {
       expect(find.text('Paid'), findsNothing);
       expect(find.text('Payment completed'), findsNothing);
       expect(find.byType(AppButton), findsNothing);
+    });
+
+    testWidgets('null canonical Trip link is shown without inferring success', (
+      tester,
+    ) async {
+      final presentation = RiderPaymentPresentation.fromCash(
+        _cash(tripId: null),
+      );
+      await _pump(
+        tester,
+        RiderPaymentStatusCard(readState: RiderPaymentReady(presentation)),
+      );
+      expect(
+        find.byKey(const ValueKey('rider-payment-trip-unlinked')),
+        findsOneWidget,
+      );
+      expect(find.text('Trip not yet linked'), findsOneWidget);
+      expect(find.text('Payment completed'), findsNothing);
+      expect(presentation.issuedReceiptExists, isNull);
     });
 
     testWidgets('cancelled cash is not a paid payment', (tester) async {
@@ -581,14 +616,18 @@ void main() {
       );
       expect(unknownBrand.brandDisplay, isNull);
       expect(
-          unknownBrand.maskedLastFourDisplay, '\u2022\u2022\u2022\u2022 4242');
+        unknownBrand.maskedLastFourDisplay,
+        '\u2022\u2022\u2022\u2022 4242',
+      );
 
       final missingBrand = RiderCardPaymentMetadata.fromCard(
         _card(cardLastFour: '1234'),
       );
       expect(missingBrand.brandDisplay, isNull);
       expect(
-          missingBrand.maskedLastFourDisplay, '\u2022\u2022\u2022\u2022 1234');
+        missingBrand.maskedLastFourDisplay,
+        '\u2022\u2022\u2022\u2022 1234',
+      );
 
       final empty = RiderCardPaymentMetadata.fromCard(_card());
       expect(empty.brandDisplay, isNull);
@@ -629,9 +668,7 @@ void main() {
         const RiderPaymentStatusCard(readState: RiderPaymentReadFailure()),
       );
       expect(
-        find.bySemanticsLabel(
-          RegExp('Payment status could not be loaded'),
-        ),
+        find.bySemanticsLabel(RegExp('Payment status could not be loaded')),
         findsOneWidget,
       );
       await _pump(

@@ -1,5 +1,24 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## R05 Rider canonical reader implementation update - 2026-10-25
+
+Based on main `3c83c78`; implementation is on
+`feature/p6-r05-rider-payment-reader`. R05 is **PARTIAL**. Cash/Card reader
+providers now use the application-owned client and existing exact canonical RPC
+repository when the authenticated application Rider matches the SDK session.
+The repository rejects non-Rider exact reads; null Trip linkage is accepted and
+shown as "Trip not yet linked" without implying success. Focused local coverage
+includes app/SDK mismatch, A-B-A session replacement, foreign Rider response,
+RPC-only access and nullable Trip presentation. No hosted operation is claimed.
+
+The Rider identity is sourced from SessionController/profile. There is no trusted
+Payment ID on the current booking/history/Trip UI path, and migration 027 accepts
+only an exact Payment ID. Booking and Trip IDs are not substitutes. Keep the
+demo-backed history unavailable until a backend-issued, Rider-scoped Payment ID
+and canonical Trip association are exposed. Phase 7 assigned Trip identity and
+Phase 8 payment/history restoration remain dependencies. R04 hosted acceptance
+remains PARTIAL/BLOCKED; Phase 6 is NOT APPROVED.
+
 ## R04 Admin security hardening update - 2026-10-25
 
 Based on main `a637f5e` (after PR #57). [Detailed evidence](P6_R04_HOSTED_RPC_VERIFICATION.md).
@@ -129,7 +148,7 @@ details the remaining work without granting approval.
 | Workstream | Implemented | Integrated | Verified | Remaining |
 |---|---|---|---|---|
 | Admin Payment Visibility (P6-08) | Sanitized UI, strict RPC parser, exact SDK Session identity pinning | Production provider uses `SupabaseAdminPaymentReader` and `admin_recent_canonical_payments`; guarded Admin screen | Local loopback/widget coverage exists; historical owner #52 results above; hosted/runtime acceptance unverified | Hosted role/blocked-account matrix, logout and A-to-B-to-A acceptance, UI redaction and performance review (R04) |
-| Canonical Payment Reader (P6-01/03 read integration) | Cash/Card parser and authorized exact/list RPC adapter; persisted identity/version | Adapter merged; Admin uses its dedicated RPC reader; Rider Cash/Card reader providers still null | Local SDK/contract regressions include no direct `/payments` SELECT; no hosted reader verification here | Trusted Rider payment-ID/Trip linkage and approved consumer wiring (R05); owning/foreign role checks (R04) |
+| Canonical Payment Reader (P6-01/03 read integration) | Cash/Card parser and authorized exact/list RPC adapter; persisted identity/version | Admin uses dedicated RPC reader; Rider providers use the shared app client and Rider-scoped exact reader; history remains unactivated without trusted Payment ID | Focused local provider/session/RPC/nullable-link tests; no hosted Rider reader verification | Backend-issued Rider Payment ID and canonical Trip association; hosted role acceptance (R04); Phase 7 Trip identity and Phase 8 payment/history source |
 | Driver Cash Completion (P6-02/P6-07) | Journal, coordinator, trusted completion adapter, B1-A/B1-B-compatible composition | Foundation merged; no production provider or Driver-screen activation; Trips remain mock-backed | Local journal/coordinator/SDK loopback coverage; no hosted atomic completion/receipt acceptance | Approved registry/context (R01), staging/provider/UI wiring (R02), hosted acceptance (R07) |
 | Cash Recovery (P6-02/P6-07) | Read-only discovery, canonical Cash Trip and Driver-safe receipt reads; original #55 merged at 34801bc, follow-up aggregate correction pending | Per-Trip strongest facts are separate from latest outcomes; unresolved/failed/unprocessed commands prevent aggregate success; ten-command rotation retained | 215 focused local PASS / 0 FAIL across four files; no hosted/runtime/device acceptance | Independent follow-up re-review, approved namespace, canonical screen mounting, retention/operator policy and R07 hosted/session/restart evidence; never replay, dispatch or retire from recovery |
 | Stripe Test Mode (P6-04) | Server-only unconfirmed preparation interface, fake, injected HTTP adapter | Shared module only; no handler, trusted actor/attempt implementation or Flutter card entry | Historical injected transport/TypeScript evidence; no real Stripe request or credentials verified | Account/JOD precision approval, trusted handler/attempt composition (R06), secure UI scope decision and acceptance (R08) |
