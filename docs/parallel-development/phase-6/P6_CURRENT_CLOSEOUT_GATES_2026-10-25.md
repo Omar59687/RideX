@@ -1,4 +1,19 @@
-# Phase 6 current closeout — merged-code reconciliation (2026-10-25)
+# Phase 6 closeout — merged-code reconciliation (2026-10-25)
+
+## Current preparation addendum — after PR #62
+
+Latest inspected `origin/main`: `49e5281dfef04ad9eb0e02d5303a344d425d6ac3`.
+PR #62 records the owner-approved graduation test endpoint/namespace pair behind
+the default-off `RIDEX_ENABLE_TEST_DRIVER_CASH` compile-time flag. The mapping is
+approved; it has not been activated. The canonical Driver Cash panel remains
+unmounted. Migration 027 and the Trips/Payments/Attempts/Receipts catalog are
+present. Read-only account-scoped profile/count checks found the three designated
+profiles, no existing associated fixture rows, and a Driver that is offline with
+no vehicle. R07 preparation is recorded in
+[P6_R07_TEST_FIXTURE_PREPARATION.md](P6_R07_TEST_FIXTURE_PREPARATION.md).
+No hosted authenticated role matrix or financial operation was run. This addendum
+supersedes the older statements below that the namespace decision was unapproved
+or the registry mapping absent; the older audit is retained as historical evidence.
 
 **Verified GitHub main:** `552b0f78f3e72b84cc7d5b446968a0b5e519f765` (merge of PR #59). This record describes **merged source and remaining activation**; it does not claim hosted financial acceptance, Phase 6 approval or release readiness.
 
@@ -20,13 +35,13 @@ Earlier merged #50/#52 provide migration 027 restricted Admin/Rider RPCs, Admin 
 
 | Task | Merged implementation status | Exact missing gate |
 |---|---|---|
-| **R01** | PARTIAL — canonical Driver eligibility/Trip source, stable session authority | Approved exact endpoint-to-stable journal namespace registry, currently empty; no default fallback |
+| **R01** | PARTIAL — canonical Driver eligibility/Trip source and approved stable namespace mapping (#62) | Compile-time activation flag remains default false; canonical Driver UI not mounted and no hosted acceptance |
 | **R02** | PARTIAL — Cash completion journal, coordinator and optional panel | Mount on real canonical Driver Trip UI after R01, prevent mock completion from gaining finance authority |
 | **R03** | MERGED LOCAL FOUNDATION (#55/#56) | Journal retention/operator-resolution policy, activation, hosted role/restart acceptance |
 | **R04** | MERGED LOCAL HARDENING (#50/#52/#58) | Dedicated hosted actor/fixture access authorization, actual Admin/Rider/Driver/blocked-role matrix and PostgREST/session checks |
 | **R05** | MERGED SCOPED READER (#59) | Backend-issued Rider-scoped Payment ID/Trip linkage; Phase 7 matching and Phase 8 payment creation/history dependencies, no fabricated IDs |
 | **R06** | UNCONFIRMED RUNTIME — Stripe Test Mode shared adapter only | Approved JOD/account and precision, trusted server actor/attempt endpoint, sandbox configuration; no charge/capture/card handling |
-| **R07** | NOT ACCEPTED | Controlled hosted Cash Trip settlement/issued receipt/idempotency, role/revocation/recovery evidence on designated nonproduction fixtures |
+| **R07** | PREPARED, NOT ACCEPTED | No isolated hosted fixture exists; canonical Driver UI/matching path, owned vehicle, authorized fixture execution and hosted Cash settlement/receipt/idempotency/recovery evidence remain |
 | **R08** | SCOPE DEPENDENT | Secure hosted card-entry/Stripe UI design or explicitly documented Phase 7/8 deferral; preserve no early authorization |
 | **R09** | OPEN | Consolidated integration run after final code, outstanding hosted/runtime results, explicitly scoped exit decision |
 
@@ -42,7 +57,7 @@ The implementation-only R03/R05 merges must not be mistaken for finance activati
 
 ## Immediate non-destructive execution sequence
 
-1. Keep backend registry **disabled** until an explicitly recorded stable namespace and canonical Driver screen mounting plan exist. Prepare reviewable R01/R02 work in a separate feature branch without financial deployment.
+1. Keep the activation flag **disabled**. PR #62 records the approved endpoint/namespace mapping; canonical Driver screen mounting and separate hosted acceptance authorization remain prerequisites. Do not infer that mapping approval authorizes hosted completion.
 2. R04: use approved dedicated sandbox accounts/fixtures only for authenticated PostgREST calls. Without those, preserve BLOCKED status; never treat SQL impersonation, catalog queries or loopback mocks as real JWT acceptance.
 3. R06/R08: preserve existing Stripe **Test Mode preparation-only** contract until account/JOD support, actor/attempt and secure UI decisions exist. Do not place keys in Flutter or accept success from callbacks.
 4. R07/R09: run full integration only after approved isolated Cash test flow and scoped activation. Record canonical Trip, Payment, Receipt and original idempotency evidence independently; no live customer payment.
