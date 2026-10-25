@@ -11,13 +11,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// check prevents dispatch/publication across an SDK session switch; it is
 /// not a substitute for backend authorization.
 final class SupabaseAdminPaymentReader implements AdminPaymentReader {
-  SupabaseAdminPaymentReader(this._client, {required this.adminUserId});
+  SupabaseAdminPaymentReader(this._client, {required this.adminUserId})
+      : _initialSession = _client.auth.currentSession;
 
   final SupabaseClient _client;
   final String adminUserId;
+  final Session? _initialSession;
 
   bool get _sameSession =>
-      adminUserId.isNotEmpty && _client.auth.currentUser?.id == adminUserId;
+      _initialSession != null &&
+      !_initialSession.isExpired &&
+      identical(_client.auth.currentSession, _initialSession) &&
+      adminUserId.isNotEmpty &&
+      _initialSession.user.id == adminUserId;
 
   @override
   Future<List<AdminSanitizedPayment>> readPayments() async {

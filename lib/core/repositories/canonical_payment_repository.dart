@@ -87,15 +87,13 @@ String _id(Object? value) {
 
 bool _sameId(String a, String b) => a.toLowerCase() == b.toLowerCase();
 
-/// SELECT-only read contracts using complete existing RLS-protected columns,
-/// not the reduced summary RPC. No inferred identity/version, migrations,
+/// Canonical payment reads through migration 027's server-authorized RPCs,
+/// never direct finance-table SELECT (denied by migration 019). No inferred identity/version, migrations,
 /// financial writes or trusted Trip/receipt-success claims. No Driver reads.
 class SupabaseCanonicalPaymentRepository
     implements PaymentRepository, CardPaymentRepository {
   SupabaseCanonicalPaymentRepository(this._client);
   final SupabaseClient _client;
-  static const projection = 'id,booking_request_id,trip_id,rider_id,method,'
-      'final_amount_fils,currency,cash_status,card_status,version,card_brand,card_last_four';
   static const adminPageSize = 50;
 
   Session _owner() {
@@ -161,18 +159,26 @@ class SupabaseCanonicalPaymentRepository
         }
         final owner = _owner();
         final role = await _financeRole(owner);
-        final row = await _client
-            .from('payments')
-            .select(projection)
-            .eq('id', paymentId)
-            .maybeSingle();
+        final dynamic response = await _client.rpc(
+          'user_canonical_payment_record',
+          params: {'target_payment_id': paymentId},
+        );
         _requireCurrent(owner);
         if (await _financeRole(owner) != role) {
           throw const CanonicalPaymentReadException(
               CanonicalPaymentReadFailure.unauthorized);
         }
-        if (row == null) throw const PaymentException(PaymentFailure.notFound);
-        final record = CanonicalPaymentRecord.fromRow(row);
+        if (response is! List || response.length > 1) {
+          throw const CanonicalPaymentReadException(
+              CanonicalPaymentReadFailure.invalidResponse);
+        }
+        if (response.isEmpty) throw const PaymentException(PaymentFailure.notFound);
+        if (response.single is! Map) {
+          throw const CanonicalPaymentReadException(
+              CanonicalPaymentReadFailure.invalidResponse);
+        }
+        final record = CanonicalPaymentRecord.fromRow(
+            Map<String, dynamic>.from(response.single as Map));
         final actualId = switch (record) {
           CanonicalCashPayment(:final payment) => payment.paymentId!,
           CanonicalCardPayment(:final payment) => payment.paymentId!,
@@ -204,19 +210,22 @@ class SupabaseCanonicalPaymentRepository
       _read(() async {
         final owner = _owner();
         await _financeRole(owner, adminOnly: true);
-        final rows = await _client
-            .from('payments')
-            .select(projection)
-            .order('created_at', ascending: false)
-            .order('id', ascending: true)
-            .limit(adminPageSize);
+        final dynamic rows = await _client.rpc('admin_recent_canonical_payments');
         _requireCurrent(owner);
         await _financeRole(owner, adminOnly: true);
-        if (rows.length > adminPageSize) {
+        if (rows is! List || rows.length > adminPageSize) {
           throw const CanonicalPaymentReadException(
               CanonicalPaymentReadFailure.invalidResponse);
         }
-        final records = rows.map(CanonicalPaymentRecord.fromRow).toList();
+        final records = <CanonicalPaymentRecord>[];
+        for (final row in rows) {
+          if (row is! Map) {
+            throw const CanonicalPaymentReadException(
+                CanonicalPaymentReadFailure.invalidResponse);
+          }
+          records.add(CanonicalPaymentRecord.fromRow(
+              Map<String, dynamic>.from(row)));
+        }
         final ids = <String>{};
         for (final record in records) {
           final id = switch (record) {

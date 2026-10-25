@@ -51,7 +51,7 @@ class _Backend {
         request.response.write(jsonEncode([
           {'id': actorId, 'role': role, 'is_blocked': blocked}
         ]));
-      } else {
+      } else if (request.uri.path.contains('/rpc/')) {
         await paymentBoundary?.call();
         request.response.statusCode = status;
         request.response.write(jsonEncode(status == 200
@@ -60,6 +60,9 @@ class _Backend {
                 'code': '42501',
                 'message': 'private-provider-error',
               }));
+      } else {
+        request.response.statusCode = 404;
+        request.response.write(jsonEncode({'message': 'Unexpected endpoint'}));
       }
       await request.response.close();
     });
@@ -138,21 +141,18 @@ void main() {
       await backend.start();
     });
     tearDown(() => backend.dispose());
-    test('Rider reads exact canonical Cash record; no mutations or summary RPC',
+    test('Rider reads exact canonical Cash record through authorized RPC',
         () async {
       backend.role = 'rider';
       final payment =
           await backend.repository.readCashPayment(paymentId: paymentId);
       expect(payment.version, 7);
       expect(backend.userReads, 2);
-      expect(backend.requests.every((r) => r.$1 == 'GET'), isTrue);
-      final read = backend.requests
-          .singleWhere((r) => r.$2.path.endsWith('/payments'))
-          .$2;
-      expect(read.queryParameters['id'], 'eq.$paymentId');
-      expect(read.queryParameters['select'],
-          SupabaseCanonicalPaymentRepository.projection);
-      expect(read.queryParameters['select'], isNot(contains('provider_name')));
+      final read = backend.requests.singleWhere((r) =>
+          r.$2.path.endsWith('/rpc/user_canonical_payment_record'));
+      expect(read.$1, 'POST');
+      expect(backend.requests.any((r) => r.$2.path.contains('/rpc/')),
+          isFalse);
     });
     test('method mismatch never coerces Cash to Card', () async {
       await expectLater(
@@ -198,27 +198,26 @@ void main() {
       await expectLater(
           backend.repository.readRecentAdminPayments(), unauthorized);
     });
-    test('Admin list is bounded and ordered, duplicate evidence is invalid',
+    test('Admin list uses authorized bounded RPC; duplicate evidence is invalid',
         () async {
       final records = await backend.repository.readRecentAdminPayments();
       expect(records, hasLength(1));
-      final query = backend.requests
-          .singleWhere((r) => r.$2.path.endsWith('/payments'))
-          .$2;
-      expect(query.queryParameters['limit'], '50');
-      expect(query.queryParameters['order'], startsWith('created_at.desc'));
-      expect(query.queryParameters['order'], contains(',id.asc'));
+      expect(backend.requests.any((r) =>
+          r.$1 == 'POST' &&
+          r.$2.path.endsWith('/rpc/admin_recent_canonical_payments')), isTrue);
+      expect(backend.requests.any((r) => r.$2.path.endsWith('/payments')),
+          isFalse);
       backend.rows = [row(), row()];
       await expectLater(backend.repository.readRecentAdminPayments(), invalid);
     });
-    test('role revocation during SELECT prevents publication', () async {
+    test('role revocation during RPC prevents publication', () async {
       backend.paymentBoundary = () async {
         backend.role = 'rider';
       };
       await expectLater(
           backend.repository.readRecentAdminPayments(), unauthorized);
     });
-    test('SDK account switch during SELECT discards its result', () async {
+    test('SDK account switch during RPC discards its result', () async {
       backend.paymentBoundary = () => backend.session(otherId);
       await expectLater(
           backend.repository.readRecentAdminPayments(), unauthorized);
@@ -242,7 +241,11 @@ void main() {
       final records = await backend.repository.readRecentAdminPayments();
       expect(records, hasLength(1));
       expect(records.single, isA<CanonicalCardPayment>());
-      expect(backend.requests.every((r) => r.$1 == 'GET'), isTrue);
+      expect(backend.requests.any((r) =>
+          r.$1 == 'POST' &&
+          r.$2.path.endsWith('/rpc/admin_recent_canonical_payments')), isTrue);
+      expect(backend.requests.any((r) => r.$2.path.endsWith('/payments')),
+          isFalse);
     });
   });
 }

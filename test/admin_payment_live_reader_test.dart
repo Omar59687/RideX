@@ -1,5 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/core/repositories/supabase_admin_payment_reader.dart';
+import 'package:ridex/features/auth/presentation/providers/admin_payment_providers.dart';
 
 Map<String, Object?> row({
   String method = 'cash',
@@ -23,6 +28,46 @@ Map<String, Object?> row({
 };
 
 void main() {
+
+  test('production reader rejects SDK A-B-A replacement during RPC', () async {
+    final gate = Completer<void>();
+    final received = Completer<void>();
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((request) async {
+      if (!received.isCompleted) received.complete();
+      await gate.future;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode([row()]));
+      await request.response.close();
+    });
+    final client = SupabaseClient(
+      'http://127.0.0.1:${server.port}', 'offline-publishable');
+    Future<void> session(String id) => client.auth.setInitialSession(jsonEncode({
+      'access_token': 'offline-session',
+      'token_type': 'bearer',
+      'expires_at': DateTime.now().add(const Duration(hours: 1))
+          .millisecondsSinceEpoch ~/ 1000,
+      'user': {'id': id, 'aud': 'authenticated'},
+    }));
+    try {
+      await session('admin-a');
+      final reader = SupabaseAdminPaymentReader(client, adminUserId: 'admin-a');
+      final pending = reader.readPayments();
+      await received.future;
+      await session('admin-b');
+      await session('admin-a');
+      gate.complete();
+      await expectLater(
+        pending,
+        throwsA(isA<AdminPaymentReadException>().having(
+          (e) => e.failure, 'failure', AdminPaymentReadFailure.unauthorized)),
+      );
+    } finally {
+      if (!gate.isCompleted) gate.complete();
+      await client.dispose();
+      await server.close(force: true);
+    }
+  });
   test('cashSelected stays unpaid; identifiers never reach display fields', () {
     final payments = parseAdminCanonicalPayments([row()]);
     expect(payments, hasLength(1));
