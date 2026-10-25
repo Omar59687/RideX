@@ -3,7 +3,7 @@ import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
-import 'package:ridex/features/auth/data/supabase_admin_payment_reader.dart';
+import 'package:ridex/core/repositories/supabase_admin_payment_reader.dart';
 import 'package:ridex/features/auth/presentation/widgets/admin_sanitized_payment_mapper.dart';
 
 /// Read-only boundary. Implementations must authorize the current Admin and
