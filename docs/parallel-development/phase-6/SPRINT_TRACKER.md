@@ -1,5 +1,31 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## R01/R02 implementation handoff - 2026-10-25
+
+Branch `feature/p6-r01-r02-driver-cash-integration`, based on merged docs #53 at
+`fc3224c`. [Implementation/evidence record](P6_R01_R02_IMPLEMENTATION.md).
+
+- **R01 PARTIAL:** canonical availability/Trip source and pinned application SDK /
+  B1-B eligibility checks implemented and locally tested. Production registry remains
+  empty pending explicit endpoint-to-stable-namespace approval.
+- **R02 PARTIAL:** durable application-support journal gateway, existing coordinator /
+  Cash composition, Riverpod binding and bounded canonical-screen panel implemented
+  and locally tested. The mock Driver screen remains unchanged; canonical mounting
+  and runtime activation are not completed. No automatic replay or journal cleanup.
+- New verification: **319 focused PASS / 0 FAIL / 0 SKIP**, including **33 new tests**;
+  Flutter Analyze **No issues found**; 10 changed/new Dart files format clean. These
+  are local SDK/HTTP-fixture/widget/file tests, separate from historical #52 results.
+  No full-suite rerun, physical device, hosted financial verification or deployment.
+- Required decision: approve a stable unique journal namespace for the configured
+  `https://ykasivejjchupswqyxpm.supabase.co` endpoint (or explicitly choose another
+  target). No namespace was invented; default activation is disabled.
+- Next independent implementation: **R03 read-only recovery composition**. Registry
+  approval/canonical mounting precede activation, and R07 hosted Cash/receipt evidence
+  remains separately authorized. Phase 6 remains NOT APPROVED.
+
+The current handoff supersedes the Driver-completion provider/source absence in the
+older table below; its hosted acceptance and recovery gaps remain open.
+
 ## Current reconciliation - 2026-10-25, after PR #52
 
 This section supersedes older current-status statements below. Historical handoffs,

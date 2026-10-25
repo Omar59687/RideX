@@ -118,6 +118,7 @@ const _supabaseInfrastructureFiles = {
   'lib/core/providers/driver_tracking_providers.dart',
   'lib/core/providers/repositories_providers.dart',
   'lib/core/repositories/canonical_payment_repository.dart',
+  'lib/core/repositories/supabase_driver_completion_source.dart',
   'lib/core/repositories/canonical_trip_reconciliation_repository.dart',
   'lib/core/repositories/supabase_admin_payment_reader.dart',
   'lib/core/repositories/supabase_auth_repository.dart',

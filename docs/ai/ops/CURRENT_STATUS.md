@@ -1,5 +1,19 @@
 # RideX Current Status
 
+## Current implementation handoff - 2026-10-25 R01/R02
+
+R01/R02 implementation is prepared on `feature/p6-r01-r02-driver-cash-integration`
+from main `fc3224c`. Canonical Driver availability/Trip source, application-support
+journal gateway, existing-owner Cash provider and bounded canonical UI seam are
+implemented. The current Driver mock screen is preserved. Production activation
+remains disabled by an empty approved registry; the endpoint-to-stable-namespace
+owner decision and canonical-screen mounting remain open. Neither task nor Phase 6
+is declared complete. See the [tracker](../../parallel-development/phase-6/SPRINT_TRACKER.md)
+and [implementation record](../../parallel-development/phase-6/P6_R01_R02_IMPLEMENTATION.md)
+for exact status, 319 focused local PASS / 0 FAIL / 0 SKIP, clean analysis and limits.
+No hosted financial operation, deployment, full-suite rerun or physical-device
+acceptance occurred. Next independent implementation is R03 read-only recovery.
+
 ## Current override - 2026-10-25 Phase 6 post-merge reconciliation
 
 PR #52 merged into `main` at `59be9b7712894c695e9c8efa580a1ffc2013bec7`
