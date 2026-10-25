@@ -161,6 +161,14 @@ Historical migration catalog reports do not prove the authenticated role matrix.
 
 ### P6-R04 - Accept Admin and canonical RPC reads on hosted runtime (P6-08/read integration)
 
+- Verification update, 2026-10-25 on main `34801bc`: **PARTIAL**, with hosted
+  authenticated acceptance **BLOCKED**. Project identity, migration 027 matching
+  bodies/grants/RLS and estimated plans were inspected read-only; no hosted actor
+  RPC or financial-row reads were executed. Local evidence: 117 focused Flutter
+  tests, 103 SQL assertions PASS; clean Analyze. See the
+  [R04 evidence record](P6_R04_HOSTED_RPC_VERIFICATION.md) for the role matrix,
+  environment/identity blockers and findings. A passing local characterization
+  test is not acceptance of unobserved remote revocation or nullable-Trip rendering.
 - Current implementation: production Admin RPC composition is merged; exact canonical
   RPC and strict parsing/session guards exist. Authenticated hosted acceptance is open.
 - Files/components: both payment reader adapters, Admin providers/panel/mapper,
@@ -172,6 +180,12 @@ Historical migration catalog reports do not prove the authenticated role matrix.
   reads; verify app logout, role changes, SDK A-to-B-to-A and redacted error/display behavior.
   Inspect representative listing plans/latency; the earlier synthetic top-N scan is
   a scale risk, not proof that a new index is required for this deployment.
+- Required follow-through before acceptance: separately scope the Admin post-RPC
+  profile/cached-data revocation gap (R04-F01) and decide how schema-valid pre-Trip
+  payments with null Trip linkage are represented (R04-F02). No production logic
+  or migration was changed by the audit. Runtime latency is still unmeasured;
+  the hosted estimated listing plan scans/sorts, while the exact read uses the
+  primary-key index with an authorization filter.
 - Acceptance: exact read returns only authorized persisted identity/version; foreign
   and nonexistent IDs are indistinguishable; only nonblocked Admin lists up to 50;
   direct finance SELECT remains denied; no raw IDs/provider payloads reach UI; no

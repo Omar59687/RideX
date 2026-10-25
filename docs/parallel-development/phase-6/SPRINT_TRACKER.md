@@ -1,5 +1,30 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## R04 read-only verification handoff - 2026-10-25
+
+Base: main `34801bcb5b89607e79a2736e83b87d82d4447bb5`.
+[Evidence, actor matrix and findings](P6_R04_HOSTED_RPC_VERIFICATION.md).
+
+- **R04 PARTIAL; authenticated hosted acceptance BLOCKED.** The connected project
+  matches the intended endpoint. Migration 027 history/function bodies, grants,
+  financial RLS/no SELECT policies and estimated plans are verified as hosted
+  configuration. No dedicated identity/record fixture or testing-environment
+  classification was available; no hosted actor/financial-row reads were made.
+- **117 focused Flutter PASS / 0 FAIL**, **103 isolated local SQL assertions
+  PASS / 0 FAIL**, Analyze **No issues found**. Local fixtures are not hosted
+  identity acceptance. Characterization tests document F01/F02 limitations.
+- **Open findings:** Medium F01, unobserved remote Admin demotion/blocking can
+  publish an already-authorized delayed response; Medium F02, nullable Trip
+  linkage allowed by schema/RPC rejects the whole strict Admin list. Low F03,
+  listing scan/sort scale observation without representative latency. Low F04,
+  raw adapter errors rely on the provider's sanitization boundary.
+- Next: approve remote-revocation freshness/pre-Trip display scope, narrowly
+  remediate F01/F02, provide dedicated hosted identity/data authorization and
+  finish R04 runtime acceptance. No migrations/production logic changed, no
+  hosted mutation/deployment, and no Phase 6 approval.
+
+# Phase 6 — Sprint Tracker (authoritative status)
+
 ## R01/R02 implementation handoff - 2026-10-25
 
 PR #54 merged the R01/R02 branch at main `f9e6807` (original base `fc3224c`).
