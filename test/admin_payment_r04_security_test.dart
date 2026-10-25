@@ -44,6 +44,7 @@ class _Loopback {
   final received = Completer<void>();
   final release = Completer<void>();
   final requests = <String>[];
+  int profileReads = 0;
   late HttpServer server;
   late SupabaseClient client;
   String serverRole = 'admin';
@@ -55,7 +56,12 @@ class _Loopback {
     server.listen((request) async {
       requests.add(request.uri.path);
       request.response.headers.contentType = ContentType.json;
-      if (request.uri.path.endsWith('/admin_recent_canonical_payments')) {
+      if (request.uri.path.endsWith('/users')) {
+        profileReads++;
+        request.response.write(jsonEncode([
+          {'id': _admin, 'role': serverRole, 'is_blocked': serverBlocked},
+        ]));
+      } else if (request.uri.path.endsWith('/admin_recent_canonical_payments')) {
         // Model authorization at the server snapshot, followed by network delay.
         final authorized = serverRole == 'admin' && !serverBlocked;
         if (!received.isCompleted) received.complete();
@@ -70,10 +76,6 @@ class _Loopback {
         } else {
           request.response.write(jsonEncode([_payment()]));
         }
-      } else if (request.uri.path.endsWith('/users')) {
-        request.response.write(jsonEncode([
-          {'id': _admin, 'role': serverRole, 'is_blocked': serverBlocked},
-        ]));
       } else if (request.uri.path.endsWith('/logout')) {
         request.response.write('{}');
       } else {
@@ -144,9 +146,7 @@ void main() {
   });
 
   for (final change in ['demotion', 'blocking']) {
-    // Characterization of R04-F01, NOT a passing revocation-acceptance claim.
-    // Change this expectation when separately scoped production hardening lands.
-    test('R04-F01: unobserved server $change permits a delayed summary',
+    test('R04-F01: server $change during RPC prevents delayed publication',
         () async {
       final value = container();
       final pending = value.read(adminPaymentsProvider.future);
@@ -157,11 +157,29 @@ void main() {
         backend.serverBlocked = true;
       }
       backend.release.complete();
-      expect(await pending, hasLength(1));
-      expect(
-          backend.requests.where((path) => path.endsWith('/users')), isEmpty);
+      await expectLater(
+          pending,
+          throwsA(isA<AdminPaymentReadException>().having(
+              (error) => error.failure,
+              'failure',
+              AdminPaymentReadFailure.unauthorized)));
+      expect(backend.profileReads, 2);
     });
   }
+
+  test('R04-F01: already revoked profile prevents Admin RPC dispatch', () async {
+    backend.serverRole = 'rider';
+    final reader =
+        SupabaseAdminPaymentReader(backend.client, adminUserId: _admin);
+    await expectLater(
+        reader.readPayments(),
+        throwsA(isA<AdminPaymentReadException>().having(
+            (error) => error.failure,
+            'failure',
+            AdminPaymentReadFailure.unauthorized)));
+    expect(backend.requests.where((path) =>
+        path.endsWith('/admin_recent_canonical_payments')), isEmpty);
+  });
 
   test('provider sanitizes a raw RPC permission exception', () async {
     backend.failRpc = true;
@@ -177,11 +195,22 @@ void main() {
                 isNot(contains('private-audit')))));
   });
 
-  test('R04-F02: one schema-valid unlinked payment blocks the whole list', () {
+  test('R04-F02: nullable Trip linkage does not block valid Admin rows', () {
     final pendingTrip = {..._payment(), 'trip_id': null};
-    expect(
-        () => parseAdminCanonicalPayments([_payment(), pendingTrip]),
-        throwsA(isA<FormatException>().having((error) => error.message,
-            'safe parser failure', 'Invalid canonical payment field')));
+    final rows = parseAdminCanonicalPayments([_payment(), pendingTrip]);
+    expect(rows, hasLength(2));
+  });
+
+  test('R04-F02: nullable linkage does not weaken financial field parsing', () {
+    for (final malformed in [
+      {..._payment(), 'trip_id': ''},
+      {..._payment(), 'trip_id': 42},
+      {..._payment(), 'trip_id': null}..remove('final_amount_fils'),
+      {..._payment(), 'trip_id': null, 'final_amount_fils': '4200'},
+      {..._payment(), 'trip_id': null, 'final_amount_fils': -1},
+    ]) {
+      expect(() => parseAdminCanonicalPayments([malformed]),
+          throwsA(anyOf(isA<FormatException>(), isA<ArgumentError>())));
+    }
   });
 }

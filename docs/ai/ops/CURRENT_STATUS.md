@@ -1,28 +1,26 @@
 # RideX Current Status
 
-## Current override - 2026-10-25 P6-R04 verification
+## Current override - 2026-10-25 P6-R04 Admin hardening
 
-Based on main `34801bcb5b89607e79a2736e83b87d82d4447bb5`, R04 verified the
-connected hosted project/endpoint, migration 027 and matching function bodies,
-RPC grants, financial-table RLS/no SELECT policies, and estimated query plans.
-**R04 is PARTIAL; authenticated hosted acceptance is BLOCKED** by missing
-environment classification, dedicated identities and approved representative
-records. No hosted financial rows or actor RPC results were read.
+Based on main `a637f5e` (PR #57). The Admin reader now checks the current,
+nonblocked Admin profile before and after the canonical list RPC while pinning
+the same SDK session. This prevents publication when demotion/blocking is seen
+by either check; it cannot guarantee instantaneous revocation after the final
+read. Canonical and Admin payment parsing now accept an explicitly null Trip
+link while rejecting missing/malformed linkage and invalid financial fields.
 
-Focused local verification: **117 Flutter PASS / 0 FAIL**, **103 SQL assertions
-PASS / 0 FAIL**, and Flutter Analyze **No issues found**. New characterization
-tests expose two open acceptance gaps: unobserved remote Admin demotion/blocking
-can allow delayed summaries to publish, and schema-valid nullable Trip linkage
-causes the strict Admin parser to reject the entire list. Those passing tests
-document limitations; they do not approve them. No production logic or migration
-was changed, no hosted deployment/financial operation occurred, and Phase 6
-remains NOT APPROVED.
+Focused local verification: **51 tests PASS / 0 FAIL** across three payment
+reader tests; Flutter Analyze **No issues found**. F01/F02 are locally
+remediated but not hosted-accepted. **R04 remains PARTIAL; authenticated hosted
+acceptance remains BLOCKED** by unconfirmed environment classification,
+authorization and dedicated fixtures. No migration, hosted operation, full-suite
+run or device test occurred; Phase 6 remains NOT APPROVED.
 
 See [R04 evidence and findings](../../parallel-development/phase-6/P6_R04_HOSTED_RPC_VERIFICATION.md)
 and the [authoritative tracker](../../parallel-development/phase-6/SPRINT_TRACKER.md).
-Next: narrowly scoped Admin reader/profile-revalidation and pre-Trip visibility
-contract decisions/remediation, then the approved hosted role/runtime matrix.
-Older R01-R03 handoffs below are preserved as historical branch-local evidence.
+Next: complete the hosted role/session/runtime matrix after approved identities
+and fixtures are provided. Older R01-R03 handoffs below are preserved as
+historical branch-local evidence.
 
 ## Current override - 2026-10-25 P6-R03 read-only recovery (PR #55 review correction)
 

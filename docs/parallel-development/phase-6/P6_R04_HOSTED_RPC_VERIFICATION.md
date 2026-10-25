@@ -4,13 +4,46 @@ Date: 2026-10-25 UTC. Repository base: main
 `34801bcb5b89607e79a2736e83b87d82d4447bb5`.
 Branch: `docs/p6-r04-hosted-rpc-verification`.
 
+## Admin hardening update - PR implementation
+
+Based on main `a637f5e` (after PR #57). This follow-up locally addresses the F01/F02
+client integration gaps without changing migration 027 or its server contract.
+
+- The production `SupabaseAdminPaymentReader` checks the pinned, nonexpired SDK
+  session and reads the current `users` profile (`id`, `role`, `is_blocked`)
+  before the Admin RPC and again after it. A missing, mismatched, blocked or
+  demoted profile rejects publication. Session identity is checked after each
+  asynchronous profile read and once more before returning the parsed list.
+  The server-authorized Admin RPC remains the data authority.
+- This is a bounded freshness check, not instantaneous revocation: a role may
+  change immediately after the final profile query. No realtime revocation
+  subscription, server-issued freshness token or hosted latency guarantee was
+  added. When the application observes a role/block/session change, existing
+  Riverpod session dependencies replace/hide the Admin view; host acceptance is
+  still required to assess runtime behavior.
+- Admin RPC parsing and the canonical payment record now accept `trip_id: null`
+  only when the field is present. Non-null linkage must remain a nonblank string
+  in the Admin adapter and a UUID in the canonical repository. Amount, version,
+  status, currency, identity and card metadata validation remains strict. The
+  display model omits Trip identity, so pre-Trip rows add no new visible ID.
+- Regression tests cover remote demotion/blocking during the RPC, a previously
+  revoked profile preventing dispatch, null linkage alongside valid rows, and
+  malformed/missing linkage and financial fields. Three focused test files:
+  **51 PASS / 0 FAIL**. Flutter Analyze: **No issues found**. No hosted actor
+  request, financial operation, migration change, full-suite run or device test.
+- F01/F02 are **locally remediated**, not hosted-accepted. R04 remains PARTIAL
+  and authenticated hosted acceptance BLOCKED by missing environment approval
+  and dedicated fixture authorization stated below. Earlier audit totals remain
+  historical evidence from their original base.
+
 **Status: PARTIAL; authenticated hosted acceptance BLOCKED.** Hosted project,
 migration, function definitions, grants, RLS configuration and estimated plans
 were inspected. No authorized R04 account/data fixture or environment testing
 classification was supplied or found in the inspected records/configuration.
 No hosted actor RPC or financial-row read was attempted. Local passing tests
-include explicit characterization of unresolved acceptance findings below;
-their passing count does not approve those behaviors or Phase 6.
+from the initial audit characterized F01/F02; the follow-up section above records
+their local remediations and remaining limits. No local passing count approves
+hosted behaviors or Phase 6.
 
 ## Environment and authorization provenance
 
@@ -193,8 +226,8 @@ send those fixture scripts to the hosted target.
 
 | ID | Severity | Evidence and consequence | Required follow-through |
 |---|---|---|---|
-| R04-F01 | Medium, session/privacy acceptance blocker | Loopback reader/provider accepts an already-authorized delayed response after server-only demotion/blocking when SDK/app SessionState stays unchanged. New requests remain server-authorized; this is not a demonstrated backend authorization bypass. | Separately scoped Admin reader/profile revalidation and cached-data invalidation hardening; owner defines the acceptable remote-revocation freshness bound. Reuse existing lifecycle owners. |
-| R04-F02 | Medium, integration availability blocker | Hosted catalog permits nullable `payments.trip_id`; existing SQL fixtures exercise such pre-Trip records. RPC returns them, but production Admin parser requires a nonblank Trip ID and rejects the entire list if one is null. Local characterization reproduces the failure. Actual hosted prevalence was not queried. | Decide approved pre-Trip visibility behavior, then align the narrow Admin read/display contract without fabricating Trip linkage or silently weakening authorization. |
+| R04-F01 | Medium, session/privacy acceptance blocker | Historical baseline: delayed responses could publish after unobserved remote demotion/blocking. Follow-up locally rechecks current profile before and after RPC, preventing publication when those reads observe revocation. This is not a demonstrated backend authorization bypass and does not close the race after the final profile check. | Local mitigation implemented in this follow-up; hosted demotion/blocking cases and acceptable freshness remain unverified. Do not claim instantaneous revocation. |
+| R04-F02 | Medium, integration availability blocker | Historical baseline: schema-valid null `payments.trip_id` made the strict Admin list parser fail. Follow-up accepts an explicitly null Trip link across Admin/canonical readers; local regressions cover mixed rows. Actual hosted prevalence remains unqueried. | Local mitigation implemented in this follow-up; verify through an approved hosted read fixture. Missing or malformed linkage and financial fields still fail closed. |
 | R04-F03 | Low, performance observation | Hosted estimated listing plan scans/sorts; no ordering index. No representative latency measured. | Measure with approved identities/data; consider a separate index review only if justified. |
 | R04-F04 | Low, defense in depth | Raw Admin adapter RPC exceptions propagate until the provider sanitizes them. Current UI boundary tests pass; arbitrary direct consumers could expose backend details if they log exceptions. | Keep the provider boundary mandatory; consider typed error conversion in the separately scoped reader-hardening task. |
 

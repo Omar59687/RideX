@@ -1,6 +1,23 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
-## R04 read-only verification handoff - 2026-10-25
+## R04 Admin security hardening update - 2026-10-25
+
+Based on main `a637f5e` (after PR #57). [Detailed evidence](P6_R04_HOSTED_RPC_VERIFICATION.md).
+
+- F01 locally remediated: production Admin reader rechecks the exact live SDK
+  session and current nonblocked Admin profile before and after the RPC. This
+  catches revocation observed during the read, but cannot promise detection of a
+  change immediately after the final profile check.
+- F02 locally remediated: Admin and canonical readers accept a present, null
+  `trip_id`; missing/invalid linkage and malformed financial fields still fail
+  closed. Display rows do not expose Trip IDs.
+- Three focused Flutter test files: **51 PASS / 0 FAIL**; Analyze **No issues**.
+  No full suite or hosted role test was run.
+- **R04 PARTIAL; hosted acceptance BLOCKED** pending environment classification,
+  authorization and dedicated fixture availability. F01/F02 local fixes do not
+  complete role/session runtime acceptance. R04 evidence and Phase 6 remain open.
+
+## R04 read-only verification handoff - 2026-10-25 (historical baseline)
 
 Base: main `34801bcb5b89607e79a2736e83b87d82d4447bb5`.
 [Evidence, actor matrix and findings](P6_R04_HOSTED_RPC_VERIFICATION.md).
@@ -13,15 +30,15 @@ Base: main `34801bcb5b89607e79a2736e83b87d82d4447bb5`.
 - **117 focused Flutter PASS / 0 FAIL**, **103 isolated local SQL assertions
   PASS / 0 FAIL**, Analyze **No issues found**. Local fixtures are not hosted
   identity acceptance. Characterization tests document F01/F02 limitations.
-- **Open findings:** Medium F01, unobserved remote Admin demotion/blocking can
-  publish an already-authorized delayed response; Medium F02, nullable Trip
-  linkage allowed by schema/RPC rejects the whole strict Admin list. Low F03,
+- At that baseline, **open findings** included Medium F01, unobserved remote
+  Admin demotion/blocking could publish an already-authorized delayed response;
+  and Medium F02, nullable Trip linkage could reject the strict Admin list. F01/F02
+  have since been locally remediated above. Low F03,
   listing scan/sort scale observation without representative latency. Low F04,
   raw adapter errors rely on the provider's sanitization boundary.
-- Next: approve remote-revocation freshness/pre-Trip display scope, narrowly
-  remediate F01/F02, provide dedicated hosted identity/data authorization and
-  finish R04 runtime acceptance. No migrations/production logic changed, no
-  hosted mutation/deployment, and no Phase 6 approval.
+- Next: provide dedicated hosted identity/data authorization and finish R04
+  runtime acceptance. F03/F04 and hosted readiness remain open. No hosted
+  mutation/deployment or Phase 6 approval.
 
 # Phase 6 — Sprint Tracker (authoritative status)
 

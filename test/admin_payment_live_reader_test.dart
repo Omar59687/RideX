@@ -34,10 +34,19 @@ void main() {
     final received = Completer<void>();
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
-      if (!received.isCompleted) received.complete();
-      await gate.future;
       request.response.headers.contentType = ContentType.json;
-      request.response.write(jsonEncode([row()]));
+      if (request.uri.path.endsWith('/users')) {
+        request.response.write(jsonEncode([
+          {'id': 'admin-a', 'role': 'admin', 'is_blocked': false},
+        ]));
+      } else if (request.uri.path.endsWith('/admin_recent_canonical_payments')) {
+        if (!received.isCompleted) received.complete();
+        await gate.future;
+        request.response.write(jsonEncode([row()]));
+      } else {
+        request.response.statusCode = 404;
+        request.response.write('{}');
+      }
       await request.response.close();
     });
     final client = SupabaseClient(
@@ -125,11 +134,11 @@ void main() {
       throwsFormatException,
     );
     expect(
-      () => parseAdminCanonicalPayments([{
+      parseAdminCanonicalPayments([{
         ...row(),
         'trip_id': null,
       }]),
-      throwsFormatException,
+      hasLength(1),
     );
     expect(
       () => parseAdminCanonicalPayments([{
