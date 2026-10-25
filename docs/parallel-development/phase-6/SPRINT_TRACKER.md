@@ -29,7 +29,8 @@ PR #54 merged the R01/R02 branch at main `f9e6807` (original base `fc3224c`).
 PR #54 is merged at `f9e6807`. The original #55 was externally merged at
 `34801bc` during review correction, before these fixes were pushed. The existing
 `feature/p6-r03-cash-recovery-integration` branch is reconciled with both main
-commits; its correction still requires independent follow-up review. See
+commits; its correction requires independent review on
+[follow-up #56](https://github.com/Omar59687/RideX/pull/56). See
 [R03 implementation record](P6_R03_IMPLEMENTATION.md).
 
 - **R03 PARTIAL:** recovery discovers immutable per-Driver journal entries on

@@ -6,7 +6,8 @@ was originally based on PR #54 head `9ba703a`. PR #54 is now merged at main
 branch without conflicts. During verification, another actor merged the original
 PR #55 at `34801bc` before the local corrections were pushed. That identical-content
 main was also merged here without conflicts. The correction therefore requires a
-follow-up review PR; the original merge is not approval of this fix. The
+[follow-up review PR #56](https://github.com/Omar59687/RideX/pull/56);
+the original merge is not approval of this fix. The
 intentionally empty approved backend registry still disables production activation.
 
 ## Implemented
