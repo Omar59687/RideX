@@ -204,6 +204,7 @@ final class DriverCompletionRecoveryCoordinator {
         driverId: _owner.driverId!,
         status: retained.status,
         backendVersion: retained.backendVersion!,
+        paymentMethod: 'cash',
       );
     }
     final CanonicalTripReadOutcome read;
@@ -240,6 +241,13 @@ final class DriverCompletionRecoveryCoordinator {
           return _publish(
               generation, DriverReadOnlyRecoveryDisposition.readFailed,
               readFailure: CanonicalTripReadFailure.foreignEvidence);
+        }
+        if (trip.backendVersion < _command!.expectedTripVersion) {
+          return _publish(
+            generation,
+            DriverReadOnlyRecoveryDisposition.conflictingEvidence,
+            observedTrip: trip,
+          );
         }
         final previous = _strongest;
         if (previous != null &&

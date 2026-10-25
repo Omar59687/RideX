@@ -18,6 +18,20 @@ sealed class CompletionSlot {
   const CompletionSlot();
 }
 
+sealed class CompletionDriverSnapshot {
+  const CompletionDriverSnapshot();
+}
+
+final class CompletionDriverCommands extends CompletionDriverSnapshot {
+  const CompletionDriverCommands(this.commands);
+  final List<DriverCompleteTripCommand> commands;
+}
+
+final class CompletionDriverUnavailable extends CompletionDriverSnapshot {
+  const CompletionDriverUnavailable(this.issue);
+  final CompletionJournalIssue issue;
+}
+
 final class CompletionAbsent extends CompletionSlot {
   const CompletionAbsent();
 }
@@ -78,6 +92,13 @@ final class CompletionBlocked extends CompletionStageResult {
 /// ambient active account. Account separation is not local encryption or
 /// authentication. Canonical eligibility and session checks belong upstream.
 abstract interface class DriverCompletionCommandStore {
+  /// Read-only startup discovery for one captured Driver/backend partition.
+  /// Implementations must not append, flush, repair or retire command evidence.
+  Future<CompletionDriverSnapshot> inspectDriver({
+    required String backendNamespace,
+    required String driverId,
+  });
+
   Future<CompletionSlot> inspect({
     required String backendNamespace,
     required String driverId,

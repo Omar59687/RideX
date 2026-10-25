@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:ridex/features/trips/application/driver_completion_coordinator.dart';
+import 'package:ridex/features/trips/application/driver_cash_recovery_controller.dart';
 
 enum DriverCashCompletionState {
   unavailable,
@@ -18,11 +19,13 @@ enum DriverCashCompletionState {
 final class DriverCashCompletionController extends ChangeNotifier {
   DriverCashCompletionController(
       {required this.coordinator,
+      required this.recovery,
       required this.prepareContext,
       required this.isCurrent,
       required this.failureState,
       required this.release});
   final DriverCompletionCoordinator coordinator;
+  final DriverCashRecoveryController recovery;
   final Future<bool> Function() prepareContext;
   final bool Function() isCurrent;
   final DriverCashCompletionState Function() failureState;
@@ -86,6 +89,7 @@ final class DriverCashCompletionController extends ChangeNotifier {
   void observeAuthority() {
     if (!_disposed && !isCurrent()) {
       coordinator.invalidate();
+      recovery.observeAuthority();
       _publish(DriverCashCompletionState.authorizationLost);
     }
   }
@@ -94,6 +98,7 @@ final class DriverCashCompletionController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     coordinator.dispose();
+    recovery.dispose();
     release();
     super.dispose();
   }

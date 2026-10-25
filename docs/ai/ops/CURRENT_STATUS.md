@@ -1,5 +1,24 @@
 # RideX Current Status
 
+## Current override - 2026-10-25 P6-R03 read-only recovery (stacked PR #55)
+
+R03 read-only local integration is implemented on
+`feature/p6-r03-cash-recovery-integration`, stacked on the still-open PR #54
+head `9ba703a`. It adds no production financial mutation: provider creation,
+app resume and explicit panel reconciliation only discover durable Driver journal
+commands, read canonical Cash Trip evidence and call the existing Driver-safe
+receipt summary RPC. It never completes, retries, repairs, deletes or retires a
+command. The optional panel remains unmounted on the existing mock Driver route.
+
+Local focused recovery/canonical/composition tests report **184 PASS / 0 FAIL**.
+Flutter Analyze result and limits are in the
+[R03 implementation record](../../parallel-development/phase-6/P6_R03_IMPLEMENTATION.md).
+The empty backend registry still prevents activation until the owner approves the
+exact endpoint namespace; journal retention/operator resolution policy, hosted
+role/session/restart verification and canonical screen mounting also remain open.
+No hosted/runtime/device or financial outcome is claimed. R03 is PARTIAL and Phase 6
+remains NOT APPROVED. See the [authoritative tracker](../../parallel-development/phase-6/SPRINT_TRACKER.md).
+
 ## Current implementation handoff - 2026-10-25 R01/R02
 
 R01/R02 implementation is prepared on `feature/p6-r01-r02-driver-cash-integration`

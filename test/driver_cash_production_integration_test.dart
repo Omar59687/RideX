@@ -25,6 +25,7 @@ import 'package:ridex/core/services/trips/application_completion_store.dart';
 import 'package:ridex/core/services/trips/driver_completion_command_store.dart';
 import 'package:ridex/core/services/trips/file_driver_completion_command_store.dart';
 import 'package:ridex/features/trips/application/driver_cash_completion_controller.dart';
+import 'package:ridex/features/trips/application/driver_cash_recovery_controller.dart';
 import 'package:ridex/features/trips/presentation/widgets/driver_cash_completion_panel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
@@ -320,6 +321,55 @@ void main() {
     expect(requests, isEmpty);
   });
 
+  test('startup recovery reads existing command and receipt without RPC dispatch', () async {
+    await store.stage(backendNamespace: namespace, driverId: fixture.driver,
+        command: DriverCompleteTripCommand(tripId: trip,
+            expectedTripVersion: 4, idempotencyKey: 'original'));
+    status = 'completed';
+    version = 5;
+    final controller = container().read(driverCashCompletionProvider)!;
+    await controller.recovery.reconcile();
+    expect(controller.recovery.state,
+        DriverCashRecoveryState.completionVerifiedReceiptVerified);
+    expect(bodies, isEmpty);
+    expect(requests.any((r) => r.$2.endsWith('/driver_transition_trip')), isFalse);
+    final saved = await store.inspect(backendNamespace: namespace,
+        driverId: fixture.driver, tripId: trip) as CompletionValid;
+    expect(saved.command.idempotencyKey, 'original');
+  });
+
+  test('missing receipt is unverified, not payment failure', () async {
+    await store.stage(backendNamespace: namespace, driverId: fixture.driver,
+        command: DriverCompleteTripCommand(tripId: trip,
+            expectedTripVersion: 4, idempotencyKey: 'original'));
+    status = 'completed';
+    version = 5;
+    missingReceipt = true;
+    final controller = container().read(driverCashCompletionProvider)!;
+    await controller.recovery.reconcile();
+    expect(controller.recovery.state,
+        DriverCashRecoveryState.completionVerifiedReceiptUnverified);
+    expect(bodies, isEmpty);
+  });
+
+  test('resume and explicit reconciliation reread without financial dispatch', () async {
+    await store.stage(backendNamespace: namespace, driverId: fixture.driver,
+        command: DriverCompleteTripCommand(tripId: trip,
+            expectedTripVersion: 4, idempotencyKey: 'resume-key'));
+    status = 'completed';
+    version = 5;
+    final controller = container().read(driverCashCompletionProvider)!;
+    await controller.recovery.reconcile();
+    requests.clear();
+    WidgetsBinding.instance.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await controller.recovery.reconcile();
+    expect(controller.recovery.state,
+        DriverCashRecoveryState.completionVerifiedReceiptVerified);
+    expect(requests.any((r) => r.$2.endsWith('/user_trip_receipt_summary')), isTrue);
+    expect(requests.any((r) => r.$2.endsWith('/driver_transition_trip')), isFalse);
+    expect(bodies, isEmpty);
+  });
+
   for (final path in [
     '/users',
     '/driver_profiles',
@@ -471,8 +521,9 @@ void main() {
   test(
       'network loss after staging retains evidence without reporting authorization loss',
       () async {
+    var opens = 0;
     final controller = container(openStore: () async {
-      failReads = true;
+      if (++opens > 1) failReads = true;
       return store;
     }).read(driverCashCompletionProvider)!;
     await controller.prepare();
@@ -572,8 +623,9 @@ void main() {
   test(
       'new version during durable staging is rejected without rotating original evidence',
       () async {
+    var opens = 0;
     final controller = container(openStore: () async {
-      version = 10;
+      if (++opens > 1) version = 10;
       return store;
     }).read(driverCashCompletionProvider)!;
     await controller.prepare();

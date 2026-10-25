@@ -13,6 +13,7 @@ import 'package:ridex/core/services/trips/driver_completion_command_store.dart';
 import 'package:ridex/core/services/trips/driver_completion_staging_gateway.dart';
 import 'package:ridex/features/trips/application/driver_cash_completion_controller.dart';
 import 'package:ridex/features/trips/application/driver_completion_coordinator.dart';
+import 'package:ridex/features/trips/application/driver_cash_recovery_controller.dart';
 
 /// Integration-owned deployment allowlist. Deliberately empty pending explicit
 /// endpoint/namespace approval. No dart-define or URL-derived namespace fallback.
@@ -66,8 +67,15 @@ final driverCashCompletionProvider =
     repository: repository,
     sessionReader: source.readSession,
   );
+  final recovery = DriverCashRecoveryController(
+    source: source,
+    authority: binding,
+    repository: repository,
+    openJournal: openStore,
+  );
   final controller = DriverCashCompletionController(
     coordinator: coordinator,
+    recovery: recovery,
     prepareContext: () async => await source.load() != null,
     isCurrent: () => source.isCurrent,
     failureState: () => switch (source.lastFailure) {
