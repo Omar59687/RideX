@@ -1,5 +1,23 @@
 # Approved Decisions
 
+## Recorded implementation boundaries - 2026-10-25
+
+This records merged behavior and preserves prior approvals; it grants no new
+financial execution, deployment, phase-exit or release approval.
+
+- PR #52 (`59be9b7`) integrates migration 027's authorized canonical payment RPCs.
+  Migration 019's direct `payments` SELECT denial remains intact. Admin production
+  reads use `admin_recent_canonical_payments` through the dedicated sanitized reader.
+- SDK Session object identity is pinned across Admin reads, including account
+  replacement; the server's current-profile authorization remains authoritative.
+- Cash commands require the existing journal/coordinator, approved backend mapping,
+  canonical Trip/version and B1-B owner. Stored evidence never authorizes replay
+  or journal retirement. Production consumers remain a separately reviewed task.
+- Stripe preparation remains server-only, Test Mode, unconfirmed, with no client
+  secret exposed by this interface. No authorization/capture/webhook/refund scope
+  is moved from Phase 8. Secure UI and Phase 7 dependency decisions remain open.
+- Status authority: [Phase 6 tracker](../../parallel-development/phase-6/SPRINT_TRACKER.md).
+
 | Topic | Decision |
 |---|---|
 | Token authority | `references/UI/tokens/ridex-v2-tokens.json` |

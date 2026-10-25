@@ -1,6 +1,16 @@
 # RideX Development Plan
 
-Last updated: 2026-10-19
+## Latest integration checkpoint - Phase 6, 2026-10-25
+
+PR #52 is merged into `main` at `59be9b7`; superseded #47/#51 are closed without
+merge after comparison. This is an implementation checkpoint, not Phase 6 approval.
+Use the [authoritative sprint tracker](docs/parallel-development/phase-6/SPRINT_TRACKER.md)
+for status and owner-provided historical verification, and the
+[remaining execution roadmap](docs/parallel-development/phase-6/P6_POST_MERGE_ROADMAP.md)
+for task IDs, dependencies and acceptance. The prior Phase 5 acceptance and open
+Phase 4/5 exit checks below remain unchanged.
+
+Last updated: 2026-10-25
 
 ## Latest owner decision — Phase 5 core accepted; full exit gates still tracked
 
@@ -1497,9 +1507,17 @@ separate future scope; no such work is authorized by this reconciliation.
 
 ### Phase 6: Payment Foundations
 
-- [ ] Implement persistent Cash payment foundations.
-- [ ] Implement provider-independent Card payment contracts.
-- [ ] Implement Stripe Test Mode PaymentIntent and secure UI foundations.
+Current status: [SPRINT_TRACKER.md](docs/parallel-development/phase-6/SPRINT_TRACKER.md).
+The checklist separates merged foundations from unfinished runtime integration.
+
+- [x] Implement Cash domain/journal/coordinator and injectable trusted composition foundations (production activation remains below).
+- [x] Implement provider-independent Card read contracts and presentation foundations.
+- [x] Implement the bounded server-only unconfirmed Stripe Test Mode preparation interface.
+- [ ] Complete canonical Driver Cash provider/UI and read-only recovery integration (R01-R03).
+- [ ] Accept hosted Admin/canonical reader behavior and finish approved Rider consumer wiring (R04-R05).
+- [ ] Complete approved Stripe Test Mode trusted handler and secure UI foundations, or record an explicit owner scope/dependency disposition (R06/R08).
+- [ ] Record hosted Cash/receipt evidence and integration acceptance (R07/R09).
+- [ ] PHASE 6 APPROVED. Merge and historical local test results do not check this gate.
 
 ### Phase 7: Matching and Realtime
 

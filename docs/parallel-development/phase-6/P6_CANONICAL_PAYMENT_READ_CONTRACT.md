@@ -1,5 +1,42 @@
 # Complete canonical payment read contract
 
+## Current contract after PR #52 - 2026-10-25
+
+PR #52 merged at `59be9b7`. Migration 027 (already merged via #50) is the
+canonical authorized read path. Migration 019 denies direct payment-table SELECT;
+the historical RLS/grant interpretation below was incorrect and is superseded.
+
+`SupabaseCanonicalPaymentRepository` implements Cash/Card reads using
+`user_canonical_payment_record(target_payment_id)` and Admin enumeration using
+`admin_recent_canonical_payments`. The RPCs return persisted booking/Trip/Rider
+identity, Payment version, integer fils, currency/status and sanitized card metadata.
+No identity/version is inferred. Exact reads admit a nonblocked owning Rider or
+Admin; foreign/nonexistent IDs return the same empty result. Listing requires a
+current nonblocked Admin, ordered by creation descending/ID ascending, limit 50.
+Drivers and anonymous callers have no authorized finance-reader path.
+
+The repository checks canonical user role/blocked state and exact SDK Session
+object identity around asynchronous reads. Local checks complement server
+current-profile authorization; they do not replace it. RPC transport is POST,
+with read-only SQL semantics. No direct `/payments` SELECT remains in this adapter.
+
+Production Admin uses the separate `SupabaseAdminPaymentReader`, its strict parser
+and existing sanitized mapper/provider/widget chain. It pins the initial unexpired
+SDK Session and matches app/SDK identity. The removed legacy Admin wrapper is not
+production composition. Rider Cash/Card providers still default to null; a trusted
+payment-ID and canonical Trip linkage plus reviewed wiring are required. Payment
+status or caller-built Trip evidence cannot establish receipt issuance or success.
+
+Local test sources include `test/canonical_payment_reader_test.dart` and
+`test/admin_payment_live_reader_test.dart`. Historical owner #52 results and open
+hosted gates are recorded only in [SPRINT_TRACKER.md](SPRINT_TRACKER.md). This audit
+ran no Flutter or hosted tests and changed no schema or financial behavior.
+
+## Historical recovered contract (superseded where inconsistent)
+
+The original recovery description and test counts below are retained for provenance.
+Its direct SELECT/RLS and GET-only descriptions do not describe the merged RPC code.
+
 ## Resolution without a migration
 
 The summary RPC is intentionally reduced and remains unchanged. The existing
