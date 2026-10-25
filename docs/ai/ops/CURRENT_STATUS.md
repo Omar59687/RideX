@@ -1,5 +1,11 @@
 # RideX Current Status
 
+## Latest verified Phase 6 merges — 2026-10-25 (`main` `552b0f7`)
+
+The R03 recovery-state fix has merged as PR #56 (`8b1ee51`), Admin F01/F02 read hardening as PR #58 (`3c83c78`) and Rider canonical exact-ID Cash/Card reader integration as PR #59 (`552b0f7`). Original R03 PR #55 and R01/R02 PR #54 are merged. The previously described R03 review-pending and R05 branch-local implementation entries below are historical, not current merge blockers.
+
+R03's per-Trip evidence remains read-only; R05 still lacks a trusted backend-issued Payment ID from real Trip/history UI; R04 hosted authenticated actor acceptance is still blocked. Driver registry remains empty and its canonical non-mock UI is not mounted; hosted trusted Cash/receipt and Stripe runtime are not verified. **Phase 6 is not approved**. See [the merged-code closeout and remaining gates](../../parallel-development/phase-6/P6_CURRENT_CLOSEOUT_GATES_2026-10-25.md). No Phase 4/5 release gate was changed by this reconciliation.
+
 ## Current override - 2026-10-25 P6-R05 Rider reader integration
 
 R05 implementation is **PARTIAL** on `feature/p6-r05-rider-payment-reader`, based
