@@ -1,5 +1,17 @@
 # Phase 6 post-merge audit and remaining execution roadmap
 
+## R01/R02 implementation update - 2026-10-25
+
+The original audit/specifications below are preserved. The canonical source,
+journal gateway, application-support storage, existing-owner provider and bounded
+canonical-screen panel are now implemented for review on
+`feature/p6-r01-r02-driver-cash-integration` from main `fc3224c`.
+R01/R02 remain PARTIAL because the approved deployment namespace and production
+activation/canonical mounting are still open. The mock screen is unchanged.
+See [SPRINT_TRACKER.md](SPRINT_TRACKER.md) for status and
+[P6_R01_R02_IMPLEMENTATION.md](P6_R01_R02_IMPLEMENTATION.md) for files, owner decision,
+319 focused local test results and limitations. Next independent task: R03.
+
 Audit date: 2026-10-25. Audited main: `59be9b7712894c695e9c8efa580a1ffc2013bec7`.
 The [sprint tracker](SPRINT_TRACKER.md) is the sole task-status authority and contains
 the requested Implemented / Integrated / Verified / Remaining workstream table.
