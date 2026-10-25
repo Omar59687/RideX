@@ -4,13 +4,15 @@
 
 The original audit/specifications below are preserved. The canonical source,
 journal gateway, application-support storage, existing-owner provider and bounded
-canonical-screen panel are now implemented for review on
-`feature/p6-r01-r02-driver-cash-integration` from main `fc3224c`.
+canonical-screen panel merged via PR #54 at main `f9e6807`, originally on
+`feature/p6-r01-r02-driver-cash-integration` from `fc3224c`.
 R01/R02 remain PARTIAL because the approved deployment namespace and production
 activation/canonical mounting are still open. The mock screen is unchanged.
 See [SPRINT_TRACKER.md](SPRINT_TRACKER.md) for status and
 [P6_R01_R02_IMPLEMENTATION.md](P6_R01_R02_IMPLEMENTATION.md) for files, owner decision,
-319 focused local test results and limitations. Next independent task: R03.
+319 historical focused local test results and limitations. R03 local composition
+merged via #55 at `34801bc`; its aggregate review correction remains pending
+in a follow-up PR. Runtime gates remain open.
 
 Audit date: 2026-10-25. Audited main: `59be9b7712894c695e9c8efa580a1ffc2013bec7`.
 The [sprint tracker](SPRINT_TRACKER.md) is the sole task-status authority and contains
@@ -121,11 +123,13 @@ Historical migration catalog reports do not prove the authenticated role matrix.
 
 ### P6-R03 - Wire read-only Cash recovery and unresolved UI (P6-02/P6-07)
 
-- Current implementation on stacked PR #55: per-Driver read-only journal discovery,
+- Original PR #55 merged at `34801bc` after #54/main `f9e6807`.
+  The follow-up branch reconciles both and corrects the reviewed aggregate issue:
+  per-Driver read-only journal discovery,
   startup-on-provider-creation/resume/explicit triggers, canonical Cash Trip checks,
   receipt-summary reads and bounded panel states are composed locally. See
-  [P6_R03_IMPLEMENTATION.md](P6_R03_IMPLEMENTATION.md). R03 remains PARTIAL: PR #54
-  is still open; the approved backend registry is empty; the canonical panel is not
+  [P6_R03_IMPLEMENTATION.md](P6_R03_IMPLEMENTATION.md). R03 remains PARTIAL:
+  the approved backend registry is empty; the canonical panel is not
   mounted; hosted/runtime and journal/operator policy acceptance remain open.
 - Receipt reuse: `user_trip_receipt_summary(target_trip_id)` is already authorized
   for authenticated participants by migration 019/020. R03 calls only that RPC;
@@ -137,7 +141,7 @@ Historical migration catalog reports do not prove the authenticated role matrix.
   `lib/core/services/trips/file_driver_completion_command_store.dart`, the R02
   session-scoped provider/panel; focused recovery, canonical reader and production
   composition tests.
-- Required remaining work: wait for #54 merge and namespace owner approval before
+- Required remaining work: independent follow-up re-review and namespace owner approval before
   activation; mount the canonical panel in a non-mock Driver Trip screen; establish
   owner-approved journal retention/export and operator-resolution policy; collect
   hosted role/session/restart evidence under R07. The read-only local composition
@@ -147,7 +151,9 @@ Historical migration catalog reports do not prove the authenticated role matrix.
   missing receipt, stale version, and no dispatch. Full R03 acceptance still requires
   hosted runtime/role/session/restart evidence, canonical UI activation after the
   approved registry, and a policy for operator resolution; weaker reads never
-  downgrade a previously verified completion.
+  erase per-Trip canonical/receipt facts. Separate latest outcomes keep unresolved,
+  failed and not-yet-checked commands visible in the aggregate; one verified Trip
+  cannot hide another Trip. Focused correction tests: 210 PASS / 0 FAIL plus 5 architecture cases (215 total).
 - Dependencies: R01 and R02's production storage/lifecycle binding; an independently
   approved receipt/retention policy where needed, without inventing journal deletion.
 - Physical device: **not required** for local/restart-simulation acceptance; native

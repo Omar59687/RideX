@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -18,6 +19,7 @@ import 'package:ridex/core/providers/driver_cash_completion_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/repositories/supabase_driver_completion_source.dart';
+import 'package:ridex/core/repositories/supabase_driver_cash_completion_composition.dart';
 import 'package:ridex/core/services/supabase/auth_service.dart';
 import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
 import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
@@ -52,6 +54,42 @@ class FailingWrite extends NativeCompletionJournalIo {
       throw const FileSystemException('Injected write failure');
 }
 
+class RecoveryJournal implements DriverCompletionCommandStore {
+  RecoveryJournal(this.delegate);
+  final DriverCompletionCommandStore delegate;
+  final slots = <String, CompletionSlot>{};
+  CompletionDriverSnapshot? snapshot;
+  int writes = 0;
+  @override
+  Future<CompletionDriverSnapshot> inspectDriver({
+    required String backendNamespace,
+    required String driverId,
+  }) async =>
+      snapshot ??
+      await delegate.inspectDriver(
+          backendNamespace: backendNamespace, driverId: driverId);
+  @override
+  Future<CompletionSlot> inspect({
+    required String backendNamespace,
+    required String driverId,
+    required String tripId,
+  }) async =>
+      slots[tripId] ??
+      await delegate.inspect(
+          backendNamespace: backendNamespace,
+          driverId: driverId,
+          tripId: tripId);
+  @override
+  Future<CompletionStageResult> stage({
+    required String backendNamespace,
+    required String driverId,
+    required DriverCompleteTripCommand command,
+  }) async {
+    writes++;
+    throw StateError('Recovery cannot stage a command');
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late HttpServer server;
@@ -65,6 +103,10 @@ void main() {
   SharedPreferencesAsyncPlatform? previousPreferences;
   final requests = <(String, String)>[];
   final bodies = <Map<String, dynamic>>[];
+  final recoveryRows = <String, Map<String, Object?>?>{};
+  final failedTripReads = <String>{};
+  final missingReceiptTrips = <String>{};
+  final canonicalTripReads = <String>[];
   late String role,
       approval,
       assignedDriver,
@@ -88,6 +130,10 @@ void main() {
         InMemorySharedPreferencesAsync.empty();
     requests.clear();
     bodies.clear();
+    recoveryRows.clear();
+    failedTripReads.clear();
+    missingReceiptTrips.clear();
+    canonicalTripReads.clear();
     boundary = null;
     role = 'driver';
     approval = 'approved';
@@ -132,14 +178,24 @@ void main() {
           'active_trip_id': activeTrip
         };
       } else if (path.endsWith('/trips')) {
-        expect(request.uri.queryParameters['id'], 'eq.$trip');
-        response = {
-          'id': trip,
-          'driver_id': assignedDriver,
-          'status': status,
-          'version': version,
-          'payment_method': method
-        };
+        final requestedTrip = request.uri.queryParameters['id']!.substring(3);
+        expect(requestedTrip == trip || recoveryRows.containsKey(requestedTrip),
+            isTrue);
+        canonicalTripReads.add(requestedTrip);
+        if (failedTripReads.contains(requestedTrip)) {
+          request.response.statusCode = 400;
+          response = {'code': '08006', 'message': 'private read failure'};
+        } else if (recoveryRows.containsKey(requestedTrip)) {
+          response = recoveryRows[requestedTrip] ?? [];
+        } else {
+          response = {
+            'id': trip,
+            'driver_id': assignedDriver,
+            'status': status,
+            'version': version,
+            'payment_method': method
+          };
+        }
       } else if (path.endsWith('/driver_transition_trip')) {
         bodies.add(body!);
         status = 'completed';
@@ -155,14 +211,15 @@ void main() {
           response = {'trip_id': trip, 'status': 'completed'};
         }
       } else if (path.endsWith('/user_trip_receipt_summary')) {
-        if (missingReceipt) {
+        final receiptTrip = body!['target_trip_id'] as String;
+        if (missingReceipt || missingReceiptTrips.contains(receiptTrip)) {
           request.response.statusCode = 404;
           response = {'code': 'P0002', 'message': 'private missing receipt'};
         } else {
           response = [
             {
-              'id': 'e7000000-0000-0000-0000-000000000001',
-              'trip_id': wrongReceipt ? fixture.other : trip,
+              'id': 'e${receiptTrip.substring(1)}',
+              'trip_id': wrongReceipt ? fixture.other : receiptTrip,
               'receipt_number': 'R-CANONICAL'
             }
           ];
@@ -321,10 +378,14 @@ void main() {
     expect(requests, isEmpty);
   });
 
-  test('startup recovery reads existing command and receipt without RPC dispatch', () async {
-    await store.stage(backendNamespace: namespace, driverId: fixture.driver,
-        command: DriverCompleteTripCommand(tripId: trip,
-            expectedTripVersion: 4, idempotencyKey: 'original'));
+  test(
+      'startup recovery reads existing command and receipt without RPC dispatch',
+      () async {
+    await store.stage(
+        backendNamespace: namespace,
+        driverId: fixture.driver,
+        command: DriverCompleteTripCommand(
+            tripId: trip, expectedTripVersion: 4, idempotencyKey: 'original'));
     status = 'completed';
     version = 5;
     final controller = container().read(driverCashCompletionProvider)!;
@@ -332,16 +393,21 @@ void main() {
     expect(controller.recovery.state,
         DriverCashRecoveryState.completionVerifiedReceiptVerified);
     expect(bodies, isEmpty);
-    expect(requests.any((r) => r.$2.endsWith('/driver_transition_trip')), isFalse);
-    final saved = await store.inspect(backendNamespace: namespace,
-        driverId: fixture.driver, tripId: trip) as CompletionValid;
+    expect(
+        requests.any((r) => r.$2.endsWith('/driver_transition_trip')), isFalse);
+    final saved = await store.inspect(
+        backendNamespace: namespace,
+        driverId: fixture.driver,
+        tripId: trip) as CompletionValid;
     expect(saved.command.idempotencyKey, 'original');
   });
 
   test('missing receipt is unverified, not payment failure', () async {
-    await store.stage(backendNamespace: namespace, driverId: fixture.driver,
-        command: DriverCompleteTripCommand(tripId: trip,
-            expectedTripVersion: 4, idempotencyKey: 'original'));
+    await store.stage(
+        backendNamespace: namespace,
+        driverId: fixture.driver,
+        command: DriverCompleteTripCommand(
+            tripId: trip, expectedTripVersion: 4, idempotencyKey: 'original'));
     status = 'completed';
     version = 5;
     missingReceipt = true;
@@ -352,22 +418,349 @@ void main() {
     expect(bodies, isEmpty);
   });
 
-  test('resume and explicit reconciliation reread without financial dispatch', () async {
-    await store.stage(backendNamespace: namespace, driverId: fixture.driver,
-        command: DriverCompleteTripCommand(tripId: trip,
-            expectedTripVersion: 4, idempotencyKey: 'resume-key'));
+  test('resume and explicit reconciliation reread without financial dispatch',
+      () async {
+    await store.stage(
+        backendNamespace: namespace,
+        driverId: fixture.driver,
+        command: DriverCompleteTripCommand(
+            tripId: trip,
+            expectedTripVersion: 4,
+            idempotencyKey: 'resume-key'));
     status = 'completed';
     version = 5;
     final controller = container().read(driverCashCompletionProvider)!;
     await controller.recovery.reconcile();
     requests.clear();
-    WidgetsBinding.instance.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    WidgetsBinding.instance
+        .handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await controller.recovery.reconcile();
     expect(controller.recovery.state,
         DriverCashRecoveryState.completionVerifiedReceiptVerified);
-    expect(requests.any((r) => r.$2.endsWith('/user_trip_receipt_summary')), isTrue);
-    expect(requests.any((r) => r.$2.endsWith('/driver_transition_trip')), isFalse);
+    expect(requests.any((r) => r.$2.endsWith('/user_trip_receipt_summary')),
+        isTrue);
+    expect(
+        requests.any((r) => r.$2.endsWith('/driver_transition_trip')), isFalse);
     expect(bodies, isEmpty);
+  });
+
+  group('per-Trip read-only recovery evidence and aggregate status', () {
+    late RecoveryJournal journal;
+    setUp(() => journal = RecoveryJournal(store));
+
+    String tripId(int index) =>
+        'd7000000-0000-0000-0000-${index.toString().padLeft(12, '0')}';
+
+    Future<DriverCashRecoveryController> startRecovery(List<int> order) async {
+      for (final index in order) {
+        final id = tripId(index);
+        recoveryRows.putIfAbsent(
+            id,
+            () => {
+                  'id': id,
+                  'driver_id': fixture.driver,
+                  'status': 'completed',
+                  'version': 5,
+                  'payment_method': 'cash',
+                });
+        await store.stage(
+            backendNamespace: namespace,
+            driverId: fixture.driver,
+            command: DriverCompleteTripCommand(
+                tripId: id,
+                expectedTripVersion: 4,
+                idempotencyKey: 'original-$index'));
+      }
+      final controller = DriverCashRecoveryController(
+          source: source(),
+          authority: binding,
+          repository: SupabaseDriverCashCompletionComposition(
+              access: access, authority: binding),
+          openJournal: () async => journal);
+      addTearDown(controller.dispose);
+      await controller.reconcile();
+      return controller;
+    }
+
+    Future<Map<String, String>> journalBytes() async => {
+          await for (final entry in directory.list(recursive: true))
+            if (entry is File)
+              entry.path: base64Encode(await entry.readAsBytes()),
+        };
+
+    void expectReadOnly() {
+      expect(journal.writes, 0);
+      expect(bodies, isEmpty);
+      expect(requests.any((r) => r.$2.endsWith('/driver_transition_trip')),
+          isFalse);
+      expect(requests.any((r) => r.$2.contains('/payments')), isFalse);
+      expect(
+          requests
+              .where((r) => r.$1 == 'POST')
+              .every((r) => r.$2.endsWith('/user_trip_receipt_summary')),
+          isTrue);
+    }
+
+    for (final order in [
+      [1, 2],
+      [2, 1]
+    ]) {
+      for (final scenario in [
+        'unknown',
+        'corrupt',
+        'failed',
+        'absent',
+        'pending',
+        'receipt'
+      ]) {
+        test('verified A cannot hide $scenario B in order $order', () async {
+          final other = tripId(2);
+          switch (scenario) {
+            case 'unknown':
+              journal.slots[other] = const CompletionAbsent();
+            case 'corrupt':
+              journal.slots[other] =
+                  const CompletionCorrupt(CompletionJournalIssue.invalidFrame);
+            case 'failed':
+              failedTripReads.add(other);
+            case 'absent':
+              recoveryRows[other] = null;
+            case 'pending':
+              recoveryRows[other] = {
+                'id': other,
+                'driver_id': fixture.driver,
+                'status': 'inProgress',
+                'version': 5,
+                'payment_method': 'cash',
+              };
+            case 'receipt':
+              missingReceiptTrips.add(other);
+          }
+          final controller = await startRecovery(order);
+          expect(
+              controller.state,
+              switch (scenario) {
+                'unknown' => DriverCashRecoveryState.outcomeUnknown,
+                'corrupt' =>
+                  DriverCashRecoveryState.journalCorruptedOrUnavailable,
+                'failed' => DriverCashRecoveryState.networkReadFailure,
+                'receipt' =>
+                  DriverCashRecoveryState.completionVerifiedReceiptUnverified,
+                _ => DriverCashRecoveryState.completionNotVisible,
+              });
+          expect(controller.canonicalEvidence[trip]!.backendVersion, 5);
+          expect(controller.receiptVerifiedTrips, {trip});
+          final bytes = await journalBytes();
+          await controller.reconcile();
+          expect(controller.state,
+              isNot(DriverCashRecoveryState.completionVerifiedReceiptVerified));
+          expect(await journalBytes(), bytes);
+          expectReadOnly();
+        });
+      }
+    }
+
+    for (final scenario in [
+      'unknown',
+      'corrupt',
+      'failed',
+      'absent',
+      'older',
+      'receipt',
+      'journal unavailable',
+      'journal absent'
+    ]) {
+      test(
+          'verified receipt survives later $scenario without hiding that outcome',
+          () async {
+        final controller = await startRecovery([1]);
+        final first = controller.canonicalEvidence[trip];
+        final bytes = await journalBytes();
+        switch (scenario) {
+          case 'unknown':
+            journal.slots[trip] = const CompletionAbsent();
+          case 'corrupt':
+            journal.slots[trip] =
+                const CompletionCorrupt(CompletionJournalIssue.invalidFrame);
+          case 'failed':
+            failedTripReads.add(trip);
+          case 'absent':
+            recoveryRows[trip] = null;
+          case 'older':
+            recoveryRows[trip]!['version'] = 4;
+          case 'receipt':
+            missingReceiptTrips.add(trip);
+          case 'journal unavailable':
+            journal.snapshot = const CompletionDriverUnavailable(
+                CompletionJournalIssue.storageUnavailable);
+          case 'journal absent':
+            journal.snapshot = const CompletionDriverCommands([]);
+        }
+        await controller.reconcile();
+        expect(
+            controller.state,
+            switch (scenario) {
+              'corrupt' ||
+              'journal unavailable' =>
+                DriverCashRecoveryState.journalCorruptedOrUnavailable,
+              'failed' => DriverCashRecoveryState.networkReadFailure,
+              'absent' => DriverCashRecoveryState.completionNotVisible,
+              'receipt' =>
+                DriverCashRecoveryState.completionVerifiedReceiptUnverified,
+              _ => DriverCashRecoveryState.outcomeUnknown,
+            });
+        expect(controller.canonicalEvidence[trip]!.backendVersion,
+            first!.backendVersion);
+        expect(controller.canonicalEvidence[trip]!.status, first.status);
+        expect(controller.receiptVerifiedTrips, {trip});
+        journal.slots.clear();
+        journal.snapshot = null;
+        failedTripReads.clear();
+        missingReceiptTrips.clear();
+        recoveryRows[trip] = {
+          'id': trip,
+          'driver_id': fixture.driver,
+          'status': 'completed',
+          'version': 6,
+          'payment_method': 'cash',
+        };
+        await controller.reconcile();
+        expect(controller.state,
+            DriverCashRecoveryState.completionVerifiedReceiptVerified);
+        expect(controller.canonicalEvidence[trip]!.backendVersion, 6);
+        expect(controller.receiptVerifiedTrips, {trip});
+        expect(await journalBytes(), bytes);
+        expectReadOnly();
+      });
+    }
+
+    test(
+        '25 retained commands rotate ten per pass and keep unresolved items visible',
+        () async {
+      journal.slots[tripId(25)] = const CompletionAbsent();
+      final controller = await startRecovery(List.generate(25, (i) => i + 1));
+      expect(canonicalTripReads.length, 10);
+      expect(
+          controller.state, DriverCashRecoveryState.additionalPendingRecovery);
+      final bytes = await journalBytes();
+      for (var pass = 0; pass < 2; pass++) {
+        canonicalTripReads.clear();
+        await controller.reconcile();
+        expect(canonicalTripReads.length, lessThanOrEqualTo(10));
+      }
+      expect(controller.canonicalEvidence.length, 24);
+      expect(controller.receiptVerifiedTrips.length, 24);
+      expect(controller.state, DriverCashRecoveryState.outcomeUnknown);
+      await controller.reconcile(); // Trip 25 is not in this page.
+      expect(controller.state, DriverCashRecoveryState.outcomeUnknown);
+      journal.slots.clear();
+      for (var pass = 0; pass < 3; pass++) {
+        canonicalTripReads.clear();
+        await controller.reconcile();
+        expect(canonicalTripReads.length, lessThanOrEqualTo(10));
+      }
+      expect(controller.canonicalEvidence.length, 25);
+      expect(controller.receiptVerifiedTrips.length, 25);
+      expect(controller.state,
+          DriverCashRecoveryState.completionVerifiedReceiptVerified);
+      expect(await journalBytes(), bytes);
+      expectReadOnly();
+    });
+
+    test('strongest canonical version is retained independently for each Trip',
+        () async {
+      final controller = await startRecovery([1, 2]);
+      final other = tripId(2);
+      final bytes = await journalBytes();
+      recoveryRows[trip]!['version'] = 4;
+      recoveryRows[other]!['version'] = 12;
+      await controller.reconcile();
+      expect(controller.state, DriverCashRecoveryState.outcomeUnknown);
+      expect(controller.canonicalEvidence[trip]!.backendVersion, 5);
+      expect(controller.canonicalEvidence[other]!.backendVersion, 12);
+      recoveryRows[trip]!['version'] = 6;
+      recoveryRows[other]!['version'] = 10;
+      await controller.reconcile();
+      expect(controller.state, DriverCashRecoveryState.outcomeUnknown);
+      expect(controller.canonicalEvidence[trip]!.backendVersion, 6);
+      expect(controller.canonicalEvidence[other]!.backendVersion, 12);
+      expect(controller.receiptVerifiedTrips, {trip, other});
+      expect(
+          () => controller.canonicalEvidence.clear(), throwsUnsupportedError);
+      expect(() => controller.receiptVerifiedTrips.clear(),
+          throwsUnsupportedError);
+      expect(await journalBytes(), bytes);
+      expectReadOnly();
+    });
+
+    test('a missing retained command cannot silently retire another Trip',
+        () async {
+      final controller = await startRecovery([1, 2]);
+      final bytes = await journalBytes();
+      final saved = await store.inspect(
+          backendNamespace: namespace,
+          driverId: fixture.driver,
+          tripId: trip) as CompletionValid;
+      journal.snapshot = CompletionDriverCommands([saved.command]);
+      await controller.reconcile();
+      expect(controller.state, DriverCashRecoveryState.outcomeUnknown);
+      expect(controller.canonicalEvidence.length, 2);
+      expect(controller.receiptVerifiedTrips.length, 2);
+      expect(await journalBytes(), bytes);
+      expectReadOnly();
+    });
+
+    test(
+        'changed original command is blocked without replacing cached evidence',
+        () async {
+      final controller = await startRecovery([1]);
+      final bytes = await journalBytes();
+      journal.snapshot = CompletionDriverCommands([
+        DriverCompleteTripCommand(
+            tripId: trip,
+            expectedTripVersion: 4,
+            idempotencyKey: 'different-command'),
+      ]);
+      canonicalTripReads.clear();
+      await controller.reconcile();
+      expect(controller.state,
+          DriverCashRecoveryState.journalCorruptedOrUnavailable);
+      expect(controller.canonicalEvidence[trip]!.backendVersion, 5);
+      expect(controller.receiptVerifiedTrips, {trip});
+      expect(canonicalTripReads, isEmpty);
+      expect(await journalBytes(), bytes);
+      expectReadOnly();
+    });
+
+    test(
+        'repeated reconciliation is single-flight and revocation hides all retained evidence',
+        () async {
+      final controller = await startRecovery([1, 2]);
+      final bytes = await journalBytes();
+      final entered = Completer<void>();
+      final gate = Completer<void>();
+      boundary = (path) async {
+        if (path.endsWith('/trips')) {
+          entered.complete();
+          await gate.future;
+        }
+      };
+      final pending = controller.reconcile();
+      await entered.future;
+      expect(controller.reconcile(), same(pending));
+      auth.revokeSession();
+      controller.observeAuthority();
+      gate.complete();
+      await pending;
+      expect(controller.state, DriverCashRecoveryState.authorizationRevoked);
+      expect(controller.canonicalEvidence, isEmpty);
+      expect(controller.receiptVerifiedTrips, isEmpty);
+      final reads = requests.length;
+      await controller.reconcile();
+      expect(requests.length, reads);
+      expect(await journalBytes(), bytes);
+      expectReadOnly();
+    });
   });
 
   for (final path in [

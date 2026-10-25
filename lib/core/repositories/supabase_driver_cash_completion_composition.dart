@@ -42,7 +42,8 @@ final class SupabaseDriverCashCompletionComposition
     final owner = _authority.currentOwner;
     final client = _access.client;
     final session = client?.auth.currentSession;
-    bool current() => owner.isUsable &&
+    bool current() =>
+        owner.isUsable &&
         owner.driverId?.toLowerCase() == capturedDriverId.toLowerCase() &&
         owner.backend.namespace == capturedBackendNamespace &&
         client != null &&
@@ -54,23 +55,28 @@ final class SupabaseDriverCashCompletionComposition
         identical(client.auth.currentSession, session) &&
         owner.sameOwner(_authority.currentOwner);
     if (!isCanonicalTripId(tripId) || !current()) {
-      return const DriverReceiptReadResult(DriverReceiptReadStatus.unauthorized);
+      return const DriverReceiptReadResult(
+          DriverReceiptReadStatus.unauthorized);
     }
     final eligible = await DriverEligibilityRepository(_authority).validate();
     if (!current()) {
-      return const DriverReceiptReadResult(DriverReceiptReadStatus.unauthorized);
+      return const DriverReceiptReadResult(
+          DriverReceiptReadStatus.unauthorized);
     }
     if (eligible is! DriverEligible || !owner.sameOwner(eligible.owner)) {
-      return const DriverReceiptReadResult(DriverReceiptReadStatus.unauthorized);
+      return const DriverReceiptReadResult(
+          DriverReceiptReadStatus.unauthorized);
     }
     try {
-      final rows = await client!.rpc('user_trip_receipt_summary',
-          params: {'target_trip_id': tripId});
+      final rows = await client!
+          .rpc('user_trip_receipt_summary', params: {'target_trip_id': tripId});
       if (!current()) {
-        return const DriverReceiptReadResult(DriverReceiptReadStatus.unauthorized);
+        return const DriverReceiptReadResult(
+            DriverReceiptReadStatus.unauthorized);
       }
       if (rows is! List || rows.length > 1 || rows.any((row) => row is! Map)) {
-        return const DriverReceiptReadResult(DriverReceiptReadStatus.unavailable);
+        return const DriverReceiptReadResult(
+            DriverReceiptReadStatus.unavailable);
       }
       if (rows.isEmpty) {
         return const DriverReceiptReadResult(DriverReceiptReadStatus.missing);
@@ -79,25 +85,30 @@ final class SupabaseDriverCashCompletionComposition
       final id = row['id'];
       final linkedTrip = row['trip_id'];
       final number = row['receipt_number'];
-      if (id is! String || !isCanonicalTripId(id) ||
-          linkedTrip is! String || !isCanonicalTripId(linkedTrip) ||
+      if (id is! String ||
+          !isCanonicalTripId(id) ||
+          linkedTrip is! String ||
+          !isCanonicalTripId(linkedTrip) ||
           linkedTrip.toLowerCase() != tripId.toLowerCase() ||
-          number is! String || number.trim().isEmpty) {
-        return const DriverReceiptReadResult(DriverReceiptReadStatus.unavailable);
+          number is! String ||
+          number.trim().isEmpty) {
+        return const DriverReceiptReadResult(
+            DriverReceiptReadStatus.unavailable);
       }
       return DriverReceiptReadResult(DriverReceiptReadStatus.verified,
           receiptNumber: number.trim());
     } on PostgrestException catch (error) {
       if (!current()) {
-        return const DriverReceiptReadResult(DriverReceiptReadStatus.unauthorized);
+        return const DriverReceiptReadResult(
+            DriverReceiptReadStatus.unauthorized);
       }
-      return DriverReceiptReadResult(
-          error.code?.toUpperCase() == 'P0002'
-              ? DriverReceiptReadStatus.missing
-              : DriverReceiptReadStatus.unavailable);
+      return DriverReceiptReadResult(error.code?.toUpperCase() == 'P0002'
+          ? DriverReceiptReadStatus.missing
+          : DriverReceiptReadStatus.unavailable);
     } on Object {
       if (!current()) {
-        return const DriverReceiptReadResult(DriverReceiptReadStatus.unauthorized);
+        return const DriverReceiptReadResult(
+            DriverReceiptReadStatus.unauthorized);
       }
       return const DriverReceiptReadResult(DriverReceiptReadStatus.unavailable);
     }

@@ -93,7 +93,7 @@ class Journal implements DriverCompletionCommandStore {
   int stages = 0;
   @override
   Future<CompletionDriverSnapshot> inspectDriver(
-      {required String backendNamespace, required String driverId}) async =>
+          {required String backendNamespace, required String driverId}) async =>
       switch (slot) {
         CompletionValid(command: final c) => CompletionDriverCommands([c]),
         CompletionAbsent() => const CompletionDriverCommands([]),
@@ -726,13 +726,15 @@ void main() {
       expect(reader.commands, isEmpty);
       expect(io.writes, 0);
     });
-    test('startup discovery is a pure journal read with no lock or writes', () async {
+    test('startup discovery is a pure journal read with no lock or writes',
+        () async {
       final before = await io.journal!.readAsBytes();
       io.writes = 0;
       final snapshot = await store.inspectDriver(
           backendNamespace: backend, driverId: driver);
       expect(snapshot, isA<CompletionDriverCommands>());
-      expect((snapshot as CompletionDriverCommands).commands.single.tripId, trip);
+      expect(
+          (snapshot as CompletionDriverCommands).commands.single.tripId, trip);
       expect(await io.journal!.readAsBytes(), before);
       expect(io.writes, 0);
       final lock = File.fromUri(io.journal!.parent.uri.resolve('writer.lock'));
@@ -747,7 +749,9 @@ void main() {
       expect(await io.journal!.readAsBytes(), before);
       expect(io.writes, 0);
     });
-    test('canonical version older than original command is conflicting evidence', () async {
+    test(
+        'canonical version older than original command is conflicting evidence',
+        () async {
       final transport = RowTransport()..version = 3;
       final coordinator = DriverCompletionRecoveryCoordinator(
           tripId: trip,

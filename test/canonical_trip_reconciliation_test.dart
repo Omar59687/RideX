@@ -333,8 +333,10 @@ void main() {
       final request = requests.single;
       expect(request.$1, 'GET');
       expect(request.$2.path, '/rest/v1/trips');
-      expect(request.$2.queryParameters,
-          {'select': 'id,driver_id,status,version,payment_method', 'id': 'eq.$tripId'});
+      expect(request.$2.queryParameters, {
+        'select': 'id,driver_id,status,version,payment_method',
+        'id': 'eq.$tripId'
+      });
       expect(request.$3, startsWith('Bearer eyJ'));
     });
     test('caller/lifecycle identity cannot replace SDK authentication',
