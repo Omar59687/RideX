@@ -1,8 +1,8 @@
 # P6-R06 Stripe Test Mode preparation implementation
 
-Date: 2026-10-25  
-Base: `552b0f78f3e72b84cc7d5b446968a0b5e519f765`  
-Branch: `feature/p6-r06-stripe-test-preparation`  
+Date: 2026-10-25
+Base: `552b0f78f3e72b84cc7d5b446968a0b5e519f765`
+Branch: `feature/p6-r06-stripe-test-preparation`
 Status: **PARTIAL; production provider dispatch disabled**
 
 ## Implemented boundary
