@@ -1,5 +1,23 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## R06 Card fixture operator implementation - 2026-10-26
+
+**R06 remains PARTIAL; hosted Card fixture creation was not performed.** A
+separate Deno operator now provides default read-only preflight and a gated
+canonical workflow using the existing Rider draft/fare lock/confirmation,
+backend matching offer, Driver acceptance, and pending initial authorization
+Attempt RPCs. It rejects any existing R06-labelled fixture, validates exact
+actor/project/namespace and canonical versions/financial state, and uses a
+create-new local state file to stop repeat execution on the designated host.
+It does not write reservation rows, invoke Stripe, settle Payment, or issue a
+Receipt. Cross-machine atomic fixture creation remains unavailable because the
+draft RPC has no idempotency key and no backend fixture claim exists. See
+[P6-R06 Card Fixture Operator](P6_R06_CARD_FIXTURE_OPERATOR.md).
+
+Focused operator regression tests: 12 PASS (including mocked canonical-flow
+allowlist); focused Deno type check and formatting are recorded with PR
+verification. No hosted operator run or SQL migration change was made.
+
 ## R06 hosted migration verification - 2026-10-26
 
 PR #71 aligned the repository filename with hosted migration version
