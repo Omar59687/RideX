@@ -1,11 +1,15 @@
 # P6-R06 Card Fixture Operator
 
-**Status: operator implemented; hosted fixture creation not executed. R06 remains partial.**
+**Status: operator implemented; one authorized hosted fixture created; reservation acceptance blocked. R06 remains partial.**
 
 This operator prepares one isolated, test-only Card authorization context for
 later R06 reservation concurrency acceptance. Its default mode is read-only
-preflight. This implementation has not created a hosted Booking, Trip, Payment,
-Attempt, reservation, or Stripe object.
+preflight. PR #73 itself made no hosted mutations. A later separately authorized
+operator execution created one canonical Booking, Trip, Payment, and Attempt;
+the resulting Attempt expired before any reservation claim was attempted. No
+reservation or Stripe object was created. The one-time local state marker is
+preserved at `%LOCALAPPDATA%\RideX\R06\card-fixture-state.json` with status
+`started_do_not_retry`; do not rerun this fixture operator or reuse its Attempt.
 
 ## Fixed test boundary
 
@@ -93,7 +97,27 @@ test was attempted locally but could not run because the local database lacked
 `backend_claim_stripe_test_preparation`; no local database reset was performed.
 
 The operator leaves the Payment and authorization Attempt pending and creates
-no reservation row. R06 still requires separate authorization and execution of
-one isolated Card fixture, followed by hosted reservation concurrency and
-reconnect acceptance. Stripe Test Mode account/JOD approval and independent
-sandbox acceptance remain separate gates; provider dispatch stays disabled.
+no reservation row. The authorized fixture was reconciled read-only as follows:
+
+- Fixture UUID: `3657b9e5-f614-4ef2-9986-fa7355a18bbd`.
+- Booking `faec387e…aadbab3e`: matched, version 5; locked Economy quote
+  `6754c0b1…8ed988f`, JOD 2,150 fils.
+- Accepted Trip `ceff7eb6…d80d550b`: version 1, owned by the approved Driver
+  and fixed test vehicle.
+- Payment `9c4558e0…b389eb837d4c`: Card, `cardPaymentPending`, version 1;
+  initial authorization Attempt `2a2e4369…b19f3629939a`: pending, cycle 1,
+  sequence 1, original operation key retained, no provider reference.
+- At read-only reconciliation the Attempt was 150,825 ms old, beyond the
+  120-second claim eligibility window. The read-only preparation RPC returned
+  no reservation evidence; reservation count was zero. **No claim RPC was
+  called**, so concurrency and reconnect acceptance are untested/blocked.
+- No Receipt was created. Driver state is `onTrip` for the accepted Trip.
+- Existing Cash fixture remains completed (Trip version 5), paid JOD 16.00
+  (Payment version 2), with exactly one Receipt.
+
+No provider request, financial mutation, claim, cleanup, or retry was made
+during reconciliation. Preserve the local state marker and all hosted evidence.
+The expired Attempt must not be reused. Any new fixture strategy or new fixture
+execution requires separate owner authorization. Stripe Test Mode account/JOD
+approval and independent sandbox acceptance remain separate gates; provider
+dispatch stays disabled and R06 is **PARTIAL**.

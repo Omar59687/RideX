@@ -18,6 +18,25 @@ Focused operator regression tests: 12 PASS (including mocked canonical-flow
 allowlist); focused Deno type check and formatting are recorded with PR
 verification. No hosted operator run or SQL migration change was made.
 
+## R06 authorized hosted Card fixture checkpoint - 2026-10-26
+
+PR #73's implementation checkpoint above correctly records that it did not run
+the hosted operator. In a subsequent separately authorized execution, one
+canonical Card fixture was created using the operator. Read-only reconciliation
+verified a matched Booking with locked JOD 2,150 quote, accepted Trip, pending
+Card Payment, and pending cycle-1 `initialAuthorization` Attempt. The Attempt
+was already 150,825 ms old, beyond the 120-second claim window, when
+reconciliation completed. No reservation claim was attempted, no reservation
+exists, and no Stripe call or Receipt was made. The fixed local state marker is
+retained as `started_do_not_retry`; do not rerun or duplicate this fixture.
+
+Hosted reservation concurrency and reconnect acceptance are **BLOCKED** for
+this fixture because its Attempt expired. Existing Cash fixture remains
+unchanged. R06 remains **PARTIAL**; a new fixture strategy/execution requires
+separate owner authorization, and independent Stripe sandbox acceptance is
+still required. Exact sanitized IDs and status are in
+[P6-R06 Card Fixture Operator](P6_R06_CARD_FIXTURE_OPERATOR.md#verification-and-remaining-gates).
+
 ## R06 hosted migration verification - 2026-10-26
 
 PR #71 aligned the repository filename with hosted migration version
