@@ -1,5 +1,19 @@
 # P6-R06 Stripe Test Mode preparation implementation
 
+## Durable foundation update — 2026-10-26
+
+From main `b740c16`, the handler now requires a persistent reservation store and
+provider readiness check. A proposed private, backend-only reservation migration
+atomically grants one dispatch token for the exact canonical initial Card attempt;
+duplicates/restarts/unknown outcomes cannot authorize replay. Provider reference
+evidence is persisted separately from financial state. Server-only reconciliation
+uses an exact stored ID and GET only; missing ID/evidence remains unresolved.
+New checks: 83 Deno tests, 31 local pgTAP assertions and a real multi-connection
+claim/restart test pass. No hosted/Stripe operation or deployment occurred.
+Production dispatch stays hard-disabled. **R06 remains PARTIAL**, not approved.
+See [design, evidence and activation prerequisites](P6_R06_DURABLE_PREPARATION.md).
+The original implementation/no-migration descriptions below are historical.
+
 Date: 2026-10-25
 Base: `552b0f78f3e72b84cc7d5b446968a0b5e519f765`
 Branch: `feature/p6-r06-stripe-test-preparation`

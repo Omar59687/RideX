@@ -6,6 +6,10 @@ import {
   TestIntentError,
   type TestIntentProvider,
 } from "./test_intent_provider.ts";
+import {
+  DurableTestIntentProvider,
+  type TestIntentReservationStore,
+} from "./test_intent_reservation.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const MAX_BODY_BYTES = 4096;
@@ -60,6 +64,8 @@ export interface StripeIntentHandlerDependencies {
   readonly provider: TestIntentProvider;
   /** Production entrypoints leave this false until durable attempt claim/recovery and approvals exist. */
   readonly providerDispatchEnabled?: boolean;
+  readonly reservationStore?: TestIntentReservationStore;
+  readonly assertProviderReady?: () => void;
 }
 
 interface Outcome {
@@ -267,7 +273,10 @@ export function createStripeTestIntentHandler(
           "Test preparation is temporarily unavailable.",
         );
       }
-      if (!dependencies.providerDispatchEnabled) {
+      if (
+        !dependencies.providerDispatchEnabled || !dependencies.reservationStore ||
+        !dependencies.assertProviderReady
+      ) {
         throw new HttpError(503, "not_configured", "Test preparation is unavailable.");
       }
 
@@ -277,7 +286,11 @@ export function createStripeTestIntentHandler(
         result = await prepareTestIntent(
           command,
           () => Promise.resolve(context),
-          dependencies.provider,
+          new DurableTestIntentProvider(
+            dependencies.reservationStore,
+            dependencies.provider,
+            dependencies.assertProviderReady,
+          ),
         );
       } catch (error) {
         const state = error instanceof TestIntentError && error.code === "unknown_result"

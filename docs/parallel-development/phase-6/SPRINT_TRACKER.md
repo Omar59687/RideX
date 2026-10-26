@@ -1,5 +1,19 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## R06 durable Test Mode preparation — 2026-10-26
+
+**R06 PARTIAL; external provider dispatch OFF.** A proposed private reservation
+migration and server adapter now provide one atomic original-attempt dispatch
+claim, durable duplicate/restart protection and retained uncertain evidence.
+Read-only reconciliation uses only a previously validated/stored provider ID;
+an ID-less outcome stays unresolved. Payment/Attempt financial states are not
+advanced. Local checks: **83 Deno PASS**, **31 pgTAP PASS**, and real PostgreSQL
+concurrent/restarted claim PASS; type/format checks pass. Migration is local-only,
+not deployed. Account/JOD approvals, canonical Card fixture, migration/hosted
+safety acceptance, operator unknown-outcome policy and explicit activation remain
+required. R05 bounded Cash acceptance is unchanged; Phase 6 NOT APPROVED.
+See [durable design and exact gates](P6_R06_DURABLE_PREPARATION.md).
+
 ## R04/R05 security closeout — 2026-10-26 (current acceptance override)
 
 Main `86e67cb` includes PR #67. **R05 ACCEPTED for the bounded canonical Cash

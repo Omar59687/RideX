@@ -1,5 +1,16 @@
 # RideX Current Status
 
+## R06 durable Stripe preparation foundation - 2026-10-26
+
+Based on main b740c16, R06 now includes a proposed private reservation migration,
+backend-only claim/evidence/read RPCs, durable handler composition and read-only
+exact-provider-ID reconciliation. No Payment/Attempt state transition or replay
+is introduced. Local Deno (83), SQL (31) and real concurrent/restarted database
+claim checks pass; deployment and Stripe remain disabled. R06 stays PARTIAL
+pending approvals, canonical Card fixture and hosted safety/Test Mode acceptance.
+No hosted record or service was changed. Phase 6 remains NOT APPROVED. See
+[implementation and activation gates](../../parallel-development/phase-6/P6_R06_DURABLE_PREPARATION.md).
+
 ## R04/R05 security acceptance closeout — 2026-10-26
 
 Latest main `86e67cb` includes PR #67. R05 is **ACCEPTED for the bounded canonical
