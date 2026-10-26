@@ -1,13 +1,13 @@
 # P6-R07 Cash and Recovery test fixture preparation
 
 Date: 2026-10-25. Repository base: `49e5281dfef04ad9eb0e02d5303a344d425d6ac3`.
-Status: **PREPARATION COMPLETE; HOSTED ACCEPTANCE NOT RUN**.
+Status: **OPERATOR FIXTURE TOOL PREPARED; HOSTED SETUP/ACCEPTANCE NOT RUN**.
 
 This record prepares one isolated, non-production Cash Trip acceptance scenario.
-No hosted Trip, Payment, Receipt, booking, profile or role was created or changed.
-No financial RPC was invoked, and no migration or Edge Function was deployed. The
-future acceptance must not involve exchange of real cash; it remains a separately
-authorized mutation of designated test-backend records.
+No hosted Trip, Payment, Receipt, booking, vehicle, profile or role was created or
+changed. No RPC was invoked, and no migration or Edge Function was deployed. The
+future acceptance must not involve exchange of real cash; fixture execution remains
+a separately authorized mutation of designated test-backend records.
 
 ## Approved test scope and observed environment
 
@@ -69,19 +69,39 @@ The fixture must use RideX's authenticated application and trusted backend path:
    Use only a route supported by the configured test fare service; do not
    hand-author fare values.
 2. Establish the designated Driver's owned vehicle and availability through the
-   authorized Driver flow. The current Driver is offline and the hosted catalog
-   has no vehicle, so these prerequisites are presently absent.
-3. A trusted matching service must create the offer. Migration 007 exposes
-   `backend_create_driver_match_offer` to `service_role` only. Current hosted Edge
-   Function inventory contains `places` and `fare`, but no matching/fixture
-   function. Do not call the service-role RPC from a client or invent a Trip/offer.
-4. The assigned Driver accepts the actual offer through the authenticated Driver
-   flow. `driver_transition_trip(..., 'accepted', expected_version, key)` validates
-   the caller, offer and assignment; the server creates the canonical Trip and
-   ensures its Payment from the locked FareQuote and Trip.
-5. Once R01/R02 are mounted and separately authorized for hosted acceptance, move
-   that same Trip through its canonical Driver transitions to `inProgress`, then
-   complete exactly once using its persisted version and original idempotency key.
+   authenticated `driver_create_vehicle`, `driver_set_vehicle_active` and
+   `driver_set_availability` RPCs. A proposed unmistakably synthetic configuration
+   is type `economy`, make `RideX Test Fixture`, model `QA Economy`, color
+   `Blue (Test)`, registration `RIDEX-TEST-ONLY`, four seats, no year/photo. The
+   tool's `--prepare-vehicle` mode checks for an empty Driver vehicle inventory and
+   offline availability, then uses only authenticated Driver RPCs to create,
+   activate and make the vehicle available. It fails closed if the Driver already
+   has a vehicle or is not offline. Use it only after separate operator
+   authorization; this PR did not create it. Match the type to the Rider booking.
+3. The narrow operator tool
+   [`supabase/ops/p6_r07_prepare_cash_trip.ts`](../../../supabase/ops/p6_r07_prepare_cash_trip.ts)
+   accepts only the fixed test endpoint and namespace, and authenticates the exact
+   dedicated Rider and approved Driver. Its default mode is read-only. It requires
+   a canonical confirmed Cash booking with locked FareQuote, the Driver's owned
+   active compatible vehicle and `available` state, and no prior Trip/offer for
+   that booking. With `--execute` plus `R07_EXECUTION_APPROVAL_REF`, it calls only
+   `backend_create_driver_match_offer` followed immediately by the authenticated
+   Driver `driver_transition_trip` acceptance and `inProgress` transition. This is
+   an operator-triggered test assignment through canonical contracts; it is not a
+   real matching algorithm or evidence of Phase 7 matching. The operator holds
+   the service-role key locally; the key is never part of Flutter/application code,
+   command arguments, logs or responses. The script has no endpoint override,
+   direct table write, cleanup, completion, settlement, receipt, retry or replay.
+   An unknown mutation response stops the run and requires authorized read-only
+   reconciliation before any further action.
+4. `driver_transition_trip(..., 'accepted', expected_version, key)` validates the
+   Driver, offer and assignment; the server creates the canonical Trip and ensures
+   its Payment from the locked FareQuote and Trip. The tool then uses that same
+   authenticated RPC for `inProgress`, preserving backend versions and checking
+   returned canonical state.
+5. Once R01/R02 are mounted and separately authorized for hosted acceptance,
+   complete that same `inProgress` Trip exactly once using its persisted version
+   and original idempotency key.
    Migration 017's `driver_transition_trip` path completes the Cash Trip, settles
    the canonical Payment and issues the Receipt in the same database transaction.
 6. Verify through authorized canonical reads: Trip is completed; its Payment is
@@ -94,14 +114,15 @@ The fixture must use RideX's authenticated application and trusted backend path:
    and the receipt result is reported separately. No recovery action dispatches,
    retries, repairs or retires a command.
 
-No dedicated fixture seeder or authorized hosted matching setup endpoint was
-found. Although `supabase/config.toml` references `supabase/seed.sql`, that file
-does not exist in the inspected tree. Existing local tests use synthetic models,
-fakes and loopback HTTP fixtures; they do not seed hosted canonical data. Direct
-table inserts, service-role RPC calls outside an approved server
-setup, mock Trip IDs, SQL role impersonation and fabricated Payment/Receipt
-records are not valid substitutes. A canonical Driver UI/matching path is a
-blocking integration dependency; the current MockTrips screen cannot be used.
+No database seeder or deployed matching/fixture Edge Function exists. Although
+`supabase/config.toml` references `supabase/seed.sql`, that file does not exist.
+The new local operator tool is a bounded setup path over existing server
+contracts, not a production app integration or deployed service. It does not
+create the Rider booking/fare; those must come from the authenticated Rider flow.
+It cannot test R02's app journal/UI because the activation flag and canonical
+Driver panel remain disabled/unmounted. The current MockTrips screen cannot be
+used. Direct table writes, Trip/Payment/Receipt fabrication, SQL role
+impersonation and unconstrained service-role calls remain prohibited.
 
 ## Prepared R04 role matrix
 
@@ -122,6 +143,27 @@ for blocked/demoted Admin and foreign Rider cases before the hosted matrix; neve
 change the three designated accounts' roles for negative tests.
 
 ## R07 Cash/Receipt and recovery checklist
+
+All boxes below are future hosted acceptance scenarios, not evidence of execution.
+The new preflight tool covers only fixture scope/prerequisites. Local regression
+commands for the existing completion/recovery implementation are
+`flutter test test/driver_completion_coordinator_test.dart`,
+`flutter test test/driver_readonly_recovery_test.dart`,
+`flutter test test/canonical_trip_reconciliation_test.dart`, and
+`flutter test test/supabase_driver_completion_adapter_test.dart`; they were not
+rerun for this fixture tooling change. Run the focused local fixture guard with
+`deno test --no-lock supabase/tests/p6_r07_fixture_contract_test.ts`.
+
+- [ ] Driver can complete the one authorized Cash Trip through the original
+  durable command; verify exactly one canonical Trip completion, one settlement
+  record and one linked issued receipt through trusted reads.
+- [ ] Reuse of the original idempotency key is safe; a stale Trip version,
+  foreign/blocked/revoked Driver and namespace mismatch are rejected.
+- [ ] Lost completion response remains unresolved until read-only recovery;
+  missing receipt is unverified; no automatic replay, retry, journal deletion or
+  retirement occurs.
+- [ ] Rider/Admin canonical visibility is checked through authorized RPCs only;
+  a missing/unauthorized record is distinguished from a permission error.
 
 - [ ] Confirm the approved endpoint and namespace match the compiled app; confirm
   `RIDEX_ENABLE_TEST_DRIVER_CASH` remains absent/default false until explicit
@@ -165,10 +207,12 @@ payload belongs in repository documentation.
 
 ## Current blockers and status
 
-- No owned vehicle for the designated Driver.
+- No owned vehicle for the designated Driver; the synthetic vehicle fields and
+  authorized registration/activation RPCs are now specified, but not executed.
 - No active canonical Driver screen: current Driver Trip screen remains mock-backed.
-- No deployed trusted matching/offer setup function; the only canonical offer
-  creation RPC is service-role-only.
+- No production matching service. A local operator-only tool now calls the existing
+  service-role-only match-offer RPC and Driver-owned transition RPCs under a fixed
+  test-only allowlist; it does not claim natural matching behavior.
 - No hosted booking/Trip/Payment/Receipt fixture exists for the three accounts.
 - No dedicated blocked/demoted Admin or foreign Rider identities for the full R04
   negative matrix.
@@ -176,7 +220,48 @@ payload belongs in repository documentation.
   operations were run for this preparation.
 
 R07 is **PREPARED, NOT ACCEPTED**. Phase 6 remains **NOT APPROVED**. Next, finish
-the canonical Driver screen/matching integration and obtain separate explicit
-operator authorization for one isolated hosted completion. Then run R04/R07
-checks with designated role fixtures and record each result without treating
-catalog inspection as authenticated acceptance.
+canonical Driver screen integration and obtain a separate explicit execution
+authorization before running either vehicle/Trip setup or any completion. Then
+run R04/R07 checks with designated role fixtures and record each result without
+treating prepared checks as executed acceptance evidence.
+
+## Operator tool preflight and execution
+
+Run from the repository root with Deno 2. The operator must load secrets into the
+process environment through a private secret manager/shell, never a command-line
+argument or checked-in file: `SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`, `R07_DRIVER_ACCESS_TOKEN`, `R07_RIDER_ACCESS_TOKEN`,
+and `RIDEX_BACKEND_NAMESPACE=ridex-grad-ykasivejjchupswqyxpm-v1`. The script
+pins the URL to the approved project and checks both auth tokens against the exact
+account labels plus live unblocked profiles/Driver approval.
+
+First run the read-only vehicle preflight:
+
+```powershell
+deno run --allow-env=RIDEX_BACKEND_NAMESPACE,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,R07_DRIVER_ACCESS_TOKEN,R07_RIDER_ACCESS_TOKEN,R07_EXECUTION_APPROVAL_REF --allow-net=ykasivejjchupswqyxpm.supabase.co supabase/ops/p6_r07_prepare_cash_trip.ts `
+  --prepare-vehicle
+```
+
+After separate authorization specifically covering the test Driver vehicle, set
+`R07_EXECUTION_APPROVAL_REF` to its record and append `--execute` to that command.
+Capture the returned vehicle UUID in the restricted acceptance ledger. All vehicle
+and availability mutations use the authenticated Driver token, not service role.
+The tool never deletes or deactivates this vehicle.
+
+After the Rider has created and locked a Cash booking through the canonical app
+flow and the Driver vehicle is ready, run its read-only Trip preflight:
+
+```powershell
+deno run --allow-env=RIDEX_BACKEND_NAMESPACE,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,R07_DRIVER_ACCESS_TOKEN,R07_RIDER_ACCESS_TOKEN,R07_EXECUTION_APPROVAL_REF --allow-net=ykasivejjchupswqyxpm.supabase.co supabase/ops/p6_r07_prepare_cash_trip.ts `
+  --booking-id <canonical-booking-uuid> --vehicle-id <owned-vehicle-uuid>
+```
+
+Only after a separately recorded operator execution authorization, set
+`R07_EXECUTION_APPROVAL_REF` to that approval record and append `--execute`. This
+creates a canonical offer and advances the same canonical Trip to `inProgress`;
+it does not complete it. Never use the Admin account to execute this tool. Do not
+run concurrent setup processes. On any timeout or uncertain response, stop; do not
+rerun. Verify booking, offer, Trip and Payment through authorized read paths and
+preserve evidence. A prepared Trip is not an accepted Cash completion fixture
+until the separately approved R01/R02 application path has been activated and
+the completion/recovery scenarios below have actual evidence.

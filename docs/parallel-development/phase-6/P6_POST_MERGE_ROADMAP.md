@@ -275,19 +275,22 @@ Trip presentation. No hosted reads were made. **R05 remains PARTIAL.**
   acceptance/deployment requires separate authorization.
 ### P6-R07 - Collect controlled hosted Cash completion/recovery evidence (P6-02/P6-07)
 
-- Preparation update: latest main `49e5281` records the owner-approved test endpoint/
-  journal namespace pair behind a default-off compile-time gate (#62). One hosted
-  profile/catalog inspection confirmed the designated account roles and no associated
-  test bookings, Trips, Payments or Receipts. The Driver is offline and has no vehicle.
-  See [R07 fixture preparation](P6_R07_TEST_FIXTURE_PREPARATION.md). This does not
-  constitute authenticated role or financial acceptance.
+- Preparation update: PR #63 recorded the approved endpoint/namespace behind a
+  default-off compile-time gate and read-only actor/profile/catalog inventory.
+  This branch adds a fixed-scope Deno operator tool for preflight and canonical
+  match-offer/Driver transitions, plus synthetic vehicle setup instructions. It
+  was not run against hosted Supabase. See [R07 fixture preparation](P6_R07_TEST_FIXTURE_PREPARATION.md).
+  This does not constitute authenticated role or financial acceptance.
 - Current implementation: trusted completion/receipt backend foundations and local
   adapters exist, but the provider is not enabled or mounted in the canonical Driver
   application flow; the current active Trip UI remains mock-backed.
 - Files/components: existing Driver composition/coordinator/recovery/journal, Driver
   UI, trusted Trip RPC and Driver receipt RPC; acceptance records in this directory.
-- Required work: after separate authorization, run only an isolated nonproduction Cash
-  test scenario with approved Driver/canonical Trip and counterpart test accounts.
+- Required work: after separate authorization, establish the approved Driver's owned
+  synthetic active vehicle and Rider-owned canonical locked Cash booking, then use the
+  fixed-scope operator tool to prepare an in-progress canonical Trip. Run only an
+  isolated nonproduction Cash test scenario with approved Driver and counterpart
+  test accounts.
   Record exact Trip/Payment/Receipt invariants with sanitized evidence. No real Cash
   collection or production financial transaction is needed or authorized by this audit.
 - Acceptance: one trusted completion atomically completes Trip, settles Cash and issues
@@ -296,9 +299,10 @@ Trip presentation. No hosted reads were made. **R05 remains PARTIAL.**
   retain safe evidence; read-only recovery performs no mutation/replay. Separate
   canonical completed Trip from verified issued receipt in UI and logs.
 - Dependencies: R01-R03, canonical Driver screen mounting, an owned active test
-  vehicle, trusted matching/offer creation, hosted test authorization/data and the
-  existing backend contract. `backend_create_driver_match_offer` is service-role-only;
-  the current hosted Edge Function inventory has no matching/fixture function. R04
+  vehicle, an authenticated confirmed/locked Cash booking, explicit hosted fixture
+  execution authorization and the existing backend contract. `backend_create_driver_match_offer`
+  remains service-role-only; the local operator tool calls this exact RPC (never from
+  application code) and does not implement natural matching. R04
   blocked/demoted Admin and foreign Rider cases need separate dedicated identities.
   Real matching may await Phase 7; isolated fixture validation does not establish an
   end-to-end matched ride.

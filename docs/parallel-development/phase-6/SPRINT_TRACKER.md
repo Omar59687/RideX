@@ -2,6 +2,21 @@
 
 ## P6-R07 test fixture preparation update - 2026-10-25
 
+## P6-R07 isolated fixture tooling update - 2026-10-26
+
+From PR #63 merge base `e41b7eb`, this change adds a Deno operator tool pinned to
+the approved project/namespace and two dedicated actor identities. Read-only
+preflight verifies canonical Cash booking + locked quote, approved Driver, owned
+active compatible vehicle, availability and absence of existing Trip/offer. Its
+explicit execution mode calls the existing service-role match-offer RPC and the
+Driver-authenticated acceptance/start RPCs only; it stops at `inProgress` and
+never completes, settles, issues a receipt, retries, or cleans up. Synthetic
+vehicle values and authenticated vehicle RPCs are documented; no vehicle/Trip or
+other hosted record was created. Focused Deno contract tests characterize the
+allowlist and fail-closed guards. R07 remains **PREPARED, NOT ACCEPTED**; the app
+flag stays off, R02 UI remains inactive, and hosted setup/financial acceptance
+still requires separate operator authorization.
+
 Base: latest inspected `origin/main` `49e5281dfef04ad9eb0e02d5303a344d425d6ac3`
 (PR #62). The owner-approved graduation test endpoint and Driver journal
 namespace are recorded in `approvedDriverCompletionBackendsProvider`; the
@@ -197,7 +212,7 @@ details the remaining work without granting approval.
 | Canonical Payment Reader (P6-01/03 read integration) | Cash/Card parser and authorized exact/list RPC adapter; persisted identity/version | Admin uses dedicated RPC reader; Rider providers use the shared app client and Rider-scoped exact reader; history remains unactivated without trusted Payment ID | Focused local provider/session/RPC/nullable-link tests; no hosted Rider reader verification | Backend-issued Rider Payment ID and canonical Trip association; hosted role acceptance (R04); Phase 7 Trip identity and Phase 8 payment/history source |
 | Driver Cash Completion (P6-02/P6-07) | Journal, coordinator, trusted completion adapter, B1-B composition; approved endpoint/namespace mapping (#62) behind default-off compile-time flag | Provider remains inactive; no canonical Driver-screen mounting; Trips remain mock-backed | Local journal/coordinator/SDK loopback coverage; no hosted atomic completion/receipt acceptance | Mount canonical screen, prepare owned vehicle and authorized matching path; keep flag off until separately authorized hosted acceptance (R07) |
 | Cash Recovery (P6-02/P6-07) | Read-only discovery, canonical Cash Trip and Driver-safe receipt reads; #55/#56 merged | Per-Trip evidence is separate from outcomes; unresolved/failed/unprocessed commands block aggregate success; bounded journal rotation | 215 focused local PASS / 0 FAIL across four files; no hosted/runtime/device acceptance | Canonical screen mounting, retention/operator policy and R07 hosted/session/restart evidence; never replay, dispatch or retire from recovery |
-| R07 Hosted Cash/Receipt Acceptance | Fixture and role acceptance procedure prepared; owner-approved test backend and three account profiles verified read-only | No hosted fixture creation; no authenticated RPC/role test; activation flag remains off | Project metadata/catalog and account-scoped profile/count query only; zero associated records; Driver offline/no vehicle | Canonical Driver UI and matching/offer path; owned vehicle; approved isolated execution window and any extra negative-test identities; execute and record R04/R07 checklist |
+| R07 Hosted Cash/Receipt Acceptance | Test-only operator fixture tool and authenticated canonical vehicle/Trip contract procedure prepared; test project and three account profiles previously verified read-only | No hosted fixture created; Deno tool defaults read-only; execution is separately approval-gated; app activation flag remains off | New local Deno guard tests only; historical metadata/catalog/profile inspection; no authenticated role or financial acceptance | Separately authorize/create synthetic Driver vehicle and canonical Cash booking; run tool for an in-progress Trip; activate only the approved R01/R02 application path for a later authorized completion; run recovery/read/role matrix and retain evidence; obtain extra negative-test identities where needed |
 | Stripe Test Mode (P6-04) | Server-only unconfirmed adapter, fake, authenticated handler, filtered canonical reader, exact JOD minor-unit conversion | Handler validates Rider, accepted Card Trip, exact Payment/pending authorization attempt, versions/key; production provider dispatch disabled | 55 focused local Deno tests PASS; type check/format clean; no hosted read or provider call | Owner Test Mode/JOD approval, isolated canonical attempt fixture, durable attempt claim/unknown-outcome reconciliation, then sandbox evidence (R06); secure UI scope (R08); no release approval |
 | Phase 6 Acceptance (P6-09) | Compatibility harness and fixture mappings | Foundations merged through #52 | Historical owner local results; no final hosted/runtime/device acceptance | Resolve R01-R08, independent integration review, evidence ledger and explicit owner exit decision (R09); Phase 6 NOT APPROVED and NOT release-ready |
 
