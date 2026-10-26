@@ -1,5 +1,15 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## R06 hosted migration verification - 2026-10-26
+
+Against `origin/main` `29e5946`, read-only catalog inspection confirmed the hosted
+reservation table/RPC schema and permissions match the committed SQL. The hosted
+migration history uses version `20261026170603`; the repository filename uses
+`20261026163720`. No reservation rows exist; Cash fixture values match the
+previous acceptance record. The hosted `stripe-test-intent` Edge Function is not
+deployed and source dispatch remains disabled. See [R06 hosted verification and
+reconciliation](P6_R06_DURABLE_PREPARATION.md).
+
 ## R06 durable Test Mode preparation — 2026-10-26
 
 **R06 PARTIAL; external provider dispatch OFF.** A proposed private reservation
@@ -8,8 +18,8 @@ claim, durable duplicate/restart protection and retained uncertain evidence.
 Read-only reconciliation uses only a previously validated/stored provider ID;
 an ID-less outcome stays unresolved. Payment/Attempt financial states are not
 advanced. Local checks: **83 Deno PASS**, **31 pgTAP PASS**, and real PostgreSQL
-concurrent/restarted claim PASS; type/format checks pass. Migration is local-only,
-not deployed. Account/JOD approvals, canonical Card fixture, migration/hosted
+concurrent/restarted claim PASS; type/format checks pass. At PR #69 merge the migration was local-only;
+hosted catalog verification is recorded above. Account/JOD approvals, canonical Card fixture, migration/hosted
 safety acceptance, operator unknown-outcome policy and explicit activation remain
 required. R05 bounded Cash acceptance is unchanged; Phase 6 NOT APPROVED.
 See [durable design and exact gates](P6_R06_DURABLE_PREPARATION.md).
