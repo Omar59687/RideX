@@ -75,6 +75,13 @@ class RiderHomeScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 const RideAvailability(vehicles: MockData.vehicleTypes),
+                const SizedBox(height: AppSpacing.lg),
+                OutlinedButton.icon(
+                  key: const ValueKey('rider-canonical-payment-entry'),
+                  onPressed: () => context.push('/rider/canonical-payment'),
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: const Text('Latest completed Cash Trip payment'),
+                ),
                 const SizedBox(height: AppSpacing.xl),
                 const _RewardsCard(),
               ],

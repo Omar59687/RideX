@@ -97,6 +97,7 @@ const _publicLocations = {
 
 const _riderLocations = {
   '/rider/home',
+  '/rider/canonical-payment',
   '/rider/pickup',
   '/rider/destination',
   '/rider/vehicle',

@@ -1,5 +1,18 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## R05 canonical Rider Cash detail UI — 2026-10-26
+
+The existing participant-scoped `trips` SELECT policy supports a bounded latest
+completed Cash Trip lookup; R05 now composes it with `user_trip_payment_summary`,
+the existing exact-ID canonical reader and an independent Trip receipt RPC.
+A distinct Rider-home entry and `/rider/canonical-payment` surface display the
+result. Mock history remains separate. The former application discovery gap is
+closed for this single-detail Cash scope without adding matching/history/schema
+infrastructure. Session/provenance/version checks and stale-response tests apply.
+Prior hosted exact payment/receipt reads passed; integrated UI hosted acceptance
+and authorized foreign-Rider acceptance remain open. **R05 remains PARTIAL** and
+Phase 6 NOT APPROVED. See [implementation and remaining gates](P6_R05_CANONICAL_TRIP_UI.md).
+
 ## Canonical Driver Cash UI integration — 2026-10-26
 
 The R01/R02/R03 composition is now mounted on a distinct Driver-protected
