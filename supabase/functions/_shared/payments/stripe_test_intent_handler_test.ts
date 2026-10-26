@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { ReservationFixture } from "./test_intent_reservation_fixture.ts";
 import assert from "node:assert/strict";
 import {
   authorizeStripeTestRider,
@@ -75,12 +76,15 @@ function handler(options: {
   read?: (request: StripeIntentReadRequest) => Promise<CanonicalIntentContext | null>;
   provider?: TestIntentProvider;
   enabled?: boolean;
+  store?: ReservationFixture;
 } = {}) {
   const injected = options.provider ?? provider().value;
   return createStripeTestIntentHandler({
     authorize: options.authorize ?? (() => Promise.resolve(riderId)),
     readAuthorizedContext: options.read ?? (() => Promise.resolve(context)),
     provider: injected,
+    reservationStore: options.store ?? new ReservationFixture(),
+    assertProviderReady: () => {},
     providerDispatchEnabled: options.enabled ?? true,
   });
 }
@@ -455,4 +459,25 @@ test("Auth profile reader rejects blocked and non-Rider accounts", async () => {
     }),
     riderId,
   );
+});
+test("enabled handler without durable persistence fails closed", async () => {
+  const injected = provider();
+  const run = createStripeTestIntentHandler({
+    authorize: async () => riderId,
+    readAuthorizedContext: async () => context,
+    provider: injected.value,
+    providerDispatchEnabled: true,
+    assertProviderReady: () => {},
+  });
+  assert.equal((await run(request())).status, 503);
+  assert.equal(injected.calls(), 0);
+});
+test("distinct Edge handlers share durable evidence after restart and never redispatch", async () => {
+  const store = new ReservationFixture();
+  const injected = provider();
+  assert.equal((await handler({ store, provider: injected.value })(request())).status, 200);
+  const restarted = await handler({ store, provider: injected.value })(request());
+  assert.equal(restarted.status, 503);
+  assert.equal(injected.calls(), 1);
+  assert(JSON.stringify(await bodyOf(restarted)).includes("outcome_unknown"));
 });

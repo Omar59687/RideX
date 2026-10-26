@@ -52,6 +52,11 @@ function response(change: Record<string, unknown> = {}) {
     amount_capturable: 0,
     latest_charge: null,
     client_secret: "private-fixture",
+    metadata: {
+      ridex_payment_id: context.paymentId,
+      ridex_attempt_id: context.attemptId,
+      ridex_trip_id: context.tripId,
+    },
     ...change,
   });
 }
@@ -150,6 +155,9 @@ test("Stripe transport is test-only, unconfirmed, manual and exact amount/key", 
         confirmation_method: "manual",
         confirm: "false",
         "payment_method_types[]": "card",
+        "metadata[ridex_payment_id]": context.paymentId,
+        "metadata[ridex_attempt_id]": context.attemptId,
+        "metadata[ridex_trip_id]": context.tripId,
       });
       return response();
     }),
