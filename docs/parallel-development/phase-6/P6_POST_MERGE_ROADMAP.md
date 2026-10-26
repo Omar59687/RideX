@@ -1,5 +1,15 @@
 # Phase 6 post-merge audit and remaining execution roadmap
 
+## R05 canonical Rider detail update — 2026-10-26
+
+Existing participant RLS now supplies one owned completed Cash Trip to a separate
+Rider surface; the deployed Trip-to-Payment summary RPC yields the exact Payment
+ID for R05's reader, and receipt issuance is read separately. Earlier missing-ID
+source descriptions are historical for this bounded Cash path. Full history,
+Card discovery and Phase 7/8 work are not implemented. Integrated hosted UI and
+foreign-Rider acceptance remain open: R05 PARTIAL, Phase 6 NOT APPROVED. See
+[implementation record](P6_R05_CANONICAL_TRIP_UI.md).
+
 ## Canonical Driver UI update — 2026-10-26
 
 The previously missing canonical screen mounting is implemented behind the

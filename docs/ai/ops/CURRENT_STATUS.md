@@ -1,5 +1,16 @@
 # RideX Current Status
 
+## R05 canonical Rider Cash detail UI — 2026-10-26
+
+From main `55b1320`, a separate Rider-home entry opens the latest owned completed
+Cash Trip payment/receipt detail through existing participant RLS and authorized
+RPCs. Backend-issued Payment identity feeds the existing R05 reader; independent
+receipt evidence and session/version rereads guard publication. Mock history is
+preserved. This bounded Cash composition has no missing discovery contract;
+integrated hosted/device and foreign-Rider acceptance remain pending. R05 is
+PARTIAL; Phase 6 is NOT APPROVED. No hosted test/mutation was repeated here.
+See [implementation record](../../parallel-development/phase-6/P6_R05_CANONICAL_TRIP_UI.md).
+
 ## Canonical Driver Cash UI runtime wiring — 2026-10-26
 
 From main `6de01b2` (PR #65), a distinct Driver-protected canonical Trip surface

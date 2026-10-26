@@ -70,6 +70,7 @@ void main() {
 
       for (final location in [
         '/rider/home',
+        '/rider/canonical-payment',
         '/driver/home',
         '/driver/canonical-trip',
         '/history',
@@ -93,6 +94,7 @@ void main() {
       final session = SessionState.fromUser(rider);
 
       expect(redirectForLocation('/rider/home', session), isNull);
+      expect(redirectForLocation('/rider/canonical-payment', session), isNull);
       expect(redirectForLocation('/history', session), isNull);
       expect(redirectForLocation('/driver/trip', session), '/rider/home');
       expect(redirectForLocation('/driver/canonical-trip', session),
@@ -114,6 +116,8 @@ void main() {
       expect(redirectForLocation('/driver/canonical-trip', session), isNull);
       expect(redirectForLocation('/history', session), isNull);
       expect(redirectForLocation('/rider/trip', session), '/driver/home');
+      expect(redirectForLocation('/rider/canonical-payment', session),
+          '/driver/home');
       expect(redirectForLocation('/admin', session), '/driver/home');
       expect(redirectForLocation('/sign-up', session), '/driver/home');
       expect(redirectForLocation('/account-blocked', session), '/driver/home');

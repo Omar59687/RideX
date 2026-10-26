@@ -24,6 +24,7 @@ import 'package:ridex/features/driver_application/presentation/screens/driver_ap
 import 'package:ridex/features/driver_home/presentation/screens/driver_home_screen.dart';
 import 'package:ridex/features/history/presentation/screens/trip_history_screen.dart';
 import 'package:ridex/features/history/presentation/screens/trip_details_screen.dart';
+import 'package:ridex/features/history/presentation/screens/rider_canonical_trip_detail_screen.dart';
 import 'package:ridex/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:ridex/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:ridex/features/profile/presentation/screens/driver_profile_screen.dart';
@@ -89,6 +90,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/rider/home',
           name: RouteNames.riderHome,
           builder: (_, __) => const RiderHomeScreen()),
+      GoRoute(
+          path: '/rider/canonical-payment',
+          name: RouteNames.riderCanonicalPayment,
+          builder: (_, __) => const RiderCanonicalTripDetailScreen()),
       GoRoute(
           path: '/rider/pickup',
           name: RouteNames.pickup,
