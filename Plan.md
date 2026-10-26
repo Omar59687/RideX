@@ -1,8 +1,8 @@
 # RideX Development Plan
 
-## Phase 6 current merged-code checkpoint — 2026-10-25
+## Phase 6 current merged-code checkpoint — 2026-10-25 (main `49e5281`)
 
-GitHub main `552b0f7` contains merged R03 per-Trip read-only recovery correction (#56), Admin F01/F02 local hardening (#58), and Rider canonical Cash/Card exact-ID read providers (#59). These are real merged foundations, not Phase 6 finance activation. Remaining exact gates: disabled Driver backend namespace registry/canonical Trip UI, R03 operator/retention policy, hosted R04/R07 role/Cash/receipt evidence, backend-issued Rider Payment IDs, Stripe account/JOD/actor/handler and R08 scope disposition, then R09 integrated exit. **Phase 6 final closeout remains open**; Phase 7 contracts may be planned without claiming payments or matching work. See [current gate ledger](docs/parallel-development/phase-6/P6_CURRENT_CLOSEOUT_GATES_2026-10-25.md).
+GitHub main `552b0f7` contains merged R03 per-Trip read-only recovery correction (#56), Admin F01/F02 local hardening (#58), and Rider canonical Cash/Card exact-ID read providers (#59). PR #62 (`49e5281`) records the approved Driver backend namespace behind a default-off flag. These are real merged foundations, not Phase 6 finance activation. Remaining exact gates: canonical Driver Trip UI and matching, R03 operator/retention policy, hosted R04/R07 role/Cash/receipt evidence, backend-issued Rider Payment IDs, Stripe account/JOD/actor/handler and R08 scope disposition, then R09 integrated exit. **Phase 6 final closeout remains open**; Phase 7 contracts may be planned without claiming payments or matching work. See [current gate ledger](docs/parallel-development/phase-6/P6_CURRENT_CLOSEOUT_GATES_2026-10-25.md) and [R07 fixture preparation](docs/parallel-development/phase-6/P6_R07_TEST_FIXTURE_PREPARATION.md).
 
 ## Phase 6 R06 checkpoint - 2026-10-25
 

@@ -6,8 +6,9 @@ The original audit/specifications below are preserved. The canonical source,
 journal gateway, application-support storage, existing-owner provider and bounded
 canonical-screen panel merged via PR #54 at main `f9e6807`, originally on
 `feature/p6-r01-r02-driver-cash-integration` from `fc3224c`.
-R01/R02 remain PARTIAL because the approved deployment namespace and production
-activation/canonical mounting are still open. The mock screen is unchanged.
+R01/R02 remain PARTIAL. PR #62 records the approved deployment namespace, but
+the default-off activation gate and canonical-screen mounting remain open. The
+mock screen is unchanged.
 See [SPRINT_TRACKER.md](SPRINT_TRACKER.md) for status and
 [P6_R01_R02_IMPLEMENTATION.md](P6_R01_R02_IMPLEMENTATION.md) for files, owner decision,
 319 historical focused local test results and limitations. R03 local composition
@@ -129,8 +130,9 @@ Historical migration catalog reports do not prove the authenticated role matrix.
   startup-on-provider-creation/resume/explicit triggers, canonical Cash Trip checks,
   receipt-summary reads and bounded panel states are composed locally. See
   [P6_R03_IMPLEMENTATION.md](P6_R03_IMPLEMENTATION.md). R03 remains PARTIAL:
-  the approved backend registry is empty; the canonical panel is not
-  mounted; hosted/runtime and journal/operator policy acceptance remain open.
+  PR #62 records the approved backend mapping, but the default-off gate and
+  unmounted canonical panel remain; hosted/runtime and journal/operator policy
+  acceptance remain open.
 - Receipt reuse: `user_trip_receipt_summary(target_trip_id)` is already authorized
   for authenticated participants by migration 019/020. R03 calls only that RPC;
   its P0002 result means receipt absent and never means payment failure.
@@ -273,8 +275,15 @@ Trip presentation. No hosted reads were made. **R05 remains PARTIAL.**
   acceptance/deployment requires separate authorization.
 ### P6-R07 - Collect controlled hosted Cash completion/recovery evidence (P6-02/P6-07)
 
+- Preparation update: latest main `49e5281` records the owner-approved test endpoint/
+  journal namespace pair behind a default-off compile-time gate (#62). One hosted
+  profile/catalog inspection confirmed the designated account roles and no associated
+  test bookings, Trips, Payments or Receipts. The Driver is offline and has no vehicle.
+  See [R07 fixture preparation](P6_R07_TEST_FIXTURE_PREPARATION.md). This does not
+  constitute authenticated role or financial acceptance.
 - Current implementation: trusted completion/receipt backend foundations and local
-  adapters exist; the complete authenticated production consumer flow is unverified.
+  adapters exist, but the provider is not enabled or mounted in the canonical Driver
+  application flow; the current active Trip UI remains mock-backed.
 - Files/components: existing Driver composition/coordinator/recovery/journal, Driver
   UI, trusted Trip RPC and Driver receipt RPC; acceptance records in this directory.
 - Required work: after separate authorization, run only an isolated nonproduction Cash
@@ -286,9 +295,13 @@ Trip presentation. No hosted reads were made. **R05 remains PARTIAL.**
   Driver, concurrent requests, lost response, receipt-read failure and revoked session
   retain safe evidence; read-only recovery performs no mutation/replay. Separate
   canonical completed Trip from verified issued receipt in UI and logs.
-- Dependencies: R01-R03, hosted test authorization/data and existing backend contract;
-  R04 supports cross-role read evidence. Real matching may await Phase 7; isolated
-  fixture validation does not establish an end-to-end matched ride.
+- Dependencies: R01-R03, canonical Driver screen mounting, an owned active test
+  vehicle, trusted matching/offer creation, hosted test authorization/data and the
+  existing backend contract. `backend_create_driver_match_offer` is service-role-only;
+  the current hosted Edge Function inventory has no matching/fixture function. R04
+  blocked/demoted Admin and foreign Rider cases need separate dedicated identities.
+  Real matching may await Phase 7; isolated fixture validation does not establish an
+  end-to-end matched ride.
 - Physical device: **not required** for hosted SDK/emulator acceptance. Native restart
   storage checks and broader Rider/Driver real-device release tails remain separately open.
 

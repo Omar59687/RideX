@@ -1,10 +1,24 @@
 # RideX Current Status
 
-## Latest verified Phase 6 merges — 2026-10-25 (`main` `552b0f7`)
+## P6-R07 fixture preparation update - 2026-10-25
+
+Latest inspected main is `49e5281` (PR #62), which records the owner-approved
+test endpoint/Driver journal namespace mapping behind the default-off
+`RIDEX_ENABLE_TEST_DRIVER_CASH` gate. The flag remains disabled; the canonical
+panel is still not mounted. Read-only metadata confirms migration 027 and the
+canonical Trip/Payment/Attempt/Receipt tables. Account-scoped read-only checks
+found the designated Admin, approved Driver and Rider profiles, but no associated
+booking, Trip, Payment or Receipt; the Driver is offline and has no vehicle. No
+authenticated role tests or hosted mutations occurred. R07 fixture preparation
+and blockers are in the
+[R07 preparation record](../../parallel-development/phase-6/P6_R07_TEST_FIXTURE_PREPARATION.md).
+R07 is prepared, not accepted; Phase 6 remains NOT APPROVED.
+
+## Merged foundation checkpoint before PR #62 — `main` `552b0f7`
 
 The R03 recovery-state fix has merged as PR #56 (`8b1ee51`), Admin F01/F02 read hardening as PR #58 (`3c83c78`) and Rider canonical exact-ID Cash/Card reader integration as PR #59 (`552b0f7`). Original R03 PR #55 and R01/R02 PR #54 are merged. The previously described R03 review-pending and R05 branch-local implementation entries below are historical, not current merge blockers.
 
-R03's per-Trip evidence remains read-only; R05 still lacks a trusted backend-issued Payment ID from real Trip/history UI; R04 hosted authenticated actor acceptance is still blocked. Driver registry remains empty and its canonical non-mock UI is not mounted; hosted trusted Cash/receipt and Stripe runtime are not verified. **Phase 6 is not approved**. See [the merged-code closeout and remaining gates](../../parallel-development/phase-6/P6_CURRENT_CLOSEOUT_GATES_2026-10-25.md). No Phase 4/5 release gate was changed by this reconciliation.
+R03's per-Trip evidence remains read-only; R05 still lacks a trusted backend-issued Payment ID from real Trip/history UI; R04 hosted authenticated actor acceptance is still blocked. PR #62 added the approved endpoint/namespace pair, but its compile-time activation flag remains default-off and the canonical non-mock Driver UI is not mounted. Hosted trusted Cash/receipt and Stripe runtime are not verified. **Phase 6 is not approved**. See [the merged-code closeout and remaining gates](../../parallel-development/phase-6/P6_CURRENT_CLOSEOUT_GATES_2026-10-25.md). No Phase 4/5 release gate was changed by this reconciliation.
 
 ## Current override - 2026-10-25 P6-R06 Stripe preparation
 
@@ -92,9 +106,9 @@ canonical/receipt evidence and separate outcomes: one verified Trip cannot hide
 another Trip's unresolved, failed or unprocessed recovery. Re-review is pending.
 Flutter Analyze result and limits are in the
 [R03 implementation record](../../parallel-development/phase-6/P6_R03_IMPLEMENTATION.md).
-The empty backend registry still prevents activation until the owner approves the
-exact endpoint namespace; journal retention/operator resolution policy, hosted
-role/session/restart verification and canonical screen mounting also remain open.
+The approved endpoint/namespace mapping is now recorded by PR #62, but the
+default-off registry gate, journal retention/operator resolution policy, hosted
+role/session/restart verification and canonical screen mounting remain open.
 No hosted/runtime/device or financial outcome is claimed. R03 is PARTIAL and Phase 6
 remains NOT APPROVED. See the [authoritative tracker](../../parallel-development/phase-6/SPRINT_TRACKER.md).
 
@@ -105,8 +119,9 @@ R01/R02 implementation merged via PR #54 at `f9e6807`, originally prepared on
 Canonical Driver availability/Trip source, application-support
 journal gateway, existing-owner Cash provider and bounded canonical UI seam are
 implemented. The current Driver mock screen is preserved. Production activation
-remains disabled by an empty approved registry; the endpoint-to-stable-namespace
-owner decision and canonical-screen mounting remain open. Neither task nor Phase 6
+remains disabled by the default-off flag; PR #62 records the approved
+endpoint-to-stable-namespace pair, while canonical-screen mounting remains open.
+Neither task nor Phase 6
 is declared complete. See the [tracker](../../parallel-development/phase-6/SPRINT_TRACKER.md)
 and [implementation record](../../parallel-development/phase-6/P6_R01_R02_IMPLEMENTATION.md)
 for exact status, 319 focused local PASS / 0 FAIL / 0 SKIP, clean analysis and limits.
