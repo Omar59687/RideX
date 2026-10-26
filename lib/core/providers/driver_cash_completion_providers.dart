@@ -22,22 +22,29 @@ import 'package:ridex/features/trips/application/driver_cash_recovery_controller
 const bool _enableTestDriverCash =
     bool.fromEnvironment('RIDEX_ENABLE_TEST_DRIVER_CASH', defaultValue: false);
 
+/// Shared default-off gate for the test-only route and backend allowlist.
+final driverCashRuntimeEnabledProvider =
+    Provider<bool>((ref) => _enableTestDriverCash);
+
 final approvedDriverCompletionBackendsProvider =
     Provider<DriverBackendRegistry>((ref) => DriverBackendRegistry(
-      _enableTestDriverCash
-          ? [DriverBackendIdentity(
-              endpoint: Uri.parse('https://ykasivejjchupswqyxpm.supabase.co'),
-              namespace: 'ridex-grad-ykasivejjchupswqyxpm-v1',
-            )]
-          : [],
-    ));
+          ref.watch(driverCashRuntimeEnabledProvider)
+              ? [
+                  DriverBackendIdentity(
+                    endpoint:
+                        Uri.parse('https://ykasivejjchupswqyxpm.supabase.co'),
+                    namespace: 'ridex-grad-ykasivejjchupswqyxpm-v1',
+                  )
+                ]
+              : [],
+        ));
 
 /// Native app support directory; errors are handled by the staging gateway.
 final driverCompletionStoreFactoryProvider =
     Provider<Future<DriverCompletionCommandStore> Function()>(
         (ref) => openApplicationCompletionStore);
 
-/// Safe seam for a future canonical Driver screen. Never consumed by the
+/// Session-scoped owner for the canonical Driver screen. Never consumed by the
 /// existing MockTrip screen. Each mounted owner is permanently one-attempt;
 /// journal create-or-load also prevents dispatch across separate instances.
 final driverCashCompletionProvider =

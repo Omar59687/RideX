@@ -33,6 +33,7 @@ import 'package:ridex/features/rider_home/presentation/screens/rider_home_screen
 import 'package:ridex/features/settings/presentation/screens/settings_screen.dart';
 import 'package:ridex/features/splash/presentation/screens/splash_screen.dart';
 import 'package:ridex/features/trips/presentation/screens/driver_active_trip_screen.dart';
+import 'package:ridex/features/trips/presentation/screens/driver_canonical_trip_screen.dart';
 import 'package:ridex/features/trips/presentation/screens/driver_arrival_screen.dart';
 import 'package:ridex/features/trips/presentation/screens/driver_trip_request_screen.dart';
 import 'package:ridex/features/trips/presentation/screens/rider_active_trip_screen.dart';
@@ -171,6 +172,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/driver/trip',
           name: RouteNames.driverTrip,
           builder: (_, __) => const DriverActiveTripScreen()),
+      GoRoute(
+          path: '/driver/canonical-trip',
+          name: RouteNames.driverCanonicalTrip,
+          builder: (_, __) => const DriverCanonicalTripScreen()),
       GoRoute(
           path: '/driver/completed',
           builder: (_, __) => const TripCompletionScreen(isDriverView: true)),

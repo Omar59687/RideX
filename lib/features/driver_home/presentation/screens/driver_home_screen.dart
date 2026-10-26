@@ -5,6 +5,7 @@ import 'package:ridex/app/theme/app_colors.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/app/theme/ridex_theme.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/providers/driver_cash_completion_providers.dart';
 import 'package:ridex/core/providers/driver_tracking_providers.dart';
 import 'package:ridex/core/providers/location_providers.dart';
 import 'package:ridex/core/models/current_location_state.dart';
@@ -75,6 +76,14 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       body: ListView(
         children: [
           const SizedBox(height: AppSpacing.md),
+          if (ref.watch(driverCashRuntimeEnabledProvider)) ...[
+            AppButton(
+                key: const ValueKey('driver-canonical-trip-button'),
+                label: 'Canonical Cash Trip (test backend)',
+                variant: AppButtonVariant.secondary,
+                onPressed: () => context.push('/driver/canonical-trip')),
+            const SizedBox(height: AppSpacing.md),
+          ],
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(

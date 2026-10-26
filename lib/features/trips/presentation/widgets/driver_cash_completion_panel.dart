@@ -4,7 +4,7 @@ import 'package:ridex/core/providers/driver_cash_completion_providers.dart';
 import 'package:ridex/features/trips/application/driver_cash_completion_controller.dart';
 import 'package:ridex/features/trips/application/driver_cash_recovery_controller.dart';
 
-/// Optional canonical-screen seam. Intentionally not mounted on the MockTrip
+/// Canonical-screen panel. Intentionally not mounted on the MockTrip
 /// route. Accepts no Trip ID/version/key or caller-supplied success evidence.
 class DriverCashCompletionPanel extends ConsumerWidget {
   const DriverCashCompletionPanel({super.key});
@@ -12,6 +12,18 @@ class DriverCashCompletionPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.watch(driverCashCompletionProvider);
+    // Recovery is a separate notifier: its startup/resume/explicit read results
+    // must rebuild the panel even when completion state has not changed.
+    if (controller != null) {
+      return ListenableBuilder(
+        listenable: controller.recovery,
+        builder: (context, _) => _content(controller),
+      );
+    }
+    return _content(null);
+  }
+
+  Widget _content(DriverCashCompletionController? controller) {
     final state = controller?.state ?? DriverCashCompletionState.unavailable;
     final text = switch (state) {
       DriverCashCompletionState.unavailable =>

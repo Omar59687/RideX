@@ -1,5 +1,19 @@
 # RideX Current Status
 
+## Canonical Driver Cash UI runtime wiring — 2026-10-26
+
+From main `6de01b2` (PR #65), a distinct Driver-protected canonical Trip surface
+now mounts the existing R01/R02/R03 panel and session-scoped composition. Driver
+home exposes its entry only with the existing test-only compile-time gate; normal
+builds stay disabled. Canonical active-Trip discovery, SDK/B1-B authority, durable
+journal-before-dispatch and read-only startup/resume/explicit recovery are reused.
+Recovery notifications now update the panel independently of completion state.
+The mock route remains isolated. No hosted operation or flag activation occurred
+in this implementation. The previously created `inProgress` fixture remains
+historical setup evidence; hosted completion/receipt acceptance needs separate
+authorization. Phase 6 remains NOT APPROVED. See
+[runtime integration record](../../parallel-development/phase-6/P6_CANONICAL_DRIVER_CASH_UI.md).
+
 ## P6-R07 fixture preparation update - 2026-10-25
 
 Latest inspected main is `49e5281` (PR #62), which records the owner-approved

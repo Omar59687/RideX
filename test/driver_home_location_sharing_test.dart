@@ -10,6 +10,7 @@ import 'package:ridex/core/models/driver_availability.dart';
 import 'package:ridex/core/models/driver_location.dart';
 import 'package:ridex/core/models/location_point.dart';
 import 'package:ridex/core/providers/driver_tracking_providers.dart';
+import 'package:ridex/core/providers/driver_cash_completion_providers.dart';
 import 'package:ridex/core/providers/location_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
@@ -29,8 +30,9 @@ void main() {
   late FakeConnection connection;
   late DriverTrackingState trackingState;
 
-  Widget buildSubject() => ProviderScope(
+  Widget buildSubject({bool cashEnabled = false}) => ProviderScope(
         overrides: [
+          driverCashRuntimeEnabledProvider.overrideWithValue(cashEnabled),
           locationRepositoryProvider.overrideWithValue(location),
           driverLocationRepositoryProvider.overrideWithValue(driver),
           driverGpsStreamServiceProvider.overrideWithValue(gps),
@@ -92,12 +94,31 @@ void main() {
     await pumpSubject(tester);
 
     expect(location.requestCount, 0);
+    expect(find.byKey(const ValueKey('driver-canonical-trip-button')),
+        findsNothing);
     expect(find.text('Start sharing'), findsOneWidget);
 
     await tapButton(tester, 'Start sharing');
 
     expect(location.requestCount, 1);
     expect(find.text('Sharing'), findsOneWidget);
+  });
+
+  testWidgets('test gate adds a distinct canonical entry alongside mock demo',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(buildSubject(cashEnabled: true));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('driver-canonical-trip-button')),
+        findsOneWidget);
+    await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('driver-demo-request-button')), 300);
+    expect(find.text('Demo incoming trip'), findsOneWidget);
+    expect(location.requestCount, 0);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('Stop sharing stops tracking without changing demo presence',

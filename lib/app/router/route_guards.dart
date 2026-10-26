@@ -115,6 +115,7 @@ const _driverLocations = {
   '/driver/request',
   '/driver/arrival',
   '/driver/trip',
+  '/driver/canonical-trip',
   '/driver/completed',
 };
 

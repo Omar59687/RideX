@@ -1,5 +1,22 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## Canonical Driver Cash UI integration — 2026-10-26
+
+The R01/R02/R03 composition is now mounted on a distinct Driver-protected
+`/driver/canonical-trip` surface, with a test-only Driver-home entry and independent
+recovery notifications. Both entry and backend allowlist retain the default-off
+`RIDEX_ENABLE_TEST_DRIVER_CASH` gate. The mock route remains separate. Readiness
+uses the existing canonical active-Trip source; durable staging, session pinning,
+B1-B epochs and read-only startup/resume/explicit recovery are reused.
+
+The prior operator fixture execution reached `inProgress` version 4; this is
+setup evidence, not completion/settlement/receipt acceptance. This code slice
+performs no hosted operations and does not enable the flag. R01/R02/R03 runtime
+wiring is implemented locally; R07 acceptance and R04 hosted role acceptance
+remain pending. Phase 6 is NOT APPROVED. Older unmounted/no-fixture statements
+below describe their historical checkpoints. See
+[runtime wiring, activation command and remaining gates](P6_CANONICAL_DRIVER_CASH_UI.md).
+
 ## P6-R07 operator lifecycle correction - 2026-10-26
 
 A hosted/source contract inspection caught a genuine #64 tool defect before any
