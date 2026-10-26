@@ -2,13 +2,14 @@
 
 ## R06 hosted migration verification - 2026-10-26
 
-Against `origin/main` `29e5946`, read-only catalog inspection confirmed the hosted
-reservation table/RPC schema and permissions match the committed SQL. The hosted
-migration history uses version `20261026170603`; the repository filename uses
-`20261026163720`. No reservation rows exist; Cash fixture values match the
-previous acceptance record. The hosted `stripe-test-intent` Edge Function is not
-deployed and source dispatch remains disabled. See [R06 hosted verification and
-reconciliation](P6_R06_DURABLE_PREPARATION.md).
+PR #71 aligned the repository filename with hosted migration version
+`20261026170603`. Current read-only catalog checks confirm the private
+reservation table/RPC security controls, zero reservation rows, preserved Cash
+fixture, no eligible Card Attempt, and disabled/undeployed Stripe provider path.
+Hosted concurrency acceptance is **BLOCKED** because no reviewed Card fixture
+operator exists; local reservation unit tests passed 26/26 with Deno type-check
+unavailable due to missing local `@types/node`. See [R06 hosted preflight and
+acceptance limits](P6_R06_DURABLE_PREPARATION.md#hosted-concurrency-acceptance-preflight--2026-10-26).
 
 ## R06 durable Test Mode preparation — 2026-10-26
 
