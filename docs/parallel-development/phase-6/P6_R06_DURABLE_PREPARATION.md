@@ -1,17 +1,70 @@
 # R06 durable Stripe Test Mode preparation — 2026-10-26
 
-Base: main `b740c16180609b466e1bdbeb984077605a6ae355` (PR #68).
+## Hosted migration verification - 2026-10-26
+
+Read-only catalog checks against Supabase project `ykasivejjchupswqyxpm`,
+using `origin/main` `29e5946`, found
+`phase6_stripe_test_dispatch_reservation` recorded as version `20261026170603`.
+The committed SQL is catalog-equivalent for the reservation table (columns,
+defaults, checks, foreign keys, and five unique indexes) and all three RPCs
+(signatures, bodies, `SECURITY DEFINER`, and empty search path). RLS is enabled;
+there are no table policies or direct privileges for `anon`, `authenticated`, or
+`service_role`. Only `service_role` can execute the RPCs. There are no reservation
+rows. This is a catalog comparison, not a byte-for-byte remote migration source
+or a cryptographic deployment attestation. Supabase CLI migration tracking
+compares migration timestamps, which is why the version discrepancy must be
+resolved before a later migration push.
+
+The local migration filename is
+`20261026163720_phase6_stripe_test_dispatch_reservation.sql`, so its version does
+not match the hosted history version. The migration name and object definitions
+match. The existing Cash fixture remains completed at Trip version 5, paid Cash
+JOD 16.00 at Payment version 2, with one Receipt; these values match the prior
+acceptance record. The hosted Edge Function inventory has no `stripe-test-intent`
+function, and `origin/main` still has `providerDispatchEnabled: false`.
+No hosted write or Stripe request was made.
+
+### Recommended history reconciliation
+
+Once authorized, make a repository-only filename correction in a reviewed PR;
+keep the SQL bytes unchanged:
+
+```powershell
+git mv supabase/migrations/20261026163720_phase6_stripe_test_dispatch_reservation.sql supabase/migrations/20261026170603_phase6_stripe_test_dispatch_reservation.sql
+npx --yes supabase@2.122.0 migration list --linked
+npx --yes supabase@2.122.0 db push --linked --dry-run
+```
+
+First verify the linked project is `ykasivejjchupswqyxpm`. Official CLI behavior
+is described in the [migration list reference](https://supabase.com/docs/reference/cli/supabase-migration-list)
+and [database migration guide](https://supabase.com/docs/guides/deployment/database-migrations). The migration list
+should show `20261026170603` on both sides. The dry run must not list this
+migration as pending; stop on any unexpected pending migration. Do not run
+`db push`, `migration repair`, `--include-all`, or any SQL for this reconciliation.
+A file rename aligns the Git migration timestamp with the timestamp already
+recorded remotely, while retaining the applied migration as one history entry.
+Do not add the old timestamp as a second applied entry. Local databases that
+already recorded `20261026163720` need separate inspection before adopting the
+rename; do not repair their histories blindly.
+
+This filename change is not made in this record because it requires separate
+owner authorization.
+
+Implementation snapshot at PR #69 merge, based on main
+`b740c16180609b466e1bdbeb984077605a6ae355` (PR #68). Hosted verification is
+recorded above.
 Status: **PARTIAL; locally verified durable foundation; production dispatch OFF**.
 No PaymentIntent was created and no hosted financial record was changed.
 
 ## Design and canonical authority
 
-The proposed migration
+The migration
 `20261026163720_phase6_stripe_test_dispatch_reservation.sql` adds a private
 preparation-evidence table and three service-role-only RPCs. It does not alter
 the Payment/Attempt state machine or grant clients financial writes. No existing
-migration is rewritten. The migration was generated with Supabase CLI 2.122.0,
-applied only to an isolated local schema snapshot, and is **not deployed**.
+migration is rewritten. It was generated with Supabase CLI 2.122.0 and tested on
+an isolated local schema snapshot. At PR #69 merge it was not deployed; the
+hosted catalog now confirms the same objects under the timestamp documented above.
 
 The claim RPC locks Trip, Payment and Attempt in the existing backend lock order,
 then checks the current nonblocked Rider. It requires exact ownership/identity,
@@ -124,9 +177,9 @@ No full Flutter suite was run because no Flutter code changed.
 
 ## Exact activation prerequisites and remaining blockers
 
-1. Review/merge the reservation design and migration; separately authorize and
-   perform deployment with migration history, grants/RLS and hosted concurrency/
-   restart/unknown-outcome acceptance. Local success is not deployment approval.
+1. Reconcile the repository timestamp with the deployed migration history using
+   the filename-only strategy above. Hosted catalog grants/RLS are verified, but
+   concurrency/restart/unknown-outcome acceptance remains incomplete.
 2. Approve the exact Stripe Test Mode account/credential selection, API contract,
    JOD presentment and precision rules. Supply credentials only through server
    secret management. No Stripe key was obtained or used here.
@@ -147,4 +200,5 @@ No full Flutter suite was run because no Flutter code changed.
 
 R06 is **not approved**, and Phase 6 remains NOT APPROVED. No hosted query/test,
 financial mutation, Stripe request, PaymentIntent creation, schema/function
-deployment or external-dispatch activation occurred in this implementation.
+deployment or external-dispatch activation occurred during the PR #69 implementation;
+the later hosted catalog verification above confirmed the reservation migration only.

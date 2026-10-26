@@ -1,12 +1,23 @@
 # RideX Current Status
 
+## R06 hosted migration verification - 2026-10-26
+
+Against `origin/main` `29e5946`, read-only catalog inspection confirmed the hosted
+reservation table/RPC schema and permissions match the committed SQL. The hosted
+migration history uses version `20261026170603`; the repository filename uses
+`20261026163720`. No reservation rows exist; Cash fixture values match the
+previous acceptance record. The hosted `stripe-test-intent` Edge Function is not
+deployed and source dispatch remains disabled. See [R06 hosted verification and
+reconciliation](../../parallel-development/phase-6/P6_R06_DURABLE_PREPARATION.md).
+
 ## R06 durable Stripe preparation foundation - 2026-10-26
 
-Based on main b740c16, R06 now includes a proposed private reservation migration,
+At PR #69 merge, based on main b740c16, R06 introduced a private reservation
+migration (since confirmed deployed by the hosted catalog check above),
 backend-only claim/evidence/read RPCs, durable handler composition and read-only
 exact-provider-ID reconciliation. No Payment/Attempt state transition or replay
 is introduced. Local Deno (83), SQL (31) and real concurrent/restarted database
-claim checks pass; deployment and Stripe remain disabled. R06 stays PARTIAL
+claim checks pass; Stripe dispatch remains disabled. R06 stays PARTIAL
 pending approvals, canonical Card fixture and hosted safety/Test Mode acceptance.
 No hosted record or service was changed. Phase 6 remains NOT APPROVED. See
 [implementation and activation gates](../../parallel-development/phase-6/P6_R06_DURABLE_PREPARATION.md).
