@@ -1,5 +1,17 @@
 # RideX Current Status
 
+## R04/R05 security acceptance closeout — 2026-10-26
+
+Latest main `86e67cb` includes PR #67. R05 is **ACCEPTED for the bounded canonical
+Cash Trip/payment/receipt read UI**, supported by prior owning-Rider hosted reads,
+owner-attested device acceptance and fresh foreign-Rider SDK rejection. R04 stays
+**PARTIAL**: new Admin list bounds/redaction checks passed, but blocked/demoted
+Admin fixtures are unavailable and were not created. No successful device tests
+were repeated; no financial/role/schema mutation occurred. Focused checks:
+88 PASS, Analyze clean. Hosted race/over-limit limitations are recorded. Phase 6
+remains **NOT APPROVED**. See
+[current evidence matrix](../../parallel-development/phase-6/P6_R04_R05_SECURITY_CLOSEOUT.md).
+
 ## R05 canonical Rider Cash detail UI — 2026-10-26
 
 From main `55b1320`, a separate Rider-home entry opens the latest owned completed

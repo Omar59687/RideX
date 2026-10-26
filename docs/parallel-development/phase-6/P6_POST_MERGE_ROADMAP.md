@@ -1,5 +1,15 @@
 # Phase 6 post-merge audit and remaining execution roadmap
 
+## R04/R05 acceptance closeout — 2026-10-26
+
+R05's bounded canonical Cash read/detail UI is accepted on prior owning-Rider SDK
+evidence, owner-attested device acceptance and fresh second-Rider exact-ID/receipt
+denial. R04 remains PARTIAL pending disposable blocked/demoted Admin hosted cases;
+fresh Admin output bounds/redaction passed for the observed dataset. Hosted
+race/over-limit limitations remain explicit. Older partial R05 and missing-fixture
+entries below are historical. Phase 6 is NOT APPROVED; no Card/history/Stripe
+release is implied. See [closeout matrix](P6_R04_R05_SECURITY_CLOSEOUT.md).
+
 ## R05 canonical Rider detail update — 2026-10-26
 
 Existing participant RLS now supplies one owned completed Cash Trip to a separate
