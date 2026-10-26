@@ -1,6 +1,20 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
-## P6-R07 test fixture preparation update - 2026-10-25
+## P6-R07 operator lifecycle correction - 2026-10-26
+
+A hosted/source contract inspection caught a genuine #64 tool defect before any
+offer or Trip was created: `accepted -> inProgress` is rejected by the existing
+Trip transition trigger. The corrected operator sequence uses the same Driver
+RPC through `driverArriving`, `driverArrived`, then `inProgress`, with canonical
+identity/status/version rereads after each response. Six new lifecycle regressions
+plus five existing fixture guards pass locally (11 total). No hosted fixture
+execution was performed during this correction. The previous passing read-only
+preflight remains data-prerequisite evidence only. Current execution is stopped
+until the correction is reviewed/merged and the owner explicitly includes the two
+intermediate test transitions in the execution scope. See
+[R07 fixture preparation](P6_R07_TEST_FIXTURE_PREPARATION.md). R07 remains
+**PREPARED, NOT ACCEPTED**; completion, settlement, receipt issuance and app
+activation are not authorized here.
 
 ## P6-R07 isolated fixture tooling update - 2026-10-26
 
@@ -16,6 +30,8 @@ other hosted record was created. Focused Deno contract tests characterize the
 allowlist and fail-closed guards. R07 remains **PREPARED, NOT ACCEPTED**; the app
 flag stays off, R02 UI remains inactive, and hosted setup/financial acceptance
 still requires separate operator authorization.
+
+## P6-R07 test fixture preparation update - 2026-10-25
 
 Base: latest inspected `origin/main` `49e5281dfef04ad9eb0e02d5303a344d425d6ac3`
 (PR #62). The owner-approved graduation test endpoint and Driver journal

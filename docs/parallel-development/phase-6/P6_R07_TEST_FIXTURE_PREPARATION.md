@@ -1,11 +1,51 @@
 # P6-R07 Cash and Recovery test fixture preparation
 
 Date: 2026-10-25. Repository base: `49e5281dfef04ad9eb0e02d5303a344d425d6ac3`.
-Status: **OPERATOR FIXTURE TOOL PREPARED; HOSTED SETUP/ACCEPTANCE NOT RUN**.
+Status: **TRIP EXECUTION STOPPED FOR LIFECYCLE CORRECTION; HOSTED FINANCIAL ACCEPTANCE NOT RUN**.
+
+## Canonical lifecycle correction - 2026-10-26
+
+The original #64 Trip execution path skipped directly from `accepted` to
+`inProgress`. Repository migration 008 and the hosted
+`private.enforce_trip_transition()` trigger both reject that transition with
+`55000: Invalid Trip status transition.` The earlier read-only preflight verifies
+data prerequisites, not transition compatibility; it cannot establish that this
+execution path is safe. The defect was caught before creating an offer or Trip.
+
+This correction uses the existing authenticated `driver_transition_trip` RPC for
+`accepted -> driverArriving -> driverArrived -> inProgress`. Each staging response
+must match the original Trip, then a canonical Driver-authorized reread must prove
+the expected status, next version, original booking/Rider/Driver/vehicle identities
+and Cash method before any further command. Errors, uncertain responses, foreign
+identities or stale rereads stop the sequence without retry. No backend contract,
+schema, migration, financial workflow or app activation flag is changed.
+
+Local verification: **11 Deno tests PASS / 0 FAIL**, including the five existing
+fixture guard tests and six lifecycle regressions. Type-check, lint, formatting
+and diff consistency checks passed. These are local tests, not hosted
+fixture acceptance. No new authenticated preflight or hosted mutation was run
+during this corrective work.
+
+Read-only inspection at this checkpoint found the designated Rider's confirmed
+Cash Economy booking at version 3 with locked quote version 1, the approved
+Driver's active owned vehicle at version 2, and availability `available` at version
+2. No offer or Trip exists for the booking. Exact identities remain in restricted
+operator evidence rather than this document.
+
+**Execution remains stopped.** The current owner request enumerates only offer
+creation, acceptance and `inProgress`. Obtain authorization explicitly covering
+the required intermediate `driverArriving` and `driverArrived` test transitions,
+merge/review this correction, then authenticate both accounts and run a fresh
+read-only preflight before one operator execution. Do not run the original #64
+sequence merely to reproduce a known partial failure. No approval for completion,
+settlement, receipt issuance, replay, cleanup or Phase 6 exit is implied.
+
+## Original preparation scope (historical snapshot)
 
 This record prepares one isolated, non-production Cash Trip acceptance scenario.
-No hosted Trip, Payment, Receipt, booking, vehicle, profile or role was created or
-changed. No RPC was invoked, and no migration or Edge Function was deployed. The
+During the original preparation, no hosted Trip, Payment, Receipt, booking,
+vehicle, profile or role was created or changed. No RPC was invoked, and no
+migration or Edge Function was deployed. The
 future acceptance must not involve exchange of real cash; fixture execution remains
 a separately authorized mutation of designated test-backend records.
 
@@ -86,7 +126,8 @@ The fixture must use RideX's authenticated application and trusted backend path:
    active compatible vehicle and `available` state, and no prior Trip/offer for
    that booking. With `--execute` plus `R07_EXECUTION_APPROVAL_REF`, it calls only
    `backend_create_driver_match_offer` followed immediately by the authenticated
-   Driver `driver_transition_trip` acceptance and `inProgress` transition. This is
+   Driver `driver_transition_trip` acceptance, then the required `driverArriving`,
+   `driverArrived` and `inProgress` transitions. This is
    an operator-triggered test assignment through canonical contracts; it is not a
    real matching algorithm or evidence of Phase 7 matching. The operator holds
    the service-role key locally; the key is never part of Flutter/application code,
@@ -97,8 +138,8 @@ The fixture must use RideX's authenticated application and trusted backend path:
 4. `driver_transition_trip(..., 'accepted', expected_version, key)` validates the
    Driver, offer and assignment; the server creates the canonical Trip and ensures
    its Payment from the locked FareQuote and Trip. The tool then uses that same
-   authenticated RPC for `inProgress`, preserving backend versions and checking
-   returned canonical state.
+   authenticated RPC for each required lifecycle stage, preserving backend versions
+   and checking returned canonical identity/state/version after every response.
 5. Once R01/R02 are mounted and separately authorized for hosted acceptance,
    complete that same `inProgress` Trip exactly once using its persisted version
    and original idempotency key.
@@ -205,7 +246,11 @@ the public report should contain masked identifiers and status assertions. No
 credentials, service-role key, session token, raw receipt snapshots or payment
 payload belongs in repository documentation.
 
-## Current blockers and status
+## Historical preparation blockers and status
+
+The lifecycle correction checkpoint above supersedes the absent vehicle/booking
+items in this original preparation snapshot. The canonical app activation and
+hosted financial acceptance gates remain open.
 
 - No owned vehicle for the designated Driver; the synthetic vehicle fields and
   authorized registration/activation RPCs are now specified, but not executed.
@@ -259,7 +304,8 @@ deno run --allow-env=RIDEX_BACKEND_NAMESPACE,SUPABASE_ANON_KEY,SUPABASE_SERVICE_
 Only after a separately recorded operator execution authorization, set
 `R07_EXECUTION_APPROVAL_REF` to that approval record and append `--execute`. This
 creates a canonical offer and advances the same canonical Trip to `inProgress`;
-it does not complete it. Never use the Admin account to execute this tool. Do not
+authorization must cover acceptance plus `driverArriving`, `driverArrived`, and
+`inProgress`. It does not complete the Trip. Never use the Admin account to execute this tool. Do not
 run concurrent setup processes. On any timeout or uncertain response, stop; do not
 rerun. Verify booking, offer, Trip and Payment through authorized read paths and
 preserve evidence. A prepared Trip is not an accepted Cash completion fixture
