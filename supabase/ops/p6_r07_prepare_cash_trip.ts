@@ -14,6 +14,7 @@ import {
   R07_ENDPOINT,
   R07_NAMESPACE,
 } from "./p6_r07_fixture_contract.ts";
+import { stageAcceptedFixtureTrip } from "./p6_r07_trip_lifecycle.ts";
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -337,34 +338,40 @@ async function main(): Promise<void> {
     throw new Error("accept_result_unverified_do_not_retry");
   }
 
-  const trip = oneRow(
-    await requestJson(
-      `/rest/v1/trips?select=id,driver_id,status,version,payment_method&id=eq.${accepted.trip_id}&driver_id=eq.${driver.id}&limit=2`,
-      { token: driverToken, apikey: anonKey },
-    ),
-  );
-  if (
-    trip.status !== "accepted" || trip.payment_method !== "cash" ||
-    !Number.isSafeInteger(trip.version)
-  ) {
-    throw new Error("trip_state_unverified_no_further_command");
-  }
-  const started = rpcObject(
-    await requestJson("/rest/v1/rpc/driver_transition_trip", {
-      method: "POST",
-      token: driverToken,
-      apikey: anonKey,
-      body: {
-        target_id: trip.id,
-        requested_status: "inProgress",
-        expected_version: trip.version,
-        idempotency_key: `p6-r07-start-${crypto.randomUUID()}`,
-      },
-    }),
-  );
-  if (started.trip_id !== trip.id || started.status !== "inProgress") {
-    throw new Error("start_result_unverified_do_not_retry");
-  }
+  const tripId = accepted.trip_id;
+  const trip = await stageAcceptedFixtureTrip({
+    tripId,
+    bookingId: options.bookingId,
+    driverId: driver.id,
+    riderId: rider.id,
+    vehicleId: options.vehicleId,
+  }, {
+    readTrip: async () =>
+      oneRow(
+        await requestJson(
+          `/rest/v1/trips?select=id,booking_request_id,driver_id,rider_id,vehicle_id,status,version,payment_method&id=eq.${tripId}&driver_id=eq.${driver.id}&limit=2`,
+          { token: driverToken, apikey: anonKey },
+        ),
+      ),
+    transition: async (status, version, key) =>
+      rpcObject(
+        await requestJson(
+          "/rest/v1/rpc/driver_transition_trip",
+          {
+            method: "POST",
+            token: driverToken,
+            apikey: anonKey,
+            body: {
+              target_id: tripId,
+              requested_status: status,
+              expected_version: version,
+              idempotency_key: key,
+            },
+          },
+        ),
+      ),
+    commandKey: (status) => `p6-r07-${status}-${crypto.randomUUID()}`,
+  });
   console.log(
     "R07 canonical Cash Trip prepared and in progress. No completion, settlement, receipt, retry, or cleanup was performed.",
   );
