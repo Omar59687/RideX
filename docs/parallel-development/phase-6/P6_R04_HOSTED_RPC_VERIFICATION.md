@@ -1,5 +1,16 @@
 # P6-R04 Admin and canonical payment RPC verification
 
+## Current hosted closeout override — 2026-10-26
+
+The isolated test backend and existing actors are now owner-authorized. Prior
+Rider/Driver/anonymous denial and representative Payment/Receipt RLS runs passed;
+the owner supplied successful Admin device/logout/navigation evidence. New
+real-SDK execution verified Admin list bounds/redaction and foreign Rider exact
+Payment/Trip Payment/Receipt denial. **R04 remains PARTIAL** because disposable
+blocked/demoted Admin cases are unavailable. The unconfirmed-environment and
+all-actors-not-run statements below describe the original audit, not current
+provenance. See [current matrix and remaining limits](P6_R04_R05_SECURITY_CLOSEOUT.md).
+
 Date: 2026-10-25 UTC. Repository base: main
 `34801bcb5b89607e79a2736e83b87d82d4447bb5`.
 Branch: `docs/p6-r04-hosted-rpc-verification`.

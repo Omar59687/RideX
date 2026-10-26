@@ -1,5 +1,16 @@
 # R05 bounded canonical Rider Cash detail integration
 
+## Acceptance closeout — 2026-10-26
+
+PR #67 merged at `86e67cb`. **ACCEPTED for this bounded Cash read/UI scope**:
+owner-attested device Paid/JOD 16.00/Receipt Verified display, refresh/logout/login
+and second-Rider UI isolation supplement prior owning-Rider SDK acceptance. Fresh
+second-Rider SDK reads now reject the known foreign Payment (200/empty) and Trip
+payment/receipt RPCs (403/42501). This closes the previously pending gates below;
+those statements are historical. No successful device/owning-Rider test was
+repeated. R04 remains PARTIAL and Phase 6 NOT APPROVED. See
+[security closeout evidence and untested races](P6_R04_R05_SECURITY_CLOSEOUT.md).
+
 Base: main `55b1320af402bc172b2694079f9ee8a901fa4785` (PR #66).
 Status: Cash Trip-to-Payment/Receipt UI implemented locally; R05 remains PARTIAL
 pending integrated hosted/device acceptance and the authorized foreign-Rider case.

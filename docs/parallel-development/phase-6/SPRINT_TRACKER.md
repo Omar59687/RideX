@@ -1,5 +1,24 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## R04/R05 security closeout — 2026-10-26 (current acceptance override)
+
+Main `86e67cb` includes PR #67. **R05 ACCEPTED for the bounded canonical Cash
+Trip/payment/receipt read UI**: prior owning-Rider SDK evidence and owner-attested
+device display/refresh/logout/login/isolation are supplemented by fresh real
+Rider-B SDK exact-ID rejection (HTTP 200/empty) and foreign Trip payment/receipt
+denials (403/42501). No completed device/owning-Rider acceptance was repeated.
+
+**R04 remains PARTIAL**: fresh Admin list bounds/redaction passed for one known
+record, deployed LIMIT 50/order/field allowlist is confirmed, and previous role
+denial/RLS/device evidence is retained. Blocked Admin count is zero; no approved
+demoted-Admin fixture exists. These hosted cases remain BLOCKED without role or
+account mutation. Hosted over-limit datasets and deliberately delayed/session
+race tests were not run. New focused tests: **88 PASS**, Analyze clean.
+
+Phase 6 remains **NOT APPROVED**. R05 acceptance is not Card/Stripe/history or
+global financial release approval. Prior partial/missing-foreign-case entries
+below are historical. See [evidence matrix and limits](P6_R04_R05_SECURITY_CLOSEOUT.md).
+
 ## R05 canonical Rider Cash detail UI — 2026-10-26
 
 The existing participant-scoped `trips` SELECT policy supports a bounded latest
