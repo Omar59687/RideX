@@ -57,6 +57,13 @@ machine paths, credentials, private account identities or financial payloads.
 Actor labels are Admin-A (approved Admin), Rider-A (Payment owner), Rider-B
 (existing second Rider) and Driver-A (approved Driver).
 
+After execution the owner identified Rider-B as `laith@demo.com` (a non-sensitive
+account label). Read-only metadata confirms that label belongs to an existing
+nonblocked Rider distinct from the Payment owner. The execution artifact retains
+only Rider-B, not the entered email or SDK user ID; its authentication/getUser
+checks verified the operator-entered identity in memory. This metadata/owner
+label corroboration is not a replacement SDK authentication or a repeated test.
+
 ## Acceptance matrix
 
 | Test | Actor | Expected | Actual evidence | Verdict | Reference |
