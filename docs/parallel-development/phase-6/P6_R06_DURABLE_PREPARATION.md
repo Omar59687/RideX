@@ -1,6 +1,57 @@
 # R06 durable Stripe Test Mode preparation — 2026-10-26
 
+## Hosted concurrency acceptance preflight — 2026-10-26
+
+Read-only checks were run against approved project `ykasivejjchupswqyxpm`.
+Latest fetched main was `d40fe76ec8af09770e0ce15a16ea78a67cef210c`, which
+includes PR #71. Hosted migration `20261026170603` matches the repository
+filename `20261026170603_phase6_stripe_test_dispatch_reservation.sql`; the
+previous filename discrepancy and reconciliation instructions below are
+historical and superseded by #71.
+
+The private reservation table exists with RLS enabled, no direct SELECT grant
+for `anon`, `authenticated`, or `service_role`, and zero rows. The three
+reservation RPCs are present as `SECURITY DEFINER` functions with an empty
+search path; execute is denied to `anon` and `authenticated` and granted to
+`service_role`. No reservation conflict exists. This verifies catalog controls,
+not a concurrent hosted claim.
+
+The existing completed Cash fixture remains intact: completed Trip version 5,
+paid Cash Payment version 2, and one Receipt. Hosted counts were zero for
+accepted Card Trips, pending Card Payments, pending Stripe initial-authorization
+cycle-1 Attempts, and fresh eligible Attempts inside the two-minute claim
+window. The hosted `stripe-test-intent` Edge Function is absent and the source
+keeps `providerDispatchEnabled: false`. No hosted booking, Trip, Payment,
+Attempt, reservation, Stripe request, or other mutation occurred.
+
+**Hosted concurrency acceptance: BLOCKED.** The existing R07 operator is
+explicitly Cash-only and rejects any non-Cash booking. The repository has no
+existing Card-fixture operator that sequences the canonical Rider booking and
+locked quote, an accepted Driver Match Offer/Trip, the resulting pending Card
+Payment, and the service-role-only `backend_record_payment_attempt` RPC. The
+canonical RPC contracts exist, but no reviewed end-to-end fixture operation
+currently connects them. Do not change R07 to accept Card implicitly or write
+financial rows directly. A narrowly scoped, test-only Card fixture operator
+must first be implemented and reviewed, using those existing canonical RPCs and
+the dedicated test Rider/Driver/vehicle; then a fresh Attempt can be reserved
+immediately and two independent authenticated backend connections can exercise
+the claim RPC. The setup must stop on any uncertain response and retain any
+reservation evidence.
+
+Focused local reservation tests: **26 PASS / 0 FAIL** using `deno test --no-check`
+from an isolated checkout of `d40fe76`. Default Deno type checking could not
+start because the checkout lacks the `npm:@types/node` dependency in
+`node_modules`; no dependency installation or repository change was made. The
+local reservation unit tests do not substitute for hosted concurrent claims.
+
+R06 remains **PARTIAL**. No Stripe API call or PaymentIntent was made. Stripe
+Test Mode account/JOD approval and separate sandbox acceptance remain outstanding.
+
 ## Hosted migration verification - 2026-10-26
+
+> Historical note: this section was written before PR #71 aligned the migration
+> filename. Its mismatch and reconciliation advice are superseded by the
+> preflight above.
 
 Read-only catalog checks against Supabase project `ykasivejjchupswqyxpm`,
 using `origin/main` `29e5946`, found
