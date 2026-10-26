@@ -1,5 +1,13 @@
 # Phase 6 post-merge audit and remaining execution roadmap
 
+## Canonical Driver UI update — 2026-10-26
+
+The previously missing canonical screen mounting is implemented behind the
+default-off test gate, using existing R01/R02/R03 owners. The mock screen is
+preserved. Hosted financial acceptance remains open; implementation is not Phase
+6 approval. See [runtime integration record](P6_CANONICAL_DRIVER_CASH_UI.md) and
+the authoritative Sprint Tracker. Older unmounted status below is historical.
+
 ## R01/R02 implementation update - 2026-10-25
 
 The original audit/specifications below are preserved. The canonical source,

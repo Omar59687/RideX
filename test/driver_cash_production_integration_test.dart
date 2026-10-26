@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ridex/app/router/app_router.dart';
+import 'package:ridex/app/router/route_names.dart';
 import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/models/mock_trip.dart';
 import 'package:ridex/core/mocks/mock_data.dart';
@@ -29,6 +31,7 @@ import 'package:ridex/core/services/trips/file_driver_completion_command_store.d
 import 'package:ridex/features/trips/application/driver_cash_completion_controller.dart';
 import 'package:ridex/features/trips/application/driver_cash_recovery_controller.dart';
 import 'package:ridex/features/trips/presentation/widgets/driver_cash_completion_panel.dart';
+import 'package:ridex/features/trips/presentation/screens/driver_canonical_trip_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
@@ -269,8 +272,10 @@ void main() {
 
   ProviderContainer container(
       {bool approved = true,
+      bool runtimeEnabled = false,
       Future<DriverCompletionCommandStore> Function()? openStore}) {
     final c = ProviderContainer(overrides: [
+      driverCashRuntimeEnabledProvider.overrideWithValue(runtimeEnabled),
       sessionControllerProvider.overrideWith(DriverSession.new),
       supabaseClientProvider.overrideWithValue(Supabase.instance.client),
       supabaseInitializationProvenanceProvider.overrideWithValue(provenance),
@@ -1032,6 +1037,96 @@ void main() {
     expect(evidence.command.expectedTripVersion, 4);
     await controller.complete();
     expect(bodies, isEmpty);
+  });
+
+  testWidgets('default-off canonical screen never mounts financial composition',
+      (tester) async {
+    final c = container(approved: false);
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: c,
+        child: const MaterialApp(home: DriverCanonicalTripScreen())));
+    expect(find.text('Canonical Cash Trip access is disabled in this build.'),
+        findsOneWidget);
+    expect(find.byType(DriverCashCompletionPanel), findsNothing);
+    expect(requests, isEmpty);
+    expect(bodies, isEmpty);
+  });
+
+  testWidgets('canonical screen discovers context but never completes on mount',
+      (tester) async {
+    late ProviderContainer c;
+    await tester.runAsync(() async {
+      c = container(runtimeEnabled: true);
+      await c.read(driverCashCompletionProvider)!.recovery.reconcile();
+    });
+    final router = c.read(appRouterProvider);
+    addTearDown(router.dispose);
+    router.goNamed(RouteNames.driverCanonicalTrip,
+        queryParameters: {'trip': fixture.other, 'version': '999'});
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: c, child: MaterialApp.router(routerConfig: router)));
+    await tester.pump();
+    expect(find.text('No pending recovery.'), findsOneWidget);
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Check completion availability'));
+      // Join preparation through the bounded UI controller's observable state.
+      for (var attempt = 0;
+          attempt < 500 &&
+              c.read(driverCashCompletionProvider)!.state ==
+                  DriverCashCompletionState.processing;
+          attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    });
+    await tester.pump();
+    expect(find.text('Ready to complete'), findsOneWidget);
+    expect(find.text('Complete Cash trip'), findsOneWidget);
+    expect(bodies, isEmpty);
+    final slot = await tester.runAsync(() => store.inspect(
+        backendNamespace: namespace, driverId: fixture.driver, tripId: trip));
+    expect(slot, isA<CompletionAbsent>());
+  });
+
+  testWidgets(
+      'recovery-only updates rebuild canonical screen and retain journal',
+      (tester) async {
+    final command = DriverCompleteTripCommand(
+        tripId: trip,
+        expectedTripVersion: 4,
+        idempotencyKey: 'retained-original-command');
+    await tester.runAsync(() => store.stage(
+        backendNamespace: namespace,
+        driverId: fixture.driver,
+        command: command));
+    status = 'completed';
+    version = 5;
+    missingReceipt = true;
+    late ProviderContainer c;
+    await tester.runAsync(() async {
+      c = container(runtimeEnabled: true);
+      await c.read(driverCashCompletionProvider)!.recovery.reconcile();
+    });
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: c,
+        child: const MaterialApp(home: DriverCanonicalTripScreen())));
+    await tester.pump();
+    expect(
+        find.text(
+            'Trip completion verified. Receipt not verified; reconciliation required.'),
+        findsOneWidget);
+    expect(find.text('Complete Cash trip'), findsNothing);
+    missingReceipt = false;
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Reconcile Cash completion'));
+      await c.read(driverCashCompletionProvider)!.recovery.reconcile();
+    });
+    await tester.pump();
+    expect(find.text('Trip completion verified. Receipt verified.'),
+        findsOneWidget);
+    expect(bodies, isEmpty);
+    final retained = await tester.runAsync(() => store.inspect(
+        backendNamespace: namespace, driverId: fixture.driver, tripId: trip));
+    expect((retained as CompletionValid).command, command);
   });
 
   testWidgets('unconfigured canonical panel has no completion action',

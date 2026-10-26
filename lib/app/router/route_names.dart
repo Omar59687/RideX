@@ -30,4 +30,5 @@ class RouteNames {
   static const driverTripRequest = 'driverTripRequest';
   static const driverArrival = 'driverArrival';
   static const driverTrip = 'driverTrip';
+  static const driverCanonicalTrip = 'driverCanonicalTrip';
 }
