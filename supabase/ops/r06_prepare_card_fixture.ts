@@ -24,7 +24,6 @@ import {
   INITIAL_AUTHORIZATION_WINDOW_MS,
   parseCardFixtureArgs,
   R06_DRIVER_EMAIL,
-  R06_FIXTURE_LABEL_PREFIX,
   R06_PROJECT_URL,
   R06_RIDER_EMAIL,
   R06_TEST_ROUTE,
@@ -48,6 +47,27 @@ export interface CardFixtureRuntime {
   now?: () => number;
   stateExists?: (path: string) => Promise<boolean>;
   reserveState?: (path: string, payload: string) => Promise<void>;
+  beforeInitialAuthorization?: (context: {
+    riderId: string;
+    driverId: string;
+    tripId: string;
+    paymentId: string;
+    amountFils: number;
+    tripVersion: number;
+    paymentVersion: number;
+    operationKey: string;
+  }) => Promise<void>;
+  afterInitialAuthorization?: (context: {
+    riderId: string;
+    driverId: string;
+    tripId: string;
+    paymentId: string;
+    attemptId: string;
+    amountFils: number;
+    tripVersion: number;
+    paymentVersion: number;
+    operationKey: string;
+  }) => Promise<void>;
 }
 
 export interface CardFixtureResult {
@@ -400,7 +420,7 @@ class SupabaseFixtureGateway {
       this.#select("booking_requests", {
         select: "id",
         rider_id: `eq.${rider.id}`,
-        "pickup->>label": `like.${R06_FIXTURE_LABEL_PREFIX}*_PICKUP`,
+        "pickup->>label": `eq.${fixtureMarker(options.fixtureId)}_PICKUP`,
         limit: "2",
       }),
       this.#select("trips", {
@@ -434,10 +454,15 @@ class SupabaseFixtureGateway {
     return { rider, driver };
   }
 
-  async create(options: CardFixtureOptions, actors: {
-    rider: CardFixtureActor;
-    driver: CardFixtureActor;
-  }, now: () => number): Promise<CardFixtureResult> {
+  async create(
+    options: CardFixtureOptions,
+    actors: {
+      rider: CardFixtureActor;
+      driver: CardFixtureActor;
+    },
+    now: () => number,
+    runtime: CardFixtureRuntime,
+  ): Promise<CardFixtureResult> {
     const keys = fixtureOperationKeys(options.fixtureId);
     const route = quoteRoute(options);
 
@@ -609,6 +634,16 @@ class SupabaseFixtureGateway {
 
     // This existing backend RPC creates exactly one canonical pending Attempt;
     // it cannot call Stripe and its response is reconciled before returning.
+    await runtime.beforeInitialAuthorization?.({
+      riderId: actors.rider.id,
+      driverId: actors.driver.id,
+      tripId,
+      paymentId: payment.id as string,
+      amountFils: payment.authorized_amount_fils as number,
+      tripVersion: trip.version as number,
+      paymentVersion: payment.version as number,
+      operationKey: keys.authorization,
+    });
     const createdAtBeforeAttempt = now();
     const attemptResult = await this.#backendRpc(
       "backend_record_payment_attempt",
@@ -624,6 +659,19 @@ class SupabaseFixtureGateway {
     if (typeof attemptId !== "string" || !UUID.test(attemptId)) {
       throw new CardFixtureError("attempt_create_result_unverified_stop");
     }
+    // In concurrency acceptance mode this callback launches both independent
+    // RPCs immediately. Do not add a read or other await before it.
+    await runtime.afterInitialAuthorization?.({
+      riderId: actors.rider.id,
+      driverId: actors.driver.id,
+      tripId,
+      paymentId: payment.id as string,
+      attemptId,
+      amountFils: payment.authorized_amount_fils as number,
+      tripVersion: trip.version as number,
+      paymentVersion: payment.version as number,
+      operationKey: keys.authorization,
+    });
     const attemptRows = await this.#select("payment_attempts", {
       select:
         "id,payment_id,type,status,authorization_cycle,attempt_sequence,provider_name,idempotency_key,requested_amount_fils,currency,provider_transaction_reference,sanitized_failure_code,sanitized_failure_message,completed_at,verified_at,refund_id,created_at",
@@ -663,6 +711,10 @@ class SupabaseFixtureGateway {
     if (finalPaymentRows.length !== 1) {
       throw new CardFixtureError("canonical_payment_mismatch");
     }
+    if (
+      finalPaymentRows[0].version !== payment.version ||
+      finalTrip.version !== trip.version
+    ) throw new CardFixtureError("financial_state_advanced_during_acceptance");
     assertPayment(finalPaymentRows[0], {
       tripId,
       riderId: actors.rider.id,
@@ -725,7 +777,7 @@ export async function runCardFixtureOperator(
       status: "started_do_not_retry",
     }),
   );
-  return gateway.create(options, actors, runtime.now ?? Date.now);
+  return gateway.create(options, actors, runtime.now ?? Date.now, runtime);
 }
 
 async function defaultStateExists(path: string): Promise<boolean> {

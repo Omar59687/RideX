@@ -1,5 +1,29 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## R06 coordinated concurrency recovery implementation - 2026-10-27
+
+**R06 remains PARTIAL; no hosted mutation or Stripe request was run.** A new
+operator entrypoint composes a fresh canonical Card fixture with two concurrent
+`backend_claim_stripe_test_preparation` requests immediately after the fresh
+initial Attempt is recorded. It requires one token-bearing winner, one tokenless
+existing response, and tokenless read-only reconnect evidence. Existing final
+canonical checks keep the Trip accepted, Payment and Attempt pending, and
+Receipt count zero. Attempt/Payment/Trip freshness, exact operation context,
+restart markers, unknown outcomes, and existing fixture conflict handling have
+local regression coverage. Stripe dispatch remains disabled.
+
+The previously accepted fixture is safely retireable using the owning Rider's
+canonical `rider_cancel_trip` workflow if read-only checks still match its
+recorded state (no provider reference or reservation; pending expired Attempt).
+That cancellation preserves the original Attempt row/timestamp and records the
+Payment cancellation; it does not create release evidence for a replacement
+authorization. It sets Driver availability offline; the approved Driver must
+then call the existing versioned `driver_set_availability('available', vehicle,
+version)` before the fresh fixture preflight. Retirement and the new acceptance
+run are separate hosted operations requiring separate owner authorization. The
+harness rejects active Trips and does not retire the old fixture implicitly. See the updated [R06
+operator and authorization contract](P6_R06_CARD_FIXTURE_OPERATOR.md).
+
 ## R06 Card fixture operator implementation - 2026-10-26
 
 **R06 remains PARTIAL; hosted Card fixture creation was not performed.** A
@@ -16,7 +40,9 @@ draft RPC has no idempotency key and no backend fixture claim exists. See
 
 Focused operator regression tests: 12 PASS (including mocked canonical-flow
 allowlist); focused Deno type check and formatting are recorded with PR
-verification. No hosted operator run or SQL migration change was made.
+verification. No hosted operator run or SQL migration change was made. The
+exact-UUID marker lookup and coordinated concurrency harness are later updates
+recorded above.
 
 ## R06 authorized hosted Card fixture checkpoint - 2026-10-26
 
@@ -43,9 +69,9 @@ PR #71 aligned the repository filename with hosted migration version
 `20261026170603`. Current read-only catalog checks confirm the private
 reservation table/RPC security controls, zero reservation rows, preserved Cash
 fixture, no eligible Card Attempt, and disabled/undeployed Stripe provider path.
-Hosted concurrency acceptance is **BLOCKED** because no reviewed Card fixture
-operator exists; local reservation unit tests passed 26/26 with Deno type-check
-unavailable due to missing local `@types/node`. See [R06 hosted preflight and
+Hosted concurrency acceptance was **BLOCKED at this checkpoint** because no
+reviewed Card fixture operator existed; local reservation unit tests passed
+26/26 with Deno type-check unavailable due to missing local `@types/node`. See [R06 hosted preflight and
 acceptance limits](P6_R06_DURABLE_PREPARATION.md#hosted-concurrency-acceptance-preflight--2026-10-26).
 
 ## R06 durable Test Mode preparation — 2026-10-26

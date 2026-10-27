@@ -1,6 +1,6 @@
 # P6-R06 Card Fixture Operator
 
-**Status: operator implemented; one authorized hosted fixture created; reservation acceptance blocked. R06 remains partial.**
+**Status: Card fixture operator and coordinated reservation acceptance harness implemented; hosted concurrency acceptance still requires separate owner authorization. R06 remains partial.**
 
 This operator prepares one isolated, test-only Card authorization context for
 later R06 reservation concurrency acceptance. Its default mode is read-only
@@ -121,3 +121,67 @@ The expired Attempt must not be reused. Any new fixture strategy or new fixture
 execution requires separate owner authorization. Stripe Test Mode account/JOD
 approval and independent sandbox acceptance remain separate gates; provider
 dispatch stays disabled and R06 is **PARTIAL**.
+
+## Coordinated concurrency acceptance harness
+
+`supabase/ops/r06_accept_card_concurrency.ts` composes the canonical Card fixture
+workflow with the reservation claim RPCs. Its read-only preflight still rejects
+any active Trip for the fixed Rider or Driver, requires the approved Driver's
+vehicle to be available, uses a new per-run fixture UUID, confirms the accepted
+Trip/Card Payment before the first authorization Attempt exists, and confirms
+there are no prior Attempts for the fresh Payment. The fixture marker lookup is
+exact to that UUID, so the old fixture's retained Booking does not collide with
+a distinct run. Existing active Trip conflicts are never bypassed.
+
+Immediately after `backend_record_payment_attempt` returns the fresh Attempt ID,
+the harness starts two separate PostgREST requests to
+`backend_claim_stripe_test_preparation` concurrently, with no intervening read.
+It requires exactly one `claimed` response with a token and one `existing`
+response without a token. It then calls only the read RPC
+`backend_read_stripe_test_preparation` to verify reconnection, retained context,
+and no token replay. The fixture operator's final canonical reads require the
+Trip to remain accepted, the Card Payment and authorization Attempt pending,
+and zero receipts. The harness does not read or write the private reservation
+table directly and does not invoke Stripe.
+
+For a newly authorized run, configure the same test project, approved actor
+tokens, and service-role secret listed above. Use the separate fixed local
+state file `$stateDir\concurrency-acceptance-state.json` (the previous
+`card-fixture-state.json` records the expired attempt and must remain preserved),
+set a new fixture UUID, and run:
+
+```powershell
+$env:R06_FIXTURE_STATE_FILE = "$stateDir\concurrency-acceptance-state.json"
+deno run --allow-net=ykasivejjchupswqyxpm.supabase.co --allow-env=LOCALAPPDATA,SUPABASE_URL,RIDEX_BACKEND_NAMESPACE,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,R06_RIDER_ACCESS_TOKEN,R06_DRIVER_ACCESS_TOKEN,R06_FIXTURE_STATE_FILE,R06_CONCURRENCY_APPROVAL_REF --allow-read="$stateDir" --allow-write="$stateDir" supabase/ops/r06_accept_card_concurrency.ts --fixture-id $fixtureId
+```
+
+The operator requires `R06_CONCURRENCY_APPROVAL_REF=owner-approved-r06-card-concurrency-<same UUID>` and reserves this create-new state file before any write. Do not repeat an execution after a timeout or partial result; reconcile using read-only canonical and reservation RPCs.
+
+### Existing fixture retirement decision
+
+The historical fixture can be retired without falsifying financial evidence,
+but only through an owner-authorized canonical Rider cancellation before the new
+run. First re-read the exact Trip, Payment, Attempt, and reservation state. If it
+still matches the recorded facts (accepted Trip, `cardPaymentPending` Payment,
+pending expired initial Attempt, no provider reference, and no reservation), call
+`rider_cancel_trip(target_trip_id, expected_trip_version, reason_code)` as its
+owning Rider. The canonical workflow terminally cancels the Trip, records
+`paymentCancelled`, preserves the original pending Attempt and its expired
+timestamp, and sets Driver availability to `offline` with no active Trip. Do not
+call Driver availability setters while the Trip is active. After verifying
+cancellation, the approved Driver must make a separate authenticated
+`driver_set_availability('available', <existing vehicle UUID>, <current
+availability version>)` call. Verify the resulting available state, vehicle,
+empty reservation/active Trip references, terminal Trip, cancelled Payment,
+unchanged Attempt, and zero reservations. Any mismatch or
+successful/provider-backed authorization means stop; a replacement
+authorization or manual row edit is not permitted. The acceptance harness will
+not perform this retirement implicitly.
+
+Hosted owner authorization must separately name (1) the exact historical Trip
+cancellation and owning Rider identity, (2) the Driver availability transition
+using the existing vehicle and freshly read availability version, and (3) the
+new fixture UUID and one-time concurrency acceptance run using both approved
+test actors. This authorization does not authorize Stripe, payment advancement,
+retries, or provider dispatch. The existing recorded fixture-create approval
+does not by itself approve these later hosted operations.

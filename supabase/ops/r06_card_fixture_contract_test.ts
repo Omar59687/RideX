@@ -228,6 +228,13 @@ Deno.test("read-only mode is the default and execution requires explicit approva
   ) {
     throw new Error("noncanonical state path accepted");
   }
+  assertEnvironment(
+    environment({
+      R06_FIXTURE_STATE_FILE:
+        "C:\\Users\\Test\\AppData\\Local\\RideX\\R06\\concurrency-acceptance-state.json",
+    }),
+    true,
+  );
   if (
     errorCode(() =>
       assertExecutionApproval({ ...options, execute: true }, environment())
@@ -646,6 +653,26 @@ Deno.test("existing fixture marker or persisted restart marker prevents duplicat
     duplicateTransport.calls.some((call) => call.method === "POST")
   ) {
     throw new Error("duplicate hosted fixture was not rejected safely");
+  }
+});
+
+Deno.test("fixture isolation matches this run's unique label and retains older fixture rows", async () => {
+  const transport = readOnlyTransport();
+  await runCardFixtureOperator(
+    ["--fixture-id", FIXTURE_ID],
+    environment(),
+    { fetcher: transport.fetcher, stateExists: async () => false },
+  );
+  const markerRequest = transport.calls.find((call) =>
+    call.url.includes("pickup-%3E%3Elabel")
+  );
+  if (
+    !markerRequest ||
+    !markerRequest.url.includes(
+      encodeURIComponent(`eq.${fixtureMarker(FIXTURE_ID)}_PICKUP`),
+    )
+  ) {
+    throw new Error("fixture lookup did not isolate the fresh fixture UUID");
   }
 });
 

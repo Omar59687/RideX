@@ -121,12 +121,17 @@ export function assertEnvironment(
       /[\\/]+$/u,
       "",
     );
-    const expectedStatePath = localAppData
-      ? `${localAppData}\\RideX\\R06\\card-fixture-state.json`
-      : "";
+    const expectedStatePaths = localAppData
+      ? [
+        `${localAppData}\\RideX\\R06\\card-fixture-state.json`,
+        `${localAppData}\\RideX\\R06\\concurrency-acceptance-state.json`,
+      ]
+      : [];
     if (
       !statePath || !isAbsolutePath(statePath) ||
-      statePath.toLowerCase() !== expectedStatePath.toLowerCase()
+      !expectedStatePaths.some((path) =>
+        statePath.toLowerCase() === path.toLowerCase()
+      )
     ) {
       throw new CardFixtureError("state_file_required");
     }
