@@ -80,7 +80,7 @@ select is(
    where schemas.nspname = 'public' and functions.proname like 'backend_%'
      and not has_function_privilege('authenticated', functions.oid, 'execute')
      and has_function_privilege('service_role', functions.oid, 'execute')),
-  17::bigint, 'all backend-only Phase 3 RPCs are isolated to service_role'
+  20::bigint, 'all backend-only Phase 3 RPCs are isolated to service_role'
 );
 select ok(not has_schema_privilege('authenticated', 'private', 'USAGE'), 'clients cannot resolve private helpers');
 select ok(not has_function_privilege('authenticated', 'private.refresh_driver_rating_aggregate()', 'execute'), 'rating aggregate helper is private');

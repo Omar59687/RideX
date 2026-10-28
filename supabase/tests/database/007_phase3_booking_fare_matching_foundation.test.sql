@@ -130,13 +130,13 @@ select lives_ok(
     (select id from public.booking_requests), 1,
     '{"latitude":31.9500,"longitude":35.9300,"label":"Pickup"}',
     '{"latitude":31.9900,"longitude":35.9900,"label":"Updated destination"}',
-    'economy', 'card',
+    'economy', 'cash',
     '[{"location":{"latitude":31.955,"longitude":35.935},"label":"First"},{"location":{"latitude":31.960,"longitude":35.940},"label":"Second","rider_note":"Gate B"}]'
   )$$,
   'Rider updates a draft through the trusted RPC'
 );
 select is((select version from public.booking_requests), 2, 'draft update advances the aggregate version once');
-select is((select payment_method::text from public.booking_requests), 'card', 'draft update stores a supported payment method');
+select is((select payment_method::text from public.booking_requests), 'cash', 'draft update stores a supported Cash payment method');
 select is((select count(*) from public.booking_stops), 2::bigint, 'draft update atomically replaces ordered stops');
 select throws_ok(
   $$select public.rider_update_booking_draft(
