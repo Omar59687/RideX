@@ -56,6 +56,17 @@ export interface TestIntentProvider {
   prepare(context: CanonicalIntentContext): Promise<PreparedTestIntent>;
 }
 
+/** Permanent deny for the separately reviewed R06-X2 fixture. This prevents
+ * future dispatch, but cannot prove that a previously deployed worker drained.
+ */
+export function assertR06X2DispatchAllowed(context: CanonicalIntentContext): void {
+  if (
+    context.tripId.toLowerCase() === "dda56345-4123-4a0c-9771-5287899d2344" ||
+    context.paymentId.toLowerCase() === "cbbb4b94-ac92-49b9-8b43-1f370c783e5b" ||
+    context.attemptId.toLowerCase() === "45ae3584-fa38-4fa5-b8c8-10efd79f8416"
+  ) throw new TestIntentError("forbidden");
+}
+
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function validIntentContext(context: CanonicalIntentContext): boolean {
   return uuid.test(context.paymentId) && uuid.test(context.attemptId) &&
@@ -105,6 +116,7 @@ export async function prepareTestIntent(
     throw new TestIntentError("stale_version");
   }
   // Copy and freeze the canonical snapshot before the asynchronous provider seam.
+  assertR06X2DispatchAllowed(context);
   return provider.prepare(Object.freeze({ ...context }));
 }
 
@@ -144,6 +156,7 @@ export class StripeTestIntentProvider implements TestIntentProvider {
 
   async prepare(context: CanonicalIntentContext): Promise<PreparedTestIntent> {
     if (!validIntentContext(context)) throw new TestIntentError("invalid_request");
+    assertR06X2DispatchAllowed(context);
     const secret = this.#secret();
     const stripeAmount = context.amountFils / 10;
     const body = new URLSearchParams({

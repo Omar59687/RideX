@@ -32,6 +32,80 @@ const prepared = {
   reference: "pi_TestFixture",
   requiresCanonicalVerification: true as const,
 };
+for (
+  const change of [
+    { tripId: "dda56345-4123-4a0c-9771-5287899d2344" },
+    { paymentId: "cbbb4b94-ac92-49b9-8b43-1f370c783e5b" },
+    { attemptId: "45ae3584-fa38-4fa5-b8c8-10efd79f8416" },
+    { attemptId: "45AE3584-FA38-4FA5-B8C8-10EFD79F8416" },
+  ]
+) {
+  test(
+    "R06-X2 permanent fence stops before any claim or provider call " + Object.keys(change)[0],
+    async () => {
+      const store = new ReservationFixture();
+      let calls = 0;
+      const provider = {
+        prepare: async () => {
+          calls++;
+          return prepared;
+        },
+      };
+      await assert.rejects(
+        new DurableTestIntentProvider(store, provider, () => {}).prepare({ ...context, ...change }),
+        (error) => error instanceof TestIntentError && error.code === "forbidden",
+      );
+      assert.equal(store.rows.size, 0);
+      assert.equal(calls, 0);
+      const stripe = new StripeTestIntentProvider({
+        readSecret: () => {
+          throw new Error("must not read configuration");
+        },
+        jodTestModeApproved: true,
+        transport: async () => {
+          calls++;
+          return Response.json({});
+        },
+      });
+      await assert.rejects(
+        stripe.prepare({ ...context, ...change }),
+        (error) => error instanceof TestIntentError && error.code === "forbidden",
+      );
+      assert.equal(calls, 0);
+    },
+  );
+}
+for (const disposition of ["recorded", "quarantined", null, "untrusted"]) {
+  test(
+    "fenced REST result is never misrepresented as provider success " + disposition,
+    async () => {
+      let calls = 0;
+      const store = new SupabaseTestIntentReservationStore(
+        "https://project.test",
+        "server-fixture",
+        async (url) => {
+          calls++;
+          assert.equal(
+            String(url),
+            "https://project.test/rest/v1/rpc/backend_record_stripe_test_preparation_fenced",
+          );
+          return Response.json(disposition);
+        },
+      );
+      const record = store.record(
+        context.attemptId,
+        "10000000-0000-4000-8000-000000000001",
+        prepared.reference,
+      );
+      if (disposition === "recorded") await record;
+      else {await assert.rejects(
+          record,
+          (error) => error instanceof TestIntentError && error.code === "unknown_result",
+        );}
+      assert.equal(calls, 1);
+    },
+  );
+}
 const unknown = (e: unknown) => e instanceof TestIntentError && e.code === "unknown_result";
 const secret = ["sk", "test", "fixture"].join("_");
 function response(change: Record<string, unknown> = {}) {
