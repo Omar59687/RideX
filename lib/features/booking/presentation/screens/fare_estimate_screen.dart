@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ridex/app/router/route_names.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/fare_quote.dart';
@@ -18,6 +19,7 @@ import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/providers/route_providers.dart';
 import 'package:ridex/core/repositories/fare_repository.dart';
 import 'package:ridex/features/booking/presentation/providers/rider_payment_selection_provider.dart';
+import 'package:ridex/features/booking/presentation/screens/payment_method_screen.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
 import 'package:ridex/core/widgets/fare_summary_card.dart';
@@ -966,6 +968,20 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                     }
                   : null,
             ),
+            if (!isDemo && lockedQuote && quote != null && rider != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              AppButton(
+                label: 'Review payment method',
+                variant: AppButtonVariant.secondary,
+                onPressed: () => context.pushNamed<void>(
+                  RouteNames.paymentMethod,
+                  extra: PaymentMethodRouteData(
+                    quote: quote,
+                    riderId: rider.id,
+                  ),
+                ),
+              ),
+            ],
             if (!isDemo) ...[
               for (final reference
                   in ref.watch(confirmedBookingReferencesProvider))

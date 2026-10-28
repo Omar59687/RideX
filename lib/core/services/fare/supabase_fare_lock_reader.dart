@@ -23,7 +23,7 @@ class SupabaseFareLockReader {
       final rows = await _client
           .from('booking_requests')
           .select(
-            'id,rider_id,version,status,fare_quote_id,'
+            'id,rider_id,version,status,fare_quote_id,payment_method,'
             'fare_quotes!fare_quotes_booking_rider_fk('
             'id,booking_request_id,rider_id,quote_version,pricing_version,'
             'fixed_fare_fils,breakdown,status,expires_at,currency,created_at,'

@@ -1,5 +1,6 @@
 import 'package:ridex/core/models/fare_quote.dart';
 import 'package:ridex/core/models/pending_fare_lock.dart';
+import 'package:ridex/core/models/payment_method.dart';
 
 /// One canonical booking row and its quotes, read in one SELECT snapshot.
 /// No client draft or persisted hint is used to populate these fields.
@@ -9,6 +10,7 @@ class CanonicalFareBooking {
     required this.riderId,
     required this.version,
     required this.status,
+    required this.paymentMethod,
     required this.fareQuoteId,
     required List<CanonicalFareQuote> quotes,
   }) : quotes = List.unmodifiable(quotes);
@@ -17,6 +19,10 @@ class CanonicalFareBooking {
   final String riderId;
   final int version;
   final String status;
+
+  /// Canonical method stored on the booking row. Null means an older or
+  /// malformed projection cannot safely authorize payment continuation.
+  final PaymentMethod? paymentMethod;
   final String? fareQuoteId;
   final List<CanonicalFareQuote> quotes;
 
@@ -34,6 +40,13 @@ class CanonicalFareBooking {
     final status = row['status'];
     final linkedId = row['fare_quote_id'];
     final quotes = row['fare_quotes'];
+    final rawPaymentMethod = row['payment_method'];
+    PaymentMethod? paymentMethod;
+    if (rawPaymentMethod is String) {
+      for (final method in PaymentMethod.values) {
+        if (method.backendValue == rawPaymentMethod) paymentMethod = method;
+      }
+    }
     if (version is! int ||
         version < 1 ||
         !statuses.contains(status) ||
@@ -46,6 +59,7 @@ class CanonicalFareBooking {
       riderId: _identifier(row['rider_id']),
       version: version,
       status: status as String,
+      paymentMethod: paymentMethod,
       fareQuoteId: linkedId as String?,
       quotes: [
         for (final quote in quotes) CanonicalFareQuote.fromJson(_map(quote))

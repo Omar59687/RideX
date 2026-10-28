@@ -16,6 +16,7 @@ import 'package:ridex/features/auth/presentation/screens/sign_up_screen.dart';
 import 'package:ridex/features/auth/presentation/screens/verify_otp_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/destination_selection_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/fare_estimate_screen.dart';
+import 'package:ridex/features/booking/presentation/screens/payment_method_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/booking_confirmation_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/pickup_selection_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/ride_request_searching_screen.dart';
@@ -111,7 +112,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           name: RouteNames.fareEstimate,
           builder: (_, __) => const FareEstimateScreen()),
       GoRoute(
+          path: '/rider/payment-method',
+          name: RouteNames.paymentMethod,
+          builder: (_, state) => PaymentMethodScreen(
+                data: state.extra is PaymentMethodRouteData
+                    ? state.extra! as PaymentMethodRouteData
+                    : null,
+              )),
+      GoRoute(
           path: '/rider/confirmation',
+          name: RouteNames.confirmation,
           builder: (_, state) => BookingConfirmationScreen(
               bookingRequestId: state.uri.queryParameters['booking'])),
       GoRoute(
