@@ -5,6 +5,7 @@ import 'package:ridex/app/theme/app_colors.dart';
 import 'package:ridex/app/theme/app_radii.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/app/theme/ridex_theme.dart';
+import 'package:ridex/app/theme/appearance_theme_mode_provider.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/widgets/app_button.dart';
@@ -42,8 +43,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(sessionControllerProvider).role ?? RideRole.rider;
+    final themeMode = ref.watch(appearanceThemeModeProvider);
     if (role == RideRole.driver) {
-      return _DriverSettingsScreen(onSignOut: _signOut);
+      return _DriverSettingsScreen(
+        onSignOut: _signOut,
+        themeMode: themeMode,
+        onAppearanceTap: _showAppearancePicker,
+      );
     }
 
     final preferences = ref.watch(notificationPreferencesProvider);
@@ -104,8 +110,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: AppSpacing.xl),
           const _SectionLabel('ACCOUNT & EXPERIENCE'),
           const SizedBox(height: AppSpacing.sm),
-          const _SettingsGroup(
+          _SettingsGroup(
             children: [
+              _AppearanceSettingsRow(
+                themeMode: themeMode,
+                onTap: _showAppearancePicker,
+              ),
+              const Divider(height: 1),
               SettingsRow(
                 icon: Icons.shield_outlined,
                 title: 'Security',
@@ -174,7 +185,69 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
   }
+
+  void _showAppearancePicker() {
+    final selectedMode = ref.read(appearanceThemeModeProvider);
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm,
+              ),
+              child: Text(
+                'Appearance',
+                style: Theme.of(sheetContext).textTheme.titleLarge,
+              ),
+            ),
+            for (final mode in ThemeMode.values)
+              RadioListTile<ThemeMode>(
+                title: Text(_themeModeLabel(mode)),
+                value: mode,
+                // Keep compatibility with the project's Flutter 3.27 baseline;
+                // RadioGroup replaced these parameters in later Flutter versions.
+                // ignore: deprecated_member_use
+                groupValue: selectedMode,
+                // ignore: deprecated_member_use
+                onChanged: (value) {
+                  if (value == null) return;
+                  Navigator.of(sheetContext).pop();
+                  _saveThemeMode(value);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveThemeMode(ThemeMode mode) async {
+    try {
+      await ref.read(appearanceThemeModeProvider.notifier).setThemeMode(mode);
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Appearance changed, but could not be saved.'),
+        ),
+      );
+    }
+  }
 }
+
+String _themeModeLabel(ThemeMode mode) => switch (mode) {
+      ThemeMode.light => 'Light',
+      ThemeMode.dark => 'Dark',
+      ThemeMode.system => 'System default',
+    };
 
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.label);
@@ -266,10 +339,52 @@ class _ComingSoonLabel extends StatelessWidget {
   }
 }
 
+class _AppearanceSettingsRow extends StatelessWidget {
+  const _AppearanceSettingsRow({
+    required this.themeMode,
+    required this.onTap,
+  });
+
+  final ThemeMode themeMode;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsRow(
+      icon: Icons.palette_outlined,
+      title: 'Appearance',
+      subtitle: 'Light, dark, or follow system settings',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _themeModeLabel(themeMode),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ],
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
 class _DriverSettingsScreen extends StatelessWidget {
-  const _DriverSettingsScreen({required this.onSignOut});
+  const _DriverSettingsScreen({
+    required this.onSignOut,
+    required this.themeMode,
+    required this.onAppearanceTap,
+  });
 
   final VoidCallback onSignOut;
+  final ThemeMode themeMode;
+  final VoidCallback onAppearanceTap;
 
   @override
   Widget build(BuildContext context) {
@@ -307,13 +422,15 @@ class _DriverSettingsScreen extends StatelessWidget {
                       Text(
                         'Ahmed Yaser',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: context.rideXTheme.brandedPanelForeground),
+                              color: context.rideXTheme.brandedPanelForeground,
+                            ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Cash payment · Demo account',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: context.rideXTheme.brandedPanelMuted),
+                              color: context.rideXTheme.brandedPanelMuted,
+                            ),
                       ),
                     ],
                   ),
@@ -322,6 +439,11 @@ class _DriverSettingsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
+          _AppearanceSettingsRow(
+            themeMode: themeMode,
+            onTap: onAppearanceTap,
+          ),
+          const SizedBox(height: AppSpacing.sm),
           const _DriverSettingsTile(
             title: 'Notifications',
             subtitle: 'Mock notification preferences',

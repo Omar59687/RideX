@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ridex/app/theme/app_theme.dart';
+import 'package:ridex/app/theme/appearance_theme_mode_provider.dart';
 import 'package:ridex/core/mocks/mock_data.dart';
 import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
@@ -13,6 +14,8 @@ import 'package:ridex/core/widgets/ride_x_bottom_navigation.dart';
 import 'package:ridex/core/widgets/settings_row.dart';
 import 'package:ridex/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:ridex/features/settings/presentation/screens/settings_screen.dart';
+
+import 'helpers/in_memory_appearance_preferences.dart';
 
 void main() {
   testWidgets('rider notifications expose unread state and mark all read',
@@ -115,7 +118,13 @@ void main() {
     await tester.pump();
     expect(app.container.read(notificationPreferencesProvider).email, isTrue);
 
-    await tester.tap(find.byKey(const Key('settings-sign-out')));
+    await tester.drag(
+      find.byKey(const Key('rider-settings-content')),
+      const Offset(0, -1000),
+    );
+    await tester.pumpAndSettle();
+    final signOutButton = find.byKey(const Key('settings-sign-out'));
+    await tester.tap(signOutButton);
     await tester.pumpAndSettle();
 
     expect(authRepository.didSignOut, isTrue);
@@ -146,6 +155,15 @@ void main() {
     expect(find.byKey(const Key('rider-settings-content')), findsNothing);
     expect(find.text('Mock notification preferences'), findsOneWidget);
     expect(find.byType(MockBottomNavBar), findsOneWidget);
+
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+    expect(
+      app.container.read(appearanceThemeModeProvider),
+      ThemeMode.dark,
+    );
   });
 }
 
@@ -158,6 +176,8 @@ _TestApp _buildApp({
   final container = ProviderContainer(
     overrides: [
       authRepositoryProvider.overrideWith((ref) => repository),
+      appearancePreferencesProvider
+          .overrideWithValue(InMemoryAppearancePreferences()),
     ],
   );
   final router = GoRouter(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/app/router/app_router.dart';
 import 'package:ridex/app/theme/app_theme.dart';
+import 'package:ridex/app/theme/appearance_theme_mode_provider.dart';
 import 'package:ridex/core/widgets/app_error_view.dart';
 
 class RideXApp extends ConsumerWidget {
@@ -10,12 +11,13 @@ class RideXApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    final themeMode = ref.watch(appearanceThemeModeProvider);
     return MaterialApp.router(
       title: 'RideX',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.light,
+      themeMode: themeMode,
       routerConfig: router,
     );
   }

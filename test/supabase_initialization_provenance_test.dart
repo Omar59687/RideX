@@ -11,6 +11,8 @@ import 'package:ridex/core/models/driver_authority.dart';
 import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
 import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -91,10 +93,14 @@ void main() {
   late SupabaseInitializationProvenance provenance;
   late ForbidNetwork network;
   HttpOverrides? previousHttp;
+  SharedPreferencesAsyncPlatform? previousAsyncPreferences;
 
   setUp(() {
     expect(currentSdk(), isNull);
     provenance = SupabaseInitializationProvenance();
+    previousAsyncPreferences = SharedPreferencesAsyncPlatform.instance;
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
     SharedPreferences.setMockInitialValues({'existing-evidence': 'preserved'});
     previousHttp = HttpOverrides.current;
     network = ForbidNetwork();
@@ -107,6 +113,7 @@ void main() {
   tearDown(() async {
     await currentSdk()?.dispose();
     HttpOverrides.global = previousHttp;
+    SharedPreferencesAsyncPlatform.instance = previousAsyncPreferences;
     expect(network.attempts, 0);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(

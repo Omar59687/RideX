@@ -28,8 +28,7 @@ void main() {
         light.extension<RideXTheme>()!.brandedPanel, const Color(0xFF19162B));
   });
 
-  testWidgets('RideX remains light when the device requests dark mode',
-      (tester) async {
+  testWidgets('RideX follows system brightness in System mode', (tester) async {
     tester.binding.platformDispatcher.platformBrightnessTestValue =
         Brightness.dark;
     addTearDown(
@@ -41,7 +40,11 @@ void main() {
 
     expect(
       tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
-      ThemeMode.light,
+      ThemeMode.system,
+    );
+    expect(
+      Theme.of(tester.element(find.text('RideX'))).brightness,
+      Brightness.dark,
     );
   });
 
@@ -264,8 +267,7 @@ void main() {
     }
   });
 
-  testWidgets('rider tab screens remain light at 430x932 in dark mode',
-      (tester) async {
+  testWidgets('rider tab screens follow dark mode at 430x932', (tester) async {
     await _configureView(tester, size: const Size(430, 932));
     tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
     addTearDown(
@@ -282,18 +284,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(Theme.of(tester.element(find.text('Where to?'))).brightness,
-        Brightness.light);
+        Brightness.dark);
     for (final label in ['History', 'Profile', 'Settings', 'Home']) {
       await tester.tap(
         find.widgetWithText(NavigationDestination, label),
       );
       await tester.pumpAndSettle();
+      expect(
+        Theme.of(
+          tester.element(find.widgetWithText(NavigationDestination, label)),
+        ).brightness,
+        Brightness.dark,
+        reason: '$label tab should inherit Dark Mode',
+      );
       expect(tester.takeException(), isNull, reason: '$label tab');
     }
 
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
     expect(find.text('Notifications'), findsOneWidget);
+    expect(
+      Theme.of(tester.element(find.text('Notifications'))).brightness,
+      Brightness.dark,
+    );
     expect(tester.takeException(), isNull, reason: 'notifications screen');
   });
 

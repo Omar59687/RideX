@@ -12,6 +12,9 @@ import 'package:ridex/core/repositories/location_repository.dart';
 import 'package:ridex/core/models/current_location_state.dart';
 import 'package:ridex/core/models/pending_fare_lock.dart';
 import 'package:ridex/core/services/fare/pending_fare_lock_store.dart';
+import 'package:ridex/app/theme/appearance_theme_mode_provider.dart';
+
+import 'in_memory_appearance_preferences.dart';
 
 Widget buildTestApp({List<Override> overrides = const []}) {
   return ProviderScope(
@@ -27,6 +30,8 @@ Widget buildTestApp({List<Override> overrides = const []}) {
       // exist here, and restores resolve to null without platform channels.
       pendingFareLockStoreProvider
           .overrideWithValue(const _NullPendingFareLockStore()),
+      appearancePreferencesProvider
+          .overrideWithValue(InMemoryAppearancePreferences()),
       locationRepositoryProvider.overrideWithValue(
         const _UnavailableLocationRepository(),
       ),
