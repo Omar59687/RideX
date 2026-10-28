@@ -313,7 +313,7 @@ export function assertAttempt(
     attempt.payment_id !== expected.paymentId ||
     attempt.type !== "initialAuthorization" || attempt.status !== "pending" ||
     attempt.authorization_cycle !== 1 || attempt.provider_name !== "stripe" ||
-    attempt.attempt_sequence !== 1 || attempt.refund_id !== null ||
+    !positiveSequence(attempt.attempt_sequence) || attempt.refund_id !== null ||
     attempt.idempotency_key !== expected.operationKey ||
     attempt.requested_amount_fils !== expected.amountFils ||
     attempt.currency !== "JOD" ||
@@ -331,6 +331,10 @@ export function assertNoRows(rows: unknown[], code: string): void {
 }
 
 function positiveVersion(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function positiveSequence(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 

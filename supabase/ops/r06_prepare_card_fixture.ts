@@ -1,7 +1,6 @@
 /**
- * Operator-only R06 Card fixture. Default is read-only preflight. Execute mode
- * uses only existing Rider, Driver, fare, matching, and payment RPC contracts.
- * It never calls Stripe or advances a Payment/Attempt state.
+ * Operator-only R06 Card fixture. Read-only preflight is available; execution
+ * remains disabled until an approved server-side Card confirmation gate exists.
  */
 import {
   assertActor,
@@ -463,11 +462,13 @@ class SupabaseFixtureGateway {
     now: () => number,
     runtime: CardFixtureRuntime,
   ): Promise<CardFixtureResult> {
+    // Dormant path: runCardFixtureOperator must not call this until a trusted
+    // server-side Card confirmation gate is integrated and reviewed.
     const keys = fixtureOperationKeys(options.fixtureId);
     const route = quoteRoute(options);
 
-    // This authenticated Rider RPC has no idempotency parameter. The fixture
-    // marker plus a durable local create-new state file make repeats fail closed.
+    // If execution is ever reactivated, restore a durable create-new state
+    // reservation before the first write; this dormant path is not repeat-safe.
     const draftResult = await this.#riderRpc("rider_create_booking_draft", {
       requested_pickup: route.pickup,
       requested_destination: route.destination,
@@ -758,26 +759,17 @@ export async function runCardFixtureOperator(
     throw new CardFixtureError("execution_state_exists_stop_and_reconcile");
   }
   const gateway = new SupabaseFixtureGateway(environment, runtime);
-  const actors = await gateway.preflight(options);
+  await gateway.preflight(options);
   if (!options.execute) return { status: "preflight_passed" };
 
   assertExecutionApproval(options, environment);
-  const executionStatePath = environment.R06_FIXTURE_STATE_FILE!;
-  const exists = runtime.stateExists ?? defaultStateExists;
-  if (await exists(executionStatePath)) {
-    throw new CardFixtureError("execution_state_exists_stop_and_reconcile");
-  }
-  const reserveState = runtime.reserveState ?? defaultReserveState;
-  await reserveState(
-    executionStatePath,
-    JSON.stringify({
-      project: "ykasivejjchupswqyxpm",
-      fixtureId: options.fixtureId,
-      startedAt: new Date((runtime.now ?? Date.now)()).toISOString(),
-      status: "started_do_not_retry",
-    }),
+  // The deployed Rider confirmation contract has no trusted Card authorization
+  // gate. The Cash-only migration is also not a Card gate: it rejects Card
+  // drafts at confirmation, after draft and fare-lock writes. Stop before any
+  // draft, quote, local execution marker, Trip, Payment, or Attempt is created.
+  throw new CardFixtureError(
+    "card_confirmation_authorization_gate_unavailable",
   );
-  return gateway.create(options, actors, runtime.now ?? Date.now, runtime);
 }
 
 async function defaultStateExists(path: string): Promise<boolean> {
@@ -787,17 +779,6 @@ async function defaultStateExists(path: string): Promise<boolean> {
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) return false;
     throw new CardFixtureError("state_file_unavailable");
-  }
-}
-
-async function defaultReserveState(
-  path: string,
-  payload: string,
-): Promise<void> {
-  try {
-    await Deno.writeTextFile(path, `${payload}\n`, { createNew: true });
-  } catch {
-    throw new CardFixtureError("execution_state_exists_or_unavailable_stop");
   }
 }
 
