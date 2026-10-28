@@ -13,6 +13,7 @@ import 'package:ridex/core/models/mock_trip.dart';
 import 'package:ridex/core/models/pending_fare_lock.dart';
 import 'package:ridex/core/models/fare_lock_recovery.dart';
 import 'package:ridex/core/models/fare_quote.dart';
+import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/repositories/fare_repository.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/session_status.dart';
@@ -1001,6 +1002,13 @@ class PendingFareLockController extends Notifier<PendingFareLock?> {
       final handoff = await read();
       if (!confirm || handoff.isConfirmed) return handoff;
       requireCurrent();
+      // This shared boundary is used by every UI and recovery confirmation
+      // entry point. A fresh canonical read above is required for each new
+      // confirmation; unknown methods fail closed. Already-confirmed bookings
+      // return above so historical Card bookings remain readable.
+      if (handoff.booking.paymentMethod != PaymentMethod.cash) {
+        throw const FareException(FareFailure.unsupportedPaymentMethod);
+      }
       if (repository is! BookingConfirmationRepository) {
         throw const FareException(FareFailure.unavailable);
       }

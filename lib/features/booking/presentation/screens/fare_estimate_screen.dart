@@ -68,6 +68,8 @@ String _fareFailureMessage(FareFailure failure) {
     FareFailure.timedOut => 'The fare request timed out.',
     FareFailure.networkFailure => 'Could not reach the fare service.',
     FareFailure.expired => 'This fare quote expired. Request a new fare.',
+    FareFailure.unsupportedPaymentMethod =>
+      'This payment method is unavailable. Cash confirmation is supported.',
     FareFailure.unavailable ||
     FareFailure.invalidResponse =>
       'Fares are unavailable right now.',
