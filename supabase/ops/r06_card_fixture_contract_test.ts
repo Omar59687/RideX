@@ -449,6 +449,30 @@ Deno.test("Attempt guard requires original pending cycle-one key and live two-mi
     now: NOW,
   };
   assertAttempt(attempt(), expected);
+  assertAttempt({ ...attempt(), attempt_sequence: 2 }, expected);
+  assertAttempt({ ...attempt(), attempt_sequence: 37 }, expected);
+  for (
+    const attemptSequence of [
+      undefined,
+      null,
+      "2",
+      0,
+      -1,
+      1.5,
+      Number.MAX_SAFE_INTEGER + 1,
+    ]
+  ) {
+    if (
+      errorCode(() =>
+        assertAttempt(
+          { ...attempt(), attempt_sequence: attemptSequence },
+          expected,
+        )
+      ) !== "canonical_attempt_mismatch_or_expired"
+    ) {
+      throw new Error("invalid global Attempt sequence accepted");
+    }
+  }
   if (
     errorCode(() =>
       assertAttempt(attempt(new Date(NOW - 120_000).toISOString()), expected)
@@ -864,57 +888,32 @@ function canonicalExecutionTransport(): {
   return { fetcher, calls, state };
 }
 
-Deno.test("execute path uses canonical RPC allowlist, leaves Card pending, and never calls Stripe", async () => {
+Deno.test("Card execution stops before draft when no trusted server authorization gate exists", async () => {
   const transport = canonicalExecutionTransport();
   const stateWrites: string[] = [];
   const environmentForExecution = environment({
     R06_EXECUTION_APPROVAL_REF: `${R06_EXECUTION_APPROVAL_PREFIX}${FIXTURE_ID}`,
   });
-  const result = await runCardFixtureOperator(
-    ["--fixture-id", FIXTURE_ID, "--execute"],
-    environmentForExecution,
-    {
-      fetcher: transport.fetcher,
-      now: () => NOW,
-      stateExists: async () => false,
-      reserveState: async (_path, payload) => {
-        stateWrites.push(payload);
-      },
-    },
+  await expectAsyncCode(
+    () =>
+      runCardFixtureOperator(
+        ["--fixture-id", FIXTURE_ID, "--execute"],
+        environmentForExecution,
+        {
+          fetcher: transport.fetcher,
+          now: () => NOW,
+          stateExists: async () => false,
+          reserveState: async (_path, payload) => {
+            stateWrites.push(payload);
+          },
+        },
+      ),
+    "card_confirmation_authorization_gate_unavailable",
   );
-  if (
-    result.status !== "fixture_created" || result.tripId !== TRIP_ID ||
-    result.paymentId !== PAYMENT_ID || result.attemptId !== ATTEMPT_ID
-  ) {
-    throw new Error("canonical fixture result did not reconcile");
+  if (transport.calls.some((call) => call.method === "POST")) {
+    throw new Error("Card-only execution wrote before checking its gate");
   }
-  const allowedPosts = new Set([
-    "/functions/v1/fare",
-    "/rest/v1/rpc/rider_create_booking_draft",
-    "/rest/v1/rpc/rider_lock_fare_quote",
-    "/rest/v1/rpc/rider_confirm_booking",
-    "/rest/v1/rpc/backend_create_driver_match_offer",
-    "/rest/v1/rpc/driver_transition_trip",
-    "/rest/v1/rpc/backend_record_payment_attempt",
-  ]);
-  for (const call of transport.calls) {
-    const path = new URL(call.url).pathname;
-    if (call.method === "POST" && !allowedPosts.has(path)) {
-      throw new Error(`Unexpected mutating path ${path}`);
-    }
-    if (/stripe\.com/iu.test(call.url)) {
-      throw new Error("Stripe endpoint was called");
-    }
-  }
-  if (stateWrites.length !== 1 || !stateWrites[0].includes(FIXTURE_ID)) {
-    throw new Error("execution guard journal was not reserved before writes");
-  }
-  if (
-    transport.state.payment.card_status !== "cardPaymentPending" ||
-    transport.state.attempt?.status !== "pending"
-  ) {
-    throw new Error(
-      "fixture changed financial state beyond pending preparation",
-    );
+  if (stateWrites.length !== 0) {
+    throw new Error("blocked execution wrote a local attempt marker");
   }
 });
