@@ -2,10 +2,37 @@ $operatorPath = Join-Path $PSScriptRoot 'r06_retire_card_fixture.ps1'
 . $operatorPath
 
 function New-TestJwt {
-  param([string]$Subject, [long]$ExpiresAt, [string]$Role = 'authenticated')
-  $payload = @{ sub = $Subject; iss = 'https://ykasivejjchupswqyxpm.supabase.co/auth/v1'; exp = $ExpiresAt; role = $Role } | ConvertTo-Json -Compress
+  param(
+    [string]$Subject,
+    [long]$ExpiresAt,
+    [string]$Role = 'authenticated',
+    [string]$Issuer = 'https://ykasivejjchupswqyxpm.supabase.co/auth/v1',
+    [string]$ProjectRef
+  )
+  $payloadObject = @{ sub = $Subject; iss = $Issuer; exp = $ExpiresAt; role = $Role }
+  if ($PSBoundParameters.ContainsKey('ProjectRef')) { $payloadObject.ref = $ProjectRef }
+  $payload = $payloadObject | ConvertTo-Json -Compress
   $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($payload)).TrimEnd('=').Replace('+','-').Replace('/','_')
   return "e30.$encoded.signature"
+}
+
+function New-TestJwtFromClaims {
+  param([Parameter(Mandatory)][hashtable]$Claims)
+  $payload = $Claims | ConvertTo-Json -Compress
+  $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($payload)).TrimEnd('=').Replace('+','-').Replace('/','_')
+  return "e30.$encoded.signature"
+}
+
+function New-TestOperatorJwt {
+  param([hashtable]$Overrides = @{})
+  $claims = @{
+    iss = 'supabase'
+    ref = 'ykasivejjchupswqyxpm'
+    role = 'service_role'
+    exp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 3000
+  }
+  foreach ($name in $Overrides.Keys) { $claims[$name] = $Overrides[$name] }
+  return New-TestJwtFromClaims -Claims $claims
 }
 
 function Project-R06TestRows {
@@ -34,10 +61,18 @@ function New-R06TestTransport {
       try { $payload = Get-R06JwtPayload $Matches[1] } catch { }
     }
     $role = ''; $subject = ''
-    if ($payload) { $role = [string]$payload.role; $subject = [string]$payload.sub }
+    if ($payload) {
+      $role = [string]$payload.role
+      if ($payload.PSObject.Properties['sub']) { $subject = [string]$payload.sub }
+    }
     $global:r06TestRequests.Add([pscustomobject]@{
       Method = $Method; Uri = $Uri; Role = $role; Subject = $subject
+      ApiKeyPresent = -not [string]::IsNullOrWhiteSpace([string]$Headers['apikey'])
+      LegacyBearerMatchesApiKey = ($role -eq 'service_role' -and $Headers['apikey'] -ceq $Matches[1])
     })
+    if ($role -eq 'service_role' -and $global:r06Scenario -eq 'bad_operator_auth') {
+      throw 'simulated_401_invalid_signature'
+    }
     if ($Uri -like '*/auth/v1/token*') {
       $email = [string]$Body.email
       $id = if ($email -eq 'yousufrider@gmail.com') { $global:r06TestRiderId } else { $global:r06TestDriverId }
@@ -110,10 +145,12 @@ Describe 'R06 local retirement operator' {
     $global:r06Stage = 'preflight'
     $global:r06ReadCount = 0
     $global:r06AttemptCreatedAt = [DateTimeOffset]::UtcNow.AddMinutes(-10).ToString('o')
+    $global:r06OperatorJwt = $null
+    Mock Get-R06Configuration { return @{ Url = $script:R06ProjectUrl; Key = 'test-publishable-key' } }
     Mock Read-Host {
       $global:r06ReadCount++
       if ($global:r06ReadCount -eq 3) {
-        $operatorJwt = New-TestJwt -Subject '00000000-0000-4000-8000-000000000009' -ExpiresAt ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 3000) -Role 'service_role'
+        $operatorJwt = if ($global:r06OperatorJwt) { $global:r06OperatorJwt } else { New-TestOperatorJwt }
         return ConvertTo-SecureString $operatorJwt -AsPlainText -Force
       }
       return ConvertTo-SecureString 'test-only-password-do-not-print' -AsPlainText -Force
@@ -121,8 +158,10 @@ Describe 'R06 local retirement operator' {
   }
 
   It 'reconciles exact selected Payment fields before authorized Driver restoration' {
+    $global:r06OperatorJwt = New-TestOperatorJwt -Overrides @{ signature_marker = 'test-only-operator-secret-marker' }
     $output = Invoke-R06Retirement -HttpTransport (New-R06TestTransport) | Out-String
     $output | Should Match 'R06 retirement complete'
+    $output | Should Not Match 'test-only-password-do-not-print|test-refresh-token|test-only-operator-secret-marker'
     $global:r06MutationCalls | Should Be 2
     $retire = @($global:r06TestRequests | Where-Object { $_.Uri -like '*/rpc/rider_retire_r06_card_fixture' })
     $availability = @($global:r06TestRequests | Where-Object { $_.Uri -like '*/rpc/driver_set_availability' })
@@ -132,7 +171,14 @@ Describe 'R06 local retirement operator' {
     $availability.Count | Should Be 1
     $availability[0].Role | Should Be 'authenticated'
     $availability[0].Subject | Should Be $global:r06TestDriverId
-    @($global:r06TestRequests | Where-Object { $_.Role -eq 'service_role' -and $_.Method -ne 'GET' -and $_.Uri -notlike '*/rpc/backend_read_stripe_test_preparation' }).Count | Should Be 0
+    $operatorReads = @($global:r06TestRequests | Where-Object { $_.Role -eq 'service_role' })
+    $operatorReads.Count | Should BeGreaterThan 0
+    @($operatorReads | Where-Object {
+      -not $_.ApiKeyPresent -or -not $_.LegacyBearerMatchesApiKey -or
+      ($_.Method -ne 'GET' -and $_.Uri -notlike '*/rpc/backend_read_stripe_test_preparation')
+    }).Count | Should Be 0
+    @($operatorReads | Where-Object { $_.Uri -notmatch '^https://ykasivejjchupswqyxpm\.supabase\.co/rest/v1/(trips|payments|payment_attempts|receipts|driver_availability|vehicles)\?' -and $_.Uri -notlike '*/rpc/backend_read_stripe_test_preparation' }).Count | Should Be 0
+    $global:r06TestRequests.IndexOf($operatorReads[0]) | Should BeLessThan $global:r06TestRequests.IndexOf($retire[0])
     $global:r06TestRequests.IndexOf($availability[0]) | Should BeGreaterThan $global:r06TestRequests.IndexOf($retire[0])
     $paymentAfter = @($global:r06TestRequests | Where-Object {
       $_.Uri -like '*/rest/v1/payments?select=*&id=eq.*'
@@ -197,9 +243,73 @@ Describe 'R06 local retirement operator' {
   }
 
   It 'refuses non-read-only privileged paths before making a request' {
-    $key = ConvertTo-SecureString (New-TestJwt -Subject '00000000-0000-4000-8000-000000000009' -ExpiresAt ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 3000) -Role 'service_role') -AsPlainText -Force
+    $key = ConvertTo-SecureString (New-TestOperatorJwt) -AsPlainText -Force
     { Invoke-R06OperatorRead -Path '/rest/v1/rpc/rider_retire_r06_card_fixture' -OperatorKey $key -Body @{} } | Should Throw
     $global:r06TestRequests.Count | Should Be 0
     $key.Dispose()
+  }
+
+  It 'accepts documented legacy service-role claims for the exact project' {
+    $key = ConvertTo-SecureString (New-TestOperatorJwt) -AsPlainText -Force
+    { Assert-R06OperatorKey -OperatorKey $key } | Should Not Throw
+    $key.Dispose()
+  }
+
+  It 'rejects wrong project, issuer, role, and expired legacy service-role claims' {
+    $invalidClaims = @(
+      @{ ref = 'another-project-reference' },
+      @{ iss = 'https://ykasivejjchupswqyxpm.supabase.co/auth/v1' },
+      @{ role = 'anon' },
+      @{ exp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - 1 }
+    )
+    foreach ($override in $invalidClaims) {
+      $key = ConvertTo-SecureString (New-TestOperatorJwt -Overrides $override) -AsPlainText -Force
+      { Assert-R06OperatorKey -OperatorKey $key } | Should Throw 'operator_credential_invalid'
+      $key.Dispose()
+    }
+  }
+
+  It 'rejects missing, malformed, and opaque secret-key claims without leaking input' {
+    $invalidTokens = @(
+      (New-TestJwtFromClaims -Claims @{ iss = 'supabase'; role = 'service_role'; exp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 3000 }),
+      (New-TestJwtFromClaims -Claims @{ iss = 'supabase'; ref = 'ykasivejjchupswqyxpm'; role = 'service_role'; exp = 'not-a-number' }),
+      'sb_secret_test_only_opaque_key'
+    )
+    foreach ($token in $invalidTokens) {
+      $key = ConvertTo-SecureString $token -AsPlainText -Force
+      $errorMessage = ''
+      try { Assert-R06OperatorKey -OperatorKey $key } catch { $errorMessage = $_.Exception.Message }
+      $errorMessage | Should Be 'operator_credential_invalid'
+      $errorMessage | Should Not Match ([regex]::Escape($token))
+      $key.Dispose()
+    }
+  }
+
+  It 'makes no authentication or mutation request after rejecting operator credentials' {
+    $global:r06OperatorJwt = New-TestOperatorJwt -Overrides @{
+      ref = 'wrong-project-reference'
+      signature_marker = 'test-only-secret-marker'
+    }
+    $errorMessage = ''
+    try { Invoke-R06Retirement -HttpTransport (New-R06TestTransport) | Out-Null }
+    catch { $errorMessage = $_.Exception.Message }
+    $errorMessage | Should Be 'operator_credential_invalid'
+    $errorMessage | Should Not Match 'test-only-secret-marker|test-only-password-do-not-print'
+    $global:r06TestRequests.Count | Should Be 0
+    $global:r06MutationCalls | Should Be 0
+  }
+
+  It 'halts without mutation when Supabase rejects the operator JWT on the read-only preflight' {
+    $global:r06Scenario = 'bad_operator_auth'
+    $errorMessage = ''
+    try { Invoke-R06Retirement -HttpTransport (New-R06TestTransport) | Out-Null }
+    catch { $errorMessage = $_.Exception.Message }
+    $errorMessage | Should Be 'r06_request_failed'
+    $operatorReads = @($global:r06TestRequests | Where-Object { $_.Role -eq 'service_role' })
+    $operatorReads.Count | Should Be 1
+    $operatorReads[0].Method | Should Be 'GET'
+    $operatorReads[0].Uri | Should Match '/rest/v1/trips\?'
+    @($global:r06TestRequests | Where-Object { $_.Uri -like '*/rpc/rider_retire_r06_card_fixture' -or $_.Uri -like '*/rpc/driver_set_availability' }).Count | Should Be 0
+    $global:r06MutationCalls | Should Be 0
   }
 }
