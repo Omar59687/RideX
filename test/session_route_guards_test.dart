@@ -94,6 +94,7 @@ void main() {
       final session = SessionState.fromUser(rider);
 
       expect(redirectForLocation('/rider/home', session), isNull);
+      expect(redirectForLocation('/rider/payment-method', session), isNull);
       expect(redirectForLocation('/rider/canonical-payment', session), isNull);
       expect(redirectForLocation('/history', session), isNull);
       expect(redirectForLocation('/driver/trip', session), '/rider/home');
@@ -116,6 +117,8 @@ void main() {
       expect(redirectForLocation('/driver/canonical-trip', session), isNull);
       expect(redirectForLocation('/history', session), isNull);
       expect(redirectForLocation('/rider/trip', session), '/driver/home');
+      expect(redirectForLocation('/rider/payment-method', session),
+          '/driver/home');
       expect(redirectForLocation('/rider/canonical-payment', session),
           '/driver/home');
       expect(redirectForLocation('/admin', session), '/driver/home');

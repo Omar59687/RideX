@@ -25,6 +25,7 @@ class BookingHandoff {
             riderId: booking.riderId,
             version: booking.version - 1,
             status: 'draft',
+            paymentMethod: booking.paymentMethod,
             fareQuoteId: booking.fareQuoteId,
             quotes: booking.quotes)
         : booking;

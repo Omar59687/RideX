@@ -16,6 +16,8 @@ class RouteNames {
   static const destination = 'destination';
   static const vehicleType = 'vehicleType';
   static const fareEstimate = 'fareEstimate';
+  static const paymentMethod = 'paymentMethod';
+  static const confirmation = 'bookingConfirmation';
   static const searching = 'searching';
   static const riderTrip = 'riderTrip';
   static const tripCompletion = 'tripCompletion';

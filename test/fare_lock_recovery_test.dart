@@ -17,6 +17,7 @@ import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/models/fare_lock_recovery.dart';
 import 'package:ridex/core/models/fare_quote.dart';
 import 'package:ridex/core/models/pending_fare_lock.dart';
+import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
@@ -70,6 +71,7 @@ Map<String, dynamic> _bookingRow(
         {int version = 2,
         String? link = 'quote-1',
         String status = 'draft',
+        String paymentMethod = 'cash',
         List<Map<String, dynamic>>? quotes}) =>
     {
       'id': 'booking-1',
@@ -77,6 +79,7 @@ Map<String, dynamic> _bookingRow(
       'version': version,
       'status': status,
       'fare_quote_id': link,
+      'payment_method': paymentMethod,
       'fare_quotes': quotes ?? [_quoteRow()],
     };
 
@@ -164,6 +167,19 @@ Future<T> _withLoopback<T>(Future<T> Function() body) =>
     HttpOverrides.runWithHttpOverrides(body, _LoopbackHttpOverrides());
 
 void main() {
+  test('canonical locked method survives recovery; absent method is unknown',
+      () {
+    final cash =
+        CanonicalFareBooking.fromJson(_bookingRow(paymentMethod: 'cash'));
+    final card =
+        CanonicalFareBooking.fromJson(_bookingRow(paymentMethod: 'card'));
+    final missing = Map<String, dynamic>.from(_bookingRow())
+      ..remove('payment_method');
+    expect(cash.paymentMethod, PaymentMethod.cash);
+    expect(card.paymentMethod, PaymentMethod.card);
+    expect(CanonicalFareBooking.fromJson(missing).paymentMethod, isNull);
+  });
+
   group('Supabase read adapter', () {
     Future<void> setRider(SupabaseClient client, String id) =>
         client.auth.setInitialSession(jsonEncode({
@@ -200,6 +216,8 @@ void main() {
               expect(request.uri.queryParameters['rider_id'], 'eq.rider-1');
               expect(request.uri.queryParameters['select'],
                   contains('fare_quotes!fare_quotes_booking_rider_fk('));
+              expect(request.uri.queryParameters['select'],
+                  contains('payment_method'));
               expect(request.uri.queryParameters['limit'], isNull);
               expect(request.uri.queryParameters['order'], isNull);
             }));
@@ -358,11 +376,13 @@ void main() {
           find.text('Your locked fare is protected. Review your original '
               'booking to continue. Replacement remains paused.'),
           findsOneWidget);
+      await tester.drag(find.byType(ListView).first, const Offset(0, -520));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Review original booking'));
+      await tester.pumpAndSettle();
       expect(find.text('Review original booking'), findsOneWidget);
       expect(find.text('Fare locked'), findsOneWidget);
       expect(reads, 1);
-      await tester.ensureVisible(find.text('Review original booking'));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Review original booking'));
       await tester.pumpAndSettle();
       expect(find.text('Booking confirmed'), findsOneWidget);
