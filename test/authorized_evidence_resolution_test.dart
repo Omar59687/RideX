@@ -72,6 +72,7 @@ Map<String, dynamic> _bookingRow(
       'version': version,
       'status': status,
       'fare_quote_id': link,
+      'payment_method': 'cash',
       'fare_quotes': quotes ?? [_quoteRow()],
     };
 

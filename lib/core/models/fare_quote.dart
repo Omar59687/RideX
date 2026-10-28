@@ -18,6 +18,7 @@ enum FareFailure {
   pricingUnavailable,
   expired,
   invalidResponse,
+  unsupportedPaymentMethod,
 }
 
 class FareException implements Exception {

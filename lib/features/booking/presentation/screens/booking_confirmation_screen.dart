@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/core/models/booking_handoff.dart';
 import 'package:ridex/core/models/fare_quote.dart';
+import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/widgets/app_button.dart';
@@ -22,8 +23,10 @@ class _BookingConfirmationScreenState
     extends ConsumerState<BookingConfirmationScreen> {
   BookingHandoff? _handoff;
   SessionState? _ownerSession;
+  int _requestGeneration = 0;
   bool _busy = false;
   bool _failed = false;
+  bool _paymentMethodUnavailable = false;
 
   @override
   void initState() {
@@ -31,6 +34,18 @@ class _BookingConfirmationScreenState
     Future<void>.microtask(() {
       if (mounted) unawaited(_resolve());
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant BookingConfirmationScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.bookingRequestId != widget.bookingRequestId) {
+      _requestGeneration++;
+      _handoff = null;
+      _ownerSession = null;
+      _busy = false;
+      unawaited(_resolve());
+    }
   }
 
   Future<void> _resolve({bool confirm = false, bool retire = false}) async {
@@ -43,17 +58,24 @@ class _BookingConfirmationScreenState
             !identical(session, _ownerSession))) {
       return;
     }
+    final requestGeneration = ++_requestGeneration;
+    final retirementCommand = retire ? _handoff?.command : null;
     setState(() {
+      // A displayed snapshot is never retained as authorization while a fresh
+      // verification is pending, or after any verification failure.
+      _handoff = null;
+      _ownerSession = null;
       _busy = true;
       _failed = false;
+      _paymentMethodUnavailable = false;
     });
     try {
       final controller = ref.read(pendingFareLockControllerProvider.notifier);
-      final result = retire && _handoff != null
-          ? await controller.resolveConfirmedEvidence(_handoff!.command)
+      final result = retirementCommand != null
+          ? await controller.resolveConfirmedEvidence(retirementCommand)
           : await controller.bookingHandoff(
               confirm: confirm, bookingRequestId: widget.bookingRequestId);
-      if (!mounted) return;
+      if (!mounted || requestGeneration != _requestGeneration) return;
       if (!identical(ref.read(sessionControllerProvider), session)) {
         setState(() {
           _handoff = null;
@@ -68,6 +90,8 @@ class _BookingConfirmationScreenState
         _busy = false;
       });
     } on Object catch (error, stackTrace) {
+      final paymentMethodUnavailable = error is FareException &&
+          error.failure == FareFailure.unsupportedPaymentMethod;
       if (error is! FareException) {
         try {
           reporter.report(
@@ -78,10 +102,12 @@ class _BookingConfirmationScreenState
           // Diagnostics cannot prevent recovery UI from settling.
         }
       }
-      if (mounted) {
+      if (mounted && requestGeneration == _requestGeneration) {
         setState(() {
           _handoff = null;
-          _failed = true;
+          _ownerSession = null;
+          _failed = !paymentMethodUnavailable;
+          _paymentMethodUnavailable = paymentMethodUnavailable;
           _busy = false;
         });
       }
@@ -90,6 +116,19 @@ class _BookingConfirmationScreenState
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(sessionControllerProvider, (previous, next) {
+      if (identical(previous, next)) return;
+      setState(() {
+        // Even a same-Rider refresh invalidates the previous authorization.
+        // A delayed response cannot restore it or overwrite a newer request.
+        _requestGeneration++;
+        _handoff = null;
+        _ownerSession = null;
+        _busy = false;
+        _failed = true;
+        _paymentMethodUnavailable = false;
+      });
+    });
     final session = ref.watch(sessionControllerProvider);
     final pending = ref.watch(pendingFareLockControllerProvider);
     final references = ref.watch(confirmedBookingReferencesProvider);
@@ -118,10 +157,18 @@ class _BookingConfirmationScreenState
                   'Locked fare: ${formatFareFils(handoff.quote.fixedFareFils)}'),
               const Text(
                   'This is your original booking. Current route selections do not change this fare.'),
-              if (!handoff.isConfirmed)
+              if (!handoff.isConfirmed &&
+                  handoff.booking.paymentMethod == PaymentMethod.cash)
                 AppButton(
                     label: 'Confirm original booking',
                     onPressed: () => unawaited(_resolve(confirm: true))),
+              if (!handoff.isConfirmed &&
+                  handoff.booking.paymentMethod == PaymentMethod.card)
+                const Text(
+                    'This locked booking uses Card. Card confirmation is unavailable.'),
+              if (!handoff.isConfirmed && handoff.booking.paymentMethod == null)
+                const Text(
+                    'The locked booking payment method could not be verified. Confirmation is paused.'),
               if (handoff.isConfirmed && !retired)
                 AppButton(
                     label: 'Resolve evidence for another booking',
@@ -134,8 +181,9 @@ class _BookingConfirmationScreenState
                 const Text(
                     'Your booking is confirmed. Live driver matching is not available yet.'),
             ] else ...[
-              const Text(
-                  'Booking status is unresolved. Confirmation and changes are paused.'),
+              Text(_paymentMethodUnavailable
+                  ? 'The canonical payment method is unavailable or unsupported. Confirmation is paused.'
+                  : 'Booking status is unresolved. Confirmation and changes are paused.'),
               if (_failed)
                 const Text(
                     'We could not verify your original booking. Sign in as the original Rider and check again.'),
