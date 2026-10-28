@@ -19,6 +19,7 @@ $VerbosePreference = 'SilentlyContinue'
 $DebugPreference = 'SilentlyContinue'
 
 $script:R06ProjectUrl = 'https://ykasivejjchupswqyxpm.supabase.co'
+$script:R06ProjectRef = 'ykasivejjchupswqyxpm'
 $script:R06TripId = 'ceff7eb6-2d1f-4744-9cbc-243d80d550ba'
 $script:R06RiderEmail = 'yousufrider@gmail.com'
 $script:R06DriverEmail = 'yousufdriver@gmail.com'
@@ -159,11 +160,25 @@ function Assert-R06OperatorKey {
   try {
     $plainKey = Convert-R06SecureString $OperatorKey
     $payload = Get-R06JwtPayload $plainKey
-    if ($payload.iss -cne ($script:R06ProjectUrl + '/auth/v1') -or
-        $payload.role -cne 'service_role' -or
-        [long]$payload.exp -le [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()) {
+    $issuer = $payload.PSObject.Properties['iss']
+    $projectRef = $payload.PSObject.Properties['ref']
+    $role = $payload.PSObject.Properties['role']
+    $expiry = $payload.PSObject.Properties['exp']
+    if (-not $issuer -or -not $projectRef -or -not $role -or -not $expiry -or
+        $issuer.Value -isnot [string] -or $projectRef.Value -isnot [string] -or
+        $role.Value -isnot [string] -or
+        ($expiry.Value -isnot [int] -and $expiry.Value -isnot [long]) -or
+        $issuer.Value -cne 'supabase' -or
+        $projectRef.Value -cne $script:R06ProjectRef -or
+        $role.Value -cne 'service_role' -or
+        [long]$expiry.Value -le [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()) {
       throw 'operator_credential_invalid'
     }
+  } catch {
+    # Local JWT decoding is a shape/claim check, not signature verification.
+    # The allowlisted read-only API preflight below authenticates the key with
+    # Supabase before either actor mutation can be reached.
+    throw 'operator_credential_invalid'
   } finally {
     $plainKey = $null
     if ($payload) { $payload = $null }
