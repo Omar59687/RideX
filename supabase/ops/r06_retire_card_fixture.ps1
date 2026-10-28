@@ -34,6 +34,47 @@ function Get-R06Rows($Value) {
   return ,@($Value)
 }
 
+function ConvertFrom-R06ReservationResponse {
+  param([AllowNull()][object]$Response)
+  if ($null -eq $Response) { return $null }
+  if ($Response -isnot [string] -or [string]::IsNullOrWhiteSpace($Response)) {
+    throw 'reservation_response_invalid'
+  }
+  $json = $Response.Trim()
+  if ($json -ceq 'null') { return $null }
+  # Check the JSON root before ConvertFrom-Json can enumerate arrays into the
+  # PowerShell pipeline (notably on PowerShell 7).
+  if (-not $json.StartsWith('{', [StringComparison]::Ordinal)) {
+    throw 'reservation_response_invalid'
+  }
+  try { $parsed = ConvertFrom-Json -InputObject $json -ErrorAction Stop }
+  catch { throw 'reservation_response_invalid' }
+  if ($null -eq $parsed -or $parsed -isnot [pscustomobject]) {
+    throw 'reservation_response_invalid'
+  }
+  return $parsed
+}
+
+function Assert-R06ReservationAbsent {
+  param([AllowNull()][object]$Reservation, [string]$ConflictCode = 'reservation_conflict')
+  if ($null -eq $Reservation) { return }
+  $properties = @{}
+  if ($Reservation -is [System.Collections.IDictionary]) {
+    foreach ($name in @('disposition','state','context','reference')) {
+      if ($Reservation.Contains($name)) { $properties[$name] = $Reservation[$name] }
+    }
+  } elseif ($Reservation -is [pscustomobject]) {
+    foreach ($name in @('disposition','state','context','reference')) {
+      if ($Reservation.PSObject.Properties[$name]) { $properties[$name] = $Reservation.$name }
+    }
+  }
+  if ($properties.Count -eq 4 -and $properties.disposition -ceq 'existing' -and
+      $properties.state -cin @('reserved','unknown','prepared') -and $null -ne $properties.context) {
+    throw $ConflictCode
+  }
+  throw 'reservation_response_invalid'
+}
+
 function Invoke-R06Http {
   param(
     [Parameter(Mandatory)][ValidateSet('GET','POST')][string]$Method,
@@ -43,8 +84,11 @@ function Invoke-R06Http {
   )
   $arguments = $null
   try {
+    $isReservationRead = $Uri -ceq ($script:R06ProjectUrl + '/rest/v1/rpc/backend_read_stripe_test_preparation')
     if ($script:R06HttpTransport) {
-      return & $script:R06HttpTransport $Method $Uri $Headers $Body
+      $response = & $script:R06HttpTransport $Method $Uri $Headers $Body
+      if ($isReservationRead) { return ConvertFrom-R06ReservationResponse -Response $response }
+      return $response
     }
     $arguments = @{
       Method = $Method
@@ -57,6 +101,13 @@ function Invoke-R06Http {
     if ($null -ne $Body) {
       $arguments.ContentType = 'application/json'
       $arguments.Body = ConvertTo-Json -InputObject $Body -Depth 8 -Compress
+    }
+    if ($isReservationRead) {
+      $arguments.UseBasicParsing = $true
+      $response = Invoke-WebRequest @arguments
+      $contentType = [string]$response.Headers['Content-Type']
+      if ($contentType -notmatch '^application/json(?:\s*;|$)') { throw 'reservation_response_invalid' }
+      return ConvertFrom-R06ReservationResponse -Response ([string]$response.Content)
     }
     return Invoke-RestMethod @arguments
   } catch {
@@ -334,7 +385,7 @@ function Get-R06Preflight {
     throw 'attempt_provider_evidence_unavailable_or_conflicting'
   }
   $reservation = Invoke-R06OperatorRead -Path '/rest/v1/rpc/backend_read_stripe_test_preparation' -OperatorKey $OperatorKey -Body @{ target_attempt_id = $attempt.id; actor_rider_id = $Rider.Id }
-  if ($null -ne $reservation) { throw 'reservation_conflict' }
+  Assert-R06ReservationAbsent -Reservation $reservation
   $receiptRows = Get-R06Rows (Invoke-R06OperatorRead -Path "/rest/v1/receipts?select=id&trip_id=eq.$($script:R06TripId)&limit=2" -OperatorKey $OperatorKey -Body $null)
   if ($receiptRows.Count -ne 0) { throw 'receipt_conflict' }
   $availabilityRows = Get-R06Rows (Invoke-R06OperatorRead -Path "/rest/v1/driver_availability?select=driver_id,state,vehicle_id,reserved_booking_request_id,active_trip_id,version&driver_id=eq.$($Driver.Id)&limit=2" -OperatorKey $OperatorKey -Body $null)
@@ -410,7 +461,7 @@ function Invoke-R06Retirement {
       throw 'cancellation_reconciliation_failed_stop'
     }
     $reservationAfter = Invoke-R06OperatorRead -Path '/rest/v1/rpc/backend_read_stripe_test_preparation' -OperatorKey $operatorKey -Body @{ target_attempt_id = $preflight.Attempt.id; actor_rider_id = $rider.Id }
-    if ($null -ne $reservationAfter) { throw 'reservation_reconciliation_failed_stop' }
+  Assert-R06ReservationAbsent -Reservation $reservationAfter -ConflictCode 'reservation_reconciliation_failed_stop'
     $receiptAfter = Get-R06Rows (Invoke-R06OperatorRead -Path "/rest/v1/receipts?select=id&trip_id=eq.$($script:R06TripId)&limit=2" -OperatorKey $operatorKey -Body $null)
     if ($receiptAfter.Count -ne 0) { throw 'receipt_reconciliation_failed_stop' }
     $availabilityNow = Get-R06Rows (Invoke-R06OperatorRead -Path "/rest/v1/driver_availability?select=driver_id,state,vehicle_id,reserved_booking_request_id,active_trip_id,version&driver_id=eq.$($driver.Id)&limit=2" -OperatorKey $operatorKey -Body $null)
@@ -434,6 +485,7 @@ function Invoke-R06Retirement {
     $finalVehicles = Get-R06Rows (Invoke-R06OperatorRead -Path "/rest/v1/vehicles?select=id,driver_id,is_active,vehicle_type_code&id=eq.$($script:R06VehicleId)&limit=2" -OperatorKey $operatorKey -Body $null)
     $finalActiveTrips = Get-R06Rows (Invoke-R06OperatorRead -Path "/rest/v1/trips?select=id,driver_id,status&driver_id=eq.$($driver.Id)&status=in.(accepted,driverArriving,driverArrived,inProgress)&limit=3" -OperatorKey $operatorKey -Body $null)
     $finalReservation = Invoke-R06OperatorRead -Path '/rest/v1/rpc/backend_read_stripe_test_preparation' -OperatorKey $operatorKey -Body @{ target_attempt_id = $preflight.Attempt.id; actor_rider_id = $rider.Id }
+    Assert-R06ReservationAbsent -Reservation $finalReservation -ConflictCode 'final_reconciliation_failed_stop'
     $finalReceiptCount = (Get-R06Rows (Invoke-R06OperatorRead -Path "/rest/v1/receipts?select=id&trip_id=eq.$($script:R06TripId)&limit=2" -OperatorKey $operatorKey -Body $null)).Count
     if ($finalTrip.Count -ne 1 -or $finalTrip[0].status -cne 'cancelledByRider' -or
         $finalPayment.Count -ne 1 -or $finalPayment[0].card_status -cne 'paymentCancelled' -or

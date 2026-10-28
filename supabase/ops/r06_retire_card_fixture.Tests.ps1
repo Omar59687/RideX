@@ -115,8 +115,32 @@ function New-R06TestTransport {
     }
     if ($Uri -like '*/rest/v1/vehicles?*') { return ,(Project-R06TestRows -Uri $Uri -Rows @(@{ id = '48d007ab-c13c-4ff8-93f3-1dc7f1e6975d'; driver_id = $global:r06TestDriverId; is_active = $true; vehicle_type_code = 'economy' })) }
     if ($Uri -like '*/rpc/backend_read_stripe_test_preparation') {
-      if ($global:r06Scenario -eq 'reservation') { return @{ disposition = 'existing'; state = 'unknown'; reference = $null } }
-      return $null
+      switch ($global:r06Scenario) {
+        { $_ -in @('reservation','reservation_reserved','reservation_unknown','reservation_prepared') } {
+          $state = switch ($global:r06Scenario) {
+            'reservation_reserved' { 'reserved' }
+            'reservation_prepared' { 'prepared' }
+            default { 'unknown' }
+          }
+          return (@{ disposition = 'existing'; state = $state; context = @{ test = $true }; reference = $null } | ConvertTo-Json -Compress)
+        }
+        'reservation_json_null' { return 'null' }
+        'reservation_ps_null' { return $null }
+        'reservation_empty_body' { return '' }
+        'reservation_empty_object' { return '{}' }
+        'reservation_empty_array' { return '[]' }
+        'reservation_null_array' { return '[null]' }
+        'reservation_singleton_array' { return '[{"disposition":"existing","state":"reserved","context":{"test":true},"reference":null}]' }
+        'reservation_json_string_null' { return '"null"' }
+        'reservation_malformed' { return '{not-json' }
+        'reservation_unexpected' { return 'true' }
+        'reservation_missing_reference' { return (@{ disposition = 'existing'; state = 'unknown'; context = @{ test = $true } } | ConvertTo-Json -Compress) }
+        'reservation_after_cancel_invalid' {
+          if ($global:r06Stage -eq 'cancelled') { return '{}' }
+          return 'null'
+        }
+        default { return 'null' }
+      }
     }
     if ($Uri -like '*/rpc/rider_retire_r06_card_fixture') {
       $global:r06MutationCalls++
@@ -197,9 +221,63 @@ Describe 'R06 local retirement operator' {
   }
 
   It 'stops without mutation when a reservation exists' {
-    $global:r06Scenario = 'reservation'
+    foreach ($scenario in @('reservation_reserved','reservation_unknown','reservation_prepared')) {
+      $global:r06Scenario = $scenario
+      $global:r06ReadCount = 0
+      { Invoke-R06Retirement -HttpTransport (New-R06TestTransport) } | Should Throw 'reservation_conflict'
+      $global:r06MutationCalls | Should Be 0
+      $global:r06TestRequests.Clear()
+    }
+  }
+
+  It 'treats JSON null and PowerShell null as confirmed reservation absence' {
+    foreach ($scenario in @('reservation_json_null','reservation_ps_null')) {
+      $global:r06Scenario = $scenario
+      $global:r06ReadCount = 0
+      $global:r06Stage = 'preflight'
+      $output = Invoke-R06Retirement -HttpTransport (New-R06TestTransport) | Out-String
+      $output | Should Match 'R06 retirement complete'
+      $global:r06MutationCalls | Should Be 2
+      $global:r06TestRequests.Clear()
+      $global:r06MutationCalls = 0
+    }
+  }
+
+  It 'fails closed on empty, malformed, scalar, or structurally unexpected reservation responses' {
+    foreach ($scenario in @('reservation_empty_body','reservation_empty_object','reservation_empty_array','reservation_null_array','reservation_singleton_array','reservation_json_string_null','reservation_malformed','reservation_unexpected','reservation_missing_reference')) {
+      $global:r06Scenario = $scenario
+      $global:r06ReadCount = 0
+      $global:r06Stage = 'preflight'
+      $global:r06MutationCalls = 0
+      { Invoke-R06Retirement -HttpTransport (New-R06TestTransport) } | Should Throw
+      @($global:r06TestRequests | Where-Object { $_.Uri -like '*/rpc/backend_read_stripe_test_preparation' }).Count | Should Be 1
+      $global:r06MutationCalls | Should Be 0
+      @($global:r06TestRequests | Where-Object { $_.Uri -like '*/rpc/rider_retire_r06_card_fixture' -or $_.Uri -like '*/rpc/driver_set_availability' }).Count | Should Be 0
+      $global:r06TestRequests.Clear()
+    }
+  }
+
+  It 'stops before Driver restoration if reservation reconciliation becomes ambiguous' {
+    $global:r06Scenario = 'reservation_after_cancel_invalid'
     { Invoke-R06Retirement -HttpTransport (New-R06TestTransport) } | Should Throw
-    $global:r06MutationCalls | Should Be 0
+    @($global:r06TestRequests | Where-Object { $_.Uri -like '*/rpc/rider_retire_r06_card_fixture' }).Count | Should Be 1
+    @($global:r06TestRequests | Where-Object { $_.Uri -like '*/rpc/driver_set_availability' }).Count | Should Be 0
+  }
+
+  It 'uses the raw JSON response and requires the reservation RPC content type' {
+    $script:R06HttpTransport = $null
+    $headers = @{ apikey = 'test-key'; Authorization = 'Bearer test-token'; Accept = 'application/json' }
+    Mock Invoke-WebRequest {
+      return [pscustomobject]@{ Headers = @{ 'Content-Type' = 'application/json; charset=utf-8' }; Content = 'null' }
+    }
+    $result = Invoke-R06Http -Method POST -Uri ($script:R06ProjectUrl + '/rest/v1/rpc/backend_read_stripe_test_preparation') -Headers $headers -Body @{}
+    $result | Should Be $null
+    Assert-MockCalled Invoke-WebRequest -Times 1 -ParameterFilter { $UseBasicParsing -eq $true }
+
+    Mock Invoke-WebRequest {
+      return [pscustomobject]@{ Headers = @{ 'Content-Type' = 'text/plain' }; Content = 'null' }
+    }
+    { Invoke-R06Http -Method POST -Uri ($script:R06ProjectUrl + '/rest/v1/rpc/backend_read_stripe_test_preparation') -Headers $headers -Body @{} } | Should Throw
   }
 
   It 'stops without mutation when a provider reference exists' {
