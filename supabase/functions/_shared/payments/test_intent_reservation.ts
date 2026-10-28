@@ -1,4 +1,5 @@
 import {
+  assertR06X2DispatchAllowed,
   type CanonicalIntentContext,
   type PreparedTestIntent,
   TestIntentError,
@@ -63,6 +64,7 @@ export class DurableTestIntentProvider implements TestIntentProvider {
 
   async prepare(context: CanonicalIntentContext): Promise<PreparedTestIntent> {
     if (!validIntentContext(context)) throw new TestIntentError("invalid_request");
+    assertR06X2DispatchAllowed(context);
     this.assertReady(); // missing account/key/JOD approval must not consume a claim.
     let reservation: TestIntentReservation;
     try {
@@ -207,11 +209,13 @@ export class SupabaseTestIntentReservationStore implements TestIntentReservation
     );
   }
   async record(attemptId: string, claimToken: string, reference: string | null): Promise<void> {
-    await this.#rpc("backend_record_stripe_test_preparation", {
+    const disposition = await this.#rpc("backend_record_stripe_test_preparation_fenced", {
       target_attempt_id: attemptId,
       original_claim_token: claimToken,
       prepared_reference: reference,
     });
+    // Quarantine preserves contradictory late evidence but is never success.
+    if (disposition !== "recorded") throw new TestIntentError("unknown_result");
   }
   async read(context: CanonicalIntentContext): Promise<TestIntentReservation | null> {
     const result = await this.#rpc("backend_read_stripe_test_preparation", {
