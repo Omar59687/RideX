@@ -165,7 +165,9 @@ class _BookingConfirmationScreenState
               if (!handoff.isConfirmed &&
                   handoff.booking.paymentMethod == PaymentMethod.card)
                 const Text(
-                    'This locked booking uses Card. Card confirmation is unavailable.'),
+                    'This locked booking uses Card. Card confirmation is '
+                    'unavailable, and a locked payment method cannot be '
+                    'switched to Cash.'),
               if (!handoff.isConfirmed && handoff.booking.paymentMethod == null)
                 const Text(
                     'The locked booking payment method could not be verified. Confirmation is paused.'),

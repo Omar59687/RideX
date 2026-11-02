@@ -223,21 +223,25 @@ class _PaymentMethodScreenState extends ConsumerState<PaymentMethodScreen> {
                     : payment == null
                         ? 'Payment method unavailable'
                         : payment == PaymentMethod.card
-                            ? 'Card currently unavailable'
+                            ? 'Cannot switch to Cash'
                             : 'Continue with Cash',
                 semanticLabel: _loading || _navigating
                     ? 'Verifying the locked booking payment method'
                     : payment == null
                         ? 'Payment method unavailable; continuation disabled'
                         : payment == PaymentMethod.card
-                            ? 'Card payment currently unavailable'
+                            ? 'Cannot switch to Cash; the payment method '
+                                'was locked with this fare as Card '
+                                'and Card confirmation is unavailable'
                             : 'Continue with Cash',
                 onPressed: canContinue ? _continueWithCanonicalCash : null,
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 payment == PaymentMethod.card
-                    ? 'Card payment is unavailable for this locked booking.'
+                    ? 'This fare was locked with Card. A locked payment method '
+                        'cannot be changed, so this booking cannot continue '
+                        'as Cash. Card confirmation is not available yet.'
                     : payment == null
                         ? 'Verifying the payment method saved on this booking.'
                         : 'You will not be charged now.',
@@ -310,7 +314,9 @@ class _PaymentMethodScreenState extends ConsumerState<PaymentMethodScreen> {
                           child: Text(
                             payment == PaymentMethod.cash
                                 ? 'Pay your driver when your trip is completed.'
-                                : 'Card payment is not available yet. No card details are collected.',
+                                : 'Payment method is locked with this fare and '
+                                    'cannot be changed to Cash. No card details '
+                                    'are collected.',
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: colors.onSurfaceVariant,
                             ),
@@ -376,9 +382,8 @@ class _PaymentMethodScreenState extends ConsumerState<PaymentMethodScreen> {
                   if (!authorized) ...[
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      payment == PaymentMethod.card
-                          ? 'This locked booking cannot continue as Cash. Card payment is unavailable.'
-                          : 'Fare, payment method, or Rider session is unavailable. Return to booking and verify again.',
+                      'Fare, payment method, or Rider session is unavailable. '
+                      'Return to booking and verify again.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colors.error,
                       ),
