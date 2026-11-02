@@ -8,6 +8,8 @@ Base: `origin/main` at `52840b10f266cf73bf4f5057633fda95933e0d71` (PR #87)
 
 Status: **R08 CASH ONLY READY FOR REVIEW**
 
+Phase 6 and Production are **NOT APPROVED**.
+
 ## Scope decision
 
 R08 is bounded to the existing Cash booking flow. Cash remains the only
@@ -70,14 +72,52 @@ tests or database operations.
 
 ## Database verification outcome
 
-**NOT VERIFIED — ENVIRONMENT BLOCKED.** Docker Engine is available (`28.3.2`),
-but the required local database image
-`public.ecr.aws/supabase/postgres:17.11.0.006` is not cached. In the preceding
-attempt, Docker registry TLS handshakes timed out while pulling Supabase images;
-a Postgres-only local start then stalled before creating a container and was
-stopped. The minimal preflight rechecked Docker/image availability once and did
-not retry downloads. No database container, migration replay, pgTAP run, hosted
-project link, or Production request occurred.
+**R08-focused pgTAP: PASS (owner-supplied run evidence).** The reported isolated
+local project is `ridex-r08-local-test`, PostgreSQL 17, with all 31 migrations
+applied. Both
+`20261028150000_cash_only_rider_booking_confirmation.test.sql` and
+`20261028150001_cash_only_booking_confirmation_concurrency.test.sql` passed.
+The exact raw output, command, and run timestamp were not available in the
+worktree for independent log inspection; the project/version/migration/test
+results above are recorded from the supplied evidence summary.
+
+**Full database suite: FAIL (failures classified as unrelated to R08 from the
+supplied summary).** The run reports 44 files, 1,242 tests, exit code 1. The
+detailed terminal transcript was not attached, so this classification uses the
+reported failing filenames, assertion numbers, and error excerpts.
+
+1. `013_phase3_rls_rpc_hardening.test.sql`, test 11, expects exactly 20
+   service-role-only `public.backend_*` functions and finds 21. R08 replaces
+   `public.rider_confirm_booking`; it does not add a `backend_*` function. The
+   R06 X2 migration adds
+   `public.backend_record_stripe_test_preparation_fenced`, which accounts for
+   the extra function. This is a stale inventory-count assertion following R06
+   evolution, not a Cash-only authorization regression. Do not weaken the
+   service-role privilege checks.
+2. Tests 39, 51, and 75 in
+   `20261028140221_r06_x2_reserved_recovery.test.sql` report a scalar subquery
+   returning multiple rows. The failing file and tested recovery surface are
+   R06 X2; the summary also reports that the test runner executed seed fixtures
+   separately. Fixture contamination is a plausible cause, but the omitted
+   assertion/SQL context prevents proving the exact link. This is an R06
+   follow-up, not evidence of an R08 Cash confirmation defect.
+3. `20261028140223_r06_x2_evidence_boundaries.test.sql` reports a duplicate
+   `users_pkey`; the discovered fixture files report duplicate user/approval
+   keys or `extensions` already existing. Fixture files under
+   `supabase/tests/database/fixtures/` were erroneously discovered as tests and
+   several report "No subtests run". This is incorrect recursive test
+   discovery and R06 fixture/test isolation contamination.
+
+No failure names either R08-specific pgTAP test. The focused reviewer found no
+R08 code defect. The older
+`007_phase3_booking_fare_matching_foundation.test.sql` confirmation fixture
+uses Cash, so its confirmation expectation remains compatible with the Cash-only
+guard.
+
+The preceding local tooling attempt in this worktree could not fetch the
+PostgreSQL image, but the supplied run now provides separate isolated PG17
+evidence. No database migration was deployed from this worktree; no hosted
+project was linked or contacted, and no Production request occurred.
 
 ## Remaining device and hosted checks
 
@@ -86,17 +126,13 @@ project link, or Production request occurred.
   a device. Native Stripe PaymentSheet checks do not apply while Stripe is
   deferred. Broader app restart, Rider/Driver, and trip-flow device acceptance
   remains with its existing release gates.
-- **Local database (mandatory before R08 acceptance):** when the Postgres image
-  is available, start an isolated local stack and run the R08 Cash confirmation
-  pgTAP tests against a fresh local migration sequence, including the preceding
-  R06 X2 migration and
-  `20261028150000_cash_only_rider_booking_confirmation.sql`:
-  `20261028150000_cash_only_rider_booking_confirmation.test.sql` and
-  `20261028150001_cash_only_booking_confirmation_concurrency.test.sql`.
-  Confirm Cash succeeds; new Card is rejected without status/version/audit
-  mutation; the pre-existing confirmed Card recovery is unchanged; ownership,
-  blocked-Rider, stale-version, and locked-quote guards remain effective; and
-  the concurrent Cash idempotency case has one canonical outcome.
+- **Full-suite follow-up:** repair/classify the stale R06 backend-function
+  inventory count and restrict pgTAP discovery to actual test files so fixture
+  SQL is not executed as a standalone test. Investigate the three R06 X2
+  scalar-subquery failures in their intended fixture-isolated runner. These are
+  outside R08; do not weaken the privilege assertion or alter R06 code as part
+  of this closeout. The supplied failure summary lacks the full assertion
+  context, so retain the exact scalar-subquery causal link as unproven.
 - **Hosted non-Production:** no hosted check was run or is authorized by this
   R08 work. If separate hosted acceptance is required, first name and authorize
   a non-Production project and isolated synthetic Rider/booking fixtures. Verify
@@ -122,19 +158,30 @@ payment.
    version, locked-quote, idempotency, and session checks.
 3. Preserve read-only recovery for historical confirmed Card bookings.
 4. Run both named Cash-only pgTAP tests successfully against an isolated local
-   database. This criterion is **not met** because the environment could not
-   obtain the Postgres image.
-5. Record explicit owner approval of the bounded Cash-only disposition. Approval
+   database. **Met by owner-supplied evidence** for `ridex-r08-local-test` on
+   PostgreSQL 17 with 31 migrations applied; raw log inspection remains pending.
+5. Establish that no full-suite failure is an unresolved Cash-only security
+   regression. **Met based on the supplied failing-file/test summary and focused
+   independent review.** The remaining failures are an R06 function inventory
+   count drift and R06 X2 fixture/discovery/test-isolation failures; their
+   cleanup is a separate R06/database-harness follow-up.
+6. Record explicit owner approval of the bounded Cash-only disposition. Approval
    evidence is not present in this work.
 
-**Recommended owner decision:** retain **R08 CASH ONLY READY FOR REVIEW**; do not
-mark R08 accepted yet. Approve the bounded scope disposition, then require the
-two local pgTAP suites to pass and record the owner's explicit approval before
-changing the status to accepted. Hosted non-Production checks are a separate,
-explicitly authorized follow-up only if the owner requires them; Production,
-Stripe, migrations deployment, and financial operations remain out of scope.
+**Recommended owner decision:** explicitly accept the bounded R08 Cash Only
+scope and record that approval. The focused Flutter evidence and both isolated
+R08 pgTAP tests pass, independent review found no R08 defect, and the reported
+full-suite failures are in an outdated R06 function-count assertion and R06 X2
+fixture/discovery/test-isolation cases. Keep the full-suite failure and R06
+follow-up visible; a green full database suite is not represented as achieved.
+Do not label R08 accepted until the owner's approval is recorded. Hosted
+non-Production checks are a separate, explicitly authorized follow-up only if
+the owner requires them; Production, Stripe, migrations deployment, and
+financial operations remain out of scope.
 
-R09 planning and code/integration review may proceed in parallel, but R09 must
-record R08's database blocker and must not treat R08 as accepted until its
-mandatory pgTAP evidence and owner approval exist. No commit beyond this closeout
-documentation, push, merge, or deploy is authorized.
+R09 planning and code/integration review may proceed in parallel. Record the
+R06 full-suite test-harness failures separately; do not treat this bounded R08
+decision as Phase 6 acceptance. R08 remains READY FOR REVIEW until the owner
+records acceptance. Direct main integration was authorized for this
+documentation only; it does not authorize product changes, Phase 6 approval, or
+Production activity.
