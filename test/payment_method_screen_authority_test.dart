@@ -355,9 +355,10 @@ void main() {
       expect(find.text('Card'), findsOneWidget);
       expect(find.text('Selected'), findsOneWidget);
       expect(find.text('Currently unavailable'), findsOneWidget);
-      expect(find.text('Card currently unavailable'), findsOneWidget);
+      expect(find.text('Cannot switch to Cash'), findsOneWidget);
+      expect(find.textContaining('cannot continue as Cash'), findsOneWidget);
       expect(
-          find.textContaining('Card payment is unavailable'), findsOneWidget);
+          find.textContaining('cannot be changed to Cash'), findsOneWidget);
       expect(tester.widget<AppButton>(_continueButton).onPressed, isNull);
       expect(harness.confirmationCalls, 0);
       expect(harness.rpcCalls, 0);
@@ -370,7 +371,7 @@ void main() {
         await themeController.setThemeMode(mode);
         await _settle(tester);
         expect(find.text('Card'), findsOneWidget);
-        expect(find.text('Card currently unavailable'), findsOneWidget);
+        expect(find.text('Cannot switch to Cash'), findsOneWidget);
         expect(tester.widget<AppButton>(_continueButton).onPressed, isNull);
         expect(harness.confirmationCalls, 0);
         expect(harness.rpcCalls, 0);
@@ -525,7 +526,7 @@ void main() {
       expect(reads, 2);
       expect(find.byType(BookingConfirmationScreen), findsNothing);
       expect(tester.widget<AppButton>(_continueButton).onPressed, isNull);
-      expect(find.text('Card currently unavailable'), findsOneWidget);
+      expect(find.text('Cannot switch to Cash'), findsOneWidget);
       expect(harness.confirmationCalls, 0);
     });
 

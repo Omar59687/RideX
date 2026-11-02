@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:ridex/app/router/route_names.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/core/models/booking_draft.dart';
+import 'package:ridex/core/models/booking_handoff.dart';
 import 'package:ridex/core/models/fare_quote.dart';
 import 'package:ridex/core/models/fare_lock_recovery.dart';
 import 'package:ridex/core/models/payment_method.dart';
@@ -52,6 +53,25 @@ String _paymentDisplayLabel(PaymentMethod method) {
     PaymentMethod.cash => 'Cash',
     PaymentMethod.card => 'Card',
   };
+}
+
+const _referenceMonthLabels = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/// Presentation-only label for a rider's recovered confirmed booking.
+///
+/// The raw booking identifier is never rendered on the button; the locked
+/// amount and lock date distinguish the rider's saved references instead.
+/// This locator display is not identity evidence: re-entry always reads
+/// RLS-protected canonical state.
+String _recoveredBookingLabel(ConfirmedBookingReference reference) {
+  final created = reference.command.createdAt.toLocal();
+  final date =
+      '${_referenceMonthLabels[created.month - 1]} ${created.day}';
+  return 'View recovered booking '
+      '· ${formatFareFils(reference.quote.fixedFareFils)} · $date';
 }
 
 String _fareFailureMessage(FareFailure failure) {
@@ -989,8 +1009,7 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
                   in ref.watch(confirmedBookingReferencesProvider))
                 if (reference.command.riderId == session.user?.id)
                   AppButton(
-                      label:
-                          'View confirmed booking ${reference.command.bookingRequestId}',
+                      label: _recoveredBookingLabel(reference),
                       onPressed: () => context.push<void>(Uri(
                               path: '/rider/confirmation',
                               queryParameters: {
