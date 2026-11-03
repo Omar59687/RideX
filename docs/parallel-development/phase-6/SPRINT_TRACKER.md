@@ -1,5 +1,9 @@
 # Phase 6 — Sprint Tracker (authoritative status)
 
+## Phase 7 dependency routing requirement — 2026-11-03 (planning only)
+
+Every Phase 7 task, coding-agent prompt, PR and acceptance review must cite the **exact P6-Rxx blocker or NONE**, specify whether it is a hard stop, integration or exit gate, and provide the missing evidence plus stop/resume condition. Continue unrelated Phase 7 work independently using fakes; never enable finance/provider operations from mock state. See [P7 four-owner parallel workstream and P6 task matrix](../phase-7/P7_PARALLEL_OWNERSHIP_AND_P6_GATES.md). This entry adds a cross-phase operating rule, **does not change any P6 task status**, and does not approve hosted/Stripe/financial execution.
+
 ## R06 coordinated concurrency recovery implementation - 2026-10-27
 
 **R06 remains PARTIAL; no hosted mutation or Stripe request was run.** A new
