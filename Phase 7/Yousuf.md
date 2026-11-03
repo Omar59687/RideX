@@ -6,11 +6,29 @@
 **Suggested branch:** `feature/p7-a-matching-backend`
 **Expected development:** Independent local work first; actual integration later.
 
-> Status: PLANNED. Proposed P7 checkpoint IDs, not previously approved task IDs. No source implementation, deployment or acceptance is claimed.
+> Status: READY FOR INDEPENDENT LOCAL START (checkpoints remain unchecked until verified). Proposed P7 checkpoint IDs, not previously approved task IDs. No source implementation, deployment or acceptance is claimed.
 > Scope: Phase 7 Cash-only matching and realtime. Stripe/Card remains disabled. Use existing code/contracts before creating anything new.
 > Working rule: start from main; no dependency on another developer's unmerged branch. Use local fakes, separate code ownership, and independently passing tests. No PR, merge, migration deployment, financial operation or hosted mutation without owner authorization.
 > Before each checkpoint: inspect current main, record exact paths, canonical API/RPC names and tests. If missing a Phase 6 dependency, give the owner the exact P6-Rxx task, missing evidence and stop/resume condition; continue unrelated work.
 > Phase 6 authoritative task references: docs/parallel-development/phase-6/SPRINT_TRACKER.md and P6_POST_MERGE_ROADMAP.md. Those sources contain dated history; re-verify current implementation/hosted evidence.
+
+## Start here — READY_LOCAL (2026-11-03)
+
+**First issue:** [#89](https://github.com/Omar59687/RideX/issues/89)
+
+Begin P7-A01: audit existing matching/availability/assignment SQL and RPC contracts; list gaps. Continue P7-A02–A04 locally only after establishing the reusable backend baseline.
+
+**Dependency gates:** P6-R08 Cash-only booking handoff must be checked before live P7-A05 integration. P6-R06/R08 remain hard blocks for Card. P6-R09 is an exit gate.
+
+**Execution:** Create your own feature branch from the latest main when ready; never depend on another owner's unmerged branch. Work with fake adapters/contracts for integration-facing features. Review changes, prove tests, and request owner approval before opening a PR or doing any hosted mutation. READY_LOCAL does not mean deployed, integrated, tested or accepted.
+
+### GitHub checkpoint issues
+- [P7-A01](https://github.com/Omar59687/RideX/issues/89)
+- [P7-A02](https://github.com/Omar59687/RideX/issues/90)
+- [P7-A03](https://github.com/Omar59687/RideX/issues/91)
+- [P7-A04](https://github.com/Omar59687/RideX/issues/92)
+- [P7-A05](https://github.com/Omar59687/RideX/issues/93)
+- [P7-A06](https://github.com/Omar59687/RideX/issues/94)
 
 ## Phase 6 dependency guidance
 P6-R08 Cash-only booking authority (integration gate); P6-R06 + P6-R08 Card provider/authorization (hard block, no Card activation); P6-R09 final phase exit (exit gate).
