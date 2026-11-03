@@ -1,5 +1,11 @@
 # RideX Development Plan
 
+## Phase 7 parallel development and Phase 6 dependency policy — 2026-11-03
+
+Team ownership: P7-A Matching Backend (Yousuf), P7-D Realtime/Location (Omar), P7-B Driver UI (Moath), P7-C Rider UI (Sanad). Each developer must be able to implement and test their bounded work against reviewed existing interfaces and local fakes without waiting for another feature branch. Final integration and hosted acceptance are explicitly joint.
+
+**MANDATORY for each Phase 7 task and coding-agent prompt:** name the exact upstream Phase 6 task ID (P6-R01...P6-R09), dependency type, missing evidence and stop/resume condition, or explicitly state NONE. Stop only dependent activation; redirect the owner to the named Phase 6 task. Never reopen generic "all of Phase 6", assume Stripe approval, or turn mock/UI states into financial authority. The full task matrix, boundaries, named owners and reusable prompt template are at [P7 parallel ownership and P6 gates](docs/parallel-development/phase-7/P7_PARALLEL_OWNERSHIP_AND_P6_GATES.md). This is planning, not Phase 6/7 approval.
+
 ## Phase 6 current merged-code checkpoint — 2026-10-25 (main `49e5281`)
 
 GitHub main `552b0f7` contains merged R03 per-Trip read-only recovery correction (#56), Admin F01/F02 local hardening (#58), and Rider canonical Cash/Card exact-ID read providers (#59). PR #62 (`49e5281`) records the approved Driver backend namespace behind a default-off flag. These are real merged foundations, not Phase 6 finance activation. Remaining exact gates: canonical Driver Trip UI and matching, R03 operator/retention policy, hosted R04/R07 role/Cash/receipt evidence, backend-issued Rider Payment IDs, Stripe account/JOD/actor/handler and R08 scope disposition, then R09 integrated exit. **Phase 6 final closeout remains open**; Phase 7 contracts may be planned without claiming payments or matching work. See [current gate ledger](docs/parallel-development/phase-6/P6_CURRENT_CLOSEOUT_GATES_2026-10-25.md) and [R07 fixture preparation](docs/parallel-development/phase-6/P6_R07_TEST_FIXTURE_PREPARATION.md).
