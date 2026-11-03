@@ -1,0 +1,58 @@
+# Phase 7 — Yousuf
+
+**Owner:** Yousuf (يوسف)
+**Assigned Division:** Matching Backend and Database
+**Workstream:** P7-A — Matching Backend and Database
+**Suggested branch:** `feature/p7-a-matching-backend`
+**Expected development:** Independent local work first; actual integration later.
+
+> Status: PLANNED. Proposed P7 checkpoint IDs, not previously approved task IDs. No source implementation, deployment or acceptance is claimed.
+> Scope: Phase 7 Cash-only matching and realtime. Stripe/Card remains disabled. Use existing code/contracts before creating anything new.
+> Working rule: start from main; no dependency on another developer's unmerged branch. Use local fakes, separate code ownership, and independently passing tests. No PR, merge, migration deployment, financial operation or hosted mutation without owner authorization.
+> Before each checkpoint: inspect current main, record exact paths, canonical API/RPC names and tests. If missing a Phase 6 dependency, give the owner the exact P6-Rxx task, missing evidence and stop/resume condition; continue unrelated work.
+> Phase 6 authoritative task references: docs/parallel-development/phase-6/SPRINT_TRACKER.md and P6_POST_MERGE_ROADMAP.md. Those sources contain dated history; re-verify current implementation/hosted evidence.
+
+## Phase 6 dependency guidance
+P6-R08 Cash-only booking authority (integration gate); P6-R06 + P6-R08 Card provider/authorization (hard block, no Card activation); P6-R09 final phase exit (exit gate).
+
+When the dependent functionality is encountered: STOP only that portion, report the exact ID and current missing evidence, go to the existing Phase 6 task, and resume after reviewed evidence. Do not block unrelated local checkpoints.
+
+## Checkpoints
+
+### [ ] P7-A01 — Read-only audit and contract inventory
+- Work: Inspect existing SQL migrations, driver eligibility, availability, offers, atomic assignment, RPC grants and Flutter booking handoff; list reusable contracts and missing behavior. Agree on minimal shared request/response and status contract, without changing other owners' files.
+- Done when: Catalog of existing identifiers/RPCs, ownership and tested gap list; no duplicated RPC.
+- Status: PLANNED (not implemented).
+
+### [ ] P7-A02 — Driver eligibility and availability backend
+- Work: Implement only missing server-side validation for approved Driver, associated approved vehicle, offline/available state, stale versions and blocked identities. Preserve existing actor security.
+- Done when: pgTAP positive/negative tests for auth, ownership, block state, versions and no double availability.
+- Status: PLANNED (not implemented).
+
+### [ ] P7-A03 — Nearby Driver candidate selection
+- Work: Develop bounded eligible-driver search from canonical pickup coordinates, vehicle type and current positions; reject stale/inaccurate positions and nonmatching drivers. No application-authoritative fare input.
+- Done when: Deterministic SQL tests for ranking, radius, no results, missing GPS and ineligible drivers.
+- Status: PLANNED (not implemented).
+
+### [ ] P7-A04 — Offer lifecycle and atomic acceptance
+- Work: Reuse/extend existing offer and accept RPCs; enforce one winning assignment, no multi-trip Driver assignment, expiry, idempotency, rejection and version guards with row locks/constraints.
+- Done when: Real concurrent PostgreSQL tests for two Driver claims and duplicate retries; one winner, no partial state.
+- Status: PLANNED (not implemented).
+
+### [ ] P7-A05 — Confirmed Cash booking to Trip integration
+- Work: Use server-canonical locked FareQuote and confirmed Cash Booking; connect safe matching to assigned Trip; no payment transition. Integration can be deferred while local contract tests run.
+- Done when: Local fake-backed and later authorized hosted tests for exact IDs, ownership and unchanged fare.
+- Status: PLANNED (not implemented).
+
+### [ ] P7-A06 — Security/handoff/readiness package
+- Work: Review RLS/grants, sanitized errors, failure/timeout and audit state. Deliver stable contract and adapter stubs for UI/Realtime owners, without editing their features.
+- Done when: Independent tests + schema contract document; scoped verification and any hosted gaps explicitly marked.
+- Status: PLANNED (not implemented).
+
+## Delivery checklist
+- [ ] No other owner's files changed without agreement.
+- [ ] Existing repositories/RPCs reused wherever safe; no unnecessary duplicate abstractions.
+- [ ] Relevant local tests and analyzer/SQL checks passing with actual recorded evidence.
+- [ ] No hosted activation, Stripe dispatch or financial state changes without separate authorization.
+- [ ] Integration dependencies and P6-Rxx status recorded exactly, not assumed complete.
+- [ ] Owner acceptance recorded separately after integration and physical-device checks.
