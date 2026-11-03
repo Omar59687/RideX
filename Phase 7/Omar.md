@@ -6,11 +6,29 @@
 **Suggested branch:** `feature/p7-d-realtime-location`
 **Expected development:** Independent local work first; actual integration later.
 
-> Status: PLANNED. Proposed P7 checkpoint IDs, not previously approved task IDs. No source implementation, deployment or acceptance is claimed.
+> Status: READY FOR INDEPENDENT LOCAL START (checkpoints remain unchecked until verified). Proposed P7 checkpoint IDs, not previously approved task IDs. No source implementation, deployment or acceptance is claimed.
 > Scope: Phase 7 Cash-only matching and realtime. Stripe/Card remains disabled. Use existing code/contracts before creating anything new.
 > Working rule: start from main; no dependency on another developer's unmerged branch. Use local fakes, separate code ownership, and independently passing tests. No PR, merge, migration deployment, financial operation or hosted mutation without owner authorization.
 > Before each checkpoint: inspect current main, record exact paths, canonical API/RPC names and tests. If missing a Phase 6 dependency, give the owner the exact P6-Rxx task, missing evidence and stop/resume condition; continue unrelated work.
 > Phase 6 authoritative task references: docs/parallel-development/phase-6/SPRINT_TRACKER.md and P6_POST_MERGE_ROADMAP.md. Those sources contain dated history; re-verify current implementation/hosted evidence.
+
+## Start here — READY_LOCAL (2026-11-03)
+
+**First issue:** [#95](https://github.com/Omar59687/RideX/issues/95)
+
+Begin P7-D01: inventory existing Phase 4 GPS and realtime contracts. Then build P7-D02/D03 with injectable fake streams without waiting for backend assignment.
+
+**Dependency gates:** P7-A's canonical accepted Trip contract gates live wiring, not independent local development. P6-R04 protects relevant hosted actor/role acceptance; P6-R01 only where canonical Driver context is reused.
+
+**Execution:** Create your own feature branch from the latest main when ready; never depend on another owner's unmerged branch. Work with fake adapters/contracts for integration-facing features. Review changes, prove tests, and request owner approval before opening a PR or doing any hosted mutation. READY_LOCAL does not mean deployed, integrated, tested or accepted.
+
+### GitHub checkpoint issues
+- [P7-D01](https://github.com/Omar59687/RideX/issues/95)
+- [P7-D02](https://github.com/Omar59687/RideX/issues/96)
+- [P7-D03](https://github.com/Omar59687/RideX/issues/97)
+- [P7-D04](https://github.com/Omar59687/RideX/issues/98)
+- [P7-D05](https://github.com/Omar59687/RideX/issues/99)
+- [P7-D06](https://github.com/Omar59687/RideX/issues/100)
 
 ## Phase 6 dependency guidance
 P6-R04 hosted protected-role/session evidence where reused (exit/integration gate); P6-R01 Driver canonical context when reused (integration gate). P6-R06 Stripe is NOT required for Cash-only streams.
