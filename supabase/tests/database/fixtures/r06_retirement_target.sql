@@ -26,6 +26,8 @@ select
 from public.fare_quotes
 where id = '22300000-0000-0000-0000-000000000002';
 
+select pg_temp.add_matching_fixture_driver('22000000-0000-0000-0000-000000000108','22100000-0000-0000-0000-000000000108');
+
 insert into public.trips (
   id, booking_request_id, fare_quote_id, rider_id, driver_id, vehicle_id,
   status, payment_method, pickup, destination, route_distance_meters,
@@ -34,7 +36,7 @@ insert into public.trips (
 select
   'ceff7eb6-2d1f-4744-9cbc-243d80d550ba',
   '33333333-3333-4333-8333-333333333338',
-  '33333333-3333-4333-8333-333333333339', rider_id, driver_id, vehicle_id,
+  '33333333-3333-4333-8333-333333333339', rider_id, '22000000-0000-0000-0000-000000000108', '22100000-0000-0000-0000-000000000108',
   'accepted', 'card', pickup, destination, route_distance_meters,
   route_duration_seconds, original_fare_fils, current_fare_fils
 from public.trips
@@ -68,6 +70,6 @@ values (
 );
 
 update public.driver_availability
-set state = 'onTrip', vehicle_id = '22100000-0000-0000-0000-000000000001',
+set state = 'onTrip', vehicle_id = '22100000-0000-0000-0000-000000000108',
   active_trip_id = 'ceff7eb6-2d1f-4744-9cbc-243d80d550ba'
-where driver_id = '22000000-0000-0000-0000-000000000002';
+where driver_id = '22000000-0000-0000-0000-000000000108';
