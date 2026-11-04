@@ -47,6 +47,12 @@ update public.booking_requests set status = 'searching', searching_at = now();
 select lives_ok($$select public.service_reserve_driver_for_booking('a5000000-0000-0000-0000-000000000002', 'a5200000-0000-0000-0000-000000000001', 'a5100000-0000-0000-0000-000000000002', 2)$$, 'service reserves the available compatible Driver');
 select lives_ok($$select public.service_reserve_driver_for_booking('a5000000-0000-0000-0000-000000000002', 'a5200000-0000-0000-0000-000000000001', 'a5100000-0000-0000-0000-000000000002', 3)$$, 'matching service reservation is idempotent');
 select is((select count(*) from public.audit_records where action = 'driver.reservation_created' and target_user_id = 'a5000000-0000-0000-0000-000000000002'), 1::bigint, 'idempotent reservation writes one bounded audit record');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'a5000000-0000-0000-0000-000000000002', true);
+select throws_ok($$select public.driver_set_availability('offline', null, (select version from public.driver_availability where driver_id=auth.uid()))$$, '55000', null, 'Driver cannot clear service reservation');
+select throws_ok($$select public.driver_update_vehicle('a5100000-0000-0000-0000-000000000002', 1, 'comfort', 'Toyota', 'Camry', 'White', 'AR 015', 4::smallint, null, null)$$, '55000', null, 'reserved vehicle type remains stable');
+reset role;
 select lives_ok($$select public.service_release_driver_reservation('a5000000-0000-0000-0000-000000000002', 'a5200000-0000-0000-0000-000000000001', 3)$$, 'service releases matching reservation');
 select lives_ok($$select public.service_release_driver_reservation('a5000000-0000-0000-0000-000000000002', 'a5200000-0000-0000-0000-000000000001', 4)$$, 'matching service release is idempotent');
 select is((select count(*) from public.audit_records where action = 'driver.reservation_released' and target_user_id = 'a5000000-0000-0000-0000-000000000002'), 1::bigint, 'idempotent release writes one bounded audit record');
@@ -83,6 +89,9 @@ select set_config('request.jwt.claim.sub', 'a5000000-0000-0000-0000-000000000002
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select lives_ok($$select public.driver_transition_trip('a5400000-0000-0000-0000-000000000003', 'accepted', 1, '015-accept')$$, 'reservation-backed offer assigns a Trip');
 select is((select state::text from public.driver_availability where driver_id = 'a5000000-0000-0000-0000-000000000002'), 'onTrip', 'assignment moves the reserved Driver on Trip');
+select throws_ok($$select public.driver_set_availability('offline', null, (select version from public.driver_availability where driver_id=auth.uid()))$$, '55000', null, 'Driver cannot clear active Trip availability');
+select throws_ok($$select public.driver_update_vehicle('a5100000-0000-0000-0000-000000000002', 1, 'comfort', 'Toyota', 'Camry', 'White', 'AR 015', 4::smallint, null, null)$$, '55000', null, 'active Trip vehicle type remains stable');
+
 select throws_ok($$select public.driver_set_vehicle_active('a5100000-0000-0000-0000-000000000003', 1, true)$$, '55000', 'The active availability vehicle cannot be switched.', 'on-trip vehicle cannot be switched');
 select throws_ok($$select public.driver_set_vehicle_active('a5100000-0000-0000-0000-000000000002', 1, false)$$, '55000', 'An available, reserved, or on-trip vehicle cannot be deactivated.', 'on-trip vehicle cannot be switched off');
 reset role;
