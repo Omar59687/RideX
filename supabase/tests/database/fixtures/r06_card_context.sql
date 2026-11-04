@@ -70,6 +70,12 @@ select
   1, 1, now()
 from generate_series(1, 7) as n;
 
+\ir ../../fixtures/p7_matching_fixture_drivers.sql
+select pg_temp.add_matching_fixture_driver(
+ ('22000000-0000-0000-0000-'||lpad((100+n)::text,12,'0'))::uuid,
+ ('22100000-0000-0000-0000-'||lpad((100+n)::text,12,'0'))::uuid)
+from generate_series(1,7) n where n <> 2;
+
 insert into public.trips (
   id, booking_request_id, fare_quote_id, rider_id, driver_id, vehicle_id,
   status, payment_method, pickup, destination, route_distance_meters,
@@ -80,8 +86,8 @@ select
   ('22200000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
   ('22300000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
   '22000000-0000-0000-0000-000000000001',
-  '22000000-0000-0000-0000-000000000002',
-  '22100000-0000-0000-0000-000000000001',
+  case when n=2 then '22000000-0000-0000-0000-000000000002'::uuid else ('22000000-0000-0000-0000-'||lpad((100+n)::text,12,'0'))::uuid end,
+  case when n=2 then '22100000-0000-0000-0000-000000000001'::uuid else ('22100000-0000-0000-0000-'||lpad((100+n)::text,12,'0'))::uuid end,
   case when n <= 3 or n = 7 then 'accepted'::public.trip_status
     else 'inProgress'::public.trip_status end,
   case when n <= 3 or n = 7 then 'card'::public.payment_method

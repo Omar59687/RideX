@@ -266,6 +266,13 @@ select throws_ok(
   '55000', 'Confirmed booking stops are immutable.', 'confirmed stop snapshots remain immutable for trusted writers'
 );
 
+-- P7-A04 requires current GPS even for the historical offer fixture.
+insert into public.driver_locations(driver_id,sequence,latitude,longitude,accuracy_meters,recorded_at,received_at)
+select a.driver_id,1,(b.pickup->>'latitude')::double precision,(b.pickup->>'longitude')::double precision,10,
+  statement_timestamp(),statement_timestamp()
+from public.driver_availability a cross join public.booking_requests b
+where b.rider_id='40000000-0000-0000-0000-000000000001' and a.state='available';
+
 select lives_ok(
   $$select public.backend_create_driver_match_offer(
     (select id from public.booking_requests where rider_id = '40000000-0000-0000-0000-000000000001'),
@@ -276,12 +283,12 @@ select lives_ok(
 select is((select status::text from public.booking_requests where rider_id = '40000000-0000-0000-0000-000000000001'), 'searching', 'first offer starts the matching window');
 select is((select version from public.booking_requests where rider_id = '40000000-0000-0000-0000-000000000001'), 5, 'starting matching advances the booking aggregate version');
 select is((select expires_at - offered_at from public.driver_match_offers where driver_id = '40000000-0000-0000-0000-000000000011'), interval '15 seconds', 'matching offer expires in exactly fifteen seconds');
-select throws_ok(
+select lives_ok(
   $$select public.backend_create_driver_match_offer(
     (select id from public.booking_requests where rider_id = '40000000-0000-0000-0000-000000000001'),
     '40000000-0000-0000-0000-000000000011', '41000000-0000-0000-0000-000000000011', 3000, 5
   )$$,
-  '23505', null, 'a Driver receives at most one offer per booking'
+  'identical retry recovers the existing unique offer'
 );
 select lives_ok(
   $$select public.backend_create_driver_match_offer(

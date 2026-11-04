@@ -79,6 +79,12 @@ select
   (select id from public.pricing_configurations where is_active and vehicle_type_code = 'economy'), 1, 1, now()
 from generate_series(1, 4) as n;
 
+\ir ../fixtures/p7_matching_fixture_drivers.sql
+select pg_temp.add_matching_fixture_driver(
+ ('21000000-0000-0000-0000-'||lpad((100+n)::text,12,'0'))::uuid,
+ ('21100000-0000-0000-0000-'||lpad((100+n)::text,12,'0'))::uuid)
+from generate_series(1,4) n where n not in (2,4);
+
 insert into public.trips (
   id, booking_request_id, fare_quote_id, rider_id, driver_id, vehicle_id,
   status, payment_method, pickup, destination, route_distance_meters,
@@ -89,8 +95,8 @@ select
   ('21200000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
   ('21300000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
   '21000000-0000-0000-0000-000000000001',
-  '21000000-0000-0000-0000-000000000003',
-  '21100000-0000-0000-0000-000000000001',
+  case when n in (2,4) then '21000000-0000-0000-0000-000000000003'::uuid else ('21000000-0000-0000-0000-'||lpad((100+n)::text,12,'0'))::uuid end,
+  case when n in (2,4) then '21100000-0000-0000-0000-000000000001'::uuid else ('21100000-0000-0000-0000-'||lpad((100+n)::text,12,'0'))::uuid end,
   case when n = 1 then 'inProgress'::public.trip_status
     when n in (2, 3) then 'accepted'::public.trip_status
     else 'completed'::public.trip_status end,

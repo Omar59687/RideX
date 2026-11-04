@@ -15,10 +15,15 @@ insert into public.driver_profiles (user_id,approval_status,is_online,is_availab
 insert into public.vehicles (id,driver_id,vehicle_type_code,make,model,color,registration_plate,seat_capacity,is_active) values ('a1000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','economy','Toyota','Camry','White','PM 010',4,true);
 select public.backend_create_pricing_configuration('economy',500,300,50,200,1000,50,true);
 
+\ir ../fixtures/p7_matching_fixture_drivers.sql
+
 do $$
-declare sequence_number integer; booking_id uuid; quote_id uuid; trip_id uuid;
+declare sequence_number integer; booking_id uuid; quote_id uuid; trip_id uuid; fixture_driver uuid; fixture_vehicle uuid;
 begin
   for sequence_number in 1..5 loop
+    fixture_driver := ('a0000000-0000-0000-0000-'||lpad((100+sequence_number)::text,12,'0'))::uuid;
+    fixture_vehicle := ('a1000000-0000-0000-0000-'||lpad((100+sequence_number)::text,12,'0'))::uuid;
+    perform pg_temp.add_matching_fixture_driver(fixture_driver,fixture_vehicle);
     booking_id := ('a2000000-0000-0000-0000-' || lpad(sequence_number::text, 12, '0'))::uuid;
     quote_id := ('a3000000-0000-0000-0000-' || lpad(sequence_number::text, 12, '0'))::uuid;
     trip_id := ('a4000000-0000-0000-0000-' || lpad(sequence_number::text, 12, '0'))::uuid;
@@ -27,7 +32,7 @@ begin
     insert into public.fare_quotes (id,booking_request_id,rider_id,status,pickup,destination,ordered_stops,route_distance_meters,route_duration_seconds,vehicle_type_code,breakdown,fixed_fare_fils,pricing_configuration_id,pricing_version,quote_version,locked_at) values
       (quote_id,booking_id,'a0000000-0000-0000-0000-000000000001','locked','{"latitude":31.95,"longitude":35.93}','{"latitude":31.98,"longitude":35.97}','[]',1000,60,'economy','{"fixed_fare_fils":2500}',2500,(select id from public.pricing_configurations where is_active and vehicle_type_code = 'economy'),1,1,now());
     insert into public.trips (id,booking_request_id,fare_quote_id,rider_id,driver_id,vehicle_id,status,payment_method,pickup,destination,route_distance_meters,route_duration_seconds,original_fare_fils,current_fare_fils) values
-      (trip_id,booking_id,quote_id,'a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','a1000000-0000-0000-0000-000000000001','accepted','card','{"latitude":31.95,"longitude":35.93}','{"latitude":31.98,"longitude":35.97}',1000,60,2500,2500);
+      (trip_id,booking_id,quote_id,'a0000000-0000-0000-0000-000000000001',fixture_driver,fixture_vehicle,'accepted','card','{"latitude":31.95,"longitude":35.93}','{"latitude":31.98,"longitude":35.97}',1000,60,2500,2500);
     perform public.backend_create_payment(trip_id);
   end loop;
 end;
