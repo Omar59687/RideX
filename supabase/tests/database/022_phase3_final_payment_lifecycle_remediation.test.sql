@@ -70,6 +70,12 @@ select
   1, 1, now()
 from generate_series(1, 7) as n;
 
+\ir ../fixtures/p7_matching_fixture_drivers.sql
+select pg_temp.add_matching_fixture_driver(
+ ('22000000-0000-0000-0000-'||lpad((100+n)::text,12,'0'))::uuid,
+ ('22100000-0000-0000-0000-'||lpad((100+n)::text,12,'0'))::uuid)
+from generate_series(1,7) n where n <> 4;
+
 insert into public.trips (
   id, booking_request_id, fare_quote_id, rider_id, driver_id, vehicle_id,
   status, payment_method, pickup, destination, route_distance_meters,
@@ -80,8 +86,8 @@ select
   ('22200000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
   ('22300000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
   '22000000-0000-0000-0000-000000000001',
-  '22000000-0000-0000-0000-000000000002',
-  '22100000-0000-0000-0000-000000000001',
+  case when n=4 then '22000000-0000-0000-0000-000000000002'::uuid else ('22000000-0000-0000-0000-'||lpad((100+n)::text,12,'0'))::uuid end,
+  case when n=4 then '22100000-0000-0000-0000-000000000001'::uuid else ('22100000-0000-0000-0000-'||lpad((100+n)::text,12,'0'))::uuid end,
   case when n <= 3 or n = 7 then 'accepted'::public.trip_status
     else 'inProgress'::public.trip_status end,
   case when n <= 3 or n = 7 then 'card'::public.payment_method
@@ -522,9 +528,9 @@ select is(
 
 update public.driver_availability
 set state = 'onTrip',
-    vehicle_id = '22100000-0000-0000-0000-000000000001',
+    vehicle_id = '22100000-0000-0000-0000-000000000105',
     active_trip_id = '22400000-0000-0000-0000-000000000005'
-where driver_id = '22000000-0000-0000-0000-000000000002';
+where driver_id = '22000000-0000-0000-0000-000000000105';
 create or replace function pg_temp.reject_022_receipt()
 returns trigger
 language plpgsql
@@ -537,7 +543,7 @@ create trigger reject_022_receipt
 before insert on public.receipts
 for each row execute function pg_temp.reject_022_receipt();
 set local role authenticated;
-select set_config('request.jwt.claim.sub', '22000000-0000-0000-0000-000000000002', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-0000-0000-000000000105', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select throws_ok(
   $$select public.driver_transition_trip(

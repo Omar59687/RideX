@@ -114,7 +114,7 @@ select is((select count(*) from private.stripe_test_dispatch_reservations
   where trip_id='ceff7eb6-2d1f-4744-9cbc-243d80d550ba'),
   0::bigint, 'retirement does not create or retain a reservation');
 select is((select state::text from public.driver_availability
-  where driver_id='22000000-0000-0000-0000-000000000002'),
+  where driver_id='22000000-0000-0000-0000-000000000108'),
   'offline', 'canonical Rider cancellation releases Driver availability to offline');
 
 select set_config('request.jwt.claim.role', 'service_role', true);
