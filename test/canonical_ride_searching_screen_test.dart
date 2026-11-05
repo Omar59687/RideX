@@ -7,6 +7,7 @@ import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/rider_booking_search.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/repositories/rider_trip_tracking_repository.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart';
 
@@ -41,6 +42,7 @@ Future<void> _pumpScreen(
   WidgetTester tester,
   ProviderContainer container, {
   required FakeRiderBookingSearchRepository repository,
+  RiderTripTrackingRepository? tripTrackingRepository,
   String bookingId = riderBookingIdFixture,
   Duration softTimeout = const Duration(seconds: 90),
   Duration readDeadline = const Duration(seconds: 15),
@@ -51,6 +53,7 @@ Future<void> _pumpScreen(
       home: CanonicalRideSearchingScreen(
         bookingRequestId: bookingId,
         repository: repository,
+        tripTrackingRepository: tripTrackingRepository,
         softTimeout: softTimeout,
         readDeadline: readDeadline,
       ),
@@ -60,6 +63,158 @@ Future<void> _pumpScreen(
 }
 
 void main() {
+  testWidgets('missing original booking is unresolved, not a no-driver result',
+      (tester) async {
+    final container = _container(SessionState.fromUser(_rider));
+    addTearDown(container.dispose);
+    final repository = FakeRiderBookingSearchRepository(
+      authenticatedRiderId: riderIdFixture,
+    );
+    await _pumpScreen(tester, container, repository: repository);
+    await tester.pump();
+
+    expect(find.text('Booking status unresolved'), findsOneWidget);
+    expect(find.text('Booking: $riderBookingIdFixture'), findsNothing);
+    expect(find.textContaining('No driver found'), findsNothing);
+    expect(find.text('Driver assignment unavailable'), findsOneWidget);
+    expect(
+        tester
+            .widget<AppButton>(
+              find.byKey(const ValueKey('canonical-search-cancel')),
+            )
+            .onPressed,
+        isNull);
+    expect(container.read(activeTripControllerProvider), isNull);
+
+    repository.onRead = (_) async => throw StateError('read unavailable');
+    await tester.tap(find.byKey(const ValueKey('canonical-search-retry')));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Booking status unavailable'), findsOneWidget);
+    expect(find.text('Booking status unresolved'), findsNothing);
+    expect(find.textContaining('No driver found'), findsNothing);
+    expect(repository.requestedBookingIds,
+        [riderBookingIdFixture, riderBookingIdFixture]);
+  });
+
+  testWidgets('searching and matched without a Trip never assert no Driver',
+      (tester) async {
+    final container = _container(SessionState.fromUser(_rider));
+    addTearDown(container.dispose);
+    final repository = FakeRiderBookingSearchRepository(
+      authenticatedRiderId: riderIdFixture,
+      booking: riderBookingSearchFixture(),
+    );
+    final trips = FakeRiderTripTrackingRepository();
+    addTearDown(trips.close);
+    await _pumpScreen(tester, container,
+        repository: repository, tripTrackingRepository: trips);
+    await tester.pump();
+
+    expect(find.text('Searching for a driver'), findsOneWidget);
+    expect(find.textContaining('Driver assignment is unverified.'),
+        findsOneWidget);
+    expect(find.text('Driver assignment unavailable'), findsOneWidget);
+    expect(trips.bookingLoadCount, 0);
+    expect(find.textContaining('No driver found'), findsNothing);
+
+    repository.booking = riderBookingSearchFixture(
+        status: RiderBookingSearchStatus.matched, version: 4);
+    await tester.tap(find.byKey(const ValueKey('canonical-search-retry')));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Match reported'), findsOneWidget);
+    expect(find.text('No verified assigned Trip yet'), findsOneWidget);
+    expect(
+        find.textContaining('Driver details are unavailable.'), findsOneWidget);
+    expect(find.textContaining('No driver found'), findsNothing);
+    expect(trips.requestedBookingIds, [riderBookingIdFixture]);
+    expect(container.read(activeTripControllerProvider), isNull);
+    expect(
+        tester
+            .widget<AppButton>(
+              find.byKey(const ValueKey('canonical-search-assignment')),
+            )
+            .onPressed,
+        isNull);
+  });
+
+  testWidgets('local entry and exit preserve the original booking ID',
+      (tester) async {
+    final container = _container(SessionState.fromUser(_rider));
+    addTearDown(container.dispose);
+    final repository = FakeRiderBookingSearchRepository(
+      authenticatedRiderId: riderIdFixture,
+      booking: riderBookingSearchFixture(),
+    );
+    final trips = FakeRiderTripTrackingRepository();
+    addTearDown(trips.close);
+    final navigatorKey = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        navigatorKey: navigatorKey,
+        home: Builder(builder: (context) {
+          return Scaffold(
+            body: TextButton(
+              onPressed: () =>
+                  Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => CanonicalRideSearchingScreen(
+                  bookingRequestId: riderBookingIdFixture,
+                  repository: repository,
+                  tripTrackingRepository: trips,
+                ),
+              )),
+              child: const Text('Open original booking'),
+            ),
+          );
+        }),
+      ),
+    ));
+
+    await tester.tap(find.text('Open original booking'));
+    await tester.pumpAndSettle();
+    expect(find.text('Booking: $riderBookingIdFixture'), findsOneWidget);
+    expect(repository.requestedBookingIds, [riderBookingIdFixture]);
+    final leave = tester
+        .widget<AppButton>(
+          find.byKey(const ValueKey('canonical-search-back')),
+        )
+        .onPressed!;
+
+    navigatorKey.currentState!.push(MaterialPageRoute<void>(
+      builder: (_) => const Scaffold(body: Text('Unrelated route')),
+    ));
+    await tester.pumpAndSettle();
+    leave(); // A cached action cannot pop a newer route.
+    await tester.pumpAndSettle();
+    expect(find.text('Unrelated route'), findsOneWidget);
+    navigatorKey.currentState!.pop();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('canonical-search-back')));
+    await tester.pumpAndSettle();
+    expect(find.text('Open original booking'), findsOneWidget);
+    expect(container.read(activeTripControllerProvider), isNull);
+
+    repository.booking = riderBookingSearchFixture(
+        status: RiderBookingSearchStatus.matched, version: 4);
+    await tester.tap(find.text('Open original booking'));
+    await tester.pumpAndSettle();
+    expect(find.text('Booking: $riderBookingIdFixture'), findsOneWidget);
+    expect(find.text('Match reported'), findsOneWidget);
+    expect(find.text('No verified assigned Trip yet'), findsOneWidget);
+    expect(repository.requestedBookingIds,
+        [riderBookingIdFixture, riderBookingIdFixture]);
+    expect(trips.requestedBookingIds, [riderBookingIdFixture]);
+    expect(container.read(activeTripControllerProvider), isNull);
+    await tester.tap(find.byKey(const ValueKey('canonical-search-back')));
+    await tester.pumpAndSettle();
+    expect(find.text('Open original booking'), findsOneWidget);
+  });
+
   testWidgets('confirmed and searching use the original booking only',
       (tester) async {
     final container = _container(SessionState.fromUser(_rider));

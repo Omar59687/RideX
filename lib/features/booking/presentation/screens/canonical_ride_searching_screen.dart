@@ -247,6 +247,25 @@ class _CanonicalRideSearchingScreenState
                 key: const ValueKey('canonical-search-assignment'),
                 label: _assignmentLabel(state),
               ),
+              const SizedBox(height: AppSpacing.sm),
+              AppButton(
+                key: const ValueKey('canonical-search-back'),
+                label: 'Back to booking',
+                variant: AppButtonVariant.secondary,
+                onPressed: ModalRoute.of(context)?.isCurrent == true &&
+                        Navigator.of(context).canPop()
+                    ? () {
+                        final route = ModalRoute.of(context);
+                        final navigator = Navigator.of(context);
+                        if (mounted &&
+                            route?.isCurrent == true &&
+                            identical(route?.navigator, navigator) &&
+                            navigator.canPop()) {
+                          navigator.pop();
+                        }
+                      }
+                    : null,
+              ),
               const SizedBox(height: AppSpacing.md),
               const Text(
                 'Cancellation and Driver details require separately verified '
