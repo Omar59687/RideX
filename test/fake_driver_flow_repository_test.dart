@@ -29,6 +29,34 @@ void main() {
   });
   tearDown(() => repository.dispose());
 
+  test('B04 lost decline remains uncertain across equivalent reads and events',
+      () async {
+    final command = decision(value: DriverFlowOfferDecision.decline);
+    expect(
+        (await repository.execute(command)).outcome, DriverFlowOutcome.unknown);
+    repository.emit(driverFlowSnapshot(revision: 5, offer: driverFlowOffer()));
+    expect((await repository.read(command.session)).snapshot!.phase,
+        DriverFlowPhase.unknown);
+    expect((await repository.execute(decision())).outcome,
+        DriverFlowOutcome.stale);
+    expect(repository.commands, hasLength(1));
+    expect(repository.commands.single.idempotencyToken, 'original-token');
+  });
+
+  test('B04 pending decline expiry rejects late simulated success', () async {
+    final reply = Completer<DriverFlowResult>();
+    repository.nextCommand = reply.future;
+    final pending =
+        repository.execute(decision(value: DriverFlowOfferDecision.decline));
+    now = repository.current.offer!.expiresAt;
+    expect((await repository.read(repository.current.session)).snapshot!.phase,
+        DriverFlowPhase.unknown);
+    reply.complete(DriverFlowResult(
+        DriverFlowOutcome.simulated, driverFlowSnapshot(revision: 9)));
+    expect((await pending).outcome, DriverFlowOutcome.unknown);
+    expect(repository.current.phase, DriverFlowPhase.unknown);
+  });
+
   test('read and watch do not dispatch commands', () async {
     final events = <DriverFlowSnapshot>[];
     final subscription =

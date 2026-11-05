@@ -16,7 +16,7 @@ final class FakeDriverFlowRepository implements DriverFlowRepository {
   final DateTime Function() now;
   final _events = StreamController<DriverFlowSnapshot>.broadcast(sync: true);
   final List<DriverFlowCommand> _commands = [];
-  final Map<DriverFlowDecideOffer, _AcceptanceAttempt> _acceptances = {};
+  final Map<DriverFlowDecideOffer, _FakeDecisionAttempt> _decisions = {};
   DriverFlowSnapshot _current;
   Future<DriverFlowSnapshot>? nextRead;
   Future<DriverFlowResult>? nextCommand;
@@ -40,7 +40,7 @@ final class FakeDriverFlowRepository implements DriverFlowRepository {
     if (!_owns(snapshot.session) || snapshot.revision <= _current.revision) {
       return false;
     }
-    final guarded = _guardAcceptanceObservation(snapshot);
+    final guarded = _guardDecisionObservation(snapshot);
     _current = guarded;
     _events.add(guarded);
     return true;
@@ -54,22 +54,24 @@ final class FakeDriverFlowRepository implements DriverFlowRepository {
         snapshot.revision <= _current.revision ||
         snapshot.phase != DriverFlowPhase.ready ||
         snapshot.offer != null ||
-        _acceptances.isEmpty) {
+        _decisions.isEmpty ||
+        _decisions.keys.any(
+            (command) => command.decision != DriverFlowOfferDecision.accept)) {
       return false;
     }
     final trip = snapshot.trip;
     if (trip != null &&
-        _acceptances.values.any(
+        _decisions.values.any(
             (attempt) => !_sameJourney(attempt.offer.journey, trip.journey))) {
       return false;
     }
-    _acceptances.clear();
+    _decisions.clear();
     return emit(snapshot);
   }
 
-  DriverFlowSnapshot _guardAcceptanceObservation(DriverFlowSnapshot snapshot) {
+  DriverFlowSnapshot _guardDecisionObservation(DriverFlowSnapshot snapshot) {
     var phase = snapshot.phase;
-    for (final entry in _acceptances.entries) {
+    for (final entry in _decisions.entries) {
       if (!entry.key.session.sameSession(snapshot.session)) continue;
       final attempt = entry.value;
       if (!_matchesAttempt(entry.key, attempt, snapshot)) {
@@ -107,7 +109,7 @@ final class FakeDriverFlowRepository implements DriverFlowRepository {
       );
 
   static bool _matchesAttempt(DriverFlowDecideOffer command,
-          _AcceptanceAttempt attempt, DriverFlowSnapshot snapshot) =>
+          _FakeDecisionAttempt attempt, DriverFlowSnapshot snapshot) =>
       command.session.sameSession(snapshot.session) &&
       snapshot.trip == null &&
       snapshot.offer != null &&
@@ -153,7 +155,7 @@ final class FakeDriverFlowRepository implements DriverFlowRepository {
     );
     nextRead = null;
     nextCommand = null;
-    _acceptances.clear();
+    _decisions.clear();
     _events.add(_current);
   }
 
@@ -204,13 +206,10 @@ final class FakeDriverFlowRepository implements DriverFlowRepository {
     final revision = _current.revision;
     final response = nextCommand;
     nextCommand = null;
-    final acceptance = command is DriverFlowDecideOffer &&
-            command.decision == DriverFlowOfferDecision.accept
-        ? command
-        : null;
+    final acceptance = command is DriverFlowDecideOffer ? command : null;
     final attempt =
-        acceptance == null ? null : _AcceptanceAttempt(_current.offer!);
-    if (acceptance != null) _acceptances[acceptance] = attempt!;
+        acceptance == null ? null : _FakeDecisionAttempt(_current.offer!);
+    if (acceptance != null) _decisions[acceptance] = attempt!;
     var retainAcceptance = false;
     try {
       // Missing/lost responses never synthesize accepted Trips or retry commands.
@@ -229,7 +228,7 @@ final class FakeDriverFlowRepository implements DriverFlowRepository {
         return const DriverFlowResult(DriverFlowOutcome.unauthorized);
       }
       _observePendingExpiry();
-      if (acceptance != null && _acceptances.containsKey(acceptance)) {
+      if (acceptance != null && _decisions.containsKey(acceptance)) {
         if (attempt!.phase == DriverFlowPhase.stale) {
           retainAcceptance = true;
           return const DriverFlowResult(DriverFlowOutcome.stale);
@@ -259,13 +258,13 @@ final class FakeDriverFlowRepository implements DriverFlowRepository {
             snapshot.revision <= revision) {
           return const DriverFlowResult(DriverFlowOutcome.stale);
         }
-        _acceptances.remove(command);
+        _decisions.remove(command);
         emit(snapshot);
         return DriverFlowResult(result.outcome, _current);
       }
       return result;
     } finally {
-      if (!retainAcceptance) _acceptances.remove(command);
+      if (!retainAcceptance) _decisions.remove(command);
     }
   }
 
@@ -277,7 +276,7 @@ final class FakeDriverFlowRepository implements DriverFlowRepository {
             _current.phase != DriverFlowPhase.pending)) {
       return;
     }
-    final expired = _acceptances.entries.any((entry) =>
+    final expired = _decisions.entries.any((entry) =>
         _owns(entry.key.session) &&
         _matchesAttempt(entry.key, entry.value, _current) &&
         entry.value.offer.isExpiredAt(now()));
@@ -297,7 +296,9 @@ final class FakeDriverFlowRepository implements DriverFlowRepository {
     if (_current.phase == DriverFlowPhase.unauthorized) {
       return DriverFlowOutcome.unauthorized;
     }
-    if (_current.phase != DriverFlowPhase.ready) return DriverFlowOutcome.stale;
+    if (_current.phase != DriverFlowPhase.ready || _decisions.isNotEmpty) {
+      return DriverFlowOutcome.stale;
+    }
     if (command is DriverFlowDecideOffer) {
       final offer = _current.offer;
       if (offer == null ||
@@ -341,13 +342,13 @@ final class FakeDriverFlowRepository implements DriverFlowRepository {
 
   Future<void> dispose() async {
     _disposed = true;
-    _acceptances.clear();
+    _decisions.clear();
     await _events.close();
   }
 }
 
-final class _AcceptanceAttempt {
-  _AcceptanceAttempt(this.offer);
+final class _FakeDecisionAttempt {
+  _FakeDecisionAttempt(this.offer);
   final DriverFlowOffer offer;
   DriverFlowPhase phase = DriverFlowPhase.pending;
 }
