@@ -6,11 +6,21 @@ import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/rider_booking_search.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/repositories/rider_booking_cancellation_repository.dart';
 import 'package:ridex/core/repositories/rider_booking_search_repository.dart';
+import 'package:ridex/core/services/rider_cancellation/rider_cancellation_coordinator.dart';
 import 'package:ridex/features/booking/application/rider_search_controller.dart';
 
 import 'helpers/fake_rider_booking_search_repository.dart';
 import 'helpers/fake_rider_trip_tracking_repository.dart';
+
+RiderCancellationCoordinator _newCancellationCoordinator() {
+  final coordinator = RiderCancellationCoordinator(
+    repository: const UnavailableRiderBookingCancellationRepository(),
+  );
+  addTearDown(coordinator.dispose);
+  return coordinator;
+}
 
 const _rider = AppUser(
   id: riderIdFixture,
@@ -80,6 +90,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: repository,
         readSession: () => session,
+        cancellationCoordinator: _newCancellationCoordinator(),
       );
       addTearDown(controller.dispose);
 
@@ -98,6 +109,7 @@ void main() {
           bookingRequestId: riderBookingIdFixture,
           repository: repository,
           readSession: () => session,
+          cancellationCoordinator: _newCancellationCoordinator(),
         );
         await current.refresh();
         expect(current.state.phase, phase);
@@ -120,6 +132,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: repository,
         readSession: () => session,
+        cancellationCoordinator: _newCancellationCoordinator(),
         scheduleTimeout: (_, callback) {
           final timer = _ManualTimer(callback);
           timers.add(timer);
@@ -153,6 +166,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: repository,
         readSession: () => session,
+        cancellationCoordinator: _newCancellationCoordinator(),
       );
       addTearDown(controller.dispose);
       await controller.refresh();
@@ -193,6 +207,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: repository,
         readSession: () => session,
+        cancellationCoordinator: _newCancellationCoordinator(),
       );
       addTearDown(controller.dispose);
 
@@ -223,6 +238,7 @@ void main() {
           bookingRequestId: riderBookingIdFixture,
           repository: repository,
           readSession: () => session,
+          cancellationCoordinator: _newCancellationCoordinator(),
         );
         await controller.refresh();
         repository.booking = riderBookingSearchFixture(
@@ -250,6 +266,7 @@ void main() {
           bookingRequestId: riderBookingIdFixture,
           repository: repository,
           readSession: () => session,
+          cancellationCoordinator: _newCancellationCoordinator(),
         );
         await controller.refresh();
         repository.booking = riderBookingSearchFixture(
@@ -280,6 +297,7 @@ void main() {
           bookingRequestId: riderBookingIdFixture,
           repository: repository,
           readSession: () => session,
+          cancellationCoordinator: _newCancellationCoordinator(),
           readDeadline: const Duration(seconds: 5),
           softTimeout: const Duration(seconds: 60),
           scheduleReadDeadline: (_, callback) {
@@ -342,6 +360,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: repository,
         readSession: () => session,
+        cancellationCoordinator: _newCancellationCoordinator(),
         scheduleReadDeadline: (_, callback) {
           final timer = _ManualTimer(callback);
           deadlines.add(timer);
@@ -373,6 +392,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: activeRepository,
         readSession: () => session,
+        cancellationCoordinator: _newCancellationCoordinator(),
         scheduleTimeout: (_, callback) {
           final timer = _ManualTimer(callback);
           feedback.add(timer);
@@ -397,6 +417,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: repository,
         readSession: () => session,
+        cancellationCoordinator: _newCancellationCoordinator(),
       );
       addTearDown(controller.dispose);
 
@@ -420,6 +441,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: repository,
         readSession: () => session,
+        cancellationCoordinator: _newCancellationCoordinator(),
       );
       addTearDown(controller.dispose);
 
@@ -462,6 +484,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: repository,
         readSession: () => session,
+        cancellationCoordinator: _newCancellationCoordinator(),
       );
       addTearDown(controller.dispose);
 
@@ -490,6 +513,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: repository,
         readSession: () => session,
+        cancellationCoordinator: _newCancellationCoordinator(),
       );
       addTearDown(controller.dispose);
       await controller.refresh();
@@ -508,6 +532,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: repository,
         readSession: () => driverSession,
+        cancellationCoordinator: _newCancellationCoordinator(),
       );
       addTearDown(driverController.dispose);
       await driverController.refresh();
@@ -526,6 +551,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: repository,
         readSession: () => session,
+        cancellationCoordinator: _newCancellationCoordinator(),
       );
       addTearDown(controller.dispose);
       await controller.refresh();
@@ -554,6 +580,7 @@ void main() {
         bookingRequestId: riderBookingIdFixture,
         repository: repository,
         readSession: () => blocked,
+        cancellationCoordinator: _newCancellationCoordinator(),
       );
       addTearDown(blockedController.dispose);
       await blockedController.refresh();
@@ -570,6 +597,7 @@ void main() {
         bookingRequestId: 'booking-1',
         repository: repository,
         readSession: () => session,
+        cancellationCoordinator: _newCancellationCoordinator(),
       );
       addTearDown(controller.dispose);
       await controller.refresh();

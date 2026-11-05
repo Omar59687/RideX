@@ -79,7 +79,7 @@ void main() {
     final cancel = tester.widget<AppButton>(
       find.byKey(const ValueKey('canonical-search-cancel')),
     );
-    expect(cancel.onPressed, isNull);
+    expect(cancel.onPressed, isNotNull);
     repository.booking = riderBookingSearchFixture(version: 4);
     await tester.tap(find.byKey(const ValueKey('canonical-search-retry')));
     await tester.pump();
