@@ -1,4 +1,5 @@
 import 'package:ridex/features/driver_flow/presentation/screens/driver_incoming_offer_screen.dart';
+import 'package:ridex/features/driver_flow/presentation/screens/driver_trip_preview_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:ridex/features/driver_flow/presentation/screens/driver_availability_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,6 +72,11 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       bottomNavigationBar: const MockBottomNavBar(
           currentIndex: 0, profilePath: '/driver/profile'),
       actions: [
+        IconButton(
+            tooltip: 'Local Trip preview',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => const DriverTripPreviewScreen())),
+            icon: const Icon(Icons.route_outlined)),
         IconButton(
             tooltip: 'Local incoming requests preview',
             onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
