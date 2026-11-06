@@ -3,22 +3,27 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ridex/app/theme/app_theme.dart';
 import 'package:ridex/core/errors/route_exception.dart';
 import 'package:ridex/core/mocks/mock_data.dart';
 import 'package:ridex/core/mocks/mock_repositories.dart';
+import 'package:ridex/core/models/booking_draft.dart';
 import 'package:ridex/core/models/fare_quote.dart';
+import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/pending_fare_lock.dart';
 import 'package:ridex/core/models/route_models.dart';
 import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/providers/route_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/repositories/booking_repository.dart';
 import 'package:ridex/core/repositories/fare_repository.dart';
 import 'package:ridex/core/repositories/mock_place_repository.dart';
 import 'package:ridex/core/repositories/mock_route_repository.dart';
 import 'package:ridex/core/services/fare/pending_fare_lock_store.dart';
 import 'package:ridex/core/widgets/app_button.dart';
+import 'package:ridex/features/booking/presentation/providers/rider_payment_selection_provider.dart';
 import 'package:ridex/features/booking/presentation/screens/fare_estimate_screen.dart';
 
 import 'helpers/recording_error_reporter.dart';
@@ -210,6 +215,7 @@ class _HangingLockFareRepository implements FareRepository {
 void main() {
   ProviderContainer createContainer({
     FareRepository? fareRepository,
+    BookingRepository? bookingRepository,
     PendingFareLockStore? pendingStore,
     RecordingAppErrorReporter? errorReporter,
   }) {
@@ -217,7 +223,7 @@ void main() {
       overrides: [
         authRepositoryProvider.overrideWith((ref) => MockAuthRepository()),
         bookingRepositoryProvider.overrideWith(
-          (ref) => MockBookingRepository(),
+          (ref) => bookingRepository ?? MockBookingRepository(),
         ),
         placeRepositoryProvider.overrideWith((ref) => MockPlaceRepository()),
         routeRepositoryProvider.overrideWithValue(
@@ -288,6 +294,52 @@ void main() {
     return navigator;
   }
 
+  /// Pumps the unconfigured demo fare screen behind a real GoRouter so a
+  /// navigation attempt to the mock search route is observable. The search
+  /// route is a sentinel page: this keeps the assertion purely about whether
+  /// the fare screen navigated, without creating a mock trip.
+  Future<void> pumpDemoFareScreenWithRouter(
+    WidgetTester tester,
+    ProviderContainer container,
+  ) async {
+    await container.read(sessionControllerProvider.notifier).refreshSession();
+    await container.read(sessionControllerProvider.notifier).continueAsDemo();
+    final router = GoRouter(
+      initialLocation: '/rider/review',
+      routes: [
+        GoRoute(
+          path: '/rider/review',
+          builder: (_, __) => const FareEstimateScreen(),
+        ),
+        GoRoute(
+          path: '/rider/searching',
+          builder: (_, __) => const Scaffold(
+            body: Text('Mock searching route'),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> scrollToConfirm(WidgetTester tester) async {
+    await tester.scrollUntilVisible(
+      find.text('Confirm & find a driver'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+  }
+
   AppButton confirmButton(
     WidgetTester tester, {
     String label = 'Confirm & find a driver',
@@ -340,6 +392,208 @@ void main() {
       );
     },
   );
+
+  group('P7-C06 Slice 1 demo Cash-only guard', () {
+    testWidgets('Cash remains eligible for demo continuation', (tester) async {
+      final container = createContainer();
+      readyDraft(container);
+
+      await pumpDemoFareScreenWithRouter(tester, container);
+
+      await scrollToConfirm(tester);
+      expect(
+        container.read(riderPaymentSelectionProvider),
+        PaymentMethod.cash,
+      );
+      expect(confirmButton(tester).onPressed, isNotNull);
+      expect(
+        find.textContaining('Cash is the only payment method'),
+        findsNothing,
+      );
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('Card remains selectable as draft intent', (tester) async {
+      final container = createContainer();
+      readyDraft(container);
+
+      await pumpDemoFareScreenWithRouter(tester, container);
+      container.read(riderPaymentSelectionProvider.notifier).selectCard();
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(riderPaymentSelectionProvider),
+        PaymentMethod.card,
+      );
+      // Selection is intent only: it is never rewritten to Cash.
+      expect(
+        container.read(riderPaymentSelectionProvider),
+        isNot(PaymentMethod.cash),
+      );
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('Card selection blocks mock trip confirmation', (tester) async {
+      final bookingRepository = _CountingBookingRepository();
+      final container = createContainer(bookingRepository: bookingRepository);
+      readyDraft(container);
+
+      await pumpDemoFareScreenWithRouter(tester, container);
+      container.read(riderPaymentSelectionProvider.notifier).selectCard();
+      await tester.pumpAndSettle();
+
+      await scrollToConfirm(tester);
+      expect(confirmButton(tester).onPressed, isNull);
+
+      // Even a tap that lands on the disabled control must not advance.
+      await tester.tap(find.text('Confirm & find a driver'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mock searching route'), findsNothing);
+      expect(container.read(activeTripControllerProvider), isNull);
+      expect(bookingRepository.estimateFareCalls, 0);
+      expect(container.read(pendingFareLockControllerProvider), isNull);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('Card selection displays an accessible Cash-only explanation',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      final container = createContainer();
+      readyDraft(container);
+
+      await pumpDemoFareScreenWithRouter(tester, container);
+      container.read(riderPaymentSelectionProvider.notifier).selectCard();
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.textContaining('Cash is the only payment method available'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(
+        find.textContaining('Cash is the only payment method available'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(RegExp('Cash only in this demo')),
+        findsOneWidget,
+      );
+      handle.dispose();
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('switching Card back to Cash restores demo continuation',
+        (tester) async {
+      final container = createContainer();
+      readyDraft(container);
+      final notifier = container.read(riderPaymentSelectionProvider.notifier);
+
+      await pumpDemoFareScreenWithRouter(tester, container);
+      notifier.selectCard();
+      await tester.pumpAndSettle();
+      await scrollToConfirm(tester);
+      expect(confirmButton(tester).onPressed, isNull);
+
+      notifier.selectCash();
+      await tester.pumpAndSettle();
+      expect(confirmButton(tester).onPressed, isNotNull);
+      expect(
+        find.textContaining('Cash is the only payment method'),
+        findsNothing,
+      );
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets(
+        'retained Cash callback cannot navigate or create a mock trip after '
+        'switching to Card', (tester) async {
+      final bookingRepository = _CountingBookingRepository();
+      final container = createContainer(bookingRepository: bookingRepository);
+      readyDraft(container);
+
+      await pumpDemoFareScreenWithRouter(tester, container);
+      await scrollToConfirm(tester);
+      final retained = confirmButton(tester).onPressed!;
+      expect(
+        container.read(riderPaymentSelectionProvider),
+        PaymentMethod.cash,
+      );
+
+      container.read(riderPaymentSelectionProvider.notifier).selectCard();
+      await tester.pumpAndSettle();
+
+      retained();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mock searching route'), findsNothing);
+      expect(container.read(activeTripControllerProvider), isNull);
+      expect(bookingRepository.estimateFareCalls, 0);
+      expect(container.read(pendingFareLockControllerProvider), isNull);
+      expect(
+        container.read(riderPaymentSelectionProvider),
+        PaymentMethod.card,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets(
+        'demo Card path performs no booking, payment, trip, or Stripe operation',
+        (tester) async {
+      final bookingRepository = _CountingBookingRepository();
+      final container = createContainer(bookingRepository: bookingRepository);
+      readyDraft(container);
+
+      await pumpDemoFareScreenWithRouter(tester, container);
+      container.read(riderPaymentSelectionProvider.notifier).selectCard();
+      await tester.pumpAndSettle();
+      await scrollToConfirm(tester);
+
+      // Disabled control: no continuation is available at all.
+      expect(confirmButton(tester).onPressed, isNull);
+      await tester.tap(find.text('Confirm & find a driver'));
+      await tester.pumpAndSettle();
+
+      // No booking confirmation or fare lock was staged...
+      expect(container.read(pendingFareLockControllerProvider), isNull);
+      // ...no fare estimation or mock trip creation ran...
+      expect(bookingRepository.estimateFareCalls, 0);
+      expect(container.read(activeTripControllerProvider), isNull);
+      // ...and no navigation (which would enter the demo trip flow) happened.
+      expect(find.text('Mock searching route'), findsNothing);
+      // No payment or provider SDK operation is wired into this screen.
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('configured Card selection keeps method-only draft behavior',
+        (tester) async {
+      final container = createContainer(fareRepository: FakeFareRepository());
+      readyDraft(container);
+
+      await pumpFareScreen(tester, container);
+      container.read(riderPaymentSelectionProvider.notifier).selectCard();
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('Lock fare'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(confirmButton(tester, label: 'Lock fare').onPressed, isNotNull);
+      expect(
+        find.textContaining('Cash is the only payment method'),
+        findsNothing,
+      );
+      expect(
+        find.textContaining('No card payment is processed'),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
 
   testWidgets(
     'unsupported Demo route change keeps safety feedback until corrected',
@@ -1407,6 +1661,18 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
+}
+
+/// Counts demo fare-estimate dispatches so a blocked Card continuation can be
+/// proven to perform no booking work at all.
+class _CountingBookingRepository extends MockBookingRepository {
+  int estimateFareCalls = 0;
+
+  @override
+  Future<double> estimateFare(BookingDraft draft) {
+    estimateFareCalls++;
+    return super.estimateFare(draft);
+  }
 }
 
 /// Recording store double: memory slots plus a save log and an optional
