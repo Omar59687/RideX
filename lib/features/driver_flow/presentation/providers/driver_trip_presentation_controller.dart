@@ -13,6 +13,41 @@ import 'driver_incoming_offer_controller.dart';
 
 /// Local test/demo intent only; never enabled in application composition.
 final driverTripSimulationEnabledProvider = Provider<bool>((ref) => false);
+
+/// Integration checklist only, never caller-supplied proof or dispatch permission.
+enum DriverTripCompletionRequirement {
+  authenticatedDriverSession,
+  canonicalInProgressCashTrip,
+  durableOriginalCommand,
+  unknownOutcomeReconciliation,
+  canonicalPaymentAndReceipt,
+  phase6HostedAndDeviceAcceptance,
+}
+
+/// The isolated preview cannot acquire financial authority. No provider override,
+/// simulated status, UUID-shaped ID or evidence flag can activate this policy.
+/// Future integration must use the existing separately reviewed Phase 6 owner.
+final class DriverTripCompletionGate {
+  const DriverTripCompletionGate._();
+  static const blocked = DriverTripCompletionGate._();
+
+  bool get canComplete => false;
+  List<String> get requiredPhase6Gates =>
+      const ['P6-R01', 'P6-R02', 'P6-R03', 'P6-R07'];
+  List<DriverTripCompletionRequirement> get requiredEvidence => const [
+        DriverTripCompletionRequirement.authenticatedDriverSession,
+        DriverTripCompletionRequirement.canonicalInProgressCashTrip,
+        DriverTripCompletionRequirement.durableOriginalCommand,
+        DriverTripCompletionRequirement.unknownOutcomeReconciliation,
+        DriverTripCompletionRequirement.canonicalPaymentAndReceipt,
+        DriverTripCompletionRequirement.phase6HostedAndDeviceAcceptance,
+      ];
+  String get explanation =>
+      'Real completion remains blocked until Driver/Trip authority, durable '
+      'completion, read-only recovery and hosted Cash acceptance are approved. '
+      'Local simulation cannot satisfy these requirements.';
+}
+
 typedef DriverTripResponseScheduler = void Function() Function(
     Duration duration, void Function() callback);
 final driverTripResponseSchedulerProvider =
@@ -54,6 +89,8 @@ class DriverTripPresentationView {
   final bool offerBlocked;
   final int lifetime;
   final DriverFlowSession? session;
+  DriverTripCompletionGate get completionGate =>
+      DriverTripCompletionGate.blocked;
   DriverTripLifecycleStatus? get nextStatus => _next(trip?.status);
 }
 
@@ -98,6 +135,10 @@ class _ProgressAttempt {
 /// Persistent across widget removal, with one pinned Trip per scope lifetime.
 class DriverTripPresentationController
     extends Notifier<DriverTripPresentationView> {
+  /// Explicit command-boundary stop. Never stages, executes, navigates, creates
+  /// tokens or mutates pending/UNKNOWN state, even through direct or stale calls.
+  DriverFlowOutcome requestCompletion() => DriverFlowOutcome.unsupported;
+
   int _epoch = 0;
   int _operation = 0;
   final _nonce =

@@ -77,97 +77,136 @@ class _DriverTripPreviewScreenState
     };
     return AppScaffold(
         title: 'Local Trip preview',
-        body: ListView(children: [
-          const Text('Local demonstration only',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          const Text(
-              'Simulated Trips never prove backend assignment, payment or receipt issuance.'),
-          const SizedBox(height: 20),
-          Semantics(
-              liveRegion: true,
-              child:
-                  Text(message, style: Theme.of(context).textTheme.titleLarge)),
-          if (view.reading || view.phase == DriverFlowPhase.loading)
-            const LinearProgressIndicator(),
-          if (trip != null) ...[
-            const SizedBox(height: 16),
-            Card(
-                child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Trip ${trip.id} · version ${trip.version}'),
-                          Text('Status: ${_statusLabel(trip.status)}',
-                              style: Theme.of(context).textTheme.titleLarge),
-                          _JourneySummary(journey: trip.journey),
-                          const Divider(),
-                          Text(
-                              'Locked Cash fare: JOD ${trip.journey.lockedFareFils ~/ 1000}.${(trip.journey.lockedFareFils % 1000).toString().padLeft(3, '0')}',
-                              style: Theme.of(context).textTheme.headlineSmall),
-                          Text(
-                              'Vehicle: ${trip.journey.vehicleLabel} (${trip.journey.vehicleId})'),
-                          Text(
-                              'Recorded route: ${trip.journey.distanceMeters} meters / ${trip.journey.durationSeconds} seconds. Not a live arrival estimate.'),
-                        ]))),
-            OutlinedButton(
-                onPressed: session != null &&
-                        controller.canPreview(trip, session, view.lifetime)
-                    ? () {
-                        if (!controller.canPreview(
-                            trip, session, view.lifetime)) {
-                          return;
-                        }
-                        showModalBottomSheet<void>(
-                            context: context,
-                            isScrollControlled: true,
-                            builder: (_) => _RoutePreview(
-                                trip: trip,
-                                session: session,
-                                lifetime: view.lifetime));
-                      }
-                    : null,
-                style:
-                    OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
-                child: const Text('View route preview')),
-          ],
-          const SizedBox(height: 16),
-          if (actionMessage != null)
-            Semantics(liveRegion: true, child: Text(actionMessage)),
-          if (view.offerBlocked)
-            Semantics(
-                liveRegion: true,
-                child: Text(
-                    'An offer decision is unresolved. Trip progression is unavailable.')),
-          FilledButton(
-              onPressed: enabled &&
-                      view.canProgress &&
-                      trip != null &&
-                      next != null
-                  ? () =>
-                      controller.progress(trip, next, lifetime: view.lifetime)
-                  : null,
-              style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
-              child: Text(enabled && next != null
-                  ? 'Simulate ${_statusLabel(next).toLowerCase()}'
-                  : 'Progression unavailable')),
-          if (!enabled)
-            const Text('Simulated progression is disabled by default.'),
-          const Text(
-              'Completion, settlement and receipts are unavailable in this preview.'),
-          if (view.progressStatus == DriverTripProgressStatus.pending ||
-              view.progressStatus == DriverTripProgressStatus.unknown)
-            const Text(
-                'Leaving this screen does not cancel or resolve the attempt.'),
-          TextButton(
-              onPressed:
-                  view.phase == DriverFlowPhase.unauthorized || view.reading
-                      ? null
-                      : controller.refresh,
-              child: const Text('Check status')),
-          const SizedBox(height: 20),
-        ]));
+        // Keep this finite preview's status/access explanations mounted as the
+        // stop-gate section increases scroll extent. It owns no local Trip state.
+        body: SingleChildScrollView(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+              const Text('Local demonstration only',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                  'Simulated Trips never prove backend assignment, payment or receipt issuance.'),
+              const SizedBox(height: 20),
+              Semantics(
+                  liveRegion: true,
+                  child: Text(message,
+                      style: Theme.of(context).textTheme.titleLarge)),
+              if (view.reading || view.phase == DriverFlowPhase.loading)
+                const LinearProgressIndicator(),
+              if (trip != null) ...[
+                const SizedBox(height: 16),
+                Card(
+                    child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Trip ${trip.id} · version ${trip.version}'),
+                              Text('Status: ${_statusLabel(trip.status)}',
+                                  style:
+                                      Theme.of(context).textTheme.titleLarge),
+                              _JourneySummary(journey: trip.journey),
+                              const Divider(),
+                              Text(
+                                  'Locked Cash fare: JOD ${trip.journey.lockedFareFils ~/ 1000}.${(trip.journey.lockedFareFils % 1000).toString().padLeft(3, '0')}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall),
+                              Text(
+                                  'Vehicle: ${trip.journey.vehicleLabel} (${trip.journey.vehicleId})'),
+                              Text(
+                                  'Recorded route: ${trip.journey.distanceMeters} meters / ${trip.journey.durationSeconds} seconds. Not a live arrival estimate.'),
+                            ]))),
+                OutlinedButton(
+                    onPressed: session != null &&
+                            controller.canPreview(trip, session, view.lifetime)
+                        ? () {
+                            if (!controller.canPreview(
+                                trip, session, view.lifetime)) {
+                              return;
+                            }
+                            showModalBottomSheet<void>(
+                                context: context,
+                                isScrollControlled: true,
+                                builder: (_) => _RoutePreview(
+                                    trip: trip,
+                                    session: session,
+                                    lifetime: view.lifetime));
+                          }
+                        : null,
+                    style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(48, 48)),
+                    child: const Text('View route preview')),
+              ],
+              const SizedBox(height: 16),
+              if (actionMessage != null)
+                Semantics(liveRegion: true, child: Text(actionMessage)),
+              if (view.offerBlocked)
+                Semantics(
+                    liveRegion: true,
+                    child: Text(
+                        'An offer decision is unresolved. Trip progression is unavailable.')),
+              FilledButton(
+                  onPressed: enabled &&
+                          view.canProgress &&
+                          trip != null &&
+                          next != null
+                      ? () => controller.progress(trip, next,
+                          lifetime: view.lifetime)
+                      : null,
+                  style:
+                      FilledButton.styleFrom(minimumSize: const Size(48, 48)),
+                  child: Text(enabled && next != null
+                      ? 'Simulate ${_statusLabel(next).toLowerCase()}'
+                      : 'Progression unavailable')),
+              if (!enabled)
+                const Text('Simulated progression is disabled by default.'),
+              const Text(
+                  'Completion, settlement and receipts are unavailable in this preview.'),
+              const SizedBox(height: 16),
+              _CompletionStop(gate: view.completionGate),
+              if (view.progressStatus == DriverTripProgressStatus.pending ||
+                  view.progressStatus == DriverTripProgressStatus.unknown)
+                const Text(
+                    'Leaving this screen does not cancel or resolve the attempt.'),
+              TextButton(
+                  onPressed:
+                      view.phase == DriverFlowPhase.unauthorized || view.reading
+                          ? null
+                          : controller.refresh,
+                  child: const Text('Check status')),
+              const SizedBox(height: 20),
+            ])));
   }
+}
+
+class _CompletionStop extends StatelessWidget {
+  const _CompletionStop({required this.gate});
+  final DriverTripCompletionGate gate;
+
+  @override
+  Widget build(BuildContext context) => Card(
+      child: Padding(
+          padding: const EdgeInsets.all(16),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Cash completion stop gate',
+                style: Theme.of(context).textTheme.titleMedium),
+            const Text('Simulated progression: local preview only.'),
+            const Text('Canonical Trip completion: not verified.'),
+            const Text('Cash settlement: not verified.'),
+            const Text('Payment confirmation: not verified.'),
+            const Text('Receipt issuance: not verified.'),
+            const SizedBox(height: 8),
+            Semantics(liveRegion: true, child: Text(gate.explanation)),
+            Text(
+                'Required acceptance: ${gate.requiredPhase6Gates.join(', ')}.'),
+            const OutlinedButton(
+                key: ValueKey('driver-cash-completion-stop'),
+                onPressed: null,
+                child: Text('Complete Cash Trip unavailable')),
+          ])));
 }
 
 String _statusLabel(DriverTripLifecycleStatus status) => switch (status) {
