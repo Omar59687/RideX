@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
 import '../providers/driver_incoming_offer_controller.dart';
+import '../../domain/driver_flow_contract.dart';
 
 class DriverIncomingOfferScreen extends ConsumerStatefulWidget {
   const DriverIncomingOfferScreen({super.key});
@@ -57,6 +58,27 @@ class _DriverIncomingOfferScreenState
     final view = ref
         .read(driverIncomingOfferProvider.notifier)
         .viewAtCurrentTime(observed);
+    final enabled = ref.watch(driverOfferSimulationEnabledProvider);
+    final actionMessage = switch (view.decisionStatus) {
+      DriverOfferDecisionStatus.idle => null,
+      DriverOfferDecisionStatus.pendingAccept =>
+        'Simulated accept pending. No assignment confirmed.',
+      DriverOfferDecisionStatus.pendingDecline =>
+        'Simulated decline pending. No assignment confirmed.',
+      DriverOfferDecisionStatus.simulatedAccepted =>
+        'Simulated acceptance only. No real assignment or payment confirmed.',
+      DriverOfferDecisionStatus.simulatedDeclined =>
+        'Simulated decline only. No real request changed.',
+      DriverOfferDecisionStatus.rejected =>
+        'Simulated decision rejected. Check status.',
+      DriverOfferDecisionStatus.stale =>
+        'Decision target changed. Check status.',
+      DriverOfferDecisionStatus.expired =>
+        'Decision target expired. Check status.',
+      DriverOfferDecisionStatus.unknown =>
+        'Outcome unknown. Check status; do not repeat the action.',
+      DriverOfferDecisionStatus.unauthorized => null,
+    };
     final offer = view.offer;
     final journey = offer?.journey;
     final message = switch (view.status) {
@@ -121,11 +143,31 @@ class _DriverIncomingOfferScreenState
                         ]))),
           ],
           const SizedBox(height: 16),
-          const Wrap(spacing: 12, children: [
-            OutlinedButton(onPressed: null, child: Text('Decline unavailable')),
-            FilledButton(onPressed: null, child: Text('Accept unavailable')),
+          if (actionMessage != null)
+            Semantics(liveRegion: true, child: Text(actionMessage)),
+          Wrap(spacing: 12, runSpacing: 8, children: [
+            OutlinedButton(
+                style:
+                    OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+                onPressed: enabled && view.canDecide && offer != null
+                    ? () => ref
+                        .read(driverIncomingOfferProvider.notifier)
+                        .decide(offer, DriverFlowOfferDecision.decline)
+                    : null,
+                child:
+                    Text(enabled ? 'Simulate decline' : 'Decline unavailable')),
+            FilledButton(
+                style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
+                onPressed: enabled && view.canDecide && offer != null
+                    ? () => ref
+                        .read(driverIncomingOfferProvider.notifier)
+                        .decide(offer, DriverFlowOfferDecision.accept)
+                    : null,
+                child:
+                    Text(enabled ? 'Simulate accept' : 'Accept unavailable')),
           ]),
-          const Text('Offer actions are disabled in this local preview.'),
+          if (!enabled)
+            const Text('Offer actions are disabled in this local preview.'),
           TextButton(
               onPressed: view.status == IncomingOfferStatus.unauthorized
                   ? null

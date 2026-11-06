@@ -217,7 +217,9 @@ final class DriverFlowSetAvailability extends DriverFlowCommand {
 
 enum DriverFlowOfferDecision { accept, decline }
 
-/// A local intent; decline has no assumed backend RPC mapping.
+/// Local intent only. A04 provides driver_decline_match_offer(offer ID, offer
+/// version, key); acceptance uses driver_transition_trip(offer ID, accepted,
+/// offer version, key). No mapping is wired by this presentation contract.
 final class DriverFlowDecideOffer extends DriverFlowCommand {
   DriverFlowDecideOffer({
     required super.session,

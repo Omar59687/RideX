@@ -126,6 +126,16 @@ No `driver_accept_trip`/`driver_reject_offer` RPC is introduced or assumed.
 Merged P7-A01-A03 on this baseline may be reused later; no unmerged branch is
 needed. No SQL is applied or hosted state inspected by B01.
 
+B04 correction after merged A04: `driver_decline_match_offer(target_offer_id uuid,
+expected_offer_version integer, idempotency_key text)` returns a canonical offer
+row. The earlier no-assumed-mapping wording described B01's local boundary, not
+a missing RPC on current main. Acceptance remains
+`driver_transition_trip(target_id uuid, requested_status public.trip_status,
+expected_version integer, idempotency_key text)` returning JSON; accepted targets
+the offer ID/version, later progression targets Trip ID/version. Both RPCs are
+restricted to authenticated approved/nonblocked owner Drivers. No B04 adapter
+calls either RPC; the local intent contract and original token remain unchanged.
+
 ## Phase 6 reconciliation and remaining gates
 
 The authoritative `P6_POST_MERGE_ROADMAP.md` defines **P6-R08 as secure Stripe UI
