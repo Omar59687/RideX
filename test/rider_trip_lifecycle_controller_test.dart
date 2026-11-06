@@ -13,8 +13,10 @@ import 'package:ridex/core/models/rider_trip_tracking_event.dart';
 import 'package:ridex/core/providers/rider_trip_tracking_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/repositories/rider_trip_tracking_repository.dart';
+import 'package:ridex/core/services/rider_trip_lifecycle_signals.dart';
 
 import 'helpers/fake_rider_trip_tracking_repository.dart';
+import 'helpers/fake_rider_trip_lifecycle_signals.dart';
 
 const _otherRiderId = unrelatedRiderIdFixture;
 final _verifiedAt = DateTime.utc(2026, 11, 6, 12);
@@ -538,6 +540,12 @@ void main() {
           riderTripTrackingRepositoryProvider.overrideWith(
             (ref) => ref.watch(repositorySource),
           ),
+          riderTripAppLifecycleSignalSourceProvider.overrideWithValue(
+            const NoopRiderTripAppLifecycleSignalSource(),
+          ),
+          riderTripConnectionSignalSourceProvider.overrideWithValue(
+            const NoopRiderTripConnectionSignalSource(),
+          ),
           sessionControllerProvider.overrideWith(
             () => _MutableSessionController(_sessionFor(riderIdFixture)),
           ),
@@ -927,6 +935,457 @@ void main() {
         expect(rig.notifications, hasLength(priorNotifications));
       },
     );
+
+    test('resume edge reconciles once and keeps pending data private',
+        () async {
+      final initial = riderAssignedTripFixture();
+      final next = _trip(
+        version: 4,
+        status: DriverTripLifecycleStatus.driverArriving,
+      );
+      final repository = _GatedTripRepository(trip: initial);
+      final signals = FakeRiderTripLifecycleSignals();
+      final rig = _LifecycleRig(repository, signals: signals);
+      await _settle();
+      expect(rig.state.trip, initial);
+      expect(repository.tripLoadCount, 1);
+
+      repository.delayReads = true;
+      repository.trip = next;
+      signals.background();
+      signals.resume();
+      expect(rig.state.phase, RiderTripLifecyclePhase.stale);
+      expect(rig.state.trip, isNull);
+      await _settle();
+      expect(repository.pendingReads, hasLength(1));
+
+      // The source only emits on a real non-resumed -> resumed edge.
+      signals.resume();
+      await _settle();
+      expect(repository.pendingReads, hasLength(1));
+
+      repository.completeRead(0, next);
+      await _settle();
+      expect(rig.state.phase, RiderTripLifecyclePhase.verified);
+      expect(rig.state.trip, next);
+      expect(repository.tripLoadCount, 2);
+      expect(repository.watchCount, 2);
+
+      await rig.dispose();
+    });
+
+    test(
+      'only confirmed current-generation restoration reconciles',
+      () async {
+        final initial = riderAssignedTripFixture();
+        final next = _trip(
+          version: 4,
+          status: DriverTripLifecycleStatus.driverArriving,
+        );
+        final repository = _GatedTripRepository(trip: initial);
+        final signals = FakeRiderTripLifecycleSignals();
+        final rig = _LifecycleRig(repository, signals: signals);
+        await _settle();
+
+        repository.delayReads = true;
+        repository.trip = next;
+        signals.connectivityAvailable();
+        signals.connecting(1);
+        await _settle();
+        expect(repository.tripLoadCount, 1);
+        expect(rig.state.trip, initial);
+
+        signals.interrupted(1);
+        expect(rig.state.phase, RiderTripLifecyclePhase.stale);
+        expect(rig.state.trip, isNull);
+        signals.connectivityAvailable();
+        signals.connecting(2);
+        signals.confirmedRestoration(1); // Old attempt.
+        await _settle();
+        expect(repository.tripLoadCount, 1);
+        expect(repository.pendingReads, isEmpty);
+
+        signals.confirmedRestoration(2);
+        await _settle();
+        expect(repository.pendingReads, hasLength(1));
+        repository.completeRead(0, next);
+        await _settle();
+        expect(rig.state.trip, next);
+        expect(repository.tripLoadCount, 2);
+
+        // A duplicate restoration and an old interruption cannot cause a read
+        // or stale the newly verified state.
+        signals.confirmedRestoration(2);
+        signals.interrupted(1);
+        signals.connectivityAvailable();
+        await _settle();
+        expect(repository.tripLoadCount, 2);
+        expect(rig.state.phase, RiderTripLifecyclePhase.verified);
+        expect(rig.state.trip, next);
+
+        await rig.dispose();
+      },
+    );
+
+    test(
+      'duplicate prior restore cannot consume a newer interruption',
+      () async {
+        final initial = riderAssignedTripFixture();
+        final recovered = _trip(
+          version: 4,
+          status: DriverTripLifecycleStatus.driverArriving,
+        );
+        final nextRecovery = _trip(
+          version: 5,
+          status: DriverTripLifecycleStatus.driverArrived,
+        );
+        final repository = _GatedTripRepository(trip: initial);
+        final signals = FakeRiderTripLifecycleSignals();
+        final rig = _LifecycleRig(repository, signals: signals);
+        await _settle();
+        expect(rig.state.trip, initial);
+
+        repository.delayReads = true;
+        repository.trip = recovered;
+        signals.confirmedRestoration(1);
+        await _settle();
+        expect(repository.tripLoadCount, 1);
+        expect(rig.state.trip, initial);
+
+        signals.interrupted(1);
+        expect(rig.state.phase, RiderTripLifecyclePhase.stale);
+        expect(rig.state.trip, isNull);
+        signals.confirmedRestoration(1);
+        await _settle();
+        expect(repository.tripLoadCount, 1);
+        expect(repository.pendingReads, isEmpty);
+        expect(rig.state.phase, RiderTripLifecyclePhase.stale);
+        expect(rig.state.trip, isNull);
+
+        signals.connecting(2);
+        signals.confirmedRestoration(2);
+        await _settle();
+        expect(repository.tripLoadCount, 2);
+        expect(repository.pendingReads, hasLength(1));
+        expect(rig.state.phase, RiderTripLifecyclePhase.stale);
+        expect(rig.state.trip, isNull);
+
+        repository.completeRead(0, recovered);
+        await _settle();
+        expect(rig.state.phase, RiderTripLifecyclePhase.verified);
+        expect(rig.state.trip, recovered);
+        signals.confirmedRestoration(2);
+        await _settle();
+        expect(repository.tripLoadCount, 2);
+
+        // A restored status in the interrupted attempt itself is not a new
+        // transport attempt, even if no earlier restoration used generation 3.
+        repository.trip = nextRecovery;
+        signals.connecting(3);
+        signals.interrupted(3);
+        signals.confirmedRestoration(3);
+        await _settle();
+        expect(repository.tripLoadCount, 2);
+        expect(rig.state.phase, RiderTripLifecyclePhase.stale);
+        expect(rig.state.trip, isNull);
+
+        signals.connecting(4);
+        signals.confirmedRestoration(4);
+        await _settle();
+        expect(repository.tripLoadCount, 3);
+        expect(repository.pendingReads, hasLength(2));
+        expect(rig.state.phase, RiderTripLifecyclePhase.stale);
+        expect(rig.state.trip, isNull);
+        repository.completeRead(1, nextRecovery);
+        await _settle();
+        expect(rig.state.phase, RiderTripLifecyclePhase.verified);
+        expect(rig.state.trip, nextRecovery);
+        signals.confirmedRestoration(4);
+        await _settle();
+        expect(repository.tripLoadCount, 3);
+
+        await rig.dispose();
+      },
+    );
+
+    test(
+      'resume and restoration coalesce and supersede the older read',
+      () async {
+        final initial = riderAssignedTripFixture();
+        final latest = _trip(
+          version: 5,
+          status: DriverTripLifecycleStatus.driverArrived,
+        );
+        final repository = _DelayedTripRepository();
+        final signals = FakeRiderTripLifecycleSignals();
+        final rig = _LifecycleRig(repository, signals: signals);
+        await _settle();
+        repository.completeRead(0, initial);
+        await _settle();
+        expect(rig.state.trip, initial);
+
+        signals.background();
+        signals.resume();
+        await _settle();
+        expect(repository.pendingReads, hasLength(2));
+        signals.interrupted(1);
+        signals.connecting(2);
+        signals.confirmedRestoration(2);
+        await _settle();
+        expect(rig.state.trip, isNull);
+
+        repository.completeRead(1, initial);
+        await _settle();
+        expect(repository.pendingReads, hasLength(3));
+        expect(rig.state.trip, isNull);
+        repository.completeRead(2, latest);
+        await _settle();
+
+        expect(repository.tripLoadCount, 3);
+        expect(rig.state.phase, RiderTripLifecyclePhase.verified);
+        expect(rig.state.trip, latest);
+        expect(repository.watchCount, 3);
+        expect(repository.hasListener, isTrue);
+        await rig.dispose();
+      },
+    );
+
+    test('A to B to A rejects late lifecycle and connection callbacks',
+        () async {
+      final repository = FakeRiderTripTrackingRepository(
+        trip: riderAssignedTripFixture(),
+      );
+      final signals = FakeRiderTripLifecycleSignals();
+      final rig = _LifecycleRig(repository, signals: signals);
+      await _settle();
+      expect(rig.state.trip, riderAssignedTripFixture());
+
+      rig.sessionController.setSession(_sessionFor(_otherRiderId));
+      await _settle();
+      rig.sessionController.setSession(_sessionFor(riderIdFixture));
+      await _settle();
+      expect(rig.state.trip, riderAssignedTripFixture());
+      final readsBeforeLateSignals = repository.tripLoadCount;
+
+      signals.emitLateResumeSignal();
+      signals.emitLateConnectionSignal(
+        RiderTripConnectionStatusChanged(
+          status: RiderTripConnectionStatus.interrupted,
+          generation: 1,
+        ),
+      );
+      await _settle();
+
+      expect(repository.tripLoadCount, readsBeforeLateSignals);
+      expect(rig.state.phase, RiderTripLifecyclePhase.verified);
+      expect(rig.state.trip?.riderId, riderIdFixture);
+
+      rig.sessionController.setSession(const SessionState.unauthenticated());
+      await _settle();
+      final readsAfterLogout = repository.tripLoadCount;
+      signals.emitLateResumeSignal();
+      signals.emitLateConnectionSignal(
+        RiderTripConnectionStatusChanged(
+          status: RiderTripConnectionStatus.restored,
+          generation: 2,
+        ),
+      );
+      await _settle();
+      expect(repository.tripLoadCount, readsAfterLogout);
+      expect(rig.state.phase, RiderTripLifecyclePhase.unavailable);
+      expect(rig.state.trip, isNull);
+      await rig.dispose();
+    });
+
+    test('repository replacement retires its old signal callbacks', () async {
+      final firstRepository = FakeRiderTripTrackingRepository(
+        trip: riderAssignedTripFixture(
+          version: 5,
+          status: DriverTripLifecycleStatus.inProgress,
+        ),
+      );
+      final secondTrip = riderAssignedTripFixture(version: 3);
+      final secondRepository = FakeRiderTripTrackingRepository(
+        trip: secondTrip,
+      );
+      final signals = FakeRiderTripLifecycleSignals();
+      final repositorySource = StateProvider<RiderTripTrackingRepository?>(
+        (ref) => firstRepository,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          riderTripTrackingRepositoryProvider.overrideWith(
+            (ref) => ref.watch(repositorySource),
+          ),
+          riderTripAppLifecycleSignalSourceProvider.overrideWithValue(signals),
+          riderTripConnectionSignalSourceProvider.overrideWithValue(signals),
+          sessionControllerProvider.overrideWith(
+            () => _MutableSessionController(_sessionFor(riderIdFixture)),
+          ),
+          riderTripLifecycleClockProvider.overrideWithValue(() => _verifiedAt),
+        ],
+      );
+      final request = _request();
+      final subscription = container.listen(
+        riderTripLifecycleControllerProvider(request),
+        (_, __) {},
+      );
+      container.read(riderTripLifecycleControllerProvider(request));
+      await _settle();
+      expect(
+        container.read(riderTripLifecycleControllerProvider(request)).trip,
+        firstRepository.trip,
+      );
+
+      container.read(repositorySource.notifier).state = secondRepository;
+      await _settle();
+      expect(
+        container.read(riderTripLifecycleControllerProvider(request)).trip,
+        secondTrip,
+      );
+      final readsAfterReplacement = secondRepository.tripLoadCount;
+
+      signals.emitLateResumeSignal();
+      signals.emitLateConnectionSignal(
+        RiderTripConnectionStatusChanged(
+          status: RiderTripConnectionStatus.interrupted,
+          generation: 1,
+        ),
+      );
+      await _settle();
+      expect(secondRepository.tripLoadCount, readsAfterReplacement);
+      expect(
+        container.read(riderTripLifecycleControllerProvider(request)).trip,
+        secondTrip,
+      );
+
+      subscription.close();
+      container.dispose();
+      await _settle();
+      await signals.dispose();
+      await firstRepository.close();
+      await secondRepository.close();
+    });
+
+    test('Trip replacement and disposal reject late signal callbacks',
+        () async {
+      final repository = FakeRiderTripTrackingRepository(
+        trip: riderAssignedTripFixture(),
+        additionalTrips: [
+          riderAssignedTripFixture(
+            tripId: secondaryRiderTripIdFixture,
+            bookingRequestId: secondaryRiderBookingIdFixture,
+          ),
+        ],
+      );
+      final signals = FakeRiderTripLifecycleSignals();
+      final container = ProviderContainer(
+        overrides: [
+          riderTripTrackingRepositoryProvider.overrideWithValue(repository),
+          riderTripAppLifecycleSignalSourceProvider.overrideWithValue(signals),
+          riderTripConnectionSignalSourceProvider.overrideWithValue(signals),
+          sessionControllerProvider.overrideWith(
+            () => _MutableSessionController(_sessionFor(riderIdFixture)),
+          ),
+          riderTripLifecycleClockProvider.overrideWithValue(() => _verifiedAt),
+        ],
+      );
+      final firstRequest = _request();
+      final firstSubscription = container.listen(
+        riderTripLifecycleControllerProvider(firstRequest),
+        (_, __) {},
+      );
+      container.read(riderTripLifecycleControllerProvider(firstRequest));
+      await _settle();
+      expect(
+        container.read(riderTripLifecycleControllerProvider(firstRequest)).trip,
+        isNotNull,
+      );
+
+      firstSubscription.close();
+      await _settle();
+      final secondRequest = _request(
+        tripId: secondaryRiderTripIdFixture,
+        bookingRequestId: secondaryRiderBookingIdFixture,
+      );
+      final secondSubscription = container.listen(
+        riderTripLifecycleControllerProvider(secondRequest),
+        (_, __) {},
+      );
+      container.read(riderTripLifecycleControllerProvider(secondRequest));
+      await _settle();
+      final readsForSecondTrip = repository.tripLoadCount;
+      expect(
+        container
+            .read(riderTripLifecycleControllerProvider(secondRequest))
+            .trip
+            ?.tripId,
+        secondaryRiderTripIdFixture,
+      );
+
+      signals.emitLateResumeSignal();
+      signals.emitLateConnectionSignal(
+        RiderTripConnectionStatusChanged(
+          status: RiderTripConnectionStatus.interrupted,
+          generation: 1,
+        ),
+      );
+      await _settle();
+      expect(repository.tripLoadCount, readsForSecondTrip);
+      expect(
+        container
+            .read(riderTripLifecycleControllerProvider(secondRequest))
+            .trip
+            ?.tripId,
+        secondaryRiderTripIdFixture,
+      );
+
+      secondSubscription.close();
+      await _settle();
+      final notificationsAfterDispose = repository.tripLoadCount;
+      signals.emitLateResumeSignal();
+      signals.emitLateConnectionSignal(
+        RiderTripConnectionStatusChanged(
+          status: RiderTripConnectionStatus.interrupted,
+          generation: 2,
+        ),
+      );
+      await _settle();
+      expect(repository.tripLoadCount, notificationsAfterDispose);
+
+      container.dispose();
+      await signals.dispose();
+      await repository.close();
+    });
+
+    test('terminal lifecycle signals never restart its watcher', () async {
+      final terminal = _trip(
+        version: 4,
+        status: DriverTripLifecycleStatus.completed,
+      );
+      final repository = FakeRiderTripTrackingRepository(trip: terminal);
+      final signals = FakeRiderTripLifecycleSignals();
+      final rig = _LifecycleRig(repository, signals: signals);
+      await _settle();
+      expect(rig.state.isTerminal, isTrue);
+      final watcherCount = repository.watchCount;
+      expect(watcherCount, 1);
+      expect(repository.hasListener, isFalse);
+
+      signals.background();
+      signals.resume();
+      await _settle();
+      signals.interrupted(1);
+      signals.confirmedRestoration(2);
+      await _settle();
+
+      expect(rig.state.isTerminal, isTrue);
+      expect(rig.state.trip, terminal);
+      expect(repository.tripLoadCount, 3);
+      expect(repository.watchCount, watcherCount);
+      expect(repository.hasListener, isFalse);
+      await rig.dispose();
+    });
   });
 }
 
@@ -967,6 +1426,12 @@ ProviderContainer _container(RiderTripTrackingRepository repository) {
   return ProviderContainer(
     overrides: [
       riderTripTrackingRepositoryProvider.overrideWithValue(repository),
+      riderTripAppLifecycleSignalSourceProvider.overrideWithValue(
+        const NoopRiderTripAppLifecycleSignalSource(),
+      ),
+      riderTripConnectionSignalSourceProvider.overrideWithValue(
+        const NoopRiderTripConnectionSignalSource(),
+      ),
       sessionControllerProvider.overrideWith(
         () => _MutableSessionController(_sessionFor(riderIdFixture)),
       ),
@@ -986,11 +1451,18 @@ class _LifecycleRig {
     this.repository, {
     RiderTripLifecycleRequest? request,
     SessionState? session,
+    this.signals,
   })  : request = request ?? _request(),
         initialSession = session ?? _sessionFor(riderIdFixture) {
     container = ProviderContainer(
       overrides: [
         riderTripTrackingRepositoryProvider.overrideWithValue(repository),
+        riderTripAppLifecycleSignalSourceProvider.overrideWithValue(
+          signals ?? const NoopRiderTripAppLifecycleSignalSource(),
+        ),
+        riderTripConnectionSignalSourceProvider.overrideWithValue(
+          signals ?? const NoopRiderTripConnectionSignalSource(),
+        ),
         sessionControllerProvider.overrideWith(() {
           sessionController = _MutableSessionController(
             initialSession,
@@ -1012,6 +1484,7 @@ class _LifecycleRig {
   final RiderTripTrackingRepository repository;
   final RiderTripLifecycleRequest request;
   final SessionState initialSession;
+  final FakeRiderTripLifecycleSignals? signals;
   final notifications = <RiderTripLifecycleState>[];
   late final ProviderContainer container;
   late final ProviderSubscription<RiderTripLifecycleState> subscription;
@@ -1025,6 +1498,7 @@ class _LifecycleRig {
     subscription.close();
     container.dispose();
     await _settle();
+    await signals?.dispose();
   }
 }
 

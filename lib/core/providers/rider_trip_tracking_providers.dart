@@ -10,6 +10,7 @@ import 'package:ridex/core/models/rider_trip_tracking_event.dart';
 import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/repositories/rider_trip_tracking_repository.dart';
+import 'package:ridex/core/services/rider_trip_lifecycle_signals.dart';
 
 /// Injection seam for the merged C01 read/watch contract.
 ///
@@ -23,6 +24,18 @@ final riderTripLifecycleClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
 );
 
+final riderTripAppLifecycleSignalSourceProvider =
+    Provider<RiderTripAppLifecycleSignalSource>((ref) {
+  final source = WidgetsRiderTripAppLifecycleSignalSource();
+  ref.onDispose(source.dispose);
+  return source;
+});
+
+final riderTripConnectionSignalSourceProvider =
+    Provider<RiderTripConnectionSignalSource>(
+  (ref) => const NoopRiderTripConnectionSignalSource(),
+);
+
 final riderTripLifecycleControllerProvider = NotifierProvider.autoDispose
     .family<RiderTripLifecycleController, RiderTripLifecycleState,
         RiderTripLifecycleRequest>(RiderTripLifecycleController.new);
@@ -30,16 +43,23 @@ final riderTripLifecycleControllerProvider = NotifierProvider.autoDispose
 class RiderTripLifecycleController extends AutoDisposeFamilyNotifier<
     RiderTripLifecycleState, RiderTripLifecycleRequest> {
   StreamSubscription<RiderTripTrackingEvent>? _eventsSubscription;
+  StreamSubscription<void>? _appLifecycleSubscription;
+  StreamSubscription<RiderTripConnectionSignal>? _connectionSignalSubscription;
   Future<void>? _watchCancellation;
   Future<void>? _readRun;
   int? _readRunGeneration;
   int _generation = 0;
   int _watchGeneration = 0;
+  int _signalGeneration = 0;
   int _reconciliationRevision = 0;
+  int? _latestConnectionGeneration;
+  int? _lastInterruptedConnectionGeneration;
+  int? _lastRestoredConnectionGeneration;
   int? _latestEventSequence;
   int? _latestSnapshotVersion;
   DriverTripLifecycleStatus? _latestSnapshotStatus;
   bool _readAgain = false;
+  bool _connectionInterrupted = false;
   bool _disposed = false;
   late RiderTripLifecycleRequest _request;
   late SessionState _session;
@@ -64,13 +84,39 @@ class RiderTripLifecycleController extends AutoDisposeFamilyNotifier<
         _replaceScope(session: _session, repository: next);
       },
     );
+    ref.listen<RiderTripAppLifecycleSignalSource>(
+      riderTripAppLifecycleSignalSourceProvider,
+      (previous, next) {
+        if (identical(previous, next)) return;
+        _replaceSignalSubscriptions();
+      },
+    );
+    ref.listen<RiderTripConnectionSignalSource>(
+      riderTripConnectionSignalSourceProvider,
+      (previous, next) {
+        if (identical(previous, next)) return;
+        _replaceSignalSubscriptions();
+      },
+    );
+    _replaceSignalSubscriptions();
     ref.onDispose(() {
       _disposed = true;
       _generation++;
+      _signalGeneration++;
       _lastCanonicalTrip = null;
       _readRun = null;
       _readRunGeneration = null;
       _readAgain = false;
+      final appLifecycleSubscription = _appLifecycleSubscription;
+      _appLifecycleSubscription = null;
+      final connectionSignalSubscription = _connectionSignalSubscription;
+      _connectionSignalSubscription = null;
+      if (appLifecycleSubscription != null) {
+        unawaited(_cancelSignalSubscription(appLifecycleSubscription));
+      }
+      if (connectionSignalSubscription != null) {
+        unawaited(_cancelSignalSubscription(connectionSignalSubscription));
+      }
       unawaited(_detachWatch());
     });
 
@@ -122,10 +168,15 @@ class RiderTripLifecycleController extends AutoDisposeFamilyNotifier<
     _latestSnapshotVersion = null;
     _latestSnapshotStatus = null;
     _reconciliationRevision = 0;
+    _latestConnectionGeneration = null;
+    _lastInterruptedConnectionGeneration = null;
+    _lastRestoredConnectionGeneration = null;
+    _connectionInterrupted = false;
     _readRun = null;
     _readRunGeneration = null;
     _readAgain = false;
     unawaited(_detachWatch());
+    _replaceSignalSubscriptions();
 
     state = _initialState(session, repository);
     final context = _captureContext(generation: generation);
@@ -187,6 +238,143 @@ class RiderTripLifecycleController extends AutoDisposeFamilyNotifier<
       return false;
     }
     return _riderIdFor(context.session) == context.riderId;
+  }
+
+  void _replaceSignalSubscriptions() {
+    final signalGeneration = ++_signalGeneration;
+    final scopeGeneration = _generation;
+    final previousAppSubscription = _appLifecycleSubscription;
+    final previousConnectionSubscription = _connectionSignalSubscription;
+    _appLifecycleSubscription = null;
+    _connectionSignalSubscription = null;
+    _latestConnectionGeneration = null;
+    _lastInterruptedConnectionGeneration = null;
+    _lastRestoredConnectionGeneration = null;
+    _connectionInterrupted = false;
+    if (previousAppSubscription != null) {
+      unawaited(_cancelSignalSubscription(previousAppSubscription));
+    }
+    if (previousConnectionSubscription != null) {
+      unawaited(_cancelSignalSubscription(previousConnectionSubscription));
+    }
+    if (_disposed) return;
+
+    final appLifecycleSource =
+        ref.read(riderTripAppLifecycleSignalSourceProvider);
+    final connectionSource = ref.read(riderTripConnectionSignalSourceProvider);
+    _appLifecycleSubscription = appLifecycleSource.resumed.listen((_) {
+      if (!_isCurrentSignal(
+        scopeGeneration,
+        signalGeneration,
+        appLifecycleSource,
+        connectionSource,
+      )) {
+        return;
+      }
+      unawaited(reconcileAfterResume());
+    });
+    _connectionSignalSubscription = connectionSource.events.listen((signal) {
+      _handleConnectionSignal(
+        signal,
+        scopeGeneration: scopeGeneration,
+        signalGeneration: signalGeneration,
+        appLifecycleSource: appLifecycleSource,
+        connectionSource: connectionSource,
+      );
+    });
+  }
+
+  bool _isCurrentSignal(
+    int scopeGeneration,
+    int signalGeneration,
+    RiderTripAppLifecycleSignalSource appLifecycleSource,
+    RiderTripConnectionSignalSource connectionSource,
+  ) {
+    if (_disposed ||
+        scopeGeneration != _generation ||
+        signalGeneration != _signalGeneration) {
+      return false;
+    }
+    try {
+      return identical(
+            ref.read(riderTripAppLifecycleSignalSourceProvider),
+            appLifecycleSource,
+          ) &&
+          identical(
+            ref.read(riderTripConnectionSignalSourceProvider),
+            connectionSource,
+          );
+    } on Object {
+      return false;
+    }
+  }
+
+  void _handleConnectionSignal(
+    RiderTripConnectionSignal signal, {
+    required int scopeGeneration,
+    required int signalGeneration,
+    required RiderTripAppLifecycleSignalSource appLifecycleSource,
+    required RiderTripConnectionSignalSource connectionSource,
+  }) {
+    if (!_isCurrentSignal(
+      scopeGeneration,
+      signalGeneration,
+      appLifecycleSource,
+      connectionSource,
+    )) {
+      return;
+    }
+
+    switch (signal) {
+      case RiderTripConnectivityAvailable():
+        return;
+      case RiderTripConnectionStatusChanged(
+          status: final status,
+          generation: final generation,
+        ):
+        final previousGeneration = _latestConnectionGeneration;
+        if (previousGeneration != null && generation < previousGeneration) {
+          return;
+        }
+        if (previousGeneration == null || generation > previousGeneration) {
+          _latestConnectionGeneration = generation;
+        }
+        switch (status) {
+          case RiderTripConnectionStatus.connecting:
+            return;
+          case RiderTripConnectionStatus.interrupted:
+            _recordConnectionInterruption(generation: generation);
+            return;
+          case RiderTripConnectionStatus.restored:
+            final previousRestoredGeneration =
+                _lastRestoredConnectionGeneration;
+            if (previousRestoredGeneration != null &&
+                generation <= previousRestoredGeneration) {
+              return;
+            }
+            // Record even an initial/unpaired restoration so a delayed
+            // duplicate cannot satisfy a later interruption on this attempt.
+            _lastRestoredConnectionGeneration = generation;
+            final interruptedGeneration = _lastInterruptedConnectionGeneration;
+            if (!_connectionInterrupted ||
+                (interruptedGeneration != null &&
+                    generation <= interruptedGeneration)) {
+              return;
+            }
+            _connectionInterrupted = false;
+            unawaited(reconcileAfterReconnect());
+            return;
+        }
+    }
+  }
+
+  Future<void> _cancelSignalSubscription(
+      StreamSubscription<dynamic> sub) async {
+    try {
+      await sub.cancel();
+    } on Object {
+      // Cleanup failures cannot restore a signal subscription's authority.
+    }
   }
 
   Future<void> _requestCanonicalRead(
@@ -378,7 +566,7 @@ class RiderTripLifecycleController extends AutoDisposeFamilyNotifier<
       case RiderTripSnapshot():
         _handleSnapshotEvent(event, context);
       case RiderTripTrackingDisconnected():
-        _markStale(RiderTripLifecycleFailure.disconnected);
+        _recordConnectionInterruption();
       case RiderTripLocationChanged():
         // Location is not lifecycle authority and is outside Slice 1 state.
         return;
@@ -467,6 +655,18 @@ class RiderTripLifecycleController extends AutoDisposeFamilyNotifier<
     int watchGeneration,
   ) {
     if (!_isCurrent(context) || watchGeneration != _watchGeneration) return;
+    _recordConnectionInterruption();
+  }
+
+  void _recordConnectionInterruption({int? generation}) {
+    _connectionInterrupted = true;
+    final interruptedGeneration = generation ?? _latestConnectionGeneration;
+    final previousInterruptedGeneration = _lastInterruptedConnectionGeneration;
+    if (interruptedGeneration != null &&
+        (previousInterruptedGeneration == null ||
+            interruptedGeneration > previousInterruptedGeneration)) {
+      _lastInterruptedConnectionGeneration = interruptedGeneration;
+    }
     _markStale(RiderTripLifecycleFailure.disconnected);
   }
 
