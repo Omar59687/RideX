@@ -20,10 +20,11 @@ void main() {
   late List<TripRealtimeUpdate> updates;
   late List<Object> errors;
   late StreamSubscription<TripRealtimeUpdate> subscription;
-  late List<({
-    bool Function(TripRealtimeUpdate) matches,
-    Completer<void> completed,
-  })> updateWaiters;
+  late List<
+      ({
+        bool Function(TripRealtimeUpdate) matches,
+        Completer<void> completed,
+      })> updateWaiters;
   final errorWaiters = <Completer<void>>[];
 
   setUp(() {
@@ -508,6 +509,111 @@ void main() {
       expectedChannelRemovals: 1,
     );
   });
+
+  test('registers INSERT and UPDATE for trips without DELETE', () async {
+    final client = SupabaseClient(
+      'https://trip-realtime.unit-test.invalid',
+      'unit-test-anon-key',
+    );
+    final authEvents = StreamController<Object?>();
+    final channel = _RecordingRealtimeChannel(
+      'ridex:trip:$_tripId',
+      client.realtime,
+    );
+    final source = SupabaseTripRealtimeSource(
+      client,
+      authStreamFactory: () => authEvents.stream,
+      channelFactory: (_) => channel,
+      channelRemover: (_) async {},
+    );
+
+    final subscription = source.watchTrip(_tripId).listen((_) {});
+    await channel.subscribed;
+
+    final tripRegistrations = channel.registrations
+        .where((registration) =>
+            registration.schema == 'public' && registration.table == 'trips')
+        .toList();
+    expect(
+      tripRegistrations.map((registration) => registration.event),
+      unorderedEquals([
+        PostgresChangeEvent.insert,
+        PostgresChangeEvent.update,
+      ]),
+    );
+    for (final registration in tripRegistrations) {
+      expect(registration.filter?.type, PostgresChangeFilterType.eq);
+      expect(registration.filter?.column, 'id');
+      expect(registration.filter?.value, _tripId);
+    }
+    expect(
+      channel.registrations.any(
+        (registration) => registration.event == PostgresChangeEvent.all,
+      ),
+      isFalse,
+    );
+    expect(
+      channel.registrations.any(
+        (registration) => registration.event == PostgresChangeEvent.delete,
+      ),
+      isFalse,
+    );
+
+    final statusRegistrations = channel.registrations
+        .where((registration) => registration.table == 'trip_status_events')
+        .toList();
+    expect(statusRegistrations, hasLength(1));
+    expect(statusRegistrations.single.event, PostgresChangeEvent.insert);
+    expect(statusRegistrations.single.filter?.column, 'trip_id');
+    expect(statusRegistrations.single.filter?.value, _tripId);
+
+    await subscription.cancel();
+    await authEvents.close();
+    await client.dispose();
+  });
+}
+
+typedef _RealtimeRegistration = ({
+  PostgresChangeEvent event,
+  String? schema,
+  String? table,
+  PostgresChangeFilter? filter,
+});
+
+final class _RecordingRealtimeChannel extends RealtimeChannel {
+  _RecordingRealtimeChannel(super.topic, super.socket);
+
+  final List<_RealtimeRegistration> registrations = [];
+  final Completer<void> _subscribed = Completer<void>();
+
+  Future<void> get subscribed => _subscribed.future;
+
+  @override
+  RealtimeChannel onPostgresChanges({
+    required PostgresChangeEvent event,
+    String? schema,
+    String? table,
+    PostgresChangeFilter? filter,
+    required void Function(PostgresChangePayload payload) callback,
+  }) {
+    registrations.add((
+      event: event,
+      schema: schema,
+      table: table,
+      filter: filter,
+    ));
+    return this;
+  }
+
+  @override
+  RealtimeChannel subscribe([
+    void Function(RealtimeSubscribeStatus status, Object? error)? callback,
+    Duration? timeout,
+  ]) {
+    callback?.call(RealtimeSubscribeStatus.subscribed, null);
+    if (!_subscribed.isCompleted) _subscribed.complete();
+    return this;
+  }
 }
 
 Future<void> _expectSetupFailure({

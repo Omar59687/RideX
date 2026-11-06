@@ -125,26 +125,36 @@ final class SupabaseTripRealtimeSource implements TripRealtimeSource {
         final createdChannel = _channelFactory(topic);
         channel = createdChannel;
         _beforeHandlerRegistration?.call();
+        void onTripRowChange(PostgresChangePayload payload) {
+          final rowId = payload.newRecord['id'] ?? payload.oldRecord['id'];
+          if (!active || rowId is! String) return;
+          controller.add(
+            TripRealtimeChangeSignal(
+              tripId: rowId,
+              source: TripRealtimeChangeSource.tripRow,
+            ),
+          );
+        }
+
+        final tripRowFilter = PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'id',
+          value: tripId,
+        );
         createdChannel
           ..onPostgresChanges(
-            event: PostgresChangeEvent.all,
+            event: PostgresChangeEvent.insert,
             schema: 'public',
             table: 'trips',
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'id',
-              value: tripId,
-            ),
-            callback: (payload) {
-              final rowId = payload.newRecord['id'] ?? payload.oldRecord['id'];
-              if (!active || rowId is! String) return;
-              controller.add(
-                TripRealtimeChangeSignal(
-                  tripId: rowId,
-                  source: TripRealtimeChangeSource.tripRow,
-                ),
-              );
-            },
+            filter: tripRowFilter,
+            callback: onTripRowChange,
+          )
+          ..onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'trips',
+            filter: tripRowFilter,
+            callback: onTripRowChange,
           )
           ..onPostgresChanges(
             event: PostgresChangeEvent.insert,
@@ -227,7 +237,6 @@ final class SupabaseTripRealtimeSource implements TripRealtimeSource {
         RealtimeSubscribeStatus.channelError =>
           TripRealtimeChannelStatus.channelError,
         RealtimeSubscribeStatus.closed => TripRealtimeChannelStatus.closed,
-        RealtimeSubscribeStatus.timedOut =>
-          TripRealtimeChannelStatus.timedOut,
+        RealtimeSubscribeStatus.timedOut => TripRealtimeChannelStatus.timedOut,
       };
 }
