@@ -595,11 +595,17 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
         quote != null && (lockedQuote || quote.isUsableAt(now)) ? quote : null;
     final staleQuote =
         quote != null && usableQuote == null && _failure == null && !_loading;
+    // P7-C06 Slice 1: in the unconfigured demo flow Card stays selectable as
+    // draft intent, but only Cash may continue into the deterministic mock
+    // trip. The callback below revalidates the live selection as well, so a
+    // retained Cash callback cannot bypass this disabled state.
+    final demoCashOnly = !isDemo || paymentSelection == PaymentMethod.cash;
     final ready = isDemo
         ? draft.isRoutingReady &&
             route.isReadyFor(draft) &&
             vehicle != null &&
-            demoFare > 0
+            demoFare > 0 &&
+            demoCashOnly
         : routeReady &&
             vehicle != null &&
             usableQuote != null &&
@@ -737,11 +743,25 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
             ),
             if (paymentSelection == PaymentMethod.card) ...[
               const SizedBox(height: AppSpacing.md),
-              Text(
-                'Card is your selected payment method. No card payment is '
-                'processed in this flow yet.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              if (isDemo)
+                Semantics(
+                  container: true,
+                  liveRegion: true,
+                  label: 'Cash only in this demo. Card is selected but '
+                      'unavailable. Switch to Cash to continue.',
+                  child: Text(
+                    'Cash is the only payment method available in this demo. '
+                    'Card is selected but cannot continue. Switch to Cash to '
+                    'confirm a demo trip. No card payment is processed.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                )
+              else
+                Text(
+                  'Card is your selected payment method. No card payment is '
+                  'processed in this flow yet.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
             ],
             const SizedBox(height: AppSpacing.md),
             if (isDemo)
@@ -898,9 +918,23 @@ class _FareEstimateScreenState extends ConsumerState<FareEstimateScreen> {
               onPressed: ready
                   ? () async {
                       if (isDemo) {
+                        // Revalidate the live method: a callback captured
+                        // while Cash was selected must not continue after the
+                        // rider has switched to Card.
+                        if (ref.read(riderPaymentSelectionProvider) !=
+                            PaymentMethod.cash) {
+                          return;
+                        }
                         await ref
                             .read(bookingControllerProvider.notifier)
                             .estimateFare();
+                        if (!mounted) return;
+                        // The selection can change while the estimate is in
+                        // flight; recheck before any navigation.
+                        if (ref.read(riderPaymentSelectionProvider) !=
+                            PaymentMethod.cash) {
+                          return;
+                        }
                         if (context.mounted) context.push('/rider/searching');
                         return;
                       }

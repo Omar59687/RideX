@@ -6,10 +6,15 @@ import 'package:ridex/app/router/app_router.dart';
 import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:ridex/app/theme/app_theme.dart';
 import 'package:ridex/features/booking/presentation/screens/booking_confirmation_screen.dart';
+import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/widgets/app_button.dart';
+import 'package:ridex/features/history/presentation/providers/rider_payment_providers.dart';
+import 'package:ridex/features/history/presentation/widgets/rider_payment_record_card.dart';
+import 'package:ridex/features/history/presentation/widgets/rider_payment_status_card.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -210,6 +215,178 @@ class _LoopbackOverrides extends HttpOverrides {}
 
 final _blocked = throwsA(isA<FareException>());
 
+// This vocabulary is deliberately limited to the payment and receipt claims
+// rendered by RideX; it is not a general-purpose language parser.
+final _financialTerm = RegExp(
+  r'\b(?:payment|payments|receipt|receipts|paid|captured|settled|completed|succeeded|successful|successfully|issued|verified)\b',
+  caseSensitive: false,
+);
+final _clauseSeparator = RegExp(r'\b(?:and|but)\b|[,;]', caseSensitive: false);
+final _sentence = RegExp(r'[^.!?]+');
+final _deniedPredicate = RegExp(
+  r'\b(?:no|not|never|without|cannot|can\x27t|isn\x27t|wasn\x27t|hasn\x27t|doesn\x27t)\b'
+  r'(?:\s+\b(?:yet|successfully|successful|currently|actually|already|ever|really|been|being|required|to|be)\b){0,4}\s*$',
+  caseSensitive: false,
+);
+final _deniedSubject = RegExp(
+  r'\b(?:no|not|never|without)\s+(?:(?:your|the|a)\s+)?$',
+  caseSensitive: false,
+);
+final _followingPaymentStatus = RegExp(
+  r'\b(?:paid|captured|settled|completed|succeeded)\b',
+  caseSensitive: false,
+);
+final _predicateBoundary = RegExp(
+  r',|\b(?:and|but|payment|payments|receipt|receipts)\b',
+  caseSensitive: false,
+);
+
+bool _isSuccessfulModifier(
+  String content,
+  RegExpMatch term,
+  String subject,
+) {
+  if (subject != 'payment' ||
+      !const {'successful', 'successfully'}
+          .contains(term.group(0)!.toLowerCase())) {
+    return false;
+  }
+  final remainder = content.substring(term.end);
+  final boundary = _predicateBoundary.firstMatch(remainder);
+  final followingPredicate =
+      remainder.substring(0, boundary?.start ?? remainder.length);
+  return _followingPaymentStatus.hasMatch(followingPredicate);
+}
+
+Set<String> _financialSuccessClaims(String text) {
+  final normalized = text.replaceAll(RegExp(r'\s+'), ' ');
+  final claims = <String>{};
+  if (RegExp(r'^paid[.!]?$', caseSensitive: false)
+      .hasMatch(normalized.trim())) {
+    claims.add('Paid');
+  }
+  for (final sentence in _sentence.allMatches(normalized)) {
+    var activeSubject = '';
+    for (final clause in sentence.group(0)!.split(_clauseSeparator)) {
+      var subject = activeSubject;
+      var subjectPrefix = '';
+      var explicitSubject = false;
+      var statusPrefixEnd = 0;
+      var firstStatus = true;
+
+      for (final term in _financialTerm.allMatches(clause)) {
+        final word = term.group(0)!.toLowerCase();
+        if (word == 'payment' || word == 'payments') {
+          subject = activeSubject = 'payment';
+          subjectPrefix = clause.substring(0, term.start);
+          explicitSubject = true;
+          statusPrefixEnd = term.end;
+          firstStatus = true;
+          continue;
+        }
+        if (word == 'receipt' || word == 'receipts') {
+          subject = activeSubject = 'receipt';
+          subjectPrefix = clause.substring(0, term.start);
+          explicitSubject = true;
+          statusPrefixEnd = term.end;
+          firstStatus = true;
+          continue;
+        }
+        if (subject.isEmpty || _isSuccessfulModifier(clause, term, subject)) {
+          continue;
+        }
+
+        final relevant = subject == 'payment'
+            ? const {
+                'paid',
+                'captured',
+                'settled',
+                'completed',
+                'succeeded',
+                'successful'
+              }
+            : const {'issued', 'verified'};
+        if (!relevant.contains(word)) continue;
+
+        final predicatePrefix = clause.substring(statusPrefixEnd, term.start);
+        final negated = _deniedPredicate.hasMatch(predicatePrefix) ||
+            (firstStatus &&
+                explicitSubject &&
+                _deniedSubject.hasMatch(subjectPrefix));
+        if (!negated) {
+          claims.add('$subject ${clause.substring(term.start, term.end)}');
+        }
+        statusPrefixEnd = term.end;
+        firstStatus = false;
+      }
+    }
+  }
+  return claims;
+}
+
+Set<String> _renderedFinancialSuccessClaims(WidgetTester tester) {
+  final content = <String>{};
+  for (final text in tester.widgetList<Text>(
+    find.byType(Text, skipOffstage: false),
+  )) {
+    content.add(text.data ?? text.textSpan?.toPlainText() ?? '');
+  }
+  for (final richText in tester.widgetList<RichText>(
+    find.byType(RichText, skipOffstage: false),
+  )) {
+    content.add(richText.text.toPlainText());
+  }
+  void inspectSemantics(SemanticsNode node) {
+    content.addAll([node.label, node.value, node.hint]);
+    node.visitChildren((child) {
+      inspectSemantics(child);
+      return true;
+    });
+  }
+
+  final root = tester.getSemantics(find.byType(MaterialApp));
+  inspectSemantics(root);
+  return {for (final text in content) ..._financialSuccessClaims(text)};
+}
+
+const _coordinatedSuccessClaims = {
+  'Payment was not required but was captured': 'captured',
+  'Payment was captured': 'captured',
+  'Payment was successfully captured': 'captured',
+  'Payment captured': 'captured',
+  'Payment settled successfully': 'settled',
+  'Your payment was successfully captured': 'captured',
+  'Receipt was successfully issued': 'issued',
+  'Payment was not captured but later settled successfully': 'settled',
+  'Payment was captured but later not settled': 'captured',
+  'Payment was not settled but later captured': 'captured',
+  'Receipt has not been verified but was issued': 'issued',
+  'Receipt was issued but not verified': 'issued',
+  'Receipt was not issued but later verified': 'verified',
+  'Payment was captured and later settled': 'settled',
+  'Receipt was verified and issued': 'issued',
+  'Receipt issued': 'issued',
+  'Your receipt has been verified': 'verified',
+  'Payment completed successfully': 'completed',
+  'Payment was captured and the receipt was issued': 'issued',
+  'Payment was not captured; later settled successfully': 'settled',
+  'Payment was not captured. Payment was settled successfully': 'settled',
+};
+const _safeFinancialExplanations = [
+  'Payment was not required and was not captured',
+  'Payment was not captured',
+  'Payment was not successfully captured',
+  'Payment has not been successfully settled',
+  'Receipt has not been successfully issued',
+  'Payment was not captured and not settled',
+  'Receipt was not verified and not issued',
+  'No receipt was issued',
+  'Payment status unverified',
+  'Receipt has not been verified',
+  'Booking confirmed',
+  'Live driver matching is not available yet',
+];
+
 _Harness _readyHarness({
   String paymentMethod = 'cash',
   bool alreadyConfirmed = false,
@@ -226,6 +403,91 @@ _Harness _readyHarness({
 }
 
 void main() {
+  test('financial claim checker distinguishes success from denial', () {
+    for (final claim in const [
+      'Your payment was successfully captured',
+      'Payment is paid',
+    ]) {
+      expect(_financialSuccessClaims(claim), isNotEmpty, reason: claim);
+    }
+    for (final entry in _coordinatedSuccessClaims.entries) {
+      expect(
+          _financialSuccessClaims(entry.key)
+              .any((claim) => claim.toLowerCase().endsWith(entry.value)),
+          isTrue,
+          reason: entry.key);
+    }
+    for (final explanation in _safeFinancialExplanations) {
+      expect(_financialSuccessClaims(explanation), isEmpty,
+          reason: explanation);
+    }
+    expect(
+        _financialSuccessClaims(
+            'Payment was not captured. Your payment was successfully captured.'),
+        isNotEmpty);
+    expect(
+        _financialSuccessClaims(
+            'No receipt was issued Your receipt has been verified'),
+        isNotEmpty);
+  });
+
+  testWidgets('financial claim checker reads RichText and semantics once',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Column(children: [
+          Text.rich(TextSpan(children: [
+            TextSpan(text: 'Your payment was\n'),
+            TextSpan(text: 'successfully captured'),
+          ])),
+          Semantics(
+            label: 'Your receipt has been verified',
+            child: SizedBox(width: 20, height: 20),
+          ),
+        ]),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Your receipt has been verified'),
+        findsOneWidget);
+    expect(_renderedFinancialSuccessClaims(tester), {
+      'payment captured',
+      'receipt verified',
+    });
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Semantics(
+          label: 'No receipt was issued',
+          child: Text('Payment was not captured'),
+        ),
+      ),
+    ));
+    expect(_renderedFinancialSuccessClaims(tester), isEmpty);
+    handle.dispose();
+  });
+
+  testWidgets('coordinated statuses are checked in rendered widget content',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    for (final entry in _coordinatedSuccessClaims.entries) {
+      await tester
+          .pumpWidget(MaterialApp(home: Scaffold(body: Text(entry.key))));
+      expect(
+          _renderedFinancialSuccessClaims(tester)
+              .any((claim) => claim.toLowerCase().endsWith(entry.value)),
+          isTrue,
+          reason: entry.key);
+    }
+    for (final explanation in _safeFinancialExplanations) {
+      await tester
+          .pumpWidget(MaterialApp(home: Scaffold(body: Text(explanation))));
+      expect(_renderedFinancialSuccessClaims(tester), isEmpty,
+          reason: explanation);
+    }
+    handle.dispose();
+  });
+
   testWidgets(
       'production gate and GoRouter hand off fresh lock, redirect and restore confirmation',
       (tester) async {
@@ -563,6 +825,82 @@ void main() {
     expect(find.text('Booking confirmed'), findsOneWidget);
     expect(find.text('Locked fare: JOD 2.00'), findsOneWidget);
     expect(h.store.deletes, 0);
+  });
+
+  testWidgets(
+      'canonical Cash confirmation stays a booking outcome, not payment or '
+      'receipt success', (tester) async {
+    final semantics = tester.ensureSemantics();
+    final h = _readyHarness();
+    addTearDown(h.container.dispose);
+    await h.authenticate();
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: h.container,
+        child: MaterialApp(
+            theme: AppTheme.light(), home: const BookingConfirmationScreen())));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm original booking'), findsOneWidget);
+    expect(find.text('Locked fare: JOD 2.00'), findsOneWidget);
+
+    await tester.tap(find.text('Confirm original booking'));
+    await tester.pumpAndSettle();
+
+    // The canonical Cash booking was confirmed exactly once.
+    expect(h.confirmations, 1);
+    expect(h.confirmed, isTrue);
+
+    // The screen presents the booking outcome and its locked fare lineage.
+    expect(find.text('Booking confirmed'), findsOneWidget);
+    expect(find.text('Locked fare: JOD 2.00'), findsOneWidget);
+    expect(find.text('Confirm original booking'), findsNothing);
+    // R08 boundary: confirmation establishes no matched ride or paid fare.
+    expect(
+        find.text('Your booking is confirmed. Live driver matching is not '
+            'available yet.'),
+        findsOneWidget);
+    expect(_renderedFinancialSuccessClaims(tester), isEmpty);
+
+    // A booking confirmation must never mount the canonical payment/receipt
+    // presentation or infer financial success from booking status alone.
+    expect(
+        find.byType(RiderPaymentStatusCard, skipOffstage: false), findsNothing);
+    expect(
+        find.byType(RiderPaymentRecordCard, skipOffstage: false), findsNothing);
+    expect(h.container.exists(riderPaymentReadControllerProvider), isFalse,
+        reason: 'booking confirmation must not request a canonical payment');
+    // Exact product markers only: broad substrings would flag legitimate
+    // explanatory copy such as "unpaid" or "no receipt was issued".
+    for (final claim in const [
+      'Paid',
+      'Payment paid',
+      'Payment captured',
+      'Payment settled',
+      'Payment succeeded',
+      'Payment completed',
+      'Receipt issued',
+      'Receipt verified',
+      'Receipt ID',
+      'Receipt number',
+    ]) {
+      expect(find.text(claim, skipOffstage: false), findsNothing,
+          reason: 'booking confirmation must not claim "$claim"');
+    }
+
+    // The confirmed outcome remains the canonical booking plus its locked
+    // quote. No local Payment or Receipt object is attached by confirmation.
+    final confirmed = await h.pending.bookingHandoff();
+    expect(confirmed.isConfirmed, isTrue);
+    expect(confirmed.booking.status, 'confirmed');
+    expect(confirmed.booking.paymentMethod, PaymentMethod.cash);
+    expect(confirmed.quote.status, FareQuoteStatus.locked);
+    expect(confirmed.quote.fixedFareFils, 2000);
+    expect(h.confirmations, 1,
+        reason: 'reading confirmed evidence must not replay confirmation');
+    expect(h.store.deletes, 0);
+
+    await tester.pumpWidget(const SizedBox());
+    semantics.dispose();
   });
 
   testWidgets(

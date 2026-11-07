@@ -62,10 +62,11 @@ When the dependent functionality is encountered: STOP only that portion, report 
 - Done when: Widget tests for duplicates, out-of-order events, logout and background/resume.
 - Status: PLANNED (not implemented).
 
-### [ ] P7-C06 — Cash-only guard and integration handoff
+### [x] P7-C06 — Cash-only guard and integration handoff
 - Work: Keep Card/Stripe entry unavailable; show no paid/receipt success without canonical read. Integrate with A/D only after contracts are verified.
-- Done when: Independent UI tests, exact P6-R08 handoff gate and later two-device acceptance checklist.
-- Status: PLANNED (not implemented).
+- Done when: Independent local UI/regression tests, documented Phase 6 dependency disposition, and a future two-device acceptance checklist.
+- Status: LOCAL IMPLEMENTATION COMPLETE and independently reviewed. Slice 1 (`bcc3eb2`) preserves the Demo Cash-only continuation guard; Slice 2 (`59d8404`) tests canonical Cash booking confirmation as a booking result, not payment/receipt success; Slice 3 (`7809956`) records the integration handoff. Card/Stripe remains disabled. Reported C06 local evidence: 2,246 PASS, 2 SKIP, 0 FAIL in the full suite; six analyzer diagnostics are pre-existing and unrelated. See `docs/ai/verification/P7_C06_CASH_GUARD_HANDOFF.md`.
+- Live/two-device acceptance: PENDING / NOT RUN. No owner acceptance is claimed. P6-R06/R07/R08 and Phase 7 matching/Rider/Driver integration dispositions remain separate gates; Phase 6 is NOT APPROVED. Keep the overall Phase 7 completion status open until those gates receive their own evidence and owner disposition.
 
 ## Delivery checklist
 - [ ] No other owner's files changed without agreement.
