@@ -6,7 +6,7 @@
 **Suggested branch:** `feature/p7-c-rider-tracking`
 **Expected development:** Independent local work first; actual integration later.
 
-> Status: READY FOR INDEPENDENT LOCAL START (checkpoints remain unchecked until verified). Proposed P7 checkpoint IDs, not previously approved task IDs. No source implementation, deployment or acceptance is claimed.
+> Status: P7-C05 is locally complete and independently accepted, pending owner-approved PR/merge. Other checkpoints remain unchecked; Phase 7 integration, deployment and overall acceptance are not claimed.
 > Scope: Phase 7 Cash-only matching and realtime. Stripe/Card remains disabled. Use existing code/contracts before creating anything new.
 > Working rule: start from main; no dependency on another developer's unmerged branch. Use local fakes, separate code ownership, and independently passing tests. No PR, merge, migration deployment, financial operation or hosted mutation without owner authorization.
 > Before each checkpoint: inspect current main, record exact paths, canonical API/RPC names and tests. If missing a Phase 6 dependency, give the owner the exact P6-Rxx task, missing evidence and stop/resume condition; continue unrelated work.
@@ -57,10 +57,32 @@ When the dependent functionality is encountered: STOP only that portion, report 
 - Done when: Widget/map-state tests using fake coordinate sequences and permission/offline cases.
 - Status: PLANNED (not implemented).
 
-### [ ] P7-C05 — Trip state and reconnect lifecycle
-- Work: Track accepted, approaching, arrived, active and terminal statuses as supported by canonical backend; restore from fresh read on reconnect.
-- Done when: Widget tests for duplicates, out-of-order events, logout and background/resume.
-- Status: PLANNED (not implemented).
+### [x] P7-C05 — Trip state and reconnect lifecycle
+- Work: Implement an isolated canonical Rider Trip lifecycle state/controller and status UI; use canonical reads as the only Trip status authority and reconcile after resume or confirmed reconnect.
+- Done when: Deterministic controller and provider-backed widget tests cover canonical status authority, duplicate/out-of-order events, logout, background/resume, reconnect generation ordering, stale privacy and terminal outcomes.
+- Status: LOCALLY COMPLETE — ACCEPTED, PENDING OWNER PR/MERGE.
+- Completed local scope:
+  - Canonical Rider Trip lifecycle state/controller with authenticated Rider ownership, session protection, A→B→A isolation, Trip/repository replacement handling, stale callback fencing, and terminal protection.
+  - Advisory duplicate and out-of-order event handling; canonical reads remain the only status authority.
+  - Stale-state privacy, Flutter app-resume reconciliation, and confirmed reconnect generation handling.
+  - Isolated canonical Rider Trip status UI with accessible presentation and an explicit payment/receipt disclaimer.
+  - Provider-backed widget tests for duplicates, out-of-order events, logout, and background/resume.
+- Commits:
+  - `3b4327a` — Canonical lifecycle controller.
+  - `4af3c8e` — App lifecycle and reconnect orchestration.
+  - `886a717` — Canonical Rider Trip status UI.
+  - `3130f73` — Final widget acceptance coverage.
+- Reported local verification (not independently rerun during this documentation update):
+  - Full Flutter suite: 2,030 passed, 2 skipped, 0 failed.
+  - Focused lifecycle widget tests: 6 passed.
+  - Controller/status UI/architecture regression: 47 passed.
+  - Flutter analyzer: six existing unrelated diagnostics; no new C05 findings.
+- Deferred integration and boundaries:
+  - Live Rider Supabase repository integration and production Rider Trip route mounting remain deferred to their owning integration work.
+  - C04 live-map integration is not included and is not a dependency on unmerged PR #124.
+  - Payment, settlement, Stripe, and receipt issuance are outside C05; Trip completion does not establish any of these outcomes.
+  - Existing Phase 6 gates remain: P6-R08 gates live Cash booking confirmation, P6-R06/R08 block Card activation, and P6-R05 is limited to bounded canonical Cash detail.
+  - No hosted operation, financial action, or other owner's code change is included. Owner approval is still required before PR/merge; this does not mark Phase 7 fully complete.
 
 ### [x] P7-C06 — Cash-only guard and integration handoff
 - Work: Keep Card/Stripe entry unavailable; show no paid/receipt success without canonical read. Integrate with A/D only after contracts are verified.
