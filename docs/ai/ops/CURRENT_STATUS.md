@@ -1,5 +1,17 @@
 # RideX Current Status
 
+## Bounded app QA - 2026-11-09
+
+QA from fetched main `1aa60fa` fixed home-to-booking Back navigation and stale
+intermediate-stop search feedback (`13850de`). Final serial suite: 2427 passed,
+0 failed, 2 live skips; scoped analysis clean; full analysis retains eight infos.
+Galaxy A71 Debug smoke and native Profile search/Back/background/resume/relaunch
+passed. Profile integration text injection timed out; real Maps/hosted Rider-Driver
+and financial acceptance remain unverified. Astra High found no blocking changes.
+See [full matrix, defects and limitations](../verification/FULL_APP_QA_2026-11-09.md).
+No activation, hosted mutation, payment, receipt or merge was performed.
+
+
 ## R06 hosted migration verification - 2026-10-26
 
 Against `origin/main` `29e5946`, read-only catalog inspection confirmed the hosted
