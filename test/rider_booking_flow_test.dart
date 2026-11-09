@@ -1,8 +1,37 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'helpers/test_app.dart';
+import 'package:ridex/features/rider_home/presentation/screens/rider_home_screen.dart';
 
 void main() {
+  for (final entry in ['Where to?', 'View all', 'Abdali Mall']) {
+    testWidgets('system Back from $entry booking entry returns to Rider home',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(430, 932));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(buildTestApp());
+      await tester.pump(const Duration(milliseconds: 950));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Skip'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Continue as Demo Rider'));
+      await tester.tap(find.text('Continue as Demo Rider'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text(entry));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(entry));
+      await tester.pumpAndSettle();
+      expect(
+          find.text(
+              entry == 'Abdali Mall' ? 'Choose pickup' : 'Choose destination'),
+          findsOneWidget);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.byType(RiderHomeScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('rider can move through mock booking flow', (tester) async {
     await tester.pumpWidget(buildTestApp());
     await tester.pump(const Duration(milliseconds: 950));

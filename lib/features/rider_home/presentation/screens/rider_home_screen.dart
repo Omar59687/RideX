@@ -46,7 +46,7 @@ class RiderHomeScreen extends ConsumerWidget {
             onNotifications: () => context.push('/notifications'),
             onPlanRide: () {
               _startNewBooking(ref);
-              context.go('/rider/destination');
+              context.push('/rider/destination');
             },
           ),
           Padding(
@@ -66,11 +66,11 @@ class RiderHomeScreen extends ConsumerWidget {
                     ref
                         .read(bookingControllerProvider.notifier)
                         .setDestination(location);
-                    context.go('/rider/pickup');
+                    context.push('/rider/pickup');
                   },
                   onViewAll: () {
                     _startNewBooking(ref);
-                    context.go('/rider/destination');
+                    context.push('/rider/destination');
                   },
                 ),
                 const SizedBox(height: AppSpacing.xl),

@@ -64,6 +64,21 @@ void main() {
     FocusManager.instance.primaryFocus?.unfocus();
     await _settle(tester);
     expect(noResults, findsNothing);
+    // Recover from an empty stop query, then add/remove a real Mock result.
+    final stop = find.byKey(const ValueKey('stop-search-field'));
+    await _show(tester, stop);
+    await tester.enterText(stop, 'zzzznomatch987');
+    await _waitFor(tester, find.text('No matching places found.'));
+    await tester.enterText(stop, 'Queen Alia');
+    await _waitFor(tester, find.byKey(const ValueKey('stop-prediction-0')));
+    expect(find.text('No matching places found.'), findsNothing);
+    await _tap(tester, find.byKey(const ValueKey('stop-prediction-0')));
+    FocusManager.instance.primaryFocus?.unfocus();
+    await _settle(tester);
+    await _show(tester, find.byKey(const ValueKey('stop-card-0')));
+    await _capture(binding, tester, '03b-intermediate-stop');
+    await _tap(tester, find.byKey(const ValueKey('stops-clear')));
+    expect(find.byKey(const ValueKey('stop-card-0')), findsNothing);
     await _show(tester, _button('Choose pickup'));
     expect(_readButton(tester, 'Choose pickup').onPressed, isNotNull);
     await _tap(tester, _button('Choose pickup'));
@@ -172,10 +187,20 @@ Future<void> _waitFor(WidgetTester tester, Finder finder) async {
 }
 
 Future<void> _show(WidgetTester tester, Finder finder) async {
+  // Text fields own horizontal Scrollables; select the page's vertical one.
+  // Start at its beginning so lazy children above the viewport can be found.
+  final page = find
+      .byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      )
+      .first;
+  tester.state<ScrollableState>(page).position.jumpTo(0);
+  await tester.pump();
   await tester.scrollUntilVisible(
     finder,
     240,
-    scrollable: find.byType(Scrollable).first,
+    scrollable: page,
     maxScrolls: 20,
   );
   await _settle(tester);
