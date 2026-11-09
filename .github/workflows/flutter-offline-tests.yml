@@ -1,0 +1,62 @@
+name: Flutter offline tests
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Read-only source access. No hosted environment or repository secrets.
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-offline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-tests:
+    name: Flutter tests (offline, serial)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.2'
+          channel: stable
+          cache: true
+
+      - name: Display toolchain
+        run: flutter --version
+
+      # Resolve on an ephemeral runner; the current committed lockfile can
+      # be refreshed by this newer SDK. This workflow does not commit it.
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      # Mock/default-off test suite: no --dart-define, device or Supabase secrets.
+      - name: Run full Flutter test suite
+        run: flutter test --no-pub --concurrency=1
+
+      # Informational: the current main baseline has analyzer infos.
+      # Do not treat this non-gating step as a passing full analysis.
+      - name: Full analyzer (non-gating baseline)
+        id: analyzer
+        if: success()
+        continue-on-error: true
+        run: flutter analyze --no-pub
+
+      - name: Report analyzer outcome
+        if: always()
+        env:
+          ANALYZER_OUTCOME: ${{ steps.analyzer.outcome }}
+        run: |
+          echo "## RideX Flutter CI" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Mock/offline Flutter tests are the required job gate." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Full analyzer step outcome: ${ANALYZER_OUTCOME:-not-run} (non-gating)." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Full analysis was not green on the prior main baseline; see its step log for actual findings." >> "$GITHUB_STEP_SUMMARY"
+          echo "- No physical-device, hosted Supabase, Realtime or financial acceptance is established." >> "$GITHUB_STEP_SUMMARY"
