@@ -58,6 +58,13 @@ class _StopsSectionState extends ConsumerState<StopsSection> {
     final query = value.trim();
     _debounce?.cancel();
     final generation = ++_generation;
+    // Feedback describes the previous query or add attempt, not this edit.
+    setState(() {
+      _feedback = null;
+      _feedbackIsError = false;
+      _predictions = const [];
+      _searching = false;
+    });
     if (query.length < 3) {
       if (_trackedQuery.length >= 3) {
         _sessionToken = newPlacesSessionToken();

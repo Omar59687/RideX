@@ -27,7 +27,7 @@ foreach ($run in 1..2) {
 }
 ```
 
-The host driver writes five screenshots and `result.json` outside the checkout.
+The host driver writes six screenshots and `result.json` outside the checkout.
 If the output environment variable is absent, it creates a unique system-temp
 directory and prints the path. Capture runner stdout/stderr externally if logs
 are needed. Do not supply backend, Maps or credential dart-defines: the test
@@ -38,6 +38,7 @@ rejects configured environments before calling application bootstrap.
 - All onboarding slides and Continue; Demo Rider entry and Home.
 - Destination no-results feedback followed by successful search recovery.
 - Destination and pickup chosen through existing search/prediction controls.
+- Intermediate-stop empty-search recovery, add and clear through real UI controls.
 - Incomplete selection disables continuation; a valid current route enables it.
 - Economy and Standard selection; Cash -> Card -> Cash with selected semantics.
 - Booking review retains Standard/Cash and the deterministic Demo fare.
@@ -61,3 +62,13 @@ Manual device inspection remains useful for actual system-bar visual contrast
 and smoothness. No hosted Supabase, real authentication, Maps/GPS, completed
 booking, matching, card processing or paid receipt is exercised or simulated.
 The P6-09 compatibility harness is unchanged.
+
+## November 9 QA validation
+
+The expanded Debug smoke also passed on Flutter 3.41.2 / Dart 3.11.0 with a
+physical Galaxy A71 (Android 13). That SDK resolves five SDK-pinned packages
+differently from the committed lockfile; the QA branch does not commit this
+local resolution churn. See `docs/ai/verification/FULL_APP_QA_2026-11-09.md` for
+the failed Profile integration attempt and separate native Profile checks.
+The scroll helper selects the vertical page and restarts at its beginning so
+returning to lazy search fields above the viewport is deterministic.

@@ -119,6 +119,23 @@ void main() {
         .toList(growable: false);
   }
 
+  testWidgets('stop search clears obsolete empty feedback when query changes',
+      (tester) async {
+    final container = createContainer();
+    await pumpStopsSection(tester, container);
+    await searchForStop(tester, 'zzzznomatch987');
+    expect(find.text('No matching places found.'), findsOneWidget);
+    await searchForStop(tester, 'Abdali');
+    expect(find.byKey(const ValueKey('stop-prediction-0')), findsOneWidget);
+    expect(find.text('No matching places found.'), findsNothing);
+    await searchForStop(tester, 'zzzznomatch987');
+    expect(find.text('No matching places found.'), findsOneWidget);
+    await searchForStop(tester, '');
+    expect(find.text('No matching places found.'), findsNothing);
+    expect(find.byKey(const ValueKey('stop-prediction-0')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('adds stops through search predictions in order', (
     tester,
   ) async {
