@@ -3,24 +3,23 @@
 **Owner:** Moath (معاذ)
 **Assigned Division:** Driver UI and Trip Lifecycle
 **Workstream:** P7-B — Driver UI and Trip Lifecycle Presentation
-**Suggested branch:** `feature/p7-b-driver-flow`
-**Expected development:** Independent local work first; actual integration later.
+**Implementation branch (merged):** `feature/p7-b04-driver-offer-actions`
+**Delivery state:** Isolated Driver UI B01–B06 merged; canonical production integration and device/hosted acceptance remain deferred.
 
-> Status: READY FOR INDEPENDENT LOCAL START (checkpoints remain unchecked until verified). Proposed P7 checkpoint IDs, not previously approved task IDs. No source implementation, deployment or acceptance is claimed.
+> Status (2026-11-08): **COMPLETE for bounded local/fake Driver UI scope**. B01–B03 merged in [PR #121](https://github.com/Omar59687/RideX/pull/121); B04–B06 merged in [PR #125](https://github.com/Omar59687/RideX/pull/125). This does **not** establish canonical matching, hosted/device acceptance, real Trip completion or payment readiness.
 > Scope: Phase 7 Cash-only matching and realtime. Stripe/Card remains disabled. Use existing code/contracts before creating anything new.
-> Working rule: start from main; no dependency on another developer's unmerged branch. Use local fakes, separate code ownership, and independently passing tests. No PR, merge, migration deployment, financial operation or hosted mutation without owner authorization.
+> Continuing-work rule: start from current main; avoid dependencies on unmerged changes; preserve separate fake and canonical authority. Hosted migrations, real financial operations and production activation require their own verified safety/acceptance gates.
 > Before each checkpoint: inspect current main, record exact paths, canonical API/RPC names and tests. If missing a Phase 6 dependency, give the owner the exact P6-Rxx task, missing evidence and stop/resume condition; continue unrelated work.
 > Phase 6 authoritative task references: docs/parallel-development/phase-6/SPRINT_TRACKER.md and P6_POST_MERGE_ROADMAP.md. Those sources contain dated history; re-verify current implementation/hosted evidence.
 
-## Start here — READY_LOCAL (2026-11-03)
+## Delivery status — merged (2026-11-08)
 
-**First issue:** [#106](https://github.com/Omar59687/RideX/issues/106)
+- **B01–B03:** [PR #121](https://github.com/Omar59687/RideX/pull/121), merge commit `6a9485b352710f185296753d62437d26d08f06d1`. Driver Flow fake contracts, safe availability preview, Cash offer presentation and bounded Driver Home entry points.
+- **B04–B06:** [PR #125](https://github.com/Omar59687/RideX/pull/125), merge commit `14e53ed28bc4758854d7053304bdf5c4b4439f0b`. Safe simulated offer decisions, accepted-Trip nonfinancial preview, and unconditional Cash completion stop gate. All six checkpoint issues #106–#111 were closed for their **local/fake scopes only**.
+- **Verification:** PR #121 records 229 focused B01–B03 tests, 280 integration-sensitive tests and 1,982 full-suite passes / two intentional live skips. PR #125 records independent 227 focused passes and retained 2,234 full-suite passes / two intentional live skips. Counts overlap. Full analyze still reports two inherited infos; global format has 15 inherited findings; the older prescribed SDK and physical/hosted acceptance were not verified.
+- **Next integration:** [P7-D06 / #100](https://github.com/Omar59687/RideX/issues/100) stays open. [P7-D / PR #127](https://github.com/Omar59687/RideX/pull/127) is review-only pending live Realtime delivery, publication security and regression/hosted acceptance. No canonical Driver adapter, real GPS delivery, financial action or production activation is claimed.
 
-Begin P7-B01: review Driver flows and build isolated fake offers/trips. Then implement B02–B04 independently, with widget tests; do not turn UI accept into assignment authority.
-
-**Dependency gates:** P6-R01/R02/R03/R07 hard-block real Cash completion, settlement and receipts. P6-R08 gates live Cash handoff; P6-R06 Card disabled.
-
-**Execution:** Create your own feature branch from the latest main when ready; never depend on another owner's unmerged branch. Work with fake adapters/contracts for integration-facing features. Review changes, prove tests, and request owner approval before opening a PR or doing any hosted mutation. READY_LOCAL does not mean deployed, integrated, tested or accepted.
+**Dependencies:** P6-R01/R02/R03/R07 continue to block actual Cash completion, settlement and receipt issuance. P6-R06 keeps Card/Stripe disabled. P6-R08 is scoped to secure Stripe UI, not an authorization for live Cash matching or financial completion.
 
 ### GitHub checkpoint issues
 - [P7-B01](https://github.com/Omar59687/RideX/issues/106)
@@ -31,46 +30,46 @@ Begin P7-B01: review Driver flows and build isolated fake offers/trips. Then imp
 - [P7-B06](https://github.com/Omar59687/RideX/issues/111)
 
 ## Phase 6 dependency guidance
-P6-R01 + P6-R02 + P6-R03 + P6-R07 are HARD BLOCKS for enabling actual Cash completion/settlement/receipt. P6-R08 is the Cash-only matching handoff integration gate. P6-R06 Card remains disabled.
+P6-R01 + P6-R02 + P6-R03 + P6-R07 are HARD BLOCKS for enabling actual Cash completion/settlement/receipt. P6-R08 concerns secure Stripe UI and is **not** an authorization to activate Cash matching/completion. P6-R06 keeps Card/Stripe disabled.
 
 When the dependent functionality is encountered: STOP only that portion, report the exact ID and current missing evidence, go to the existing Phase 6 task, and resume after reviewed evidence. Do not block unrelated local checkpoints.
 
 ## Checkpoints
 
-### [ ] P7-B01 — Driver UI audit and isolated state contract
+### [x] P7-B01 — Driver UI audit and isolated state contract
 - Work: Review Driver screens, navigation, Riverpod providers and Phase 6 canonical/mock panel separation. Agree on interface with fake offers/trips.
 - Done when: File ownership map and fake repository supporting every screen state; no backend dependency.
-- Status: PLANNED (not implemented).
+- Status: MERGED in PR #121 for the isolated local/fake UI scope; canonical integration deferred.
 
-### [ ] P7-B02 — Availability screen and controller
+### [x] P7-B02 — Availability screen and controller
 - Work: Create accessible Online/Offline controls with loading, offline/error, unauthorized and stale-state handling; do not override backend decisions.
 - Done when: Widget/controller tests with local fake availability; backend wiring deferred.
-- Status: PLANNED (not implemented).
+- Status: MERGED in PR #121 for the isolated local/fake UI scope; canonical integration deferred.
 
-### [ ] P7-B03 — Incoming requests UX
+### [x] P7-B03 — Incoming requests UX
 - Work: Show canonical route, pickup, destination, locked fare, countdown/expiry and vehicle details; avoid displaying unsupported private Rider data.
 - Done when: Widget tests for new offer, expiry, no offer, repeated offer and background/resume.
-- Status: PLANNED (not implemented).
+- Status: MERGED in PR #121 for the isolated local/fake UI scope; canonical integration deferred.
 
-### [ ] P7-B04 — Accept/reject UI safely
+### [x] P7-B04 — Accept/reject UI safely
 - Work: Implement single-flight buttons, optimistic UI prohibited as assignment proof, disabled stale actions and original idempotency token handoff.
 - Done when: Fake tests for rapid double clicks, late response, rejected claim and lost response.
-- Status: PLANNED (not implemented).
+- Status: MERGED in PR #125 for the isolated local/fake UI scope; financial and hosted/device acceptance deferred.
 
-### [ ] P7-B05 — Accepted Driver Trip presentation
+### [x] P7-B05 — Accepted Driver Trip presentation
 - Work: Present accepted Trip, navigation/map handoff, pickup/arrival/start status where canonical transitions permit, and logout/reconnect recovery.
 - Done when: Widget tests for status/role changes, read-only recovery and safe screen exit.
-- Status: PLANNED (not implemented).
+- Status: MERGED in PR #125 for the isolated local/fake UI scope; financial and hosted/device acceptance deferred.
 
-### [ ] P7-B06 — Cash completion stop gate and handoff
+### [x] P7-B06 — Cash completion stop gate and handoff
 - Work: Keep mock and financial authorities separate; label completion/receipt action disabled until P6-R01/R02/R03/R07 gate verified, and publish interface tests for backend/realtime integration.
 - Done when: No fake payment success; independent green UI tests and explicit blocker list.
-- Status: PLANNED (not implemented).
+- Status: MERGED in PR #125 for the isolated local/fake UI scope; financial and hosted/device acceptance deferred.
 
 ## Delivery checklist
-- [ ] No other owner's files changed without agreement.
-- [ ] Existing repositories/RPCs reused wherever safe; no unnecessary duplicate abstractions.
-- [ ] Relevant local tests and analyzer/SQL checks passing with actual recorded evidence.
-- [ ] No hosted activation, Stripe dispatch or financial state changes without separate authorization.
-- [ ] Integration dependencies and P6-Rxx status recorded exactly, not assumed complete.
+- [x] PR #121/#125 document isolated Driver-owned changes; no unapproved cross-owner files.
+- [x] Existing contracts reused where safe; simulation and canonical authority remain isolated.
+- [x] Recorded scoped and local test evidence above, including explicitly non-green full analysis and global formatting; no hosted SQL or device validation claimed.
+- [x] No hosted activation, Stripe dispatch or financial state changes in the bounded PRs.
+- [x] Open integration and Phase 6 gates explicitly recorded; not assumed accepted.
 - [ ] Owner acceptance recorded separately after integration and physical-device checks.
