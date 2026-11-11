@@ -91,6 +91,7 @@ insert into expected_backend_rpcs(signature) values
   ('public.backend_create_payment(uuid)'),
   ('public.backend_create_pricing_configuration(vehicle_type_code,integer,integer,integer,integer,integer,integer,boolean)'),
   ('public.backend_expire_booking_match_offers(uuid,integer)'),
+  ('public.backend_expire_due_booking_matches(integer)'),
   ('public.backend_find_nearby_driver_candidates(uuid,integer,integer,integer)'),
   ('public.backend_issue_receipt(uuid)'),
   ('public.backend_lock_fare_quote(uuid,integer,integer)'),
