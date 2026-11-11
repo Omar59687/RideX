@@ -10,6 +10,7 @@ import 'package:ridex/core/models/rider_booking_cancellation.dart';
 import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/rider_cancellation_providers.dart';
 import 'package:ridex/core/providers/rider_booking_integration_providers.dart';
+import 'package:ridex/core/providers/rider_trip_tracking_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/models/rider_matching_request.dart';
 import 'package:ridex/core/models/rider_assigned_trip.dart';
