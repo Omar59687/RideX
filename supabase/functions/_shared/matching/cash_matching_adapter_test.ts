@@ -75,11 +75,16 @@ class Fake implements CashMatchingPort {
   calls = 0;
   offerVersions: number[] = [];
   discoveries = 0;
+  expirations = 0;
+  expireFailure?: Error;
   candidatesValue: unknown = [{ driver_id: dId, vehicle_id: vId }];
   onRead?: () => void;
   onOffer?: () => void;
   owner() {
     return Promise.resolve({ id: this.ownerId, session: this.session });
+  }
+  admitRequest() {
+    return Promise.resolve();
   }
   read() {
     this.onRead?.();
@@ -88,6 +93,19 @@ class Fake implements CashMatchingPort {
   candidates() {
     this.discoveries++;
     return Promise.resolve(this.candidatesValue);
+  }
+  expireOffers(_bookingId: string, version: number) {
+    this.expirations++;
+    if (version !== this.b.version) throw new CashMatchingError("conflict");
+    if (this.expireFailure) throw this.expireFailure;
+    const offers = this.b.driver_match_offers as Row[];
+    const expired = offers.filter((offer) =>
+      offer.status === "offered" &&
+      Date.parse(String(offer.expires_at)) <= Date.now()
+    );
+    // A04 retains terminal rows and does not change Booking version for offer expiry.
+    for (const offer of expired) offer.status = "expired";
+    return Promise.resolve(true);
   }
   offer(_b: string, _d: string, _v: string, version: number) {
     this.calls++;
@@ -138,6 +156,83 @@ Deno.test("recover offer with original stale version without second dispatch", a
   eq((await run(p)).state, "awaitingDriver");
   eq(p.calls, 1);
   eq(p.discoveries, 1);
+});
+Deno.test("fresh pending offer stays pending and is not redispatched", async () => {
+  const p = new Fake();
+  await run(p);
+  const priorVersion = p.b.version;
+  eq((await run(p, 3)).state, "awaitingDriver");
+  eq(p.calls, 1);
+  eq(p.expirations, 1);
+  eq(p.b.version, priorVersion);
+});
+Deno.test("expired offers retain history and retry another candidate at canonical version", async () => {
+  const p = new Fake();
+  p.b.status = "searching";
+  p.b.version = 4;
+  p.b.driver_match_offers = [{
+    id: oId,
+    booking_request_id: bId,
+    fare_quote_id: qId,
+    driver_id: dId,
+    vehicle_id: vId,
+    status: "offered",
+    expires_at: "2000-01-01T00:00:00Z",
+  }];
+  p.candidatesValue = [{ driver_id: id(8), vehicle_id: id(9) }];
+  eq((await run(p, 4)).state, "awaitingDriver");
+  eq((p.b.driver_match_offers as Row[]).map((o) => o.status), ["expired", "offered"]);
+  eq(p.b.version, 4);
+  eq(p.offerVersions, [4]);
+  eq(p.expirations, 1);
+});
+Deno.test("expired all-offers state does not dispatch after an invalid canonical transition", async () => {
+  const p = new Fake();
+  p.b.status = "searching";
+  p.b.driver_match_offers = [{
+    id: oId,
+    booking_request_id: bId,
+    fare_quote_id: qId,
+    driver_id: dId,
+    vehicle_id: vId,
+    status: "offered",
+    expires_at: "2000-01-01T00:00:00Z",
+  }];
+  p.expireOffers = async function (_bookingId, version) {
+    this.expirations++;
+    this.b.driver_match_offers = [];
+    this.b.status = "cancelled";
+    this.b.version = version + 1;
+    return true;
+  };
+  await rejected(() => run(p), "invalid_state");
+  eq(p.calls, 0);
+});
+Deno.test("expiry version conflict stops before candidate discovery", async () => {
+  const p = new Fake();
+  p.b.driver_match_offers = [{
+    id: oId,
+    booking_request_id: bId,
+    fare_quote_id: qId,
+    driver_id: dId,
+    vehicle_id: vId,
+    status: "offered",
+    expires_at: "2099-01-01T00:00:00Z",
+  }];
+  p.expireOffers = async () => {
+    throw new CashMatchingError("conflict");
+  };
+  await rejected(() => run(p), "conflict");
+  eq(p.discoveries, 0);
+  eq(p.calls, 0);
+});
+Deno.test("lost expiry response rereads pending canonical offer without redispatch", async () => {
+  const p = new Fake();
+  await run(p);
+  p.expireFailure = new Error("lost response");
+  eq((await run(p, 3)).state, "awaitingDriver");
+  eq(p.calls, 1);
+  eq(p.expirations, 1);
 });
 Deno.test("recover actual assigned Trip through canonical linkage", async () => {
   const p = new Fake();
@@ -273,6 +368,8 @@ Deno.test("transport keeps privileged credentials only on allowlisted backend RP
           ? { id: rId }
           : url.includes("/users?")
           ? [{ id: rId, role: "rider", is_blocked: false }]
+          : url.includes("session_is_active") || url.includes("request_guard")
+          ? true
           : [],
       ),
     );
@@ -288,21 +385,68 @@ Deno.test("transport keeps privileged credentials only on allowlisted backend RP
   await p.read(bId);
   await p.candidates(bId, 3);
   await p.offer(bId, dId, vId, 3);
+  await p.expireOffers(bId, 3);
   for (const c of calls) {
     const h = c.init.headers as Record<string, string>;
-    eq(h.Authorization, "Bearer " + (c.url.includes("/rpc/") ? "server-test" : "rider-test"));
+    const privileged = c.url.includes("backend_find_nearby_driver_candidates") ||
+      c.url.includes("backend_create_driver_match_offer") ||
+      c.url.includes("backend_expire_booking_match_offers");
+    eq(h.Authorization, "Bearer " + (privileged ? "server-test" : "rider-test"));
+    if (c.url.includes("rider_matching_")) eq(h.apikey, "public-test");
   }
   eq(calls.filter((c) => c.init.method === "POST").map((c) => new URL(c.url).pathname), [
+    "/rest/v1/rpc/rider_matching_session_is_active",
     "/rest/v1/rpc/backend_find_nearby_driver_candidates",
     "/rest/v1/rpc/backend_create_driver_match_offer",
+    "/rest/v1/rpc/backend_expire_booking_match_offers",
   ]);
-  eq(JSON.parse(String(calls.at(-1)!.init.body)), {
+  eq(JSON.parse(String(calls.at(-2)!.init.body)), {
     target_booking_request_id: bId,
     target_driver_id: dId,
     target_vehicle_id: vId,
     requested_radius_meters: 3000,
     expected_booking_version: 3,
   });
+  eq(JSON.parse(String(calls.at(-1)!.init.body)), {
+    target_booking_request_id: bId,
+    expected_booking_version: 3,
+  });
+});
+Deno.test("session and admission RPCs require strict true/false and Rider credentials", async () => {
+  const calls: { url: string; init: RequestInit }[] = [];
+  let rpcResponse: unknown = true;
+  const port = new SupabaseCashMatchingPort(
+    "https://example.invalid",
+    "public",
+    "rider",
+    "service",
+    (input, init) => {
+      const url = String(input);
+      calls.push({ url, init: init! });
+      return Promise.resolve(Response.json(
+        url.includes("/auth/")
+          ? { id: rId }
+          : url.includes("/users?")
+          ? [{ id: rId, role: "rider", is_blocked: false }]
+          : rpcResponse,
+      ));
+    },
+  );
+  await port.owner();
+  await port.admitRequest();
+  for (const c of calls.filter((c) => c.url.includes("rider_matching_"))) {
+    const h = c.init.headers as Record<string, string>;
+    eq(h.Authorization, "Bearer rider");
+    eq(h.apikey, "public");
+    eq(c.init.body, "{}");
+  }
+  rpcResponse = false;
+  await rejected(() => port.owner(), "unauthorized");
+  await rejected(() => port.admitRequest(), "rate_limited");
+  for (const malformed of [null, "true", 1, []]) {
+    rpcResponse = malformed;
+    await rejected(() => port.admitRequest(), "unknown");
+  }
 });
 Deno.test("transport denies blocked authenticated Rider", async () => {
   const p = new SupabaseCashMatchingPort(
@@ -314,17 +458,21 @@ Deno.test("transport denies blocked authenticated Rider", async () => {
       Promise.resolve(Response.json(
         String(_i).includes("/auth/")
           ? { id: rId }
+          : String(_i).includes("/users?")
+          ? [{ id: rId, role: "rider", is_blocked: true }]
           : [{ id: rId, role: "rider", is_blocked: true }],
       )),
   );
   await rejected(() => p.owner(), "unauthorized");
 });
 Deno.test("transport permits HTTP only for local loopback Supabase", () => {
-  for (const url of [
-    "http://127.0.0.1:55421",
-    "http://localhost:55421",
-    "http://[::1]:55421",
-  ]) {
+  for (
+    const url of [
+      "http://127.0.0.1:55421",
+      "http://localhost:55421",
+      "http://[::1]:55421",
+    ]
+  ) {
     new SupabaseCashMatchingPort(url, "public-test", "rider-test", "server-test");
   }
   for (const url of ["http://example.invalid", "ftp://localhost:55421"]) {
@@ -384,3 +532,29 @@ Deno.test("Driver acceptance during dispatch returns actual canonical Trip", asy
   eq((await run(p)).tripId, tId);
   eq(p.calls, 1);
 });
+
+for (const status of [403, 404, 500]) {
+  Deno.test(
+    "guard transport failure " + status + " cannot admit or publish ownership",
+    async () => {
+      const port = new SupabaseCashMatchingPort(
+        "https://example.invalid",
+        "public",
+        "rider",
+        "service",
+        (input) => {
+          const url = String(input);
+          if (url.includes("/auth/")) return Promise.resolve(Response.json({ id: rId }));
+          if (url.includes("/users?")) {
+            return Promise.resolve(Response.json([{ id: rId, role: "rider", is_blocked: false }]));
+          }
+          if (!url.includes("rider_matching_")) throw new Error("unexpected dispatch");
+          return Promise.resolve(new Response("sanitized", { status }));
+        },
+      );
+      const expected = status === 403 ? "unauthorized" : "unknown";
+      await rejected(() => port.admitRequest(), expected);
+      await rejected(() => port.owner(), expected);
+    },
+  );
+}

@@ -120,7 +120,29 @@ function switchMatchingError(
       return new HttpError(422, code, "Booking cannot enter matching.");
     case "unknown":
       return new HttpError(503, code, "Matching outcome is unresolved.");
+    case "rate_limited":
+      return new HttpError(429, code, "Too many matching requests. Try again shortly.");
   }
+}
+
+function validateMatchingResult(value: unknown, input: MatchInput): MatchingResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new HttpError(502, "invalid_response", "Matching response is invalid.");
+  }
+  const result = value as Record<string, unknown>;
+  const validState = result.state === "awaitingDriver" ||
+    result.state === "noCandidates" || result.state === "assigned";
+  const validIds = result.bookingId === input.bookingId &&
+    UUID.test(String(result.bookingId)) &&
+    result.fareQuoteId === input.quoteId &&
+    UUID.test(String(result.fareQuoteId));
+  const validTrip = result.state === "assigned"
+    ? typeof result.tripId === "string" && UUID.test(result.tripId)
+    : !("tripId" in result);
+  if (!validState || !validIds || !validTrip) {
+    throw new HttpError(502, "invalid_response", "Matching response is invalid.");
+  }
+  return result as unknown as MatchingResult;
 }
 
 /**
@@ -162,15 +184,10 @@ export function createCashMatchingHandler(
         throw new HttpError(400, "invalid_request", "Request is invalid.");
       }
       const input = parseInput(parsed);
-      const result = await dependencies.match(input, request);
-      if (
-        result.bookingId !== input.bookingId ||
-        result.fareQuoteId !== input.quoteId ||
-        (result.state === "assigned" && !UUID.test(result.tripId ?? "")) ||
-        (result.state !== "assigned" && result.tripId !== undefined)
-      ) {
-        throw new HttpError(502, "invalid_response", "Matching response is invalid.");
-      }
+      const result = validateMatchingResult(
+        await dependencies.match(input, request),
+        input,
+      );
       return json(200, {
         data: {
           booking_id: result.bookingId,
@@ -181,9 +198,17 @@ export function createCashMatchingHandler(
       });
     } catch (error) {
       const safe = error instanceof HttpError ? error : mapMatchingError(error);
-      return json(safe.status, {
-        error: { code: safe.code, message: safe.safeMessage },
-      }, safe.status === 405 ? { allow: "POST" } : undefined);
+      return json(
+        safe.status,
+        {
+          error: { code: safe.code, message: safe.safeMessage },
+        },
+        safe.status === 405
+          ? { allow: "POST" }
+          : safe.status === 429
+          ? { "retry-after": "60" }
+          : undefined,
+      );
     }
   };
 }

@@ -11,10 +11,11 @@ const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 Deno.serve(createCashMatchingHandler({
-  authorize: (request) => authorizeCaller(request, {
-    supabaseUrl,
-    supabaseAnonKey,
-  }),
+  authorize: (request) =>
+    authorizeCaller(request, {
+      supabaseUrl,
+      supabaseAnonKey,
+    }),
   match: async (input, request) => {
     const authorization = request.headers.get("authorization") ?? "";
     const riderBearer = /^Bearer\s+([^\s]+)$/iu.exec(authorization)?.[1] ?? "";
@@ -27,6 +28,7 @@ Deno.serve(createCashMatchingHandler({
       riderBearer,
       serviceRoleKey,
     );
+    await port.admitRequest();
     return await new CashMatchingAdapter(port).request(
       input.bookingId,
       input.quoteId,

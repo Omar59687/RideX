@@ -1,0 +1,7 @@
+disposable network-none cluster: ridex-r06-x2-8fd37350ed9d
+migration chain: 35 applied, exact history, zero approvals (r06_x2_base_9a47909929)
+migration chain: 35 applied, exact history, zero approvals (r06_x2_base_98f3c40085)
+pgTAP 20261111095411_rider_matching_request_guard.test.sql: 27 passed
+PASS guard real lock waiter 30th wins / 31st denied
+PASS guard real lock waiter rollback frees admission
+PASS: 27 matching guard TAP assertions, 2 independent-session races and two full 35-migration replays

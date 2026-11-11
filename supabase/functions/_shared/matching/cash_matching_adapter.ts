@@ -7,13 +7,21 @@ export type Row = Record<string, unknown>;
 export type Owner = { id: string; session: object };
 export interface CashMatchingPort {
   owner(): Promise<Owner>;
+  admitRequest(): Promise<void>;
   read(bookingId: string): Promise<Row | null>;
   candidates(bookingId: string, version: number): Promise<unknown>;
   offer(bookingId: string, driverId: string, vehicleId: string, version: number): Promise<unknown>;
+  expireOffers(bookingId: string, version: number): Promise<unknown>;
 }
 export class CashMatchingError extends Error {
   constructor(
-    readonly code: "unauthorized" | "invalid_request" | "invalid_state" | "conflict" | "unknown",
+    readonly code:
+      | "unauthorized"
+      | "invalid_request"
+      | "invalid_state"
+      | "conflict"
+      | "unknown"
+      | "rate_limited",
   ) {
     super(code);
   }
@@ -168,6 +176,18 @@ export class CashMatchingAdapter {
       let { b, q } = await read();
       const trip = assignedTrip(b, q, owner.id);
       if (trip) return result("assigned", trip);
+      // Let the database clock and locked expiry contract reconcile due offers.
+      // The caller only invokes the trusted RPC; returned state is never trusted
+      // until the canonical aggregate is read again.
+      if (
+        rows(b.driver_match_offers).some((o) => o.status === "offered")
+      ) {
+        await guard();
+        await this.port.expireOffers(bookingId, Number(b.version));
+        ({ b, q } = await read());
+        const reconciledTrip = assignedTrip(b, q, owner.id);
+        if (reconciledTrip) return result("assigned", reconciledTrip);
+      }
       // Recover prior effects BEFORE enforcing the caller's original version.
       // Read-only recovery never creates another offer or extends a deadline.
       if (rows(b.driver_match_offers).some((o) => o.status === "offered")) {
@@ -260,8 +280,10 @@ export class SupabaseCashMatchingPort implements CashMatchingPort {
     }
     const loopbackHttp = parsed?.protocol === "http:" &&
       ["localhost", "127.0.0.1", "::1", "[::1]"].includes(parsed.hostname);
-    if ((!parsed || (parsed.protocol !== "https:" && !loopbackHttp)) ||
-      !publicKey || !riderBearer || !serviceKey) {
+    if (
+      (!parsed || (parsed.protocol !== "https:" && !loopbackHttp)) ||
+      !publicKey || !riderBearer || !serviceKey
+    ) {
       throw new CashMatchingError("invalid_request");
     }
   }
@@ -293,7 +315,28 @@ export class SupabaseCashMatchingPort implements CashMatchingPort {
       !Array.isArray(profile) || profile.length !== 1 || profile[0].id !== user.id ||
       profile[0].role !== "rider" || profile[0].is_blocked !== false
     ) throw new CashMatchingError("unauthorized");
+    // This per-request marker is context only; it is not proof that a JWT was revoked.
+    let active: unknown;
+    try {
+      active = await this.call("/rest/v1/rpc/rider_matching_session_is_active", false, {});
+    } catch (error) {
+      if (error instanceof CashMatchingError && error.code === "unauthorized") throw error;
+      throw new CashMatchingError("unknown");
+    }
+    if (active === false) throw new CashMatchingError("unauthorized");
+    if (active !== true) throw new CashMatchingError("unknown");
     return { id: String(user.id), session: this.session };
+  }
+  async admitRequest(): Promise<void> {
+    let admitted: unknown;
+    try {
+      admitted = await this.call("/rest/v1/rpc/rider_matching_request_guard", false, {});
+    } catch (error) {
+      if (error instanceof CashMatchingError && error.code === "unauthorized") throw error;
+      throw new CashMatchingError("unknown");
+    }
+    if (admitted === false) throw new CashMatchingError("rate_limited");
+    if (admitted !== true) throw new CashMatchingError("unknown");
   }
   async read(id: string): Promise<Row | null> {
     const projection =
@@ -318,6 +361,12 @@ export class SupabaseCashMatchingPort implements CashMatchingPort {
       target_driver_id: driver,
       target_vehicle_id: vehicle,
       requested_radius_meters: 3000,
+      expected_booking_version: version,
+    });
+  }
+  expireOffers(id: string, version: number): Promise<unknown> {
+    return this.call("/rest/v1/rpc/backend_expire_booking_match_offers", true, {
+      target_booking_request_id: id,
       expected_booking_version: version,
     });
   }

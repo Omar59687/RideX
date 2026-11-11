@@ -1,0 +1,62 @@
+begin;
+select plan(27);
+insert into auth.users(id,email,raw_user_meta_data)
+values ('11111111-1111-4111-8111-111111111111','guard@example.test','{"role":"rider","display_name":"Guard Rider"}');
+insert into auth.sessions values
+ ('22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111',null),
+ ('33333333-3333-4333-8333-333333333333','99999999-9999-4999-8999-999999999999',null),
+ ('44444444-4444-4444-8444-444444444444','11111111-1111-4111-8111-111111111111',now()-interval '1 second');
+select set_config('request.jwt.claims','{"sub":"11111111-1111-4111-8111-111111111111","role":"authenticated","session_id":"22222222-2222-4222-8222-222222222222"}',true);
+set local role authenticated;
+select ok(public.rider_matching_session_is_active(),'active session accepted');
+select ok(public.rider_matching_request_guard(),'first request admitted');
+select ok(public.rider_matching_request_guard(),'second request admitted');
+select ok(has_function_privilege('authenticated','public.rider_matching_request_guard()','execute'),'authenticated can execute');
+select ok(not has_function_privilege('anon','public.rider_matching_request_guard()','execute'),'anon cannot execute');
+select set_config('request.jwt.claims','{"sub":"11111111-1111-4111-8111-111111111111","role":"authenticated","session_id":"33333333-3333-4333-8333-333333333333"}',true);
+select ok(not public.rider_matching_session_is_active(),'foreign user session rejected');
+select set_config('request.jwt.claims','{"sub":"11111111-1111-4111-8111-111111111111","role":"authenticated","session_id":"44444444-4444-4444-8444-444444444444"}',true);
+select ok(not public.rider_matching_session_is_active(),'expired session rejected');
+select set_config('request.jwt.claims','{"sub":"11111111-1111-4111-8111-111111111111","role":"authenticated","session_id":"bad"}',true);
+select ok(not public.rider_matching_session_is_active(),'malformed session rejected');
+select set_config('request.jwt.claims','{"role":"authenticated"}',true);
+select ok(not public.rider_matching_session_is_active(),'missing identity rejected');
+select set_config('request.jwt.claims','{"sub":"11111111-1111-4111-8111-111111111111","role":"authenticated","session_id":"22222222-2222-4222-8222-222222222222"}',true);
+reset role;
+select ok((select count(*)=1 from private.rider_matching_request_budget),'one private budget row');
+select ok(not has_table_privilege('authenticated','private.rider_matching_request_budget','select'),'budget not readable');
+select ok(not has_table_privilege('authenticated','private.rider_matching_request_budget','insert'),'budget not writable');
+update public.users set is_blocked=true where id='11111111-1111-4111-8111-111111111111';
+set local role authenticated;
+select ok(not public.rider_matching_session_is_active(),'blocked rider rejected');
+select throws_ok($$select public.rider_matching_request_guard()$$,'42501',null,'inactive request raises 42501');
+reset role;
+update public.users set is_blocked=false where id='11111111-1111-4111-8111-111111111111';
+update private.rider_matching_request_budget set window_started_at=to_timestamp(floor(extract(epoch from clock_timestamp())/60)*60),request_count=30 where rider_id='11111111-1111-4111-8111-111111111111';
+set local role authenticated;
+select ok(not public.rider_matching_request_guard(),'31st request denied');
+reset role;
+select ok((select request_count=30 from private.rider_matching_request_budget where rider_id='11111111-1111-4111-8111-111111111111'),'limit remains capped');
+select ok(not has_function_privilege('service_role','public.rider_matching_request_guard()','execute'),'service role cannot execute');
+-- Session lifecycle and clock recovery, all in this isolated transaction.
+update private.rider_matching_request_budget set window_started_at=clock_timestamp()-interval '2 minutes',request_count=30;
+set local role authenticated;
+select ok(public.rider_matching_request_guard(),'new window admits after exhaustion');
+reset role;
+select is((select request_count::integer from private.rider_matching_request_budget),1,'new window resets count');
+update private.rider_matching_request_budget set window_started_at=clock_timestamp()+interval '2 minutes',request_count=30;
+set local role authenticated;
+select ok(not public.rider_matching_request_guard(),'backward clock cannot reopen exhausted window');
+reset role;
+select is((select request_count::integer from private.rider_matching_request_budget),30,'backward clock leaves cap intact');
+delete from auth.sessions where id='22222222-2222-4222-8222-222222222222';
+set local role authenticated;
+select ok(not public.rider_matching_session_is_active(),'deleted session rejected despite unchanged JWT claims');
+select throws_ok($$select public.rider_matching_request_guard()$$,'42501',null,'deleted session cannot enter matching');
+reset role;
+select ok(not has_function_privilege('anon','public.rider_matching_session_is_active()','execute'),'anon cannot check session');
+select ok(not has_function_privilege('service_role','public.rider_matching_session_is_active()','execute'),'service credential cannot impersonate rider session check');
+select ok(not has_table_privilege('authenticated','private.rider_matching_request_budget','update'),'rider cannot reset budget');
+select ok(not has_table_privilege('service_role','private.rider_matching_request_budget','update'),'service cannot reset budget directly');
+select * from finish();
+rollback;
