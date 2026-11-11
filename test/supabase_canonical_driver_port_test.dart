@@ -60,7 +60,12 @@ void main() {
       } else if (path == '/rest/v1/driver_availability') {
         response = rows.availability;
       } else if (path == '/rest/v1/driver_match_offers') {
-        response = rows.offer;
+        response = request.uri.queryParameters['status'] == 'eq.offered'
+            ? [
+                if (rows.offer != null)
+                  {...rows.offer!, 'offered_at': f.now.toIso8601String()}
+              ]
+            : rows.offer;
       } else if (path == '/rest/v1/booking_requests') {
         response = rows.booking;
       } else if (path == '/rest/v1/trips') {
@@ -112,6 +117,33 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
             const MethodChannel('com.llfbandit.app_links/events'), null);
+  });
+
+  test(
+      'discovery uses bounded owned offered expiry SELECT with normal-user auth',
+      () async {
+    final original = Supabase.instance.client.auth.currentSession!;
+    final result = await port.readOfferedRows(f.now);
+    expect(result.single['id'], f.offerId);
+    final request = requests.single;
+    expect(request.$1, 'GET');
+    expect(request.$2.path, '/rest/v1/driver_match_offers');
+    expect(request.$4, 'Bearer ${original.accessToken}');
+    expect(request.$2.queryParameters['driver_id'], 'eq.${f.driverId}');
+    expect(request.$2.queryParameters['status'], 'eq.offered');
+    expect(request.$2.queryParameters['expires_at'],
+        'gt.${f.now.toIso8601String()}');
+    expect(request.$2.queryParameters['order'],
+        'expires_at.asc.nullslast,id.asc.nullslast');
+    expect(request.$2.queryParameters['limit'], '2');
+    expect(request.$2.queryParameters['select'], contains('offered_at'));
+  });
+
+  test('discovery after application logout sends no query', () async {
+    await service.signOut();
+    requests.clear();
+    await expectLater(port.readOfferedRows(f.now), throwsStateError);
+    expect(requests, isEmpty);
   });
 
   test(

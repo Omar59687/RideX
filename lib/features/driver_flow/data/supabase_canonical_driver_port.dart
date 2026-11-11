@@ -2,13 +2,18 @@ import 'package:ridex/core/models/driver_authority.dart';
 import 'package:ridex/core/services/supabase/auth_service.dart';
 import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
 import 'canonical_driver_repository.dart';
+import 'canonical_driver_offer_discovery_port.dart';
 
 /// Unmounted normal-user SDK adapter. Reuses application provenance, approved
 /// backend identity and AuthService's single-client/epoch binding. Never creates
 /// an SDK client, signs in, handles credentials or calls service-only matching.
-final class SupabaseCanonicalDriverPort implements CanonicalDriverPort {
+final class SupabaseCanonicalDriverPort
+    implements CanonicalDriverPort, CanonicalDriverOfferDiscoveryPort {
   SupabaseCanonicalDriverPort._(
-      this._access, this._binding, this._clientIdentity);
+    this._access,
+    this._binding,
+    this._clientIdentity,
+  );
 
   factory SupabaseCanonicalDriverPort.create({
     required VerifiedSupabaseDriverAccess access,
@@ -17,7 +22,10 @@ final class SupabaseCanonicalDriverPort implements CanonicalDriverPort {
     final client = access.client;
     if (client == null) throw StateError('Driver access is unavailable.');
     return SupabaseCanonicalDriverPort._(
-        access, auth.driverBinding(access), client);
+      access,
+      auth.driverBinding(access),
+      client,
+    );
   }
 
   final VerifiedSupabaseDriverAccess _access;
@@ -58,8 +66,9 @@ final class SupabaseCanonicalDriverPort implements CanonicalDriverPort {
 
   @override
   Future<Map<String, Object?>?> readAvailability() => _read(
-      'driver_availability',
-      'driver_id,state,vehicle_id,reserved_booking_request_id,active_trip_id,version');
+        'driver_availability',
+        'driver_id,state,vehicle_id,reserved_booking_request_id,active_trip_id,version',
+      );
 
   static const _offerColumns =
       'id,driver_id,booking_request_id,fare_quote_id,vehicle_id,status,version,expires_at';
@@ -67,14 +76,37 @@ final class SupabaseCanonicalDriverPort implements CanonicalDriverPort {
       'id,driver_id,rider_id,booking_request_id,fare_quote_id,vehicle_id,status,version,payment_method';
 
   @override
+  Future<List<Map<String, Object?>>> readOfferedRows(DateTime after) async {
+    final owner = currentOwner;
+    final session = sessionIdentity;
+    _check(owner, session);
+    try {
+      final rows = await _access.client!
+          .from('driver_match_offers')
+          .select('$_offerColumns,offered_at')
+          .eq('driver_id', owner.driverId!)
+          .eq('status', 'offered')
+          .gt('expires_at', after.toUtc().toIso8601String())
+          .order('expires_at', ascending: true)
+          .order('id', ascending: true)
+          .limit(CanonicalDriverOfferDiscoveryPort.rowLimit);
+      _check(owner, session);
+      return rows;
+    } on Object {
+      throw StateError('Canonical Driver discovery is unavailable.');
+    }
+  }
+
+  @override
   Future<Map<String, Object?>?> readOffer(String offerId) =>
       _read('driver_match_offers', _offerColumns, 'id', offerId);
   @override
   Future<Map<String, Object?>?> readBooking(String bookingId) => _read(
-      'booking_requests',
-      'id,fare_quote_id,status,payment_method',
-      'id',
-      bookingId);
+        'booking_requests',
+        'id,fare_quote_id,status,payment_method',
+        'id',
+        bookingId,
+      );
   @override
   Future<Map<String, Object?>?> readTrip(String tripId) =>
       _read('trips', _tripColumns, 'id', tripId);
@@ -82,8 +114,12 @@ final class SupabaseCanonicalDriverPort implements CanonicalDriverPort {
   Future<Map<String, Object?>?> readTripForBooking(String bookingId) =>
       _read('trips', _tripColumns, 'booking_request_id', bookingId);
 
-  Future<Map<String, Object?>?> _read(String table, String columns,
-      [String? column, String? id]) async {
+  Future<Map<String, Object?>?> _read(
+    String table,
+    String columns, [
+    String? column,
+    String? id,
+  ]) async {
     final owner = currentOwner;
     final session = sessionIdentity;
     _check(owner, session);
