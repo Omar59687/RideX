@@ -1,5 +1,22 @@
 # RideX Current Status
 
+## P7-B09 inactive Driver offer discovery - 2026-11-11
+
+Local B09 from main `4278505` adds session-owned bounded normal-user offer SELECT
+polling and advisory B08 offer locators; B07 independently rereads all evidence.
+The canonical runtime remains default-off and unmounted. UNKNOWN recovery,
+verified Trips, expiry, rollback, cancellation and financial stop gates remain
+protected. Independent Astra High final review approves the inactive slice after
+two reproduced recovery blockers were fixed. Focused checks and scoped analysis
+pass. Full serial regression: 2668 passed, 0 failed, 4 intentional skips; focused
+suite: 224 passed. Full analysis retains 20 inherited diagnostics (3 warnings,
+17 infos), explicitly non-green.
+See [B09 contracts, verification and owner handoff](../plans/P7_B09_DRIVER_OFFER_DISCOVERY.md)
+for final serial totals and acceptance limits. B09A is preserved separately.
+Next: owner PR approval, followed by separately approved nonproduction integration
+and hosted/device acceptance. No push, PR, merge, deployment or activation here.
+
+
 ## Bounded app QA - 2026-11-09
 
 QA from fetched main `1aa60fa` fixed home-to-booking Back navigation and stale
