@@ -146,7 +146,7 @@ class _BookingConfirmationScreenState
           !identical(ref.read(sessionControllerProvider), _ownerSession) ||
           reference == null ||
           reference.command.riderId.toLowerCase() !=
-              ref.read(sessionControllerProvider).user?.id?.toLowerCase() ||
+              ref.read(sessionControllerProvider).user?.id.toLowerCase() ||
           reference.command.bookingRequestId.toLowerCase() !=
               bookingId.toLowerCase()) {
         return;
