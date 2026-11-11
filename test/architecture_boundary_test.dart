@@ -107,6 +107,7 @@ const _googleMapAdapterFiles = {
   'lib/core/widgets/google_current_location_map.dart',
   'lib/core/widgets/google_location_selection_map.dart',
   'lib/core/widgets/google_rider_live_map_renderer.dart',
+  'lib/core/widgets/google_canonical_driver_map.dart',
 };
 
 const _geolocatorAdapterFiles = {
