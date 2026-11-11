@@ -33,6 +33,7 @@ void main() {
         findsOneWidget);
     expect(find.text('Waiting for a fresh verified Driver location.'),
         findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('future-dated GPS never creates a Google Map', (tester) async {
@@ -54,5 +55,6 @@ void main() {
       ),
     ));
     expect(find.byType(GoogleMap), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }
