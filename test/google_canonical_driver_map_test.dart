@@ -16,7 +16,7 @@ void main() {
       tripId: tripId,
       driverId: driverId,
       sequence: 1,
-      point: const LocationPoint(latitude: 31.95, longitude: 35.91),
+      point: LocationPoint(latitude: 31.95, longitude: 35.91),
       recordedAt: now.subtract(const Duration(minutes: 2)),
       receivedAt: now.subtract(const Duration(minutes: 2)),
     );
@@ -42,7 +42,7 @@ void main() {
       tripId: tripId,
       driverId: driverId,
       sequence: 1,
-      point: const LocationPoint(latitude: 31.95, longitude: 35.91),
+      point: LocationPoint(latitude: 31.95, longitude: 35.91),
       recordedAt: now.add(const Duration(minutes: 1)),
       receivedAt: now,
     );
