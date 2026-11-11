@@ -123,6 +123,11 @@ const _supabaseInfrastructureFiles = {
   'lib/core/repositories/canonical_trip_reconciliation_repository.dart',
   // A05 uses only session-bound, participant-RLS SELECTs; no matching RPCs.
   'lib/core/repositories/cash_booking_assignment_repository.dart',
+  // Phase 7 Rider adapters: authenticated Supabase reads and guarded commands.
+  'lib/core/repositories/supabase_rider_booking_search_repository.dart',
+  'lib/core/repositories/supabase_rider_matching_request_repository.dart',
+  'lib/core/repositories/supabase_rider_trip_tracking_repository.dart',
+  'lib/core/repositories/supabase_rider_trip_cancellation_repository.dart',
   'lib/core/repositories/supabase_admin_payment_reader.dart',
   'lib/core/repositories/rider_canonical_trip_detail_repository.dart',
   'lib/core/repositories/supabase_auth_repository.dart',
