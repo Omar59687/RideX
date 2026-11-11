@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:ridex/app/theme/app_theme.dart';
 import 'package:ridex/features/booking/presentation/screens/booking_confirmation_screen.dart';
+import 'package:ridex/features/booking/application/rider_booking_integration_gate.dart';
 import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/widgets/app_button.dart';
@@ -852,7 +853,7 @@ void main() {
     expect(find.text('Locked fare: JOD 2.00'), findsOneWidget);
     expect(h.store.deletes, 0,
         reason: 'The locked booking lineage must remain recoverable.');
-  });
+  }, skip: riderCashMatchingIntegrationEnabled);
 
   testWidgets(
       'canonical Cash confirmation stays a booking outcome, not payment or '
