@@ -73,7 +73,14 @@ class _GoogleCanonicalDriverMapState extends State<GoogleCanonicalDriverMap> {
     _expiryTimer = Timer(
       delay.isNegative ? Duration.zero : delay,
       () {
-        if (mounted) setState(() {});
+        if (!mounted) return;
+        if (!_fresh) {
+          _cameraGeneration++;
+          final previous = _controller;
+          _controller = null;
+          previous?.dispose();
+        }
+        setState(() {});
       },
     );
   }
