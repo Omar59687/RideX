@@ -14,6 +14,8 @@ import 'package:ridex/core/providers/trip_realtime_providers.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_dialog.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
+import 'package:ridex/core/widgets/google_canonical_driver_map.dart';
+import 'package:ridex/core/providers/session_providers.dart';
 
 /// Cash-only canonical Rider Trip surface. Neither the route locators nor
 /// Realtime payloads authorize display; the lifecycle controller rereads RLS.
@@ -53,10 +55,12 @@ class _CanonicalRiderTripScreenState
     );
     final state = ref.watch(riderTripLifecycleControllerProvider(request));
     final adapter = ref.watch(riderTripLocationAdapterProvider);
+    final session = ref.watch(sessionControllerProvider);
     final streamKey = state.phase == RiderTripLifecyclePhase.verified &&
             state.trip != null &&
-            adapter != null
-        ? '${widget.tripId}:${identityHashCode(adapter)}'
+            adapter != null &&
+            state.trip!.riderId.toLowerCase() == session.user?.id.toLowerCase()
+        ? '${widget.tripId}:${state.trip!.driver.driverId}:${identityHashCode(adapter)}:${identityHashCode(session)}'
         : null;
     if (streamKey != _locationStreamKey) {
       _locationStreamKey = streamKey;
@@ -87,12 +91,15 @@ class _CanonicalRiderTripScreenState
                   final location = update is RiderTripLocationSnapshot
                       ? update.location
                       : null;
-                  if (location == null) {
+                  if (location == null ||
+                      location.tripId.toLowerCase() != trip.tripId.toLowerCase() ||
+                      location.driverId.toLowerCase() != trip.driver.driverId.toLowerCase() ||
+                      trip.riderId.toLowerCase() != session.user?.id.toLowerCase()) {
                     return const Text('Waiting for a fresh verified Driver location.');
                   }
-                  return Text(
-                    'Latest verified Driver location: '
-                    '${location.point.latitude}, ${location.point.longitude}',
+                  return GoogleCanonicalDriverMap(
+                    key: ValueKey('verified-driver-map-${trip.tripId}-${trip.driver.driverId}'),
+                    location: location,
                   );
                 },
               ),
