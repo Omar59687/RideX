@@ -9,16 +9,16 @@ import 'package:ridex/core/models/rider_trip_lifecycle_state.dart';
 import 'package:ridex/core/models/rider_trip_tracking_event.dart';
 import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/providers/rider_booking_integration_providers.dart';
 import 'package:ridex/core/repositories/rider_trip_tracking_repository.dart';
 import 'package:ridex/core/services/rider_trip_lifecycle_signals.dart';
 
-/// Injection seam for the merged C01 read/watch contract.
-///
-/// Slice 1 intentionally has no production repository. Callers without an
-/// explicitly composed source remain unavailable rather than falling back to
-/// mock Trip state.
+/// Injection seam for the merged C01 read/watch contract. The production
+/// adapter is composed from the authenticated Supabase client and D02; without
+/// that client, callers remain unavailable rather than using mock Trip state.
 final riderTripTrackingRepositoryProvider =
-    Provider<RiderTripTrackingRepository?>((ref) => null);
+    Provider<RiderTripTrackingRepository?>((ref) =>
+        ref.watch(riderSupabaseTripTrackingRepositoryProvider));
 
 final riderTripLifecycleClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,

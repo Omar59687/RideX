@@ -139,6 +139,9 @@ const _supabaseInfrastructureFiles = {
   'lib/core/services/supabase/profile_service.dart',
   'lib/core/services/supabase/supabase_client_provider.dart',
   'lib/core/services/supabase/supabase_initialization_provenance.dart',
+    // P7-D02/D04: authenticated, read-only Realtime infrastructure adapters.
+  'lib/core/services/trips/supabase_trip_realtime_source.dart',
+  'lib/core/services/trips/supabase_rider_trip_location_source.dart',
 };
 
 Iterable<File> _dartFilesUnder(String relativeDirectory) {

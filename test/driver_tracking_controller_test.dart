@@ -22,6 +22,7 @@ void main() {
   late FakeDriverGpsStreamService gps;
   late FakeDriverTrackingLifecycle lifecycle;
   late FakeDriverTrackingConnection connection;
+  late FakeDriverTrackingSessionMonitor sessionMonitor;
   late RecordingAppErrorReporter reporter;
   late ProviderContainer container;
   late ProviderSubscription<DriverTrackingState> keepAlive;
@@ -31,6 +32,7 @@ void main() {
     gps = FakeDriverGpsStreamService();
     lifecycle = FakeDriverTrackingLifecycle();
     connection = FakeDriverTrackingConnection();
+    sessionMonitor = FakeDriverTrackingSessionMonitor();
     reporter = RecordingAppErrorReporter();
     container = ProviderContainer(
       overrides: [
@@ -38,6 +40,7 @@ void main() {
         driverGpsStreamServiceProvider.overrideWithValue(gps),
         driverTrackingLifecycleProvider.overrideWithValue(lifecycle),
         driverTrackingConnectionProvider.overrideWithValue(connection),
+        driverTrackingSessionMonitorProvider.overrideWithValue(sessionMonitor),
         appErrorReporterProvider.overrideWithValue(reporter),
         driverTrackingClockProvider.overrideWithValue(
           () => startTime.add(const Duration(minutes: 2)),
@@ -51,6 +54,7 @@ void main() {
     await container.read(driverTrackingControllerProvider.notifier).stop();
     keepAlive.close();
     container.dispose();
+    await sessionMonitor.dispose();
   });
 
   test('does not start when canonical availability is ineligible', () async {
@@ -1083,6 +1087,29 @@ void main() {
         DriverTrackingStatus.stopped);
   });
 
+  test('session replacement stops GPS before another identity can publish',
+      () async {
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    sessionMonitor.userId = 'b1000000-0000-4000-8000-000000000001';
+    sessionMonitor.identity = Object();
+    await controller.start();
+    expect(gps.activeSubscriptions, 1);
+
+    sessionMonitor.userId = 'b2000000-0000-4000-8000-000000000002';
+    sessionMonitor.identity = Object();
+    sessionMonitor.emitChange();
+    await flush(3);
+    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
+    await flush(3);
+
+    expect(gps.activeSubscriptions, 0);
+    expect(gps.cancelCount, 1);
+    expect(repository.publishAttempts, 0);
+    expect(container.read(driverTrackingControllerProvider).status,
+        DriverTrackingStatus.stopped);
+  });
+
   test('recovery uses the higher canonical sequence without replaying failure',
       () async {
     repository.publishError = const DriverLocationException(
@@ -1428,6 +1455,25 @@ class FakeDriverTrackingLifecycle implements DriverTrackingLifecycle {
 
   @override
   void dispose() {}
+}
+
+class FakeDriverTrackingSessionMonitor implements DriverTrackingSessionMonitor {
+  final _controller = StreamController<void>.broadcast();
+  String? userId;
+  Object? identity;
+
+  @override
+  String? get authenticatedUserId => userId;
+
+  @override
+  Object? get sessionIdentity => identity;
+
+  @override
+  Stream<void> get changes => _controller.stream;
+
+  void emitChange() => _controller.add(null);
+
+  Future<void> dispose() => _controller.close();
 }
 
 class FakeDriverTrackingConnection implements DriverTrackingConnection {

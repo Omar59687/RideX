@@ -319,6 +319,24 @@ Deno.test("transport denies blocked authenticated Rider", async () => {
   );
   await rejected(() => p.owner(), "unauthorized");
 });
+Deno.test("transport permits HTTP only for local loopback Supabase", () => {
+  for (const url of [
+    "http://127.0.0.1:55421",
+    "http://localhost:55421",
+    "http://[::1]:55421",
+  ]) {
+    new SupabaseCashMatchingPort(url, "public-test", "rider-test", "server-test");
+  }
+  for (const url of ["http://example.invalid", "ftp://localhost:55421"]) {
+    try {
+      new SupabaseCashMatchingPort(url, "public-test", "rider-test", "server-test");
+    } catch (error) {
+      if (error instanceof CashMatchingError && error.code === "invalid_request") continue;
+      throw error;
+    }
+    throw new Error(`unsafe endpoint accepted: ${url}`);
+  }
+});
 Deno.test("HTTP 503 is ambiguous, not a safe-to-replay conflict", async () => {
   const p = new SupabaseCashMatchingPort(
     "https://example.invalid",

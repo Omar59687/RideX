@@ -7,6 +7,8 @@ import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/rider_assigned_trip.dart';
 import 'package:ridex/core/models/rider_booking_cancellation.dart';
 import 'package:ridex/core/models/rider_booking_search.dart';
+import 'package:ridex/core/models/booking_handoff.dart';
+import 'package:ridex/core/models/rider_matching_request.dart';
 import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/repositories/rider_booking_search_repository.dart';
@@ -24,6 +26,7 @@ enum RiderSearchPhase {
   failed,
   cancelled,
   assignmentPending,
+  noCandidates,
 }
 
 /// Read-only outcome of verifying the assigned Trip behind a matched booking.
@@ -45,6 +48,10 @@ class RiderSearchViewState {
     this.cancellation = RiderCancellationPhase.idle,
     this.rejection,
     this.assignment = RiderAssignmentVerification.notRequested,
+    this.matchingResult,
+    this.matchingFailure,
+    this.matchingInProgress = false,
+    this.verifiedTrip,
   });
 
   final RiderSearchPhase phase;
@@ -54,6 +61,10 @@ class RiderSearchViewState {
   final RiderCancellationPhase cancellation;
   final RiderCancellationRejection? rejection;
   final RiderAssignmentVerification assignment;
+  final RiderMatchingRequestResult? matchingResult;
+  final RiderMatchingFailure? matchingFailure;
+  final bool matchingInProgress;
+  final RiderAssignedTrip? verifiedTrip;
 }
 
 /// Read-only state for one BookingRequest and one immutable session epoch.
@@ -65,6 +76,9 @@ class RiderSearchController extends ChangeNotifier {
     required RiderCancellationCoordinator cancellationCoordinator,
     required SessionState Function() readSession,
     RiderTripTrackingRepository? tripTrackingRepository,
+    RiderMatchingRequestRepository? matchingRepository,
+    ConfirmedBookingReference? Function()? readConfirmedReference,
+    bool automaticallyStartMatching = true,
     Duration softTimeout = const Duration(seconds: 90),
     Duration readDeadline = const Duration(seconds: 15),
     Timer Function(Duration, void Function())? scheduleTimeout,
@@ -72,6 +86,9 @@ class RiderSearchController extends ChangeNotifier {
   })  : _repository = repository,
         _cancellationCoordinator = cancellationCoordinator,
         _tripRepository = tripTrackingRepository,
+        _matchingRepository = matchingRepository,
+        _readConfirmedReference = readConfirmedReference,
+        _automaticallyStartMatching = automaticallyStartMatching,
         _readSession = readSession,
         _ownerSession = readSession(),
         _softTimeout = softTimeout,
@@ -95,6 +112,9 @@ class RiderSearchController extends ChangeNotifier {
   final RiderBookingSearchRepository _repository;
   final RiderCancellationCoordinator _cancellationCoordinator;
   final RiderTripTrackingRepository? _tripRepository;
+  final RiderMatchingRequestRepository? _matchingRepository;
+  final ConfirmedBookingReference? Function()? _readConfirmedReference;
+  final bool _automaticallyStartMatching;
   final SessionState Function() _readSession;
   final SessionState _ownerSession;
   final Duration _softTimeout;
@@ -122,6 +142,15 @@ class RiderSearchController extends ChangeNotifier {
   bool _disposed = false;
   bool _sessionInvalidated = false;
   bool _listeningToCancellation = false;
+  bool _matchingAttempted = false;
+  bool _matchingExplicitlyRequested = false;
+  bool _matchingInProgress = false;
+  bool _matchingRequestOutstanding = false;
+  int _matchingOperationGeneration = 0;
+  Timer? _matchingTimer;
+  RiderMatchingRequestResult? _matchingResult;
+  int? _matchingResultVersion;
+  RiderMatchingFailure? _matchingFailure;
   bool get isSessionInvalidated => _sessionInvalidated;
 
   RiderCancellationAttempt? get _attempt {
@@ -161,6 +190,20 @@ class RiderSearchController extends ChangeNotifier {
       _validRiderSession(_ownerSession) &&
       identical(_readSession(), _ownerSession) &&
       isCanonicalTripId(bookingRequestId);
+
+  bool get canRetryMatching =>
+      !_disposed &&
+      !_sessionInvalidated &&
+      !_matchingInProgress &&
+      !_matchingRequestOutstanding &&
+      _matchingRepository != null &&
+      _state.booking != null &&
+      (_state.phase == RiderSearchPhase.noCandidates ||
+          ((_state.phase == RiderSearchPhase.waiting ||
+                  _state.phase == RiderSearchPhase.searching) &&
+              (_matchingFailure == RiderMatchingFailure.conflict ||
+                  (!_automaticallyStartMatching && !_matchingAttempted)))) &&
+      identical(_readSession(), _ownerSession);
 
   /// Authorizes only the single cancellation retained after the last verified
   /// read; an uncertain outcome permanently blocks a second dispatch.
@@ -202,6 +245,21 @@ class RiderSearchController extends ChangeNotifier {
         _attempt?.phase == RiderCancellationAttemptPhase.pending) {
       return Future<void>.value();
     }
+    return _requestRefresh();
+  }
+
+  /// Explicit retry always starts with a canonical read. The matching endpoint
+  /// performs its own ownership/version checks and recovers any prior offers.
+  Future<void> retryMatching() {
+    if (!canRetryMatching ||
+        !identical(_readSession(), _ownerSession)) {
+      return Future<void>.value();
+    }
+    _matchingAttempted = false;
+    _matchingExplicitlyRequested = true;
+    _matchingResult = null;
+    _matchingResultVersion = null;
+    _matchingFailure = null;
     return _requestRefresh();
   }
 
@@ -272,6 +330,13 @@ class RiderSearchController extends ChangeNotifier {
     _abandonAssignment();
     _lastVerified = null;
     _lastVerifiedTrip = null;
+    _matchingResult = null;
+    _matchingResultVersion = null;
+    _matchingFailure = null;
+    _matchingInProgress = false;
+    _matchingOperationGeneration++;
+    _matchingTimer?.cancel();
+    _matchingTimer = null;
     _clientRejection = null;
     _acceptedContradiction = false;
     _assignment = RiderAssignmentVerification.notRequested;
@@ -321,6 +386,16 @@ class RiderSearchController extends ChangeNotifier {
         _lastVerifiedTrip = null;
         _abandonAssignment();
       }
+      if (booking.status != RiderBookingSearchStatus.confirmed &&
+          booking.status != RiderBookingSearchStatus.searching) {
+        _matchingOperationGeneration++;
+        _matchingTimer?.cancel();
+        _matchingTimer = null;
+        _matchingInProgress = false;
+        _matchingResult = null;
+        _matchingResultVersion = null;
+        _matchingFailure = null;
+      }
       final phase = switch (booking.status) {
         RiderBookingSearchStatus.confirmed => RiderSearchPhase.waiting,
         RiderBookingSearchStatus.searching => RiderSearchPhase.searching,
@@ -330,7 +405,19 @@ class RiderSearchController extends ChangeNotifier {
         RiderBookingSearchStatus.failed => RiderSearchPhase.failed,
         RiderBookingSearchStatus.draft => RiderSearchPhase.unresolved,
       };
-      _set(_currentView(phase, booking: booking));
+      if (_matchingResultVersion != null &&
+          booking.version != _matchingResultVersion) {
+        _matchingResult = null;
+        _matchingResultVersion = null;
+      }
+      final visiblePhase = _matchingResult?.state ==
+                  RiderMatchingState.noCandidates &&
+              _matchingResultVersion == booking.version &&
+              (phase == RiderSearchPhase.waiting ||
+                  phase == RiderSearchPhase.searching)
+          ? RiderSearchPhase.noCandidates
+          : phase;
+      _set(_currentView(visiblePhase, booking: booking));
       if (booking.status == RiderBookingSearchStatus.cancelled) {
         _cancellationCoordinator.reconcileTerminalBooking(
           riderId: _ownerSession.user!.id,
@@ -357,6 +444,14 @@ class RiderSearchController extends ChangeNotifier {
           _tripRepository != null) {
         unawaited(_verifyAssignment(generation, _tripRepository));
       }
+      if (_isCurrent(generation) &&
+          (phase == RiderSearchPhase.waiting ||
+              phase == RiderSearchPhase.searching) &&
+          _matchingRepository != null &&
+          !_matchingAttempted &&
+          (_automaticallyStartMatching || _matchingExplicitlyRequested)) {
+        unawaited(_requestMatching(booking, generation));
+      }
     } on RiderBookingSearchReadException catch (error) {
       if (!_isCurrent(generation)) return;
       _set(_currentView(
@@ -368,6 +463,107 @@ class RiderSearchController extends ChangeNotifier {
       if (_isCurrent(generation)) {
         _set(_currentView(RiderSearchPhase.unavailable));
       }
+    }
+  }
+
+  Future<void> _requestMatching(
+    RiderBookingSearchSnapshot booking,
+    int generation,
+  ) async {
+    final repository = _matchingRepository;
+    if (repository == null || !_isCurrent(generation) ||
+        _matchingAttempted || _matchingInProgress) return;
+    final readReference = _readConfirmedReference;
+    final reference = readReference?.call();
+    final riderId = _ownerSession.user?.id;
+    if (reference == null || riderId == null ||
+        reference.command.bookingRequestId.toLowerCase() !=
+            bookingRequestId.toLowerCase() ||
+        reference.command.riderId.toLowerCase() != riderId.toLowerCase() ||
+        reference.command.fareQuoteId.toLowerCase() !=
+            reference.quote.id.toLowerCase() ||
+        reference.quote.bookingRequestId.toLowerCase() !=
+            bookingRequestId.toLowerCase() ||
+        reference.quote.status.name != 'locked' ||
+        booking.paymentMethod != PaymentMethod.cash) {
+      _matchingAttempted = true;
+      _matchingFailure = RiderMatchingFailure.invalidReference;
+      _set(_currentView(_state.phase, booking: booking));
+      return;
+    }
+    _matchingAttempted = true;
+    _matchingExplicitlyRequested = false;
+    _matchingInProgress = true;
+    _matchingRequestOutstanding = true;
+    final operation = ++_matchingOperationGeneration;
+    _matchingFailure = null;
+    _set(_currentView(_state.phase, booking: booking));
+    _matchingTimer?.cancel();
+    _matchingTimer = _scheduleReadDeadline(_readDeadline, () {
+      if (_isCurrent(generation) &&
+          operation == _matchingOperationGeneration &&
+          _matchingInProgress) {
+        // Fence the late response. The backend result is now uncertain and
+        // must be discovered through canonical reads, not replayed here.
+        _matchingOperationGeneration++;
+        _matchingInProgress = false;
+        _matchingFailure = RiderMatchingFailure.unavailable;
+        // Keep the request fenced as outstanding: its server-side result may
+        // still arrive, so this UI cannot issue a concurrent retry.
+        _set(_currentView(_state.phase, booking: booking));
+      }
+    });
+    try {
+      final result = await repository.requestMatching(
+        reference,
+        expectedBookingVersion: booking.version,
+      );
+      if (!_isCurrent(generation) ||
+          operation != _matchingOperationGeneration) return;
+      _matchingRequestOutstanding = false;
+      _matchingTimer?.cancel();
+      _matchingTimer = null;
+      if (result.bookingRequestId.toLowerCase() !=
+              bookingRequestId.toLowerCase() ||
+          result.fareQuoteId.toLowerCase() !=
+              reference.quote.id.toLowerCase()) {
+        throw const RiderMatchingException(
+            RiderMatchingFailure.invalidResponse);
+      }
+      _matchingResult = result;
+      _matchingResultVersion = booking.version;
+      _matchingInProgress = false;
+      if (result.state == RiderMatchingState.noCandidates) {
+        _set(_currentView(RiderSearchPhase.noCandidates, booking: booking));
+      } else {
+        _set(_currentView(_state.phase, booking: booking));
+      }
+      // The edge response is advisory. Assignment is accepted only after the
+      // same authenticated canonical booking/Trip repositories reread state.
+      if (result.state == RiderMatchingState.assigned) {
+        final currentRead = _pending;
+        if (currentRead != null) await currentRead;
+        if (!_isCurrent(generation)) return;
+        await _requestRefresh();
+      }
+    } on RiderMatchingException catch (error) {
+      if (!_isCurrent(generation) ||
+          operation != _matchingOperationGeneration) return;
+      _matchingRequestOutstanding = false;
+      _matchingTimer?.cancel();
+      _matchingTimer = null;
+      _matchingInProgress = false;
+      _matchingFailure = error.failure;
+      _set(_currentView(_state.phase, booking: booking));
+    } on Object {
+      if (!_isCurrent(generation) ||
+          operation != _matchingOperationGeneration) return;
+      _matchingRequestOutstanding = false;
+      _matchingTimer?.cancel();
+      _matchingTimer = null;
+      _matchingInProgress = false;
+      _matchingFailure = RiderMatchingFailure.unavailable;
+      _set(_currentView(_state.phase, booking: booking));
     }
   }
 
@@ -446,6 +642,10 @@ class RiderSearchController extends ChangeNotifier {
       return;
     }
     _generation++;
+    _matchingOperationGeneration++;
+    _matchingTimer?.cancel();
+    _matchingTimer = null;
+    _matchingInProgress = false;
     _timeout?.cancel();
     _timeout = null;
     _abandonRead();
@@ -493,7 +693,9 @@ class RiderSearchController extends ChangeNotifier {
         final regressed = identityValid &&
             previous != null &&
             (trip.tripId.toLowerCase() != previous.tripId.toLowerCase() ||
-                trip.version < previous.version);
+                trip.version < previous.version ||
+                (trip.version == previous.version &&
+                    trip.status != previous.status));
         final valid = identityValid && !regressed;
         if (valid) _lastVerifiedTrip = trip;
         _setAssignment(
@@ -627,6 +829,12 @@ class RiderSearchController extends ChangeNotifier {
         cancellation: _cancellation,
         rejection: _rejection,
         assignment: _assignment,
+        matchingResult: _matchingResult,
+        matchingFailure: _matchingFailure,
+        matchingInProgress: _matchingInProgress,
+        verifiedTrip: _assignment == RiderAssignmentVerification.verified
+            ? _lastVerifiedTrip
+            : null,
       );
 
   void _setAssignment(RiderAssignmentVerification assignment) {
@@ -645,6 +853,9 @@ class RiderSearchController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _generation++;
+    _matchingOperationGeneration++;
+    _matchingTimer?.cancel();
+    _matchingTimer = null;
     _timeout?.cancel();
     _timeout = null;
     _abandonRead();

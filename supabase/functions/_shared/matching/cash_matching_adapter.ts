@@ -1,4 +1,5 @@
-/** Server-only, unwired A05 composition. No HTTP entrypoint, env reads or provider.
+/** Server-only A05 composition. The dedicated cash-matching Edge Function
+ * supplies trusted environment values and an authenticated Rider bearer.
  * The Rider credential reads canonical RLS state; only the trusted backend port
  * may discover/create offers. Driver acceptance remains driver_transition_trip.
  */
@@ -251,7 +252,16 @@ export class SupabaseCashMatchingPort implements CashMatchingPort {
     private readonly serviceKey: string,
     private readonly send: typeof fetch = fetch,
   ) {
-    if (!url.startsWith("https://") || !publicKey || !riderBearer || !serviceKey) {
+    let parsed: URL | null = null;
+    try {
+      parsed = new URL(url);
+    } catch {
+      parsed = null;
+    }
+    const loopbackHttp = parsed?.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "::1", "[::1]"].includes(parsed.hostname);
+    if ((!parsed || (parsed.protocol !== "https:" && !loopbackHttp)) ||
+      !publicKey || !riderBearer || !serviceKey) {
       throw new CashMatchingError("invalid_request");
     }
   }

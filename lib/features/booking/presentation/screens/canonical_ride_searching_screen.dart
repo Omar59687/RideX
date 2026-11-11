@@ -2,13 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ridex/core/models/booking_handoff.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/core/models/driver_trip_completion.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/rider_booking_cancellation.dart';
 import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/rider_cancellation_providers.dart';
+import 'package:ridex/core/providers/rider_booking_integration_providers.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/models/rider_matching_request.dart';
+import 'package:ridex/core/models/rider_assigned_trip.dart';
+import 'package:ridex/features/booking/application/rider_booking_integration_gate.dart';
 import 'package:ridex/core/repositories/rider_booking_search_repository.dart';
 import 'package:ridex/core/repositories/rider_trip_tracking_repository.dart';
 import 'package:ridex/core/widgets/app_button.dart';
@@ -16,20 +21,29 @@ import 'package:ridex/core/widgets/app_dialog.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
 import 'package:ridex/features/booking/application/rider_search_controller.dart';
 
-/// Standalone canonical surface. No production route or backend is wired yet.
+/// Canonical Cash searching surface. Production routing remains behind the
+/// compile-time integration gate.
 class CanonicalRideSearchingScreen extends ConsumerStatefulWidget {
   const CanonicalRideSearchingScreen({
     super.key,
     required this.bookingRequestId,
-    this.repository = const UnavailableRiderBookingSearchRepository(),
+    this.repository,
     this.tripTrackingRepository,
+    this.matchingRepository,
+    this.readConfirmedReference,
+    this.onAssignmentVerified,
+    this.allowAutomaticMatching = true,
     this.softTimeout = const Duration(seconds: 90),
     this.readDeadline = const Duration(seconds: 15),
   });
 
   final String bookingRequestId;
-  final RiderBookingSearchRepository repository;
+  final RiderBookingSearchRepository? repository;
   final RiderTripTrackingRepository? tripTrackingRepository;
+  final RiderMatchingRequestRepository? matchingRepository;
+  final ConfirmedBookingReference? Function()? readConfirmedReference;
+  final ValueChanged<RiderAssignedTrip>? onAssignmentVerified;
+  final bool allowAutomaticMatching;
   final Duration softTimeout;
   final Duration readDeadline;
 
@@ -45,6 +59,7 @@ class _CanonicalRideSearchingScreenState
   String? _pinnedRiderId;
   Route<dynamic>? _cancellationDialogRoute;
   NavigatorState? _cancellationDialogNavigator;
+  String? _navigatedTripId;
 
   @override
   void initState() {
@@ -52,7 +67,7 @@ class _CanonicalRideSearchingScreenState
     _createController();
   }
 
-  void _createController() {
+  void _createController({bool? automaticallyStartMatching}) {
     final session = ref.read(sessionControllerProvider);
     _controllerSession = session;
     final riderId = _eligibleRiderId(session);
@@ -62,9 +77,19 @@ class _CanonicalRideSearchingScreenState
     if (allowed) _pinnedRiderId ??= riderId;
     final controller = RiderSearchController(
       bookingRequestId: widget.bookingRequestId,
-      repository: widget.repository,
+      repository: widget.repository ??
+          ref.read(riderBookingSearchRepositoryProvider),
       cancellationCoordinator: ref.read(riderCancellationCoordinatorProvider),
-      tripTrackingRepository: widget.tripTrackingRepository,
+      tripTrackingRepository: widget.tripTrackingRepository ??
+          ref.read(riderTripTrackingRepositoryProvider),
+      matchingRepository: widget.matchingRepository ??
+          (riderCashMatchingIntegrationEnabled
+              ? ref.read(riderMatchingRequestRepositoryProvider)
+              : null),
+      readConfirmedReference: widget.readConfirmedReference ??
+          () => _confirmedReferenceFor(ref, widget.bookingRequestId),
+      automaticallyStartMatching:
+          automaticallyStartMatching ?? widget.allowAutomaticMatching,
       readSession: () => ref.read(sessionControllerProvider),
       softTimeout: widget.softTimeout,
       readDeadline: widget.readDeadline,
@@ -90,11 +115,18 @@ class _CanonicalRideSearchingScreenState
         !identical(oldWidget.repository, widget.repository) ||
         !identical(
             oldWidget.tripTrackingRepository, widget.tripTrackingRepository) ||
+        !identical(oldWidget.matchingRepository, widget.matchingRepository) ||
+        !identical(oldWidget.readConfirmedReference,
+            widget.readConfirmedReference) ||
+        !identical(oldWidget.onAssignmentVerified,
+            widget.onAssignmentVerified) ||
         oldWidget.softTimeout != widget.softTimeout ||
-        oldWidget.readDeadline != widget.readDeadline) {
+        oldWidget.readDeadline != widget.readDeadline ||
+        oldWidget.allowAutomaticMatching != widget.allowAutomaticMatching) {
       _dismissCancellationDialog();
       _controller.dispose();
       if (bookingChanged) _pinnedRiderId = null;
+      if (bookingChanged) _navigatedTripId = null;
       _createController();
     }
   }
@@ -162,7 +194,7 @@ class _CanonicalRideSearchingScreenState
           (_pinnedRiderId == null ||
               _pinnedRiderId!.toLowerCase() == riderId.toLowerCase())) {
         _controller.dispose();
-        setState(_createController);
+        setState(() => _createController(automaticallyStartMatching: false));
       }
     });
     return AppScaffold(
@@ -172,6 +204,7 @@ class _CanonicalRideSearchingScreenState
         animation: _controller,
         builder: (context, _) {
           final state = _controller.state;
+          _scheduleVerifiedNavigation(state);
           final (title, message) = _copyFor(
             state.phase,
             assignmentVerified:
@@ -233,6 +266,26 @@ class _CanonicalRideSearchingScreenState
                     ? () => unawaited(_controller.refresh())
                     : null,
               ),
+              if (state.phase == RiderSearchPhase.noCandidates ||
+                  state.matchingFailure != null ||
+                  _controller.canRetryMatching) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(_matchingMessage(state)),
+                AppButton(
+                  key: const ValueKey('canonical-matching-retry'),
+                  label: state.phase == RiderSearchPhase.noCandidates
+                      ? 'Check candidates again'
+                      : 'Continue matching',
+                  variant: AppButtonVariant.secondary,
+                  onPressed: _controller.canRetryMatching
+                      ? () => unawaited(_controller.retryMatching())
+                      : null,
+                ),
+              ],
+              if (state.matchingInProgress) ...[
+                const SizedBox(height: AppSpacing.sm),
+                const Text('Matching request is pending. Check the canonical booking status; it will not be resent automatically.'),
+              ],
               const SizedBox(height: AppSpacing.sm),
               AppButton(
                 key: const ValueKey('canonical-search-cancel'),
@@ -268,8 +321,8 @@ class _CanonicalRideSearchingScreenState
               ),
               const SizedBox(height: AppSpacing.md),
               const Text(
-                'Cancellation and Driver details require separately verified '
-                'backend capabilities. No new booking or payment is created here.',
+                'This screen tracks the original Cash booking. It cannot create '
+                'another booking or process a payment.',
               ),
             ],
           );
@@ -277,6 +330,53 @@ class _CanonicalRideSearchingScreenState
       ),
     );
   }
+
+  void _scheduleVerifiedNavigation(RiderSearchViewState state) {
+    final trip = state.verifiedTrip;
+    final callback = widget.onAssignmentVerified;
+    if (trip == null || callback == null ||
+        trip.tripId.toLowerCase() == _navigatedTripId?.toLowerCase() ||
+        !identical(ref.read(sessionControllerProvider), _controllerSession) ||
+        trip.bookingRequestId.toLowerCase() !=
+            widget.bookingRequestId.toLowerCase() ||
+        trip.riderId.toLowerCase() != _pinnedRiderId?.toLowerCase() ||
+        trip.paymentMethod.name != 'cash') return;
+    _navigatedTripId = trip.tripId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && identical(ref.read(sessionControllerProvider),
+          _controllerSession)) callback(trip);
+    });
+  }
+}
+
+ConfirmedBookingReference? _confirmedReferenceFor(
+  WidgetRef ref,
+  String bookingId,
+) {
+  final session = ref.read(sessionControllerProvider);
+  final riderId = _eligibleRiderId(session);
+  if (riderId == null) return null;
+  for (final reference in ref.read(confirmedBookingReferencesProvider)) {
+    if (reference.command.bookingRequestId.toLowerCase() ==
+            bookingId.toLowerCase() &&
+        reference.command.riderId.toLowerCase() == riderId.toLowerCase()) {
+      return reference;
+    }
+  }
+  return null;
+}
+
+String _matchingMessage(RiderSearchViewState state) {
+  if (state.phase == RiderSearchPhase.noCandidates) {
+    return 'No eligible Driver was returned for this attempt. The booking remains canonical and can be checked again.';
+  }
+  return switch (state.matchingFailure) {
+    RiderMatchingFailure.conflict => 'The booking changed while matching. Check its canonical status before another attempt.',
+    RiderMatchingFailure.invalidReference ||
+    RiderMatchingFailure.invalidResponse => 'Matching could not verify this booking reference. No Trip navigation is available.',
+    RiderMatchingFailure.unauthorized => 'This account is not authorized to request matching.',
+    RiderMatchingFailure.unavailable || null => 'The matching result is unknown. Check this same booking; no automatic retry was sent.',
+  };
 }
 
 Future<String?> _showCancellationReasonDialog(
@@ -421,6 +521,10 @@ String? _eligibleRiderId(SessionState session) {
       RiderSearchPhase.searching => (
           'Searching for a driver',
           'Your original booking is being matched. Driver assignment is unverified.',
+        ),
+      RiderSearchPhase.noCandidates => (
+          'No Driver candidates yet',
+          'The matching attempt found no eligible candidate. Your original confirmed booking remains in place.',
         ),
       RiderSearchPhase.timedOut => (
           'Taking longer than expected',

@@ -6,6 +6,7 @@ import 'package:ridex/core/models/booking_handoff.dart';
 import 'package:ridex/core/models/fare_quote.dart';
 import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/features/booking/application/rider_booking_integration_gate.dart';
 import 'package:ridex/core/providers/diagnostics_providers.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/core/widgets/app_scaffold.dart';
@@ -114,6 +115,44 @@ class _BookingConfirmationScreenState
     }
   }
 
+  Future<void> _startCanonicalMatching(BookingHandoff handoff) async {
+    if (!riderCashMatchingIntegrationEnabled ||
+        handoff.booking.paymentMethod != PaymentMethod.cash ||
+        !identical(ref.read(sessionControllerProvider), _ownerSession)) {
+      return;
+    }
+    final bookingId = handoff.booking.id;
+    var reference = _confirmedReference(bookingId);
+    if (reference == null) {
+      await _resolve(retire: true);
+      if (!mounted ||
+          !identical(ref.read(sessionControllerProvider), _ownerSession)) {
+        return;
+      }
+      reference = _confirmedReference(bookingId);
+    }
+    if (reference == null ||
+        reference.command.riderId.toLowerCase() !=
+            ref.read(sessionControllerProvider).user?.id?.toLowerCase() ||
+        reference.command.bookingRequestId.toLowerCase() !=
+            bookingId.toLowerCase()) {
+      return;
+    }
+    if (mounted) {
+      context.go(
+        '/rider/cash-searching?booking=${Uri.encodeQueryComponent(bookingId)}',
+      );
+    }
+  }
+
+  ConfirmedBookingReference? _confirmedReference(String bookingId) {
+    for (final reference in ref.read(confirmedBookingReferencesProvider)) {
+      if (reference.command.bookingRequestId.toLowerCase() ==
+          bookingId.toLowerCase()) return reference;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(sessionControllerProvider, (previous, next) {
@@ -171,17 +210,29 @@ class _BookingConfirmationScreenState
               if (!handoff.isConfirmed && handoff.booking.paymentMethod == null)
                 const Text(
                     'The locked booking payment method could not be verified. Confirmation is paused.'),
-              if (handoff.isConfirmed && !retired)
+              if (handoff.isConfirmed && !retired &&
+                  !riderCashMatchingIntegrationEnabled)
                 AppButton(
                     label: 'Resolve evidence for another booking',
                     onPressed: () => unawaited(_resolve(retire: true))),
+              if (handoff.isConfirmed &&
+                  handoff.booking.paymentMethod == PaymentMethod.cash &&
+                  riderCashMatchingIntegrationEnabled)
+                AppButton(
+                  key: const ValueKey('start-canonical-cash-matching'),
+                  label: 'Find a driver',
+                  onPressed: _busy
+                      ? null
+                      : () => unawaited(_startCanonicalMatching(handoff)),
+                ),
               if (handoff.isConfirmed && retired)
                 AppButton(
                     label: 'Start another booking',
                     onPressed: () => context.go('/rider/home')),
               if (handoff.isConfirmed)
-                const Text(
-                    'Your booking is confirmed. Live driver matching is not available yet.'),
+                Text(riderCashMatchingIntegrationEnabled && retired
+                    ? 'Matching uses this confirmed Cash booking and its saved canonical fare reference.'
+                    : 'Your booking is confirmed. Live driver matching is not available yet.'),
             ] else ...[
               Text(_paymentMethodUnavailable
                   ? 'The canonical payment method is unavailable or unsupported. Confirmation is paused.'

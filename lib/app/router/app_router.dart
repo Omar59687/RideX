@@ -18,6 +18,8 @@ import 'package:ridex/features/booking/presentation/screens/destination_selectio
 import 'package:ridex/features/booking/presentation/screens/fare_estimate_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/payment_method_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/booking_confirmation_screen.dart';
+import 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart';
+import 'package:ridex/features/booking/application/rider_booking_integration_gate.dart';
 import 'package:ridex/features/booking/presentation/screens/pickup_selection_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/ride_request_searching_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/vehicle_type_selection_screen.dart';
@@ -39,6 +41,7 @@ import 'package:ridex/features/trips/presentation/screens/driver_canonical_trip_
 import 'package:ridex/features/trips/presentation/screens/driver_arrival_screen.dart';
 import 'package:ridex/features/trips/presentation/screens/driver_trip_request_screen.dart';
 import 'package:ridex/features/trips/presentation/screens/rider_active_trip_screen.dart';
+import 'package:ridex/features/trips/presentation/screens/canonical_rider_trip_screen.dart';
 import 'package:ridex/features/trips/presentation/screens/trip_completion_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -128,6 +131,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/rider/searching',
           name: RouteNames.searching,
           builder: (_, __) => const RideRequestSearchingScreen()),
+      if (riderCashMatchingIntegrationEnabled) ...[
+        GoRoute(
+          path: '/rider/cash-searching',
+          builder: (context, state) => CanonicalRideSearchingScreen(
+            bookingRequestId: state.uri.queryParameters['booking'] ?? '',
+            onAssignmentVerified: (trip) => context.go(
+              '/rider/canonical-trip?trip=${Uri.encodeQueryComponent(trip.tripId)}&booking=${Uri.encodeQueryComponent(trip.bookingRequestId)}',
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/rider/canonical-trip',
+          builder: (_, state) => CanonicalRiderTripScreen(
+            tripId: state.uri.queryParameters['trip'] ?? '',
+            bookingRequestId: state.uri.queryParameters['booking'] ?? '',
+          ),
+        ),
+      ],
       GoRoute(
           path: '/rider/trip',
           name: RouteNames.riderTrip,

@@ -15,6 +15,7 @@ import 'package:ridex/core/services/driver_location/supabase_driver_tracking_con
 import 'package:ridex/core/services/diagnostics/app_error_reporter.dart';
 import 'package:ridex/core/providers/repositories_providers.dart';
 import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum DriverTrackingStatus {
   stopped,
@@ -25,6 +26,44 @@ enum DriverTrackingStatus {
 }
 
 enum DriverTrackingLifecycleState { foreground, background }
+
+/// Auth identity observed by the sole foreground GPS publisher. Implementations
+/// expose session identity only for fencing; it is never a capability.
+abstract interface class DriverTrackingSessionMonitor {
+  String? get authenticatedUserId;
+  Object? get sessionIdentity;
+  Stream<void> get changes;
+}
+
+final class SupabaseDriverTrackingSessionMonitor
+    implements DriverTrackingSessionMonitor {
+  SupabaseDriverTrackingSessionMonitor(this._client);
+
+  final SupabaseClient _client;
+
+  @override
+  String? get authenticatedUserId => _client.auth.currentUser?.id;
+
+  @override
+  Object? get sessionIdentity => _client.auth.currentSession;
+
+  @override
+  Stream<void> get changes => _client.auth.onAuthStateChange.map((_) {});
+}
+
+final class NoopDriverTrackingSessionMonitor
+    implements DriverTrackingSessionMonitor {
+  const NoopDriverTrackingSessionMonitor();
+
+  @override
+  String? get authenticatedUserId => null;
+
+  @override
+  Object? get sessionIdentity => null;
+
+  @override
+  Stream<void> get changes => const Stream<void>.empty();
+}
 
 abstract interface class DriverTrackingLifecycle {
   Stream<DriverTrackingLifecycleState> get changes;
@@ -114,6 +153,14 @@ final driverTrackingClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
 );
 
+final driverTrackingSessionMonitorProvider =
+    Provider<DriverTrackingSessionMonitor>((ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return client == null
+      ? const NoopDriverTrackingSessionMonitor()
+      : SupabaseDriverTrackingSessionMonitor(client);
+});
+
 final driverTrackingControllerProvider =
     NotifierProvider.autoDispose<DriverTrackingController, DriverTrackingState>(
   DriverTrackingController.new,
@@ -126,6 +173,7 @@ class DriverTrackingController
   StreamSubscription<DriverLocationFix>? _subscription;
   StreamSubscription<DriverTrackingLifecycleState>? _lifecycleSubscription;
   StreamSubscription<DriverTrackingConnectionEvent>? _connectionSubscription;
+  StreamSubscription<void>? _sessionSubscription;
   Future<void> _publishQueue = Future<void>.value();
   Future<void> _lifecycleQueue = Future<void>.value();
   Future<void>? _configurationSyncFuture;
@@ -149,12 +197,24 @@ class DriverTrackingController
   int? _connectionGeneration;
   int _generation = 0;
   bool _disposed = false;
+  bool _trackingSessionCaptured = false;
+  String? _trackingUserId;
+  Object? _trackingSessionIdentity;
+  late DriverTrackingSessionMonitor _sessionMonitor;
   late final AppErrorReporter _errorReporter;
 
   @override
   DriverTrackingState build() {
     _errorReporter = ref.read(appErrorReporterProvider);
+    _sessionMonitor = ref.read(driverTrackingSessionMonitorProvider);
     final connection = ref.read(driverTrackingConnectionProvider);
+    _sessionSubscription = _sessionMonitor.changes.listen((_) {
+      if (_trackingRequested && !_trackingSessionIsCurrent()) {
+        unawaited(_stopForSessionReplacement());
+      }
+    }, onError: (Object _, StackTrace __) {
+      if (_trackingRequested) unawaited(_stopForSessionReplacement());
+    });
     _lifecycleSubscription = ref
         .read(driverTrackingLifecycleProvider)
         .changes
@@ -169,6 +229,8 @@ class DriverTrackingController
       _lifecycleSubscription = null;
       final connectionSubscription = _connectionSubscription;
       _connectionSubscription = null;
+      final sessionSubscription = _sessionSubscription;
+      _sessionSubscription = null;
       _connectionGeneration = null;
       _connectionFailurePending = false;
       if (subscription != null) {
@@ -189,6 +251,12 @@ class DriverTrackingController
           connectionSubscription.cancel,
         ));
       }
+      if (sessionSubscription != null) {
+        unawaited(_containCleanup(
+          'disposing the driver session subscription',
+          sessionSubscription.cancel,
+        ));
+      }
       unawaited(_containCleanup(
         'disposing the driver tracking connection',
         connection.dispose,
@@ -198,6 +266,11 @@ class DriverTrackingController
   }
 
   Future<void> start() async {
+    if (!_trackingRequested) {
+      _trackingUserId = _sessionMonitor.authenticatedUserId;
+      _trackingSessionIdentity = _sessionMonitor.sessionIdentity;
+      _trackingSessionCaptured = true;
+    }
     _trackingRequested = true;
     if (_backgrounded) return;
     if (state.status == DriverTrackingStatus.unavailable ||
@@ -294,6 +367,9 @@ class DriverTrackingController
 
   Future<void> stop() async {
     _trackingRequested = false;
+    _trackingSessionCaptured = false;
+    _trackingUserId = null;
+    _trackingSessionIdentity = null;
     _configurationSyncPending = false;
     await _stopSession();
   }
@@ -329,6 +405,15 @@ class DriverTrackingController
   }
 
   Future<void> stopForSignOut() => stop();
+
+  Future<void> _stopForSessionReplacement() async {
+    if (!_trackingRequested) return;
+    _trackingRequested = false;
+    _trackingSessionCaptured = false;
+    _trackingUserId = null;
+    _trackingSessionIdentity = null;
+    await _stopSession();
+  }
 
   Future<void> synchronizeCanonicalState() {
     if (!_trackingRequested || _backgrounded || _disposed) {
@@ -713,7 +798,18 @@ class DriverTrackingController
     }
   }
 
-  bool _isCurrent(int generation) => !_disposed && generation == _generation;
+  bool _trackingSessionIsCurrent() =>
+      !_trackingSessionCaptured ||
+      (_sessionMonitor.authenticatedUserId == _trackingUserId &&
+          identical(
+            _sessionMonitor.sessionIdentity,
+            _trackingSessionIdentity,
+          ));
+
+  bool _isCurrent(int generation) =>
+      !_disposed &&
+      generation == _generation &&
+      _trackingSessionIsCurrent();
 
   void _setUnavailable(DriverLocationFailure failure) {
     state = DriverTrackingState(
