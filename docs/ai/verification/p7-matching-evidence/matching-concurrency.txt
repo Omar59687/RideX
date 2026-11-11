@@ -1,0 +1,22 @@
+ISOLATED_CONTAINER=ridex-r06-x2-e7637cf3f7a3
+migration chain: 35 applied, exact history, zero approvals (r06_x2_base_edc76fae22)
+PASS competing Drivers: real lock waiter; contender=40001; atomic invariants verified
+PASS duplicate acceptance lost response: real lock waiter; contender=OK; atomic invariants verified
+PASS acceptance rollback releases contender: real lock waiter; contender=OK; atomic invariants verified
+PASS accept before expiry service: real lock waiter; contender=40001; atomic invariants verified
+PASS decline before accept: real lock waiter; contender=40001; atomic invariants verified
+PASS accept before decline: real lock waiter; contender=40001; atomic invariants verified
+PASS cancel before accept: real lock waiter; contender=40001; atomic invariants verified
+PASS accept before cancel: real lock waiter; contender=55000; atomic invariants verified
+PASS offer before blocking: real lock waiter; contender=OK; atomic invariants verified
+PASS blocking before offer: real lock waiter; contender=42501; atomic invariants verified
+PASS Rider blocking before offer: real lock waiter; contender=42501; atomic invariants verified
+PASS offer before Rider blocking: real lock waiter; contender=OK; atomic invariants verified
+PASS offer before category change: real lock waiter; contender=40001; atomic invariants verified
+PASS category change before offer: real lock waiter; contender=42501; atomic invariants verified
+PASS GPS moves between discovery and offer: real lock waiter; contender=55000; atomic invariants verified
+PASS one Driver across two bookings: real lock waiter; contender=55000; atomic invariants verified
+PASS expiry before accept: real lock waiter; contender=40001; atomic invariants verified
+PASS competing-Driver block versus acceptance audit: two real lock barriers; no FK deadlock
+PASS accepted-offer retry versus Trip cancellation: two real lock barriers; no Trip/availability inversion
+PASS: 19 real independent-session races; zero deadlocks/timeouts; no partial state

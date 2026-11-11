@@ -1,0 +1,118 @@
+{
+  "passed": 2316,
+  "failed": 22,
+  "skipped": 4,
+  "errors": [
+    {
+      "name": "loading <WORKTREE>/test/app/initialization_failure_app_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/app/initialization_failure_app_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/app/initialization_failure_app_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/appearance_theme_integration_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/appearance_theme_integration_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/appearance_theme_integration_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/app_launch_smoke_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/app_launch_smoke_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/app_launch_smoke_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/app_router_error_boundary_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/app_router_error_boundary_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/app_router_error_boundary_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "Phase 4 architecture boundaries provider SDK directives remain within explicit infrastructure boundaries",
+      "error": "Expected: contains 'lib/core/repositories/supabase_rider_booking_search_repository.dart'\n  Actual: Set:[\n            'lib/app/bootstrap.dart',\n            'lib/core/providers/driver_tracking_providers.dart',\n            'lib/core/providers/repositories_providers.dart',\n            'lib/core/repositories/canonical_payment_repository.dart',\n            'lib/core/repositories/supabase_driver_completion_source.dart',\n            'lib/core/repositories/canonical_trip_reconciliation_repository.dart',\n            'lib/core/repositories/cash_booking_assignment_repository.dart',\n            'lib/core/repositories/supabase_admin_payment_reader.dart',\n            'lib/core/repositories/rider_canonical_trip_detail_repository.dart',\n            'lib/core/repositories/supabase_auth_repository.dart',\n            'lib/core/repositories/supabase_driver_trip_completion_repository.dart',\n            'lib/core/repositories/supabase_driver_cash_completion_composition.dart',\n            'lib/core/repositories/supabase_profile_repository.dart',\n            'lib/core/services/driver_location/supabase_driver_location_service.dart',\n            'lib/core/services/driver_location/supabase_driver_tracking_connection.dart',\n            'lib/core/services/fare/supabase_fare_lock_reader.dart',\n            'lib/core/services/places/supabase_place_service.dart',\n            'lib/core/services/routes/supabase_route_service.dart',\n            'lib/core/services/supabase/auth_service.dart',\n            'lib/core/services/supabase/profile_service.dart',\n            'lib/core/services/supabase/supabase_client_provider.dart',\n            'lib/core/services/supabase/supabase_initialization_provenance.dart',\n            'lib/core/services/trips/supabase_trip_realtime_source.dart',\n            'lib/core/services/trips/supabase_rider_trip_location_source.dart'\n          ]\n   Which: does not contain 'lib/core/repositories/supabase_rider_booking_search_repository.dart'\npackage:supabase_flutter in lib/core/repositories/supabase_rider_booking_search_repository.dart\n",
+      "stackTrace": "package:matcher                                     expect\npackage:flutter_test/src/widget_tester.dart 473:18  expect\ntest/architecture_boundary_test.dart 33:11          main.<fn>.<fn>\n"
+    },
+    {
+      "name": "loading <WORKTREE>/test/auth_v2_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/auth_v2_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/auth_v2_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/booking_confirmation_handoff_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/booking_confirmation_handoff_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/booking_confirmation_handoff_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/canonical_ride_searching_cancellation_screen_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/canonical_ride_searching_cancellation_screen_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/canonical_ride_searching_cancellation_screen_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/canonical_ride_searching_screen_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/canonical_ride_searching_screen_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/canonical_ride_searching_screen_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/driver_accept_trip_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/driver_accept_trip_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/driver_accept_trip_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/driver_cash_production_integration_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/driver_cash_production_integration_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/driver_cash_production_integration_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/fare_lock_recovery_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/fare_lock_recovery_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/fare_lock_recovery_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/onboarding_navigation_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/onboarding_navigation_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/onboarding_navigation_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/payment_method_screen_authority_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/payment_method_screen_authority_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/payment_method_screen_authority_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/payment_method_theme_integration_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/payment_method_theme_integration_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/payment_method_theme_integration_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/rider_booking_flow_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/rider_booking_flow_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/rider_booking_flow_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/rider_canonical_trip_detail_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/rider_canonical_trip_detail_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/rider_canonical_trip_detail_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/rider_matching_controller_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/rider_matching_controller_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/rider_matching_controller_test.dart: test/rider_matching_controller_test.dart:194:12: Error: Undefined name 'assignmentHintApplied'.\n          !assignmentHintApplied.isCompleted) assignmentHintApplied.complete();\n           ^^^^^^^^^^^^^^^^^^^^^\ntest/rider_matching_controller_test.dart:194:47: Error: Undefined name 'assignmentHintApplied'.\n          !assignmentHintApplied.isCompleted) assignmentHintApplied.complete();\n                                              ^^^^^^^^^^^^^^^^^^^^^\ntest/rider_matching_controller_test.dart:198:11: Error: Undefined name 'assignmentHintApplied'.\n    await assignmentHintApplied.future;\n          ^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/rider_v2_adaptive_accessibility_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/rider_v2_adaptive_accessibility_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/rider_v2_adaptive_accessibility_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/role_selection_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/role_selection_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/role_selection_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "loading <WORKTREE>/test/supabase_initialization_provenance_test.dart",
+      "error": "Failed to load \"<WORKTREE>/test/supabase_initialization_provenance_test.dart\":\nCompilation failed for testPath=<WORKTREE>/test/supabase_initialization_provenance_test.dart: lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:84:20: Error: The getter 'riderTripTrackingRepositoryProvider' isn't defined for the type '_CanonicalRideSearchingScreenState'.\n - '_CanonicalRideSearchingScreenState' is from 'package:ridex/features/booking/presentation/screens/canonical_ride_searching_screen.dart' ('lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart').\nTry correcting the name to the name of an existing getter, or defining a getter or field named 'riderTripTrackingRepositoryProvider'.\n          ref.read(riderTripTrackingRepositoryProvider),\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n.",
+      "stackTrace": ""
+    },
+    {
+      "name": "D02 session replacement closes the B08 delivery scope",
+      "error": "Expected: <0>\n  Actual: <1>\n",
+      "stackTrace": "package:matcher                                              expect\npackage:flutter_test/src/widget_tester.dart 473:18           expect\ntest/trip_realtime_canonical_driver_delivery_test.dart 70:5  main.<fn>\n"
+    }
+  ],
+  "complete": true
+}

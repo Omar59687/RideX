@@ -1,0 +1,36 @@
+ISOLATED_CONTAINER=ridex-r06-x2-508d1bc52eb5
+ISOLATION=network:none ports:none mounts:none
+PostgreSQL 17.11 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit
+migration chain: 35 applied, exact history, zero approvals (r06_x2_base_d230056d80)
+{"file": "004_role_authorization_boundary.test.sql", "database": "r06_x2_test_c7850bf436", "passed": 29, "failed": 0, "skipped": 0, "complete": true}
+{"file": "005_phase3_core_security_foundation.test.sql", "database": "r06_x2_test_ba2356bd0f", "passed": 55, "failed": 0, "skipped": 0, "complete": true}
+{"file": "006_phase3_driver_assets_availability.test.sql", "database": "r06_x2_test_b8c8dea915", "passed": 57, "failed": 0, "skipped": 0, "complete": true}
+{"file": "007_phase3_booking_fare_matching_foundation.test.sql", "database": "r06_x2_test_764ab34dd3", "passed": 119, "failed": 0, "skipped": 0, "complete": true}
+{"file": "008_phase3_trip_cash_change_foundation.test.sql", "database": "r06_x2_test_f24f5ec7b6", "passed": 118, "failed": 0, "skipped": 0, "complete": true}
+{"file": "009_phase3_payment_receipt_foundation.test.sql", "database": "r06_x2_test_748a1b51d3", "passed": 54, "failed": 0, "skipped": 0, "complete": true}
+{"file": "010_phase3_payment_state_verification_hardening.test.sql", "database": "r06_x2_test_70f732d5f7", "passed": 45, "failed": 0, "skipped": 0, "complete": true}
+{"file": "011_phase3_driver_location_foundation.test.sql", "database": "r06_x2_test_c0b34ef057", "passed": 47, "failed": 0, "skipped": 0, "complete": true}
+{"file": "012_phase3_support_feedback_notification_foundation.test.sql", "database": "r06_x2_test_9551490995", "passed": 68, "failed": 0, "skipped": 0, "complete": true}
+{"file": "013_phase3_rls_rpc_hardening.test.sql", "database": "r06_x2_test_de73474369", "passed": 45, "failed": 0, "skipped": 0, "complete": true}
+{"file": "014_phase3_driver_lifecycle_reconciliation.test.sql", "database": "r06_x2_test_7eceaf04da", "passed": 17, "failed": 0, "skipped": 0, "complete": true}
+{"file": "015_phase3_driver_lifecycle_verification_hardening.test.sql", "database": "r06_x2_test_3f2d704d91", "passed": 31, "failed": 0, "skipped": 0, "complete": true}
+{"file": "016_phase3_driver_lifecycle_concurrency_correction.test.sql", "database": "r06_x2_test_c8800774af", "passed": 37, "failed": 0, "skipped": 0, "complete": true}
+{"file": "017_phase3_trip_payment_concurrency.test.sql", "database": "r06_x2_test_ee674e6210", "passed": 55, "failed": 0, "skipped": 0, "complete": true}
+{"file": "018_phase3_fare_payment_attempt_hardening.test.sql", "database": "r06_x2_test_6034fb7576", "passed": 13, "failed": 0, "skipped": 0, "complete": true}
+{"file": "019_phase3_safe_exposure_hardening.test.sql", "database": "r06_x2_test_b49e9e5ebe", "passed": 15, "failed": 0, "skipped": 0, "complete": true}
+{"file": "020_phase3_driver_finance_exposure_correction.test.sql", "database": "r06_x2_test_c75cf77a47", "passed": 36, "failed": 0, "skipped": 0, "complete": true}
+{"file": "021_phase3_post_merge_hardening.test.sql", "database": "r06_x2_test_7fae826cdd", "passed": 38, "failed": 0, "skipped": 0, "complete": true}
+{"file": "022_phase3_final_payment_lifecycle_remediation.test.sql", "database": "r06_x2_test_07d9c74f6f", "passed": 42, "failed": 0, "skipped": 0, "complete": true}
+{"file": "023_repair_rider_signup_bootstrap.test.sql", "database": "r06_x2_test_4da214a81e", "passed": 12, "failed": 0, "skipped": 0, "complete": true}
+{"file": "025_phase5_pricing_and_quote_lock.test.sql", "database": "r06_x2_test_a4d4d8a3f9", "passed": 6, "failed": 0, "skipped": 0, "complete": true}
+{"file": "026_harden_rider_fare_quote_lock.test.sql", "database": "r06_x2_test_793ac0308f", "passed": 34, "failed": 0, "skipped": 0, "complete": true}
+{"file": "026_harden_rider_fare_quote_lock_concurrency.test.sql", "database": "r06_x2_test_ceff898bc8", "passed": 27, "failed": 0, "skipped": 0, "complete": true}
+{"file": "027_phase6_admin_payment_read_rpc.test.sql", "database": "r06_x2_test_6ba257feda", "passed": 52, "failed": 0, "skipped": 0, "complete": true}
+{"file": "20261028150000_cash_only_rider_booking_confirmation.test.sql", "database": "r06_x2_test_4405f6e961", "passed": 32, "failed": 0, "skipped": 0, "complete": true}
+{"file": "20261028150001_cash_only_booking_confirmation_concurrency.test.sql", "database": "r06_x2_test_4da6fa1383", "passed": 7, "failed": 0, "skipped": 0, "complete": true}
+{"file": "20261104082240_p7_a02_driver_availability.test.sql", "database": "r06_x2_test_ab635c6f74", "passed": 41, "failed": 0, "skipped": 0, "complete": true}
+{"file": "20261104082241_p7_a02_driver_availability_concurrency.test.sql", "database": "r06_x2_test_1116e07659", "passed": 11, "failed": 0, "skipped": 0, "complete": true}
+{"file": "20261104090127_p7_a03_nearby_driver_candidates.test.sql", "database": "r06_x2_test_46836f22a2", "passed": 69, "failed": 0, "skipped": 0, "complete": true}
+{"file": "20261104100311_p7_a04_offer_lifecycle.test.sql", "database": "r06_x2_test_49d7ca6d48", "passed": 50, "failed": 0, "skipped": 0, "complete": true}
+{"file": "20261104140000_p7_a05_cash_booking_trip_integration.test.sql", "database": "r06_x2_test_b93505a50b", "passed": 55, "failed": 0, "skipped": 0, "complete": true}
+TOTAL={"passed": 1317, "failed": 0, "skipped": 0, "incomplete": 0}
