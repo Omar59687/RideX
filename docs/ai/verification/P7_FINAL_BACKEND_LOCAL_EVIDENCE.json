@@ -1,0 +1,80 @@
+{
+  "baseline": "9aab49971d6d21358c61908f6574b3dc35243f2b",
+  "deno_all": {
+    "passed": 191,
+    "failed": 0,
+    "skipped": 0
+  },
+  "deno_matching_subset": {
+    "passed": 65,
+    "failed": 0,
+    "skipped": 0
+  },
+  "real_local_auth_http": {
+    "passed": 26,
+    "failed": 0,
+    "skipped": 0
+  },
+  "sql": {
+    "regression": 1317,
+    "guard": 27,
+    "scheduler": 17,
+    "total": 1361,
+    "failed": 0,
+    "skipped": 0
+  },
+  "concurrency": {
+    "a04": 19,
+    "guard": 2,
+    "scheduler": 2,
+    "total": 23,
+    "failed": 0
+  },
+  "full_replays": {
+    "migrations": 36,
+    "count": 6,
+    "failed": 0
+  },
+  "flutter": {
+    "passed": 2615,
+    "failed": 0,
+    "skipped": 4
+  },
+  "analyzer": {
+    "errors": 0,
+    "warnings": 3,
+    "informational": 15,
+    "diagnostics": [
+      "info - Use an initializing formal to assign a parameter to a field - lib/core/services/rider_live_map_projection.dart:68:9 - prefer_initializing_formals",
+      "info - Statements in an if should be enclosed in a block - lib/features/booking/application/rider_search_controller.dart:475:52 - curly_braces_in_flow_control_structures",
+      "info - Statements in an if should be enclosed in a block - lib/features/booking/application/rider_search_controller.dart:522:54 - curly_braces_in_flow_control_structures",
+      "info - Statements in an if should be enclosed in a block - lib/features/booking/application/rider_search_controller.dart:551:54 - curly_braces_in_flow_control_structures",
+      "info - Statements in an if should be enclosed in a block - lib/features/booking/application/rider_search_controller.dart:560:54 - curly_braces_in_flow_control_structures",
+      "info - Statements in an if should be enclosed in a block - lib/features/booking/presentation/screens/booking_confirmation_screen.dart:167:36 - curly_braces_in_flow_control_structures",
+      "info - Statements in an if should be enclosed in a block - lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:344:44 - curly_braces_in_flow_control_structures",
+      "info - Statements in an if should be enclosed in a block - lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:348:32 - curly_braces_in_flow_control_structures",
+      "info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:410:21 - deprecated_member_use",
+      "info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart:413:21 - deprecated_member_use",
+      "info - Use an initializing formal to assign a parameter to a field - lib/features/trips/presentation/widgets/rider_driver_vehicle_details_card.dart:22:9 - prefer_initializing_formals",
+      "info - Use an initializing formal to assign a parameter to a field - lib/features/trips/presentation/widgets/rider_driver_vehicle_details_card.dart:23:9 - prefer_initializing_formals",
+      "info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - test/canonical_ride_searching_cancellation_screen_test.dart:186:12 - deprecated_member_use",
+      "warning - Unused import: 'dart:async' - test/rider_cancellation_rpc_routing_test.dart:1:8 - unused_import",
+      "warning - Unused import: 'package:ridex/core/models/payment_method.dart' - test/rider_matching_controller_test.dart:7:8 - unused_import",
+      "warning - Unused import: 'package:ridex/core/repositories/rider_booking_search_repository.dart' - test/rider_matching_controller_test.dart:14:8 - unused_import",
+      "info - Statements in an if should be enclosed in a block - test/rider_matching_controller_test.dart:141:38 - curly_braces_in_flow_control_structures",
+      "info - Statements in an if should be enclosed in a block - test/rider_matching_controller_test.dart:193:47 - curly_braces_in_flow_control_structures"
+    ]
+  },
+  "hosted": "NOT RUN",
+  "cron_activation": "NOT RUN",
+  "device_e2e": "NOT RUN",
+  "source_sha256": {
+    "supabase/migrations/20261111103410_p7_matching_expiry_scheduler.sql": "97e419820a9f19ab9e083b9b502d41068cd8143da14f2a5505892cdff5a49d54",
+    "supabase/tests/database/013_phase3_rls_rpc_hardening.test.sql": "3160b0b4b306bdf049b61f851ae0be8f282a3d04763d6dfd060a668493bf8940",
+    "supabase/tests/database/20261111103410_p7_matching_expiry_scheduler.test.sql": "393cd515e7f1bbc22595c0133cf95086ad5f4fc8cc212d5c22817c4462d1a12b",
+    "supabase/tests/ops/p7_expiry_scheduler_local_test.py": "2ebcd7b3bef69c6af486d69822707522f3c4d8b73d596e67a243ac6053f59827",
+    "supabase/tests/ops/p7_real_auth_http_acceptance.py": "a76bef090d3e8dcb5c593808bed215440c5bec13f6595d448a3c22ae51be758d",
+    "supabase/ops/p7_matching_readonly_preflight.sql": "3ec2caf2e6dc542009b12d9ac5fac2e48f981a62f1745859b2b649f8a09742ea",
+    "supabase/functions/_shared/matching/cash_matching_auth_acceptance_test.ts": "8f23fd4d05a57987b47347b5993071553a54f15820262405f35f967c07671b84"
+  }
+}
