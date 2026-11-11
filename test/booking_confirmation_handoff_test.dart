@@ -828,6 +828,33 @@ void main() {
   });
 
   testWidgets(
+      'default-off matching does not expose Find a driver after Cash confirmation',
+      (tester) async {
+    // This protects the production default. The separately opt-in matching
+    // integration needs its own hosted acceptance before activation.
+    final h = _readyHarness();
+    addTearDown(h.container.dispose);
+    await h.authenticate();
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: h.container,
+        child: MaterialApp(
+            theme: AppTheme.light(), home: const BookingConfirmationScreen())));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Confirm original booking'));
+    await tester.pumpAndSettle();
+
+    expect(h.confirmations, 1);
+    expect(find.text('Booking confirmed'), findsOneWidget);
+    expect(find.byKey(const ValueKey('start-canonical-cash-matching')),
+        findsNothing);
+    expect(find.text('Find a driver'), findsNothing);
+    expect(find.text('Locked fare: JOD 2.00'), findsOneWidget);
+    expect(h.store.deletes, 0,
+        reason: 'The locked booking lineage must remain recoverable.');
+  });
+
+  testWidgets(
       'canonical Cash confirmation stays a booking outcome, not payment or '
       'receipt success', (tester) async {
     final semantics = tester.ensureSemantics();
