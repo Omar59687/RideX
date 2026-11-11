@@ -95,7 +95,6 @@ class _ManualTimer implements Timer {
   @override
   bool get isActive => _active;
 
-  @override
   bool get isPeriodic => false;
 
   @override
@@ -113,7 +112,6 @@ void main() {
   test('confirmed Cash booking invokes matching once at canonical version',
       () async {
     final matchingDone = Completer<void>();
-    final assignmentHintApplied = Completer<void>();
     final matching = _MatchingFake((_) async {
       matchingDone.complete();
       return _result(RiderMatchingState.noCandidates);
@@ -157,6 +155,7 @@ void main() {
   test('assignment locator never substitutes for canonical Trip reread',
       () async {
     final matchingDone = Completer<void>();
+    final assignmentHintApplied = Completer<void>();
     final matching = _MatchingFake((_) async {
       matchingDone.complete();
       return RiderMatchingRequestResult(
