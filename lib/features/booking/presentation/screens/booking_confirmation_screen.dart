@@ -28,6 +28,9 @@ class _BookingConfirmationScreenState
   bool _busy = false;
   bool _failed = false;
   bool _paymentMethodUnavailable = false;
+  // One confirmed booking may initiate at most one navigation at a time.
+  // Do not treat a missing confirmed reference as permission to dispatch twice.
+  bool _matchingNavigationInProgress = false;
 
   @override
   void initState() {
@@ -116,32 +119,45 @@ class _BookingConfirmationScreenState
   }
 
   Future<void> _startCanonicalMatching(BookingHandoff handoff) async {
-    if (!riderCashMatchingIntegrationEnabled ||
+    if (_matchingNavigationInProgress ||
+        _busy ||
+        !mounted ||
+        !riderCashMatchingIntegrationEnabled ||
+        !handoff.isConfirmed ||
         handoff.booking.paymentMethod != PaymentMethod.cash ||
         !identical(ref.read(sessionControllerProvider), _ownerSession)) {
       return;
     }
-    final bookingId = handoff.booking.id;
-    var reference = _confirmedReference(bookingId);
-    if (reference == null) {
-      await _resolve(retire: true);
+    _matchingNavigationInProgress = true;
+    try {
+      final bookingId = handoff.booking.id;
+      var reference = _confirmedReference(bookingId);
+      if (reference == null) {
+        // Resolve the original locked booking first. Never synthesize a
+        // reference or start matching from an unverified UI-only snapshot.
+        await _resolve(retire: true);
+        if (!mounted ||
+            !identical(ref.read(sessionControllerProvider), _ownerSession)) {
+          return;
+        }
+        reference = _confirmedReference(bookingId);
+      }
       if (!mounted ||
-          !identical(ref.read(sessionControllerProvider), _ownerSession)) {
+          !identical(ref.read(sessionControllerProvider), _ownerSession) ||
+          reference == null ||
+          reference.command.riderId.toLowerCase() !=
+              ref.read(sessionControllerProvider).user?.id.toLowerCase() ||
+          reference.command.bookingRequestId.toLowerCase() !=
+              bookingId.toLowerCase()) {
         return;
       }
-      reference = _confirmedReference(bookingId);
-    }
-    if (reference == null ||
-        reference.command.riderId.toLowerCase() !=
-            ref.read(sessionControllerProvider).user?.id?.toLowerCase() ||
-        reference.command.bookingRequestId.toLowerCase() !=
-            bookingId.toLowerCase()) {
-      return;
-    }
-    if (mounted) {
+      // Matching itself happens in the scoped searching controller. This
+      // navigation is not evidence that an offer or Trip exists.
       context.go(
         '/rider/cash-searching?booking=${Uri.encodeQueryComponent(bookingId)}',
       );
+    } finally {
+      _matchingNavigationInProgress = false;
     }
   }
 
@@ -221,7 +237,7 @@ class _BookingConfirmationScreenState
                 AppButton(
                   key: const ValueKey('start-canonical-cash-matching'),
                   label: 'Find a driver',
-                  onPressed: _busy
+                  onPressed: _busy || _matchingNavigationInProgress
                       ? null
                       : () => unawaited(_startCanonicalMatching(handoff)),
                 ),

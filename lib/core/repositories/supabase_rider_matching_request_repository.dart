@@ -1,7 +1,6 @@
 import 'package:ridex/core/models/booking_handoff.dart';
 import 'package:ridex/core/models/driver_trip_completion.dart';
 import 'package:ridex/core/models/fare_quote.dart';
-import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/rider_matching_request.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/session_status.dart';

@@ -67,6 +67,8 @@ void main() {
     source.events.add(const TripRealtimeSessionChangedSignal());
     await seen.waitFor((signal) =>
         signal is CanonicalDriverConnectionHint && !signal.connected);
+    // The disconnect hint can precede asynchronous stream cancellation.
+    await source.cancellationCompleted.future.timeout(const Duration(seconds: 2));
     expect(source.activeSubscriptions, 0);
   });
 }
@@ -111,6 +113,7 @@ final class _FakeTripRealtimeSource implements TripRealtimeSource {
   int readCount = 0;
   int watchCount = 0;
   int activeSubscriptions = 0;
+  final cancellationCompleted = Completer<void>();
 
   @override
   String? get authenticatedUserId => userId;
@@ -127,6 +130,7 @@ final class _FakeTripRealtimeSource implements TripRealtimeSource {
       controller.onCancel = () async {
         activeSubscriptions--;
         await subscription.cancel();
+        if (!cancellationCompleted.isCompleted) cancellationCompleted.complete();
       };
     });
   }

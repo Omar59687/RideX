@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:ridex/app/theme/app_theme.dart';
 import 'package:ridex/features/booking/presentation/screens/booking_confirmation_screen.dart';
+import 'package:ridex/features/booking/application/rider_booking_integration_gate.dart';
 import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/widgets/app_button.dart';
@@ -826,6 +827,33 @@ void main() {
     expect(find.text('Locked fare: JOD 2.00'), findsOneWidget);
     expect(h.store.deletes, 0);
   });
+
+  testWidgets(
+      'default-off matching does not expose Find a driver after Cash confirmation',
+      (tester) async {
+    // This protects the production default. The separately opt-in matching
+    // integration needs its own hosted acceptance before activation.
+    final h = _readyHarness();
+    addTearDown(h.container.dispose);
+    await h.authenticate();
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: h.container,
+        child: MaterialApp(
+            theme: AppTheme.light(), home: const BookingConfirmationScreen())));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Confirm original booking'));
+    await tester.pumpAndSettle();
+
+    expect(h.confirmations, 1);
+    expect(find.text('Booking confirmed'), findsOneWidget);
+    expect(find.byKey(const ValueKey('start-canonical-cash-matching')),
+        findsNothing);
+    expect(find.text('Find a driver'), findsNothing);
+    expect(find.text('Locked fare: JOD 2.00'), findsOneWidget);
+    expect(h.store.deletes, 0,
+        reason: 'The locked booking lineage must remain recoverable.');
+  }, skip: riderCashMatchingIntegrationEnabled);
 
   testWidgets(
       'canonical Cash confirmation stays a booking outcome, not payment or '
