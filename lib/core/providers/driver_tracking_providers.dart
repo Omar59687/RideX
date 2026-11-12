@@ -105,21 +105,47 @@ class DriverTrackingState extends Equatable {
     this.failure,
     this.nextSequence,
     this.latestConfirmedAt,
+    this.latestConfirmedLocation,
   });
 
   const DriverTrackingState.initial()
       : status = DriverTrackingStatus.stopped,
         failure = null,
         nextSequence = null,
-        latestConfirmedAt = null;
+        latestConfirmedAt = null,
+        latestConfirmedLocation = null;
 
   final DriverTrackingStatus status;
   final DriverLocationFailure? failure;
   final int? nextSequence;
   final DateTime? latestConfirmedAt;
+  final SavedDriverLocation? latestConfirmedLocation;
+
+  /// Matching quality is based on BOTH server-confirmed device observation and
+  /// receipt, never request completion time, UI state, or a locally cached fix.
+  bool hasMatchingQualityAt(DateTime now) {
+    final location = latestConfirmedLocation;
+    if (location == null) return false;
+    final accuracy = location.point.accuracyMeters;
+    final recordedAge = now.toUtc().difference(location.recordedAt);
+    final receivedAge = now.toUtc().difference(location.receivedAt);
+    return accuracy != null &&
+        accuracy > 0 &&
+        accuracy <= 50 &&
+        recordedAge >= Duration.zero &&
+        receivedAge >= Duration.zero &&
+        recordedAge <= const Duration(seconds: 60) &&
+        receivedAge <= const Duration(seconds: 60);
+  }
 
   @override
-  List<Object?> get props => [status, failure, nextSequence, latestConfirmedAt];
+  List<Object?> get props => [
+        status,
+        failure,
+        nextSequence,
+        latestConfirmedAt,
+        latestConfirmedLocation
+      ];
 }
 
 final driverGpsStreamServiceProvider = Provider<DriverGpsStreamService>(
@@ -183,6 +209,7 @@ class DriverTrackingController
   DriverGpsTrackingConfig? _trackingConfig;
   DateTime? _latestRecordedAt;
   DateTime? _latestConfirmedAt;
+  SavedDriverLocation? _latestConfirmedLocation;
   String? _activeTripId;
   int _nextSequence = 1;
   bool _startInProgress = false;
@@ -290,6 +317,7 @@ class DriverTrackingController
     state = DriverTrackingState(
       status: DriverTrackingStatus.starting,
       latestConfirmedAt: _latestConfirmedAt,
+      latestConfirmedLocation: _latestConfirmedLocation,
     );
     try {
       final repository = ref.read(driverLocationRepositoryProvider);
@@ -307,6 +335,7 @@ class DriverTrackingController
       if (!_isCurrent(generation)) return;
       _latestRecordedAt = latest?.recordedAt;
       _latestConfirmedAt = latest?.receivedAt;
+      _latestConfirmedLocation = latest;
       _latestAcceptedFix = latest == null
           ? null
           : DriverLocationFix(
@@ -324,6 +353,7 @@ class DriverTrackingController
         status: DriverTrackingStatus.sharing,
         nextSequence: _nextSequence,
         latestConfirmedAt: _latestConfirmedAt,
+        latestConfirmedLocation: _latestConfirmedLocation,
       );
       final subscription = ref
           .read(driverGpsStreamServiceProvider)
@@ -392,6 +422,7 @@ class DriverTrackingController
       state = DriverTrackingState(
         status: status,
         latestConfirmedAt: _latestConfirmedAt,
+        latestConfirmedLocation: _latestConfirmedLocation,
       );
     }
     if (subscription != null) {
@@ -404,10 +435,16 @@ class DriverTrackingController
     await _disconnectSafely(connection, 'stopping driver location sharing');
   }
 
-  Future<void> stopForSignOut() => stop();
+  Future<void> stopForSignOut() {
+    _latestConfirmedAt = null;
+    _latestConfirmedLocation = null;
+    return stop();
+  }
 
   Future<void> _stopForSessionReplacement() async {
     if (!_trackingRequested) return;
+    _latestConfirmedAt = null;
+    _latestConfirmedLocation = null;
     _trackingRequested = false;
     _trackingSessionCaptured = false;
     _trackingUserId = null;
@@ -606,6 +643,7 @@ class DriverTrackingController
           status: DriverTrackingStatus.sharing,
           nextSequence: _nextSequence,
           latestConfirmedAt: _latestConfirmedAt,
+          latestConfirmedLocation: _latestConfirmedLocation,
         );
       }
     }
@@ -636,18 +674,20 @@ class DriverTrackingController
   }
 
   void _handleLifecycleChange(DriverTrackingLifecycleState lifecycleState) {
+    // Revoke synchronously, before queued native cancellation/network cleanup.
+    _backgrounded = lifecycleState == DriverTrackingLifecycleState.background;
+    if (_backgrounded) {
+      _generation++;
+      _pendingPublish = null;
+    }
     _lifecycleQueue = _lifecycleQueue.then((_) async {
       if (lifecycleState == DriverTrackingLifecycleState.background) {
-        _backgrounded = true;
         _configurationSyncPending = false;
         if (_trackingRequested) {
           await _stopSession(status: DriverTrackingStatus.paused);
         }
       } else if (_trackingRequested) {
-        _backgrounded = false;
-        await _startSession();
-      } else {
-        _backgrounded = false;
+        if (!_backgrounded) await _startSession();
       }
     }).onError((Object error, StackTrace stackTrace) {
       _reportUnexpected(
@@ -684,12 +724,24 @@ class DriverTrackingController
         trackingConfig == null) {
       return;
     }
-    if (_validationPolicy.rejectionFor(
-          candidate: fix,
-          previous: _latestAcceptedFix,
-          now: ref.read(driverTrackingClockProvider)(),
-        ) !=
-        null) {
+    final now = ref.read(driverTrackingClockProvider)().toUtc();
+    final rejection = _validationPolicy.rejectionFor(
+        candidate: fix, previous: _latestAcceptedFix, now: now);
+    final previous = _latestAcceptedFix;
+    final accuracy = fix.point.accuracyMeters;
+    // Relative accuracy must not starve a due stationary observation forever.
+    // Bypass ONLY that rejection with strict fresh, newer <=50m evidence.
+    final dueQualityHeartbeat = previous != null &&
+        accuracy != null &&
+        accuracy > 0 &&
+        accuracy <= 50 &&
+        fix.recordedAt.difference(previous.recordedAt) >=
+            trackingConfig.maximumPublishInterval &&
+        now.difference(fix.recordedAt) <= const Duration(seconds: 30) &&
+        fix.recordedAt.difference(now) <= const Duration(seconds: 5);
+    if (rejection != null &&
+        !(rejection == DriverLocationRejection.accuracyRegression &&
+            dueQualityHeartbeat)) {
       return;
     }
     if ((_latestRecordedAt != null &&
@@ -736,10 +788,12 @@ class DriverTrackingController
                   );
           if (_isCurrent(generation)) {
             _latestConfirmedAt = saved.receivedAt;
+            _latestConfirmedLocation = saved;
             state = DriverTrackingState(
               status: DriverTrackingStatus.sharing,
               nextSequence: _nextSequence,
               latestConfirmedAt: _latestConfirmedAt,
+              latestConfirmedLocation: _latestConfirmedLocation,
             );
           }
         } on Object catch (error, stackTrace) {
@@ -807,15 +861,14 @@ class DriverTrackingController
           ));
 
   bool _isCurrent(int generation) =>
-      !_disposed &&
-      generation == _generation &&
-      _trackingSessionIsCurrent();
+      !_disposed && generation == _generation && _trackingSessionIsCurrent();
 
   void _setUnavailable(DriverLocationFailure failure) {
     state = DriverTrackingState(
       status: DriverTrackingStatus.unavailable,
       failure: failure,
       latestConfirmedAt: _latestConfirmedAt,
+      latestConfirmedLocation: _latestConfirmedLocation,
     );
   }
 

@@ -14,19 +14,19 @@ class DriverGpsTrackingConfig {
   });
 
   static const available = DriverGpsTrackingConfig._(
-    accuracy: DriverGpsAccuracy.low,
-    distanceFilterMeters: 50,
-    minimumUpdateInterval: Duration(seconds: 30),
+    accuracy: DriverGpsAccuracy.high,
+    distanceFilterMeters: 0,
+    minimumUpdateInterval: Duration(seconds: 10),
     minimumPublishDistanceMeters: 50,
-    maximumPublishInterval: Duration(minutes: 2),
+    maximumPublishInterval: Duration(seconds: 15),
   );
 
   static const reserved = DriverGpsTrackingConfig._(
-    accuracy: DriverGpsAccuracy.medium,
-    distanceFilterMeters: 25,
-    minimumUpdateInterval: Duration(seconds: 20),
+    accuracy: DriverGpsAccuracy.high,
+    distanceFilterMeters: 0,
+    minimumUpdateInterval: Duration(seconds: 10),
     minimumPublishDistanceMeters: 25,
-    maximumPublishInterval: Duration(minutes: 1),
+    maximumPublishInterval: Duration(seconds: 15),
   );
 
   static const activeTrip = DriverGpsTrackingConfig._(

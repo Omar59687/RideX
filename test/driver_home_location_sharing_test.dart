@@ -29,9 +29,11 @@ void main() {
   late FakeLifecycle lifecycle;
   late FakeConnection connection;
   late DriverTrackingState trackingState;
+  late DateTime clock;
 
   Widget buildSubject({bool cashEnabled = false}) => ProviderScope(
         overrides: [
+          driverTrackingClockProvider.overrideWithValue(() => clock),
           driverCashRuntimeEnabledProvider.overrideWithValue(cashEnabled),
           locationRepositoryProvider.overrideWithValue(location),
           driverLocationRepositoryProvider.overrideWithValue(driver),
@@ -57,6 +59,7 @@ void main() {
   }
 
   setUp(() {
+    clock = DateTime.now().toUtc();
     location = FakeLocationRepository();
     driver = FakeDriverRepository();
     gps = FakeGpsService();
@@ -101,7 +104,7 @@ void main() {
     await tapButton(tester, 'Start sharing');
 
     expect(location.requestCount, 1);
-    expect(find.text('Sharing'), findsOneWidget);
+    expect(find.text('UNAVAILABLE'), findsOneWidget);
   });
 
   testWidgets('test gate adds a distinct canonical entry alongside mock demo',
@@ -175,9 +178,66 @@ void main() {
     expect(find.text('Start sharing'), findsOneWidget);
   });
 
+  testWidgets(
+      'age ticks without GPS events and stale device evidence cannot look fresh',
+      (tester) async {
+    driver.latest = SavedDriverLocation(
+        point:
+            LocationPoint(latitude: 31.9, longitude: 35.9, accuracyMeters: 5),
+        sequence: 1,
+        recordedAt: clock,
+        receivedAt: clock);
+    await pumpSubject(tester);
+    await tapButton(tester, 'Start sharing');
+    expect(find.text('Sharing'), findsOneWidget);
+    clock = clock.add(const Duration(seconds: 10));
+    await tester.pump(const Duration(seconds: 10));
+    expect(
+        find.text('Last server-confirmed location: 10s ago'), findsOneWidget);
+    clock = clock.add(const Duration(seconds: 51));
+    await tester.pump(const Duration(seconds: 51));
+    expect(find.text('STALE'), findsOneWidget);
+    expect(find.text('Sharing'), findsNothing);
+    expect(find.text('Device observation: 1m ago'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+      'fresh receipt with stale observation or inaccurate fix is not Sharing',
+      (tester) async {
+    driver.latest = SavedDriverLocation(
+        point:
+            LocationPoint(latitude: 31.9, longitude: 35.9, accuracyMeters: 5),
+        sequence: 1,
+        recordedAt: clock.subtract(const Duration(seconds: 61)),
+        receivedAt: clock);
+    await pumpSubject(tester);
+    await tapButton(tester, 'Start sharing');
+    expect(find.text('STALE'), findsOneWidget);
+    expect(find.text('Last server-confirmed location: 0s ago'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+      'inaccurate canonical evidence stays unavailable while publisher may recover',
+      (tester) async {
+    driver.latest = SavedDriverLocation(
+        point:
+            LocationPoint(latitude: 31.9, longitude: 35.9, accuracyMeters: 75),
+        sequence: 1,
+        recordedAt: clock,
+        receivedAt: clock);
+    await pumpSubject(tester);
+    await tapButton(tester, 'Start sharing');
+    expect(find.text('UNAVAILABLE'), findsOneWidget);
+    expect(find.text('Sharing'), findsNothing);
+    expect(find.text('Stop sharing'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('shows age of the last server-confirmed location',
       (tester) async {
-    final now = DateTime.now().toUtc();
+    final now = clock;
     driver.latest = SavedDriverLocation(
       point: LocationPoint(
         latitude: 31.9,
@@ -197,7 +257,7 @@ void main() {
 
   testWidgets('shows a recoverable network failure without losing metadata',
       (tester) async {
-    final now = DateTime.now().toUtc();
+    final now = clock;
     driver
       ..latest = SavedDriverLocation(
         point: LocationPoint(

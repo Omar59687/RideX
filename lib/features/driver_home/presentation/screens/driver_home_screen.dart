@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:ridex/features/driver_flow/presentation/providers/controlled_driver_runtime.dart';
 import 'package:ridex/features/driver_flow/presentation/screens/driver_incoming_offer_screen.dart';
 import 'package:ridex/features/driver_flow/presentation/screens/driver_trip_preview_screen.dart';
@@ -241,7 +242,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   }
 }
 
-class _DriverLocationSharingCardConsumer extends ConsumerWidget {
+class _DriverLocationSharingCardConsumer extends ConsumerStatefulWidget {
   const _DriverLocationSharingCardConsumer({
     required this.permissionRequestRunning,
     required this.permissionMessage,
@@ -253,13 +254,55 @@ class _DriverLocationSharingCardConsumer extends ConsumerWidget {
   final VoidCallback onStart;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DriverLocationSharingCardConsumer> createState() =>
+      _SharingCardState();
+}
+
+class _SharingCardState
+    extends ConsumerState<_DriverLocationSharingCardConsumer>
+    with WidgetsBindingObserver {
+  Timer? _ticker;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state == null || state == AppLifecycleState.resumed) _startTicker();
+  }
+
+  void _startTicker() {
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startTicker();
+      if (mounted) setState(() {});
+    } else {
+      _ticker?.cancel();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final tracking = ref.watch(driverTrackingControllerProvider);
     return _DriverLocationSharingCard(
       state: tracking,
-      permissionRequestRunning: permissionRequestRunning,
-      permissionMessage: permissionMessage,
-      onStart: onStart,
+      permissionRequestRunning: widget.permissionRequestRunning,
+      permissionMessage: widget.permissionMessage,
+      onStart: widget.onStart,
+      now: ref.watch(driverTrackingClockProvider)().toUtc(),
       onStop: () => ref.read(driverTrackingControllerProvider.notifier).stop(),
     );
   }
@@ -272,6 +315,7 @@ class _DriverLocationSharingCard extends StatelessWidget {
     required this.permissionMessage,
     required this.onStart,
     required this.onStop,
+    required this.now,
   });
 
   final DriverTrackingState state;
@@ -279,6 +323,7 @@ class _DriverLocationSharingCard extends StatelessWidget {
   final String? permissionMessage;
   final VoidCallback onStart;
   final VoidCallback onStop;
+  final DateTime now;
 
   @override
   Widget build(BuildContext context) {
@@ -289,8 +334,9 @@ class _DriverLocationSharingCard extends StatelessWidget {
       DriverTrackingStatus.stopped => 'Stopped',
       DriverTrackingStatus.paused => 'Paused',
       DriverTrackingStatus.starting => 'Starting',
-      DriverTrackingStatus.sharing => 'Sharing',
-      DriverTrackingStatus.unavailable => 'Unavailable',
+      DriverTrackingStatus.sharing =>
+        state.hasMatchingQualityAt(now) ? 'Sharing' : _qualityLabel,
+      DriverTrackingStatus.unavailable => 'UNAVAILABLE',
     };
     return Card(
       key: const ValueKey('driver-location-sharing-card'),
@@ -322,6 +368,9 @@ class _DriverLocationSharingCard extends StatelessWidget {
               _lastConfirmedLabel,
               key: const ValueKey('driver-location-last-confirmed'),
             ),
+            if (state.latestConfirmedLocation case final location?)
+              Text('Device observation: ${_ageLabel(location.recordedAt)}',
+                  key: const ValueKey('driver-location-recorded-age')),
             const SizedBox(height: AppSpacing.md),
             AppButton(
               key: ValueKey(
@@ -353,6 +402,9 @@ class _DriverLocationSharingCard extends StatelessWidget {
       return 'Sharing is paused while RideX is in the background. It will resume in the foreground.';
     }
     if (state.status == DriverTrackingStatus.sharing) {
+      if (!state.hasMatchingQualityAt(now)) {
+        return '$_qualityLabel: waiting for a fresh, accurate server-confirmed location. Matching eligibility is unavailable.';
+      }
       return 'Your current position is being shared securely.';
     }
     if (state.status == DriverTrackingStatus.unavailable) {
@@ -373,10 +425,28 @@ class _DriverLocationSharingCard extends StatelessWidget {
     return 'Share foreground GPS only when Driver operations require it.';
   }
 
+  String get _qualityLabel {
+    final location = state.latestConfirmedLocation;
+    if (location == null) return 'UNAVAILABLE';
+    if (now.difference(location.recordedAt) > const Duration(seconds: 60) ||
+        now.difference(location.receivedAt) > const Duration(seconds: 60)) {
+      return 'STALE';
+    }
+    return 'UNAVAILABLE';
+  }
+
+  String _ageLabel(DateTime value) {
+    final age = now.difference(value.toUtc());
+    final safe = age.isNegative ? Duration.zero : age;
+    return safe.inSeconds < 60
+        ? '${safe.inSeconds}s ago'
+        : '${safe.inMinutes}m ago';
+  }
+
   String get _lastConfirmedLabel {
     final confirmedAt = state.latestConfirmedAt;
     if (confirmedAt == null) return 'No server-confirmed location yet.';
-    final age = DateTime.now().toUtc().difference(confirmedAt.toUtc());
+    final age = now.difference(confirmedAt.toUtc());
     final safeAge = age.isNegative ? Duration.zero : age;
     if (safeAge.inSeconds < 60) {
       return 'Last server-confirmed location: ${safeAge.inSeconds}s ago';

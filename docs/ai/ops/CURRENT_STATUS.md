@@ -923,3 +923,25 @@ file changes, procedure and exact blockers. Live E2E remains BLOCKED / NOT RUN:
 no target, fixture, credential access, hosted writes or APK replacement approved;
 proposed Driver still onTrip, stored GPS stale, publication empty and pg_cron absent.
 No hosted/device mutations, deployment, financial operations, push or PR occurred.
+
+## Sustained Driver GPS runtime follow-up (2026-11-12)
+
+GPS patch is isolated on `fix/moath/sustained-driver-gps`, based on merged main
+`ca3e59d5de2dd99b63c6de0a3fce5df57e8f3718`. It preserves the existing publisher,
+adds bounded foreground genuine observations, removes stationary starvation and
+ages actual canonical evidence in Home. Final debug Driver APK 4007 was installed
+with data/session preservation; Rider APK 4003 is unchanged. Final stationary
+verification spans 216.566 seconds, sequences 127 through 142, all 11 samples at
+5 m accuracy and within Matching freshness. GPS-off evidence becomes ineligible
+without a native settings dialog; the UI correctly shows UNAVAILABLE and ages.
+
+Final focused tests: 87 pass. Full serial suite: 2,782 pass, 0 failures, 4 intentional
+live skips. Scoped analysis clean; full analysis retains 20 inherited diagnostics.
+Astra High final follow-up APPROVE with no blockers. See
+`docs/ai/verification/P7_SUSTAINED_DRIVER_GPS_FIX.md` for runtime/lifecycle results,
+review findings, build identity and remaining Rider login dependency. The earlier
+Phase 7 approval blockers above describe the historical local integration task;
+the owner has since authorized this test project, Driver recovery and dedicated
+emulator operations. Cash E2E remains NOT RUN pending approved Rider account access
+and successful login, then current B09A preflight. No unrelated Trip, financial,
+migration or Realtime publication changes were made. No push, PR or merge.
