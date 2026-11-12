@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/controlled_driver_runtime.dart';
 import '../widgets/canonical_driver_reference_panel.dart';
 
-/// Isolated read-only entry. It never starts tracking or any backend command.
+/// Controlled entry; financial completion stays unavailable.
 class ControlledDriverRuntimeScreen extends ConsumerStatefulWidget {
   const ControlledDriverRuntimeScreen({super.key});
   @override
@@ -45,7 +45,7 @@ class _RuntimeScreenState extends ConsumerState<ControlledDriverRuntimeScreen>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Read-only test entry. Offer and financial commands disabled.',
+                'Controlled test entry. Financial commands disabled.',
               ),
               const Text(
                 'Background, auth changes or navigation stop this owner. Reenter to verify again.',

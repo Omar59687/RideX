@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../data/driver_offer_command_journal.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,6 +24,12 @@ bool controlledDriverRuntimeAllowed({
   required bool optIn,
 }) =>
     !release && optIn;
+
+/// Independent command authorization; read opt-in alone never enables writes.
+final controlledDriverCommandsEnabledProvider = Provider<bool>((ref) => false);
+final driverOfferCommandJournalProvider = Provider<DriverOfferCommandJournal>(
+  (ref) => DriverOfferCommandJournal(),
+);
 
 final controlledDriverRuntimeEnabledProvider = Provider<bool>(
   (ref) => controlledDriverRuntimeAllowed(
@@ -128,6 +135,9 @@ final controlledDriverRuntimeProvider =
   final runtime = ControlledDriverRuntime(
       inputs: inputs,
       session: session,
+      commandsEnabled:
+          !kReleaseMode && ref.read(controlledDriverCommandsEnabledProvider),
+      journal: ref.read(driverOfferCommandJournalProvider),
       clock: inputs.clock,
       sessionCurrent: () =>
           identical(ref.read(sessionControllerProvider), session));
@@ -137,23 +147,32 @@ final controlledDriverRuntimeProvider =
       controlledDriverRuntimeEnabledProvider, (_, __) => runtime.invalidate());
   ref.listen(
       approvedCanonicalDriverTargetProvider, (_, __) => runtime.invalidate());
+  ref.listen(
+      controlledDriverCommandsEnabledProvider, (_, __) => runtime.invalidate());
   ref.onDispose(runtime.dispose);
   return runtime;
 });
 
-/// Route-owned READ-ONLY B07/B08/B09 composition. No uncertain write can be
-/// erased on remount: commands are denied at port, repository and controller.
+/// Route-owned B07/B08/B09 composition. Commands require independent approval
+/// and a durable replay barrier in addition to all canonical authority checks.
 final class ControlledDriverRuntime {
   ControlledDriverRuntime({
     required ControlledDriverInputs inputs,
     required SessionState session,
+    bool commandsEnabled = false,
+    DriverOfferCommandJournal? journal,
     DateTime Function()? clock,
     bool Function()? sessionCurrent,
   }) : _inputs = inputs {
     _session = ValueNotifier(session);
     _port = _ApprovedPort(
-        inputs, () => !_stopped && (sessionCurrent?.call() ?? true));
-    repository = CanonicalDriverRepository(_port, clock: clock);
+        inputs,
+        () => !_stopped && (sessionCurrent?.call() ?? true),
+        commandsEnabled && !kReleaseMode ? journal : null);
+    repository = CanonicalDriverRepository(_port,
+        clock: clock,
+        offerCommandsEnabled:
+            commandsEnabled && !kReleaseMode && journal != null);
     delivery = PollingCanonicalDriverOfferDelivery(
       port: _port,
       session: _session,
@@ -163,6 +182,7 @@ final class ControlledDriverRuntime {
     );
     controller = CanonicalDriverPresentationController(
       repository: repository,
+      offerActionsEnabled: commandsEnabled && !kReleaseMode && journal != null,
       session: _session,
       authorityInvalidations: _invalidations,
       delivery: delivery,
@@ -233,10 +253,11 @@ final class ControlledDriverRuntime {
 /// Canonical vehicle eligibility is reread on every profile authorization.
 final class _ApprovedPort
     implements CanonicalDriverPort, CanonicalDriverOfferDiscoveryPort {
-  _ApprovedPort(this.inputs, this.active)
+  _ApprovedPort(this.inputs, this.active, this.journal)
       : _owner = inputs.port.currentOwner,
         _sdkSession = inputs.port.sessionIdentity;
   final ControlledDriverInputs inputs;
+  final DriverOfferCommandJournal? journal;
   final bool Function() active;
   final DriverAuthorityOwner _owner;
   final Object? _sdkSession;
@@ -339,8 +360,38 @@ final class _ApprovedPort
       });
   @override
   Future<Object?> acceptOffer(String id, int version, String key) =>
-      Future.error(StateError('Offer commands are disabled in B10.'));
+      _command(id, version, key, true);
   @override
   Future<Object?> declineOffer(String id, int version, String key) =>
-      Future.error(StateError('Offer commands are disabled in B10.'));
+      _command(id, version, key, false);
+  Future<Object?> _command(
+      String id, int version, String key, bool accept) async {
+    _check();
+    final store = journal;
+    if (store == null) throw StateError('Offer commands are disabled.');
+    // Reserve durably BEFORE handing off. Never clear on timeout, navigation,
+    // logout or success. Reentry can read assignment but cannot replay an offer.
+    // No dispatch lives inside this timed future: a late storage/read result
+    // after its deadline can never reach the RPC below.
+    await (() async {
+      await store.reserve(inputs.target.backend, inputs.target.driverId, id,
+          version, key, accept);
+      _check();
+      final profile = await readDriverProfile(inputs.target.driverId);
+      final row = await readOffer(id);
+      final expires = DateTime.tryParse(row?['expires_at'] as String? ?? '');
+      if (profile?['approval_status'] != 'approved' ||
+          row?['status'] != 'offered' ||
+          row?['version'] != version ||
+          expires == null ||
+          !(inputs.clock?.call() ?? DateTime.now()).toUtc().isBefore(expires)) {
+        throw StateError('Original offer is no longer actionable.');
+      }
+    })()
+        .timeout(const Duration(seconds: 8));
+    _check();
+    return accept
+        ? inputs.port.acceptOffer(id, version, key)
+        : inputs.port.declineOffer(id, version, key);
+  }
 }

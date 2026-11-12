@@ -5,7 +5,7 @@ import 'package:ridex/app/app.dart';
 import 'package:ridex/app/config/env_config.dart';
 import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
 
-Future<void> bootstrap() async {
+Future<void> bootstrap({List<Override> overrides = const []}) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
@@ -21,7 +21,7 @@ Future<void> bootstrap() async {
     return;
   }
 
-  runApp(const ProviderScope(child: RideXApp()));
+  runApp(ProviderScope(overrides: overrides, child: const RideXApp()));
 }
 
 void _reportStartupFailure(String category) {
