@@ -26,8 +26,10 @@ void main() {
   late RecordingAppErrorReporter reporter;
   late ProviderContainer container;
   late ProviderSubscription<DriverTrackingState> keepAlive;
+  late DateTime currentTime;
 
   setUp(() {
+    currentTime = startTime.add(const Duration(minutes: 2));
     repository = FakeTrackingRepository();
     gps = FakeDriverGpsStreamService();
     lifecycle = FakeDriverTrackingLifecycle();
@@ -43,7 +45,7 @@ void main() {
         driverTrackingSessionMonitorProvider.overrideWithValue(sessionMonitor),
         appErrorReporterProvider.overrideWithValue(reporter),
         driverTrackingClockProvider.overrideWithValue(
-          () => startTime.add(const Duration(minutes: 2)),
+          () => currentTime,
         ),
       ],
     );
@@ -197,17 +199,46 @@ void main() {
     expect(gps.configurations.single, same(DriverGpsTrackingConfig.reserved));
   });
 
-  test('accepts available fixes no more often than every 30 seconds', () async {
+  test(
+      'stationary fresh 7-20m fixes keep publishing for three minutes after a 6m baseline',
+      () async {
+    currentTime = startTime;
+    repository.latest = _saved(4, startTime);
+    final controller =
+        container.read(driverTrackingControllerProvider.notifier);
+    await controller.start();
+    for (var tick = 1; tick <= 9; tick++) {
+      currentTime = startTime.add(Duration(seconds: tick * 20));
+      final fix =
+          _fix(currentTime, accuracyMeters: [7.0, 12.0, 20.0][(tick - 1) % 3]);
+      gps.add(fix);
+      await repository.waitForPublishes(tick);
+      await flush(2);
+      final state = container.read(driverTrackingControllerProvider);
+      expect(repository.published.last.recordedAt, currentTime);
+      expect(repository.published.last.sequence, 4 + tick);
+      expect(state.hasMatchingQualityAt(currentTime), isTrue);
+      expect(state.latestConfirmedLocation!.point.accuracyMeters,
+          fix.point.accuracyMeters);
+      expect(currentTime.difference(state.latestConfirmedLocation!.recordedAt),
+          Duration.zero);
+      expect(currentTime.difference(state.latestConfirmedLocation!.receivedAt),
+          Duration.zero);
+    }
+    expect(repository.maxConcurrentPublishes, 1);
+  });
+
+  test('accepts available fixes no more often than every 10 seconds', () async {
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
     await controller.start();
     final first = _fix(startTime.add(const Duration(seconds: 1)));
     final tooSoon = _fix(
-      startTime.add(const Duration(seconds: 30)),
+      startTime.add(const Duration(seconds: 10)),
       latitude: 31.964158,
     );
     final due = _fix(
-      startTime.add(const Duration(seconds: 31)),
+      startTime.add(const Duration(seconds: 11)),
       latitude: 31.965158,
     );
 
@@ -795,14 +826,14 @@ void main() {
     expect(repository.published, isEmpty);
   });
 
-  test('does not publish duplicate location content', () async {
+  test('does not publish duplicate observations', () async {
     final controller =
         container.read(driverTrackingControllerProvider.notifier);
     await controller.start();
 
     gps.add(_fix(startTime.add(const Duration(seconds: 1))));
     await repository.waitForPublishes(1);
-    gps.add(_fix(startTime.add(const Duration(seconds: 31))));
+    gps.add(_fix(startTime.add(const Duration(seconds: 1))));
     await flush(2);
 
     expect(repository.publishAttempts, 1);
@@ -814,18 +845,18 @@ void main() {
         container.read(driverTrackingControllerProvider.notifier);
     await controller.start();
     final first = _fix(startTime.add(const Duration(seconds: 1)));
-    final heartbeat = _fix(startTime.add(const Duration(seconds: 121)));
+    final heartbeat = _fix(startTime.add(const Duration(seconds: 16)));
 
     gps.add(first);
     await repository.waitForPublishes(1);
     gps.add(_fix(
-      startTime.add(const Duration(seconds: 31)),
+      startTime.add(const Duration(seconds: 5)),
       accuracyMeters: 12,
       headingDegrees: 180,
       speedMetersPerSecond: 8,
     ));
     gps.add(_fix(
-      startTime.add(const Duration(seconds: 61)),
+      startTime.add(const Duration(seconds: 11)),
       latitude: 31.963358,
     ));
     await flush(2);
@@ -1585,6 +1616,13 @@ class FakeTrackingRepository implements DriverLocationRepository {
     }
     if (publishError case final error?) throw error;
     published.add(sample);
-    return _saved(sample.sequence, sample.recordedAt);
+    return SavedDriverLocation(
+        point: sample.point,
+        sequence: sample.sequence,
+        recordedAt: sample.recordedAt,
+        receivedAt: sample.recordedAt,
+        tripId: sample.tripId,
+        headingDegrees: sample.headingDegrees,
+        speedMetersPerSecond: sample.speedMetersPerSecond);
   }
 }
