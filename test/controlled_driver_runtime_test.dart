@@ -1,5 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
+import 'helpers/cash_assignment_fixtures.dart' as cash;
+import 'package:ridex/core/models/booking_handoff.dart';
+import 'package:ridex/core/models/fare_quote.dart';
+import 'package:ridex/core/models/pending_fare_lock.dart';
+import 'package:ridex/core/repositories/cash_booking_assignment_repository.dart';
 import 'dart:io';
+import 'package:ridex/core/services/trips/file_driver_completion_command_store.dart';
+import 'package:ridex/features/driver_flow/data/canonical_driver_repository.dart';
+import 'package:ridex/features/driver_flow/data/driver_offer_command_journal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +21,13 @@ import 'package:ridex/features/driver_flow/presentation/providers/canonical_driv
 import 'package:ridex/features/driver_flow/presentation/screens/controlled_driver_runtime_screen.dart';
 import 'helpers/canonical_driver_presentation_harness.dart' show driverSession;
 import 'helpers/fake_canonical_driver_port.dart' as f;
+
+class _FlushFailure extends NativeCompletionJournalIo {
+  const _FlushFailure();
+  @override
+  Future<void> flush(RandomAccessFile handle) async =>
+      throw const FileSystemException('flush unavailable');
+}
 
 class _Port extends f.FakeCanonicalDriverPort
     implements CanonicalDriverOfferDiscoveryPort {
@@ -38,8 +54,14 @@ class _Session extends SessionController {
 
 class _Harness {
   _Harness(
-      {SessionState? initial, bool enabled = true, bool replayAuth = false}) {
+      {SessionState? initial,
+      bool enabled = true,
+      bool replayAuth = false,
+      bool commands = false}) {
     overrides = [
+      driverOfferCommandJournalProvider.overrideWithValue(
+          DriverOfferCommandJournal(directory: journalDirectory)),
+      controlledDriverCommandsEnabledProvider.overrideWithValue(commands),
       sessionControllerProvider
           .overrideWith(() => session = _Session(initial ?? driverSession())),
       controlledDriverRuntimeEnabledProvider.overrideWithValue(enabled),
@@ -64,6 +86,8 @@ class _Harness {
     ];
   }
   late final List<Override> overrides;
+  final journalDirectory =
+      Directory.systemTemp.createTempSync('ridex-offer-test-');
   final port = _Port();
   final auth = StreamController<void>.broadcast(sync: true);
   final target = CanonicalDriverTestTarget(
@@ -98,6 +122,9 @@ class _Harness {
       }));
   Future<void> dispose() async {
     await auth.close();
+    if (journalDirectory.existsSync()) {
+      journalDirectory.deleteSync(recursive: true);
+    }
   }
 }
 
@@ -451,6 +478,142 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
   });
+  testWidgets(
+      'approved command preserves intent and proves Trip by reread after lost response',
+      (tester) async {
+    final h = _Harness(commands: true);
+    await pump(tester, h);
+    final replacements = {
+      cash.bId: f.bookingId,
+      cash.qId: f.quoteId,
+      cash.rId: f.otherId,
+      cash.dId: f.driverId,
+      cash.vId: f.vehicleId,
+      cash.oId: f.offerId,
+      cash.tId: f.tripId
+    };
+    String translate(String value) {
+      for (final entry in replacements.entries) {
+        value = value.replaceAll(entry.key, entry.value);
+      }
+      return value;
+    }
+
+    final rider = cash.Fake()
+      ..owner = RiderAssignmentOwner(f.otherId, 'local', 1, Object())
+      ..value = jsonDecode(translate(jsonEncode(cash.booking())))
+          as Map<String, dynamic>;
+    final reference = ConfirmedBookingReference(
+        command: PendingFareLock(
+            bookingRequestId: f.bookingId,
+            expectedBookingVersion: 1,
+            fareQuoteId: f.quoteId,
+            expectedQuoteVersion: 1,
+            riderId: f.otherId,
+            status: PendingLockRecoveryStatus.uncertain,
+            createdAt: f.now),
+        quote: FareQuote.fromJson(
+            jsonDecode(translate(jsonEncode(cash.quote())))
+                as Map<String, dynamic>));
+    final matchedGraph = rider.value!;
+    rider.value = {
+      ...matchedGraph,
+      'status': 'searching',
+      'version': 3,
+      'trips': <Object?>[],
+      'driver_match_offers': <Object?>[]
+    };
+    expect(
+        await tester.runAsync(
+            () => CashBookingAssignmentRepository(rider).read(reference)),
+        isNull);
+    h.port.onCommand = (_) async {
+      // One simulated atomic backend commit is consumed by BOTH transports.
+      rider.value = matchedGraph;
+      final graphTrip =
+          (matchedGraph['trips'] as List).single as Map<String, dynamic>;
+      h.port.offer = {...h.port.offer!, 'status': 'accepted', 'version': 2};
+      h.port.trip = Map<String, Object?>.from(graphTrip);
+      h.port.availability = {
+        ...h.port.availability!,
+        'state': 'onTrip',
+        'reserved_booking_request_id': null,
+        'active_trip_id': graphTrip['id'],
+        'version': 4
+      };
+      throw StateError('lost response');
+    };
+    final runtime = h.runtime!;
+    final view = runtime.controller.view;
+    await tester.runAsync(() => Future.wait([
+          runtime.controller.decide(view, CanonicalOfferDecision.accept),
+          runtime.controller.decide(view, CanonicalOfferDecision.accept),
+        ]));
+    await tester.pump();
+    expect(h.port.calls.length, 1);
+    expect(h.port.calls.single.$2, f.offerId);
+    expect(h.port.calls.single.$3, 1);
+    expect(runtime.controller.view.trip?.id, f.tripId);
+    // The Rider independently reads the SAME post-accept canonical graph.
+    // Matching hints/RPC responses never supply assignment authority.
+    final assigned = await tester
+        .runAsync(() => CashBookingAssignmentRepository(rider).read(reference));
+    expect(assigned?.tripId, runtime.controller.view.trip?.id);
+    expect(assigned?.offerId, h.port.calls.single.$2);
+    expect(assigned?.bookingId, f.bookingId);
+    expect(assigned?.fareQuoteId, f.quoteId);
+    rider.owner = RiderAssignmentOwner(f.driverId, 'local', 2, Object());
+    await tester.runAsync(() => expectLater(
+        CashBookingAssignmentRepository(rider).read(reference),
+        throwsA(isA<CashAssignmentException>())));
+
+    expect(runtime.controller.view.canDecide, isFalse);
+    await tester.pumpWidget(const SizedBox());
+    await h.dispose();
+  });
+
+  test(
+      'durable journal refuses replay across reconstructed owners and changed versions',
+      () async {
+    final directory =
+        await Directory.systemTemp.createTemp('ridex-offer-persistence-');
+    addTearDown(() => directory.delete(recursive: true));
+    final results = await Future.wait(List.generate(2, (i) async {
+      try {
+        await DriverOfferCommandJournal(directory: directory)
+            .reserve(f.backend, f.driverId, f.offerId, 1, 'original-$i', true);
+        return true;
+      } on Object {
+        return false;
+      }
+    }));
+    expect(results.where((r) => r).length, 1);
+    await expectLater(
+        DriverOfferCommandJournal(directory: directory)
+            .reserve(f.backend, f.driverId, f.offerId, 2, 'replacement', false),
+        throwsA(isA<FileSystemException>()));
+    final files =
+        await directory.list(recursive: true).where((f) => f is File).toList();
+    expect(files.length, 1);
+    expect(await (files.single as File).readAsString(), contains('original-'));
+  });
+
+  test('failed flush leaves reservation blocking reconstructed owners',
+      () async {
+    final directory =
+        await Directory.systemTemp.createTemp('ridex-offer-fault-');
+    addTearDown(() => directory.delete(recursive: true));
+    await expectLater(
+        DriverOfferCommandJournal(
+                directory: directory, io: const _FlushFailure())
+            .reserve(f.backend, f.driverId, f.offerId, 1, 'original', true),
+        throwsA(isA<FileSystemException>()));
+    await expectLater(
+        DriverOfferCommandJournal(directory: directory)
+            .reserve(f.backend, f.driverId, f.offerId, 1, 'replay', true),
+        throwsA(isA<FileSystemException>()));
+  });
+
   test('runtime has no financial SDK, direct auth or write RPC seam', () {
     final source = File(
             'lib/features/driver_flow/presentation/providers/controlled_driver_runtime.dart')

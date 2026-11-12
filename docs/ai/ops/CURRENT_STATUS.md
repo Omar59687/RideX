@@ -909,3 +909,17 @@ tracking remain later Phase 4 work.
 Notification read state, preferences, booking drafts, active trips, and driver
 availability are session-local and reset on sign-out. Unsupported behavior must
 remain explicit demo, session-local, disabled, or Coming soon behavior.
+
+## Phase 7 final local integration follow-up (2026-11-12)
+
+From main `55340287f33226762f47b95ad720318e71642198`, isolated branch
+`feature/moath/p7-final-integration` connects B10 to explicit nonrelease trusted
+build composition, independently gated B07/B08 accept/decline and a native
+exclusive persistent replay barrier. Rider Searching adds bounded foreground
+read-only assignment recovery without a Realtime requirement. Existing canonical
+repositories, participant tracking and backend contracts remain the authority.
+See `docs/ai/verification/P7_FINAL_LOCAL_INTEGRATION.md` for verification, review,
+file changes, procedure and exact blockers. Live E2E remains BLOCKED / NOT RUN:
+no target, fixture, credential access, hosted writes or APK replacement approved;
+proposed Driver still onTrip, stored GPS stale, publication empty and pg_cron absent.
+No hosted/device mutations, deployment, financial operations, push or PR occurred.

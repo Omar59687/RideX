@@ -63,6 +63,44 @@ Future<void> _pumpScreen(
 }
 
 void main() {
+  testWidgets(
+      'bounded assignment polling reads same booking, pauses in background and stops on disposal',
+      (tester) async {
+    final container = _container(SessionState.fromUser(_rider));
+    addTearDown(container.dispose);
+    final repository = FakeRiderBookingSearchRepository(
+        authenticatedRiderId: riderIdFixture,
+        booking: riderBookingSearchFixture());
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+            home: CanonicalRideSearchingScreen(
+          bookingRequestId: riderBookingIdFixture,
+          repository: repository,
+          assignmentPollInterval: const Duration(seconds: 2),
+          softTimeout: const Duration(seconds: 10),
+        ))));
+    await tester.pump();
+    expect(repository.readCount, 1);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(repository.readCount, 2);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump(const Duration(seconds: 2));
+    expect(repository.readCount, 2);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(repository.readCount, 3);
+    await tester.pump(const Duration(seconds: 5));
+    expect(repository.readCount, 4);
+    await tester.pump(const Duration(seconds: 4));
+    expect(repository.readCount, 4);
+    expect(find.text('Taking longer than expected'), findsOneWidget);
+    expect(repository.requestedBookingIds.toSet(), {riderBookingIdFixture});
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('missing original booking is unresolved, not a no-driver result',
       (tester) async {
     final container = _container(SessionState.fromUser(_rider));

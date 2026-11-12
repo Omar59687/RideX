@@ -126,3 +126,12 @@ foundation, not genuine connected acceptance and not production activation.
   upgrade, hosted operation, device mutation or feature activation is included.
 - Final clean-commit B09A reports and build/provenance investigation are external
   operator evidence; connected S01?S14 remain BLOCKED / NOT RUN.
+
+## Final local integration follow-up
+
+The original read-only B10 verification above is historical. The separate
+`main_acceptance.dart` entry now provides explicit nonproduction target and
+independent command opt-in, with a native exclusive persistent decision barrier.
+See `docs/ai/verification/P7_FINAL_LOCAL_INTEGRATION.md` for current gates,
+limitations, verification and blocked hosted acceptance. Default startup and
+release Driver commands remain disabled.

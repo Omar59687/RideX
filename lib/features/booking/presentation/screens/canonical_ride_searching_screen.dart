@@ -34,6 +34,8 @@ class CanonicalRideSearchingScreen extends ConsumerStatefulWidget {
     this.readConfirmedReference,
     this.onAssignmentVerified,
     this.allowAutomaticMatching = true,
+    this.assignmentPollInterval =
+        riderCashMatchingIntegrationEnabled ? const Duration(seconds: 2) : null,
     this.softTimeout = const Duration(seconds: 90),
     this.readDeadline = const Duration(seconds: 15),
   });
@@ -45,6 +47,7 @@ class CanonicalRideSearchingScreen extends ConsumerStatefulWidget {
   final ConfirmedBookingReference? Function()? readConfirmedReference;
   final ValueChanged<RiderAssignedTrip>? onAssignmentVerified;
   final bool allowAutomaticMatching;
+  final Duration? assignmentPollInterval;
   final Duration softTimeout;
   final Duration readDeadline;
 
@@ -54,7 +57,15 @@ class CanonicalRideSearchingScreen extends ConsumerStatefulWidget {
 }
 
 class _CanonicalRideSearchingScreenState
-    extends ConsumerState<CanonicalRideSearchingScreen> {
+    extends ConsumerState<CanonicalRideSearchingScreen>
+    with WidgetsBindingObserver {
+  Timer? _assignmentPoll;
+  bool _foreground = true;
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+  }
+
   late RiderSearchController _controller;
   late SessionState _controllerSession;
   String? _pinnedRiderId;
@@ -66,6 +77,29 @@ class _CanonicalRideSearchingScreenState
   void initState() {
     super.initState();
     _createController();
+    WidgetsBinding.instance.addObserver(this);
+    final interval = widget.assignmentPollInterval;
+    if (interval != null && interval >= const Duration(seconds: 2)) {
+      _assignmentPoll = Timer.periodic(interval, (timer) {
+        if (timer.tick * interval.inMilliseconds >=
+            widget.softTimeout.inMilliseconds) {
+          timer.cancel();
+          return;
+        }
+        if (!_foreground ||
+            !mounted ||
+            ModalRoute.of(context)?.isCurrent != true ||
+            _navigatedTripId != null ||
+            _controller.state.matchingInProgress ||
+            _controller.state.phase == RiderSearchPhase.loading ||
+            _controller.state.assignment ==
+                RiderAssignmentVerification.loading) {
+          return;
+        }
+        // Read only: polling never retries the matching endpoint.
+        unawaited(_controller.refresh(allowMatching: false));
+      });
+    }
   }
 
   void _createController({bool? automaticallyStartMatching}) {
@@ -78,8 +112,8 @@ class _CanonicalRideSearchingScreenState
     if (allowed) _pinnedRiderId ??= riderId;
     final controller = RiderSearchController(
       bookingRequestId: widget.bookingRequestId,
-      repository: widget.repository ??
-          ref.read(riderBookingSearchRepositoryProvider),
+      repository:
+          widget.repository ?? ref.read(riderBookingSearchRepositoryProvider),
       cancellationCoordinator: ref.read(riderCancellationCoordinatorProvider),
       tripTrackingRepository: widget.tripTrackingRepository ??
           ref.read(riderTripTrackingRepositoryProvider),
@@ -117,10 +151,10 @@ class _CanonicalRideSearchingScreenState
         !identical(
             oldWidget.tripTrackingRepository, widget.tripTrackingRepository) ||
         !identical(oldWidget.matchingRepository, widget.matchingRepository) ||
-        !identical(oldWidget.readConfirmedReference,
-            widget.readConfirmedReference) ||
-        !identical(oldWidget.onAssignmentVerified,
-            widget.onAssignmentVerified) ||
+        !identical(
+            oldWidget.readConfirmedReference, widget.readConfirmedReference) ||
+        !identical(
+            oldWidget.onAssignmentVerified, widget.onAssignmentVerified) ||
         oldWidget.softTimeout != widget.softTimeout ||
         oldWidget.readDeadline != widget.readDeadline ||
         oldWidget.allowAutomaticMatching != widget.allowAutomaticMatching) {
@@ -134,6 +168,8 @@ class _CanonicalRideSearchingScreenState
 
   @override
   void dispose() {
+    _assignmentPoll?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _dismissCancellationDialog();
     _controller.dispose();
     super.dispose();
@@ -285,7 +321,8 @@ class _CanonicalRideSearchingScreenState
               ],
               if (state.matchingInProgress) ...[
                 const SizedBox(height: AppSpacing.sm),
-                const Text('Matching request is pending. Check the canonical booking status; it will not be resent automatically.'),
+                const Text(
+                    'Matching request is pending. Check the canonical booking status; it will not be resent automatically.'),
               ],
               const SizedBox(height: AppSpacing.sm),
               AppButton(
@@ -335,7 +372,8 @@ class _CanonicalRideSearchingScreenState
   void _scheduleVerifiedNavigation(RiderSearchViewState state) {
     final trip = state.verifiedTrip;
     final callback = widget.onAssignmentVerified;
-    if (trip == null || callback == null ||
+    if (trip == null ||
+        callback == null ||
         trip.tripId.toLowerCase() == _navigatedTripId?.toLowerCase() ||
         !identical(ref.read(sessionControllerProvider), _controllerSession) ||
         trip.bookingRequestId.toLowerCase() !=
@@ -344,8 +382,9 @@ class _CanonicalRideSearchingScreenState
         trip.paymentMethod.name != 'cash') return;
     _navigatedTripId = trip.tripId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && identical(ref.read(sessionControllerProvider),
-          _controllerSession)) callback(trip);
+      if (mounted &&
+          identical(ref.read(sessionControllerProvider), _controllerSession))
+        callback(trip);
     });
   }
 }
@@ -372,11 +411,16 @@ String _matchingMessage(RiderSearchViewState state) {
     return 'No eligible Driver was returned for this attempt. The booking remains canonical and can be checked again.';
   }
   return switch (state.matchingFailure) {
-    RiderMatchingFailure.conflict => 'The booking changed while matching. Check its canonical status before another attempt.',
+    RiderMatchingFailure.conflict =>
+      'The booking changed while matching. Check its canonical status before another attempt.',
     RiderMatchingFailure.invalidReference ||
-    RiderMatchingFailure.invalidResponse => 'Matching could not verify this booking reference. No Trip navigation is available.',
-    RiderMatchingFailure.unauthorized => 'This account is not authorized to request matching.',
-    RiderMatchingFailure.unavailable || null => 'The matching result is unknown. Check this same booking; no automatic retry was sent.',
+    RiderMatchingFailure.invalidResponse =>
+      'Matching could not verify this booking reference. No Trip navigation is available.',
+    RiderMatchingFailure.unauthorized =>
+      'This account is not authorized to request matching.',
+    RiderMatchingFailure.unavailable ||
+    null =>
+      'The matching result is unknown. Check this same booking; no automatic retry was sent.',
   };
 }
 

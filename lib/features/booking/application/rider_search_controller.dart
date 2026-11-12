@@ -128,6 +128,7 @@ class RiderSearchController extends ChangeNotifier {
 
   Future<void>? _pending;
   Timer? _timeout;
+  bool _searchTimedOut = false;
   Timer? _readTimer;
   Completer<RiderBookingSearchSnapshot?>? _abortRead;
   Timer? _assignmentTimer;
@@ -239,20 +240,19 @@ class RiderSearchController extends ChangeNotifier {
   }
 
   /// Rechecks the *same* booking. Repeated calls share one in-flight read.
-  Future<void> refresh() {
+  Future<void> refresh({bool allowMatching = true}) {
     if (_disposed ||
         _sessionInvalidated ||
         _attempt?.phase == RiderCancellationAttemptPhase.pending) {
       return Future<void>.value();
     }
-    return _requestRefresh();
+    return _requestRefresh(allowMatching: allowMatching);
   }
 
   /// Explicit retry always starts with a canonical read. The matching endpoint
   /// performs its own ownership/version checks and recovers any prior offers.
   Future<void> retryMatching() {
-    if (!canRetryMatching ||
-        !identical(_readSession(), _ownerSession)) {
+    if (!canRetryMatching || !identical(_readSession(), _ownerSession)) {
       return Future<void>.value();
     }
     _matchingAttempted = false;
@@ -263,11 +263,12 @@ class RiderSearchController extends ChangeNotifier {
     return _requestRefresh();
   }
 
-  Future<void> _requestRefresh() {
+  Future<void> _requestRefresh({bool allowMatching = true}) {
     if (_disposed || _sessionInvalidated) return Future<void>.value();
     final pending = _pending;
     if (pending != null) return pending;
-    final operation = Future<void>.microtask(_load);
+    final operation =
+        Future<void>.microtask(() => _load(allowMatching: allowMatching));
     return _pending = operation.whenComplete(() => _pending = null);
   }
 
@@ -344,10 +345,13 @@ class RiderSearchController extends ChangeNotifier {
     _set(_currentView(RiderSearchPhase.unresolved));
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool allowMatching = true}) async {
     final generation = ++_generation;
-    _timeout?.cancel();
-    _timeout = null;
+    if (allowMatching) {
+      _timeout?.cancel();
+      _timeout = null;
+      _searchTimedOut = false;
+    }
     if (!_isCurrent(generation) ||
         !_validRiderSession(_ownerSession) ||
         !isCanonicalTripId(bookingRequestId)) {
@@ -410,14 +414,20 @@ class RiderSearchController extends ChangeNotifier {
         _matchingResult = null;
         _matchingResultVersion = null;
       }
-      final visiblePhase = _matchingResult?.state ==
-                  RiderMatchingState.noCandidates &&
-              _matchingResultVersion == booking.version &&
-              (phase == RiderSearchPhase.waiting ||
-                  phase == RiderSearchPhase.searching)
-          ? RiderSearchPhase.noCandidates
-          : phase;
-      _set(_currentView(visiblePhase, booking: booking));
+      final visiblePhase =
+          _matchingResult?.state == RiderMatchingState.noCandidates &&
+                  _matchingResultVersion == booking.version &&
+                  (phase == RiderSearchPhase.waiting ||
+                      phase == RiderSearchPhase.searching)
+              ? RiderSearchPhase.noCandidates
+              : phase;
+      _set(_currentView(
+          _searchTimedOut &&
+                  (visiblePhase == RiderSearchPhase.waiting ||
+                      visiblePhase == RiderSearchPhase.searching)
+              ? RiderSearchPhase.timedOut
+              : visiblePhase,
+          booking: booking));
       if (booking.status == RiderBookingSearchStatus.cancelled) {
         _cancellationCoordinator.reconcileTerminalBooking(
           riderId: _ownerSession.user!.id,
@@ -425,16 +435,20 @@ class RiderSearchController extends ChangeNotifier {
           booking: booking,
         );
       }
-      if (_isCurrent(generation) &&
+      if (_timeout == null &&
+          _isCurrent(generation) &&
           (phase == RiderSearchPhase.waiting ||
               phase == RiderSearchPhase.searching)) {
         _timeout = _scheduleTimeout(_softTimeout, () {
-          if (_isCurrent(generation) &&
-              (_state.phase == RiderSearchPhase.waiting ||
-                  _state.phase == RiderSearchPhase.searching)) {
+          if (_disposed || _sessionInvalidated) {
+            return;
+          }
+          _searchTimedOut = true;
+          if (_state.phase == RiderSearchPhase.waiting ||
+              _state.phase == RiderSearchPhase.searching) {
             _set(_currentView(
               RiderSearchPhase.timedOut,
-              booking: booking,
+              booking: _state.booking,
             ));
           }
         });
@@ -444,7 +458,8 @@ class RiderSearchController extends ChangeNotifier {
           _tripRepository != null) {
         unawaited(_verifyAssignment(generation, _tripRepository));
       }
-      if (_isCurrent(generation) &&
+      if (allowMatching &&
+          _isCurrent(generation) &&
           (phase == RiderSearchPhase.waiting ||
               phase == RiderSearchPhase.searching) &&
           _matchingRepository != null &&
@@ -471,12 +486,15 @@ class RiderSearchController extends ChangeNotifier {
     int generation,
   ) async {
     final repository = _matchingRepository;
-    if (repository == null || !_isCurrent(generation) ||
-        _matchingAttempted || _matchingInProgress) return;
+    if (repository == null ||
+        !_isCurrent(generation) ||
+        _matchingAttempted ||
+        _matchingInProgress) return;
     final readReference = _readConfirmedReference;
     final reference = readReference?.call();
     final riderId = _ownerSession.user?.id;
-    if (reference == null || riderId == null ||
+    if (reference == null ||
+        riderId == null ||
         reference.command.bookingRequestId.toLowerCase() !=
             bookingRequestId.toLowerCase() ||
         reference.command.riderId.toLowerCase() != riderId.toLowerCase() ||
@@ -518,8 +536,8 @@ class RiderSearchController extends ChangeNotifier {
         reference,
         expectedBookingVersion: booking.version,
       );
-      if (!_isCurrent(generation) ||
-          operation != _matchingOperationGeneration) return;
+      if (!_isCurrent(generation) || operation != _matchingOperationGeneration)
+        return;
       _matchingRequestOutstanding = false;
       _matchingTimer?.cancel();
       _matchingTimer = null;
@@ -547,8 +565,8 @@ class RiderSearchController extends ChangeNotifier {
         await _requestRefresh();
       }
     } on RiderMatchingException catch (error) {
-      if (!_isCurrent(generation) ||
-          operation != _matchingOperationGeneration) return;
+      if (!_isCurrent(generation) || operation != _matchingOperationGeneration)
+        return;
       _matchingRequestOutstanding = false;
       _matchingTimer?.cancel();
       _matchingTimer = null;
@@ -556,8 +574,8 @@ class RiderSearchController extends ChangeNotifier {
       _matchingFailure = error.failure;
       _set(_currentView(_state.phase, booking: booking));
     } on Object {
-      if (!_isCurrent(generation) ||
-          operation != _matchingOperationGeneration) return;
+      if (!_isCurrent(generation) || operation != _matchingOperationGeneration)
+        return;
       _matchingRequestOutstanding = false;
       _matchingTimer?.cancel();
       _matchingTimer = null;

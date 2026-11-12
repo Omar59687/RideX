@@ -160,6 +160,38 @@ void main() {
       expect(controller.canCancel, isTrue);
     });
 
+    test('poll timeout preserves advanced booking version for cancellation',
+        () async {
+      final session = SessionState.fromUser(_rider);
+      final reads = _reads();
+      reads.booking = riderBookingSearchFixture(
+          status: RiderBookingSearchStatus.confirmed, version: 3);
+      final cancels = FakeRiderBookingCancellationRepository();
+      final timers = <_ManualTimer>[];
+      final controller = _controller(
+          readSession: () => session,
+          reads: reads,
+          cancels: cancels,
+          scheduleTimeout: (_, callback) {
+            final timer = _ManualTimer(callback);
+            timers.add(timer);
+            return timer;
+          });
+      addTearDown(controller.dispose);
+      await controller.refresh();
+      reads.booking = riderBookingSearchFixture(
+          status: RiderBookingSearchStatus.searching, version: 4);
+      await controller.refresh(allowMatching: false);
+      expect(timers.length, 1);
+      timers.single.fire();
+      expect(controller.state.phase, RiderSearchPhase.timedOut);
+      expect(controller.state.booking!.version, 4);
+      expect(
+          controller.state.booking!.status, RiderBookingSearchStatus.searching);
+      await controller.cancelBooking(reasonCode: 'Changed my mind');
+      expect(cancels.requests.single.expectedVersion, 4);
+    });
+
     test('accepted cancellation confirms only a validated cancelled snapshot',
         () async {
       final session = SessionState.fromUser(_rider);
