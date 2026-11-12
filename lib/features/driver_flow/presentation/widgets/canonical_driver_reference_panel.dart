@@ -5,10 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/canonical_driver_repository.dart';
 import '../providers/canonical_driver_presentation_controller.dart';
 
-/// Unmounted reference-only panel. Session-owned provider survives panel removal;
+/// Canonical reference-only panel. Its borrowed owner survives panel removal;
 /// this widget never constructs a repository, delivery source, intent or token.
 class CanonicalDriverReferencePanel extends ConsumerStatefulWidget {
-  const CanonicalDriverReferencePanel({super.key});
+  const CanonicalDriverReferencePanel({super.key, this.controller});
+
+  /// Borrowed route-owned B10 controller; the panel never disposes its owner.
+  final CanonicalDriverPresentationController? controller;
   @override
   ConsumerState<CanonicalDriverReferencePanel> createState() =>
       _CanonicalDriverReferencePanelState();
@@ -21,7 +24,8 @@ class _CanonicalDriverReferencePanelState
   void initState() {
     super.initState();
     _clock = Timer.periodic(const Duration(seconds: 1), (_) {
-      ref.read(driverCanonicalPresentationProvider)?.tick();
+      (widget.controller ?? ref.read(driverCanonicalPresentationProvider))
+          ?.tick();
     });
   }
 
@@ -33,16 +37,33 @@ class _CanonicalDriverReferencePanelState
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.watch(driverCanonicalPresentationProvider);
+    final controller =
+        widget.controller ?? ref.watch(driverCanonicalPresentationProvider);
+    return controller == null
+        ? _content(context, null)
+        : AnimatedBuilder(
+            animation: controller,
+            builder: (context, _) => _content(context, controller),
+          );
+  }
+
+  Widget _content(
+    BuildContext context,
+    CanonicalDriverPresentationController? controller,
+  ) {
     final view = controller?.view;
     final offer = view?.offer, trip = view?.trip;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Canonical Driver references',
-            style: Theme.of(context).textTheme.titleLarge),
-        Text(_message(view?.phase),
-            key: const ValueKey('canonical-driver-status')),
+        Text(
+          'Canonical Driver references',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        Text(
+          _message(view?.phase),
+          key: const ValueKey('canonical-driver-status'),
+        ),
         if (offer != null) ...[
           Text('Offer ID: ${offer.id}'),
           Text('Offer version: ${offer.version}'),
@@ -61,28 +82,41 @@ class _CanonicalDriverReferencePanelState
         const Text('Fare unavailable. Route unavailable.'),
         const Text('Rider details unavailable. Vehicle details unavailable.'),
         const Text(
-            'Reference preview only. Live integration acceptance is pending.'),
-        Wrap(spacing: 12, children: [
-          FilledButton(
+          'Reference preview only. Live integration acceptance is pending.',
+        ),
+        Wrap(
+          spacing: 12,
+          children: [
+            FilledButton(
               onPressed: view?.canDecide == true
                   ? () => unawaited(
-                      controller!.decide(view!, CanonicalOfferDecision.accept))
+                        controller!
+                            .decide(view!, CanonicalOfferDecision.accept),
+                      )
                   : null,
-              child: const Text('Accept canonical offer')),
-          OutlinedButton(
+              child: const Text('Accept canonical offer'),
+            ),
+            OutlinedButton(
               onPressed: view?.canDecide == true
                   ? () => unawaited(
-                      controller!.decide(view!, CanonicalOfferDecision.decline))
+                        controller!
+                            .decide(view!, CanonicalOfferDecision.decline),
+                      )
                   : null,
-              child: const Text('Decline canonical offer')),
-          OutlinedButton(
+              child: const Text('Decline canonical offer'),
+            ),
+            OutlinedButton(
               onPressed: view?.canReconcile == true
                   ? () => unawaited(controller!.reconcile())
                   : null,
-              child: const Text('Check original outcome')),
-          const OutlinedButton(
-              onPressed: null, child: Text('Completion unavailable')),
-        ]),
+              child: const Text('Check original outcome'),
+            ),
+            const OutlinedButton(
+              onPressed: null,
+              child: Text('Completion unavailable'),
+            ),
+          ],
+        ),
         if (view != null) Text(view.completionGate.explanation),
       ],
     );

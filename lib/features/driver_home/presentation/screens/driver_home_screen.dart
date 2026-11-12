@@ -1,3 +1,4 @@
+import 'package:ridex/features/driver_flow/presentation/providers/controlled_driver_runtime.dart';
 import 'package:ridex/features/driver_flow/presentation/screens/driver_incoming_offer_screen.dart';
 import 'package:ridex/features/driver_flow/presentation/screens/driver_trip_preview_screen.dart';
 import 'package:flutter/material.dart';
@@ -72,6 +73,11 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       bottomNavigationBar: const MockBottomNavBar(
           currentIndex: 0, profilePath: '/driver/profile'),
       actions: [
+        if (ref.watch(controlledDriverRuntimeEnabledProvider))
+          IconButton(
+              tooltip: 'Controlled Driver discovery',
+              onPressed: () => context.push('/driver/canonical-discovery'),
+              icon: const Icon(Icons.manage_search)),
         IconButton(
             tooltip: 'Local Trip preview',
             onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(

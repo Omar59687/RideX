@@ -112,6 +112,7 @@ const _riderLocations = {
 };
 
 const _driverLocations = {
+  '/driver/canonical-discovery',
   '/driver/home',
   '/driver/profile',
   '/driver/request',

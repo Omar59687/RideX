@@ -1,3 +1,4 @@
+import 'package:ridex/features/driver_flow/presentation/screens/controlled_driver_runtime_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -188,6 +189,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/settings',
           name: RouteNames.settings,
           builder: (_, __) => const SettingsScreen()),
+      GoRoute(
+          path: '/driver/canonical-discovery',
+          builder: (_, __) => const ControlledDriverRuntimeScreen()),
       GoRoute(
           path: '/driver/home',
           name: RouteNames.driverHome,
