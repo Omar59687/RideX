@@ -39,6 +39,7 @@ class _CanonicalRiderTripScreenState
   Stream<RiderTripLocationUpdate>? _locationStream;
   String? _locationStreamKey;
   bool _cancelling = false;
+  bool _rechecking = false;
 
   @override
   Widget build(BuildContext context) {
@@ -76,8 +77,16 @@ class _CanonicalRiderTripScreenState
         children: [
           const SizedBox(height: AppSpacing.lg),
           Text(_lifecycleCopy(state)),
+          if (state.phase == RiderTripLifecyclePhase.stale ||
+              state.phase == RiderTripLifecyclePhase.unavailable)
+            AppButton(
+              label:
+                  _rechecking ? 'Checking Trip status...' : 'Check Trip status',
+              onPressed: _rechecking ? null : () => _recheck(request),
+            ),
           if (trip != null && state.isVerified) ...[
             const SizedBox(height: AppSpacing.md),
+            Text('Trip ID: ${trip.tripId}'),
             Text('Trip status: ${trip.status.backendValue}'),
             Text('Cash booking: ${trip.bookingRequestId}'),
             Text('Trip version: ${trip.version}'),
@@ -92,13 +101,18 @@ class _CanonicalRiderTripScreenState
                       ? update.location
                       : null;
                   if (location == null ||
-                      location.tripId.toLowerCase() != trip.tripId.toLowerCase() ||
-                      location.driverId.toLowerCase() != trip.driver.driverId.toLowerCase() ||
-                      trip.riderId.toLowerCase() != session.user?.id.toLowerCase()) {
-                    return const Text('Waiting for a fresh verified Driver location.');
+                      location.tripId.toLowerCase() !=
+                          trip.tripId.toLowerCase() ||
+                      location.driverId.toLowerCase() !=
+                          trip.driver.driverId.toLowerCase() ||
+                      trip.riderId.toLowerCase() !=
+                          session.user?.id.toLowerCase()) {
+                    return const Text(
+                        'Waiting for a fresh verified Driver location.');
                   }
                   return GoogleCanonicalDriverMap(
-                    key: ValueKey('verified-driver-map-${trip.tripId}-${trip.driver.driverId}'),
+                    key: ValueKey(
+                        'verified-driver-map-${trip.tripId}-${trip.driver.driverId}'),
                     location: location,
                   );
                 },
@@ -110,7 +124,8 @@ class _CanonicalRiderTripScreenState
                 key: const ValueKey('canonical-trip-cancel'),
                 label: _cancelling ? 'Cancelling trip' : 'Cancel trip',
                 destructive: true,
-                onPressed: _cancelling ? null : () => _cancel(request, trip.version),
+                onPressed:
+                    _cancelling ? null : () => _cancel(request, trip.version),
               ),
           ],
           const SizedBox(height: AppSpacing.md),
@@ -124,11 +139,24 @@ class _CanonicalRiderTripScreenState
     );
   }
 
+  Future<void> _recheck(RiderTripLifecycleRequest request) async {
+    if (_rechecking) return;
+    setState(() => _rechecking = true);
+    try {
+      await ref
+          .read(riderTripLifecycleControllerProvider(request).notifier)
+          .refreshCanonically();
+    } finally {
+      if (mounted) setState(() => _rechecking = false);
+    }
+  }
+
   Future<void> _cancel(RiderTripLifecycleRequest request, int version) async {
     final confirmed = await showAppDialog(
       context: context,
       title: 'Cancel this trip?',
-      message: 'The assigned Trip will be cancelled through its canonical operation.',
+      message:
+          'The assigned Trip will be cancelled through its canonical operation.',
       icon: Icons.warning_amber_rounded,
       confirmLabel: 'Cancel trip',
       destructive: true,
@@ -157,7 +185,10 @@ class _CanonicalRiderTripScreenState
 String _lifecycleCopy(RiderTripLifecycleState state) => switch (state.phase) {
       RiderTripLifecyclePhase.loading => 'Verifying your assigned Trip.',
       RiderTripLifecyclePhase.verified => 'Trip state is canonically verified.',
-      RiderTripLifecyclePhase.stale => 'Trip state is being rechecked. Location is withheld.',
-      RiderTripLifecyclePhase.unavailable => 'This Trip is unavailable or could not be authorized.',
-      RiderTripLifecyclePhase.terminal => 'This Trip has ended. Driver location is cleared.',
+      RiderTripLifecyclePhase.stale =>
+        'Trip state is being rechecked. Location is withheld.',
+      RiderTripLifecyclePhase.unavailable =>
+        'This Trip is unavailable or could not be authorized.',
+      RiderTripLifecyclePhase.terminal =>
+        'This Trip has ended. Driver location is cleared.',
     };
