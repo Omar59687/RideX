@@ -65,6 +65,26 @@ void main() {
       role: RideRole.admin,
     );
 
+    for (final location in ['/rider/cash-searching', '/rider/canonical-trip']) {
+      test('$location remains Rider-only with integration default off', () {
+        expect(redirectForLocation(location, SessionState.fromUser(rider)),
+            isNull);
+        expect(redirectForLocation(location, SessionState.fromUser(driver)),
+            '/driver/home');
+        expect(redirectForLocation(location, SessionState.fromUser(admin)),
+            '/admin');
+        expect(
+            redirectForLocation(location, const SessionState.unauthenticated()),
+            '/sign-in');
+        expect(
+            redirectForLocation(location, const SessionState.loading()), '/');
+        expect(
+            redirectForLocation(location,
+                const SessionState(status: SessionStatus.blocked, user: rider)),
+            '/account-blocked');
+      });
+    }
+
     test('unauthenticated users cannot open private routes', () {
       const session = SessionState.unauthenticated();
 

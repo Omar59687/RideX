@@ -945,3 +945,20 @@ the owner has since authorized this test project, Driver recovery and dedicated
 emulator operations. Cash E2E remains NOT RUN pending approved Rider account access
 and successful login, then current B09A preflight. No unrelated Trip, financial,
 migration or Realtime publication changes were made. No push, PR or merge.
+
+
+## Canonical Rider navigation correction (2026-11-13)
+
+Isolated fix from main `7e2fcee6fa0ced1afe3a726fc32526b53c0ce7f9` adds
+`/rider/cash-searching` and `/rider/canonical-trip` to the existing Rider-only
+route policy. Unknown-route denial, session/role checks and runtime flags remain
+intact. Production GoRouter tests exercise both mounted pages, query locators,
+role/session replacement, sign-out and existing navigation. CI runs these tests
+explicitly with Cash integration enabled; the default-OFF suite skips only those
+two gated widget cases in addition to its four live skips. Astra High approved
+with no blockers. Focused tests: 19 pass; scoped analysis and formatting clean.
+Full serial suite: 2,784 pass, zero failures, six intentional skips (four live
+and two gated router cases, which pass in the enabled focused/CI invocation). The owner authorized
+PR/CI/merge and Rider-only APK replacement, then canonical recovery of the
+original confirmed Cash Booking. No replacement Booking/Quote or blind Matching
+replay is authorized.
