@@ -42,6 +42,11 @@ jobs:
       - name: Run full Flutter test suite
         run: flutter test --no-pub --concurrency=1
 
+      # Exercise the production GoRouter's gated canonical Rider routes locally.
+      # No hosted client, credentials or financial commands are supplied.
+      - name: Verify canonical Rider navigation
+        run: flutter test --no-pub --concurrency=1 --dart-define=RIDEX_ENABLE_CASH_MATCHING_INTEGRATION=true test/canonical_rider_router_test.dart
+
       # Informational: the current main baseline has analyzer infos.
       # Do not treat this non-gating step as a passing full analysis.
       - name: Full analyzer (non-gating baseline)

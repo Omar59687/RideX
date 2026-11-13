@@ -105,6 +105,8 @@ const _riderLocations = {
   '/rider/payment-method',
   '/rider/confirmation',
   '/rider/searching',
+  '/rider/cash-searching',
+  '/rider/canonical-trip',
   '/rider/trip',
   '/rider/completed',
   '/rider/rating',
