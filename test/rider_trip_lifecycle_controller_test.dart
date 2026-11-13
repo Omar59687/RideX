@@ -47,6 +47,45 @@ void main() {
       },
     );
 
+    test('explicit canonical recovery does not restart a disconnected watcher',
+        () async {
+      final repository =
+          FakeRiderTripTrackingRepository(trip: riderAssignedTripFixture());
+      final rig = _LifecycleRig(repository);
+      await _settle();
+      repository.emitDisconnected();
+      await _settle();
+      expect(rig.state.phase, RiderTripLifecyclePhase.stale);
+      expect(rig.state.trip, isNull);
+      await rig.controller.refreshCanonically();
+      expect(rig.state.phase, RiderTripLifecyclePhase.verified);
+      expect(rig.state.trip, riderAssignedTripFixture());
+      expect(repository.tripLoadCount, 2);
+      expect(repository.watchCount, 1);
+      await rig.dispose();
+      await repository.close();
+    });
+
+    test('session replacement fences a pending explicit canonical recovery',
+        () async {
+      final repository = _DelayedTripRepository();
+      final rig = _LifecycleRig(repository);
+      await _settle();
+      repository.completeRead(0, riderAssignedTripFixture());
+      await _settle();
+      final recovery = rig.controller.refreshCanonically();
+      await _settle();
+      rig.sessionController.setSession(const SessionState.unauthenticated());
+      await _settle();
+      repository.completeRead(1, riderAssignedTripFixture());
+      await recovery;
+      await _settle();
+      expect(rig.state.trip, isNull);
+      expect(rig.state.phase, RiderTripLifecyclePhase.unavailable);
+      await rig.dispose();
+      await repository.close();
+    });
+
     test('duplicate status events are idempotent and do not reread', () async {
       final next = _trip(
         version: 4,

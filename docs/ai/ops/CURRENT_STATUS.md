@@ -962,3 +962,22 @@ and two gated router cases, which pass in the enabled focused/CI invocation). Th
 PR/CI/merge and Rider-only APK replacement, then canonical recovery of the
 original confirmed Cash Booking. No replacement Booking/Quote or blind Matching
 replay is authorized.
+
+
+## Rider read-only Trip recovery and first acceptance (2026-11-13)
+
+A controlled test reconciled the old elapsed offer through the versioned backend
+expiry RPC, then created one new real Cash Booking/Quote through Rider UI. Driver
+accepted once before the 15-second deadline; canonical UNKNOWN recovery verified
+the accepted Trip. Both authenticated participant reads and both device screens
+observed the same accepted/version1 Trip. No completion, payment or settlement
+command was invoked. Realtime/location continuity remains unverified: target
+publication membership is missing and stale UI safely withholds location.
+
+The isolated Rider recovery patch adds an explicit canonical status reread without
+restarting the failed subscription, guards repeated taps, and displays verified
+Trip identity. It preserves session/ownership/version/location validation and
+introduces no writes or acceptance replay. Focused controller/widget/architecture:
+40 pass. Full serial suite: 2,787 pass, zero failures, six intentional skips.
+Scoped analysis, formatting and whitespace checks pass. Astra High APPROVE.
+Actual device evidence remains in the approved protected external store, not Git.

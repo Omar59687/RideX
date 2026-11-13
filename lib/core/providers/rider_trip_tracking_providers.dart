@@ -17,8 +17,8 @@ import 'package:ridex/core/services/rider_trip_lifecycle_signals.dart';
 /// adapter is composed from the authenticated Supabase client and D02; without
 /// that client, callers remain unavailable rather than using mock Trip state.
 final riderTripTrackingRepositoryProvider =
-    Provider<RiderTripTrackingRepository?>((ref) =>
-        ref.watch(riderSupabaseTripTrackingRepositoryProvider));
+    Provider<RiderTripTrackingRepository?>(
+        (ref) => ref.watch(riderSupabaseTripTrackingRepositoryProvider));
 
 final riderTripLifecycleClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
@@ -134,6 +134,15 @@ class RiderTripLifecycleController extends AutoDisposeFamilyNotifier<
 
   /// Explicit resume hook for a future app-lifecycle owner.
   Future<void> reconcileAfterResume() => _reconcileAfterLifecycleSignal();
+
+  /// Explicit read-only recovery when transport notifications are unavailable.
+  /// Keep the existing watcher: restarting it can immediately invalidate the
+  /// recovered read again. All session, ownership and version checks still run.
+  Future<void> refreshCanonically() async {
+    final context = _captureContext();
+    if (context == null) return;
+    await _requestCanonicalRead(context, supersedeInFlight: true);
+  }
 
   Future<void> _reconcileAfterLifecycleSignal() async {
     final context = _captureContext();
