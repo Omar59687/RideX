@@ -513,6 +513,33 @@ void main() {
       failed(await result, DriverEligibilityFailure.sessionInvalidated);
       expect(requests, hasLength(1));
     });
+    test(
+        'retryable refresh error preserves session but fatal error revokes authority',
+        () async {
+      await login();
+      final client = Supabase.instance.client;
+      final service = AuthService(client);
+      final session = client.auth.currentSession;
+      final errors = <Object>[];
+      final subscription =
+          service.authStateChanges().listen((_) {}, onError: errors.add);
+      // Exercise the same SDK error channel used by a failed token refresh.
+      final retryable = AuthRetryableFetchException(message: 'offline');
+      // ignore: invalid_use_of_internal_member
+      client.auth.notifyException(retryable);
+      await Future<void>.delayed(Duration.zero);
+      expect(client.auth.currentSession, same(session));
+      expect(service.driverLifecycle.isActive, isTrue);
+      expect(errors, isEmpty);
+      // Unknown errors remain fail-closed and cannot be treated as connectivity.
+      // ignore: invalid_use_of_internal_member
+      client.auth.notifyException(StateError('local failure'));
+      await Future<void>.delayed(Duration.zero);
+      expect(service.driverLifecycle.isActive, isFalse);
+      expect(errors, hasLength(1));
+      await subscription.cancel();
+    });
+
     test('typed auth events preserve order and legacy void notifications',
         () async {
       final typed = <DriverAuthEvent>[];
