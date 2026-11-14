@@ -52,14 +52,21 @@ class AuthService {
 
   Future<void> dispose() => _epochs.dispose();
 
-  Stream<void> authStateChanges() {
-    return _client.auth.onAuthStateChange.map((_) {});
-  }
+  // GoTrue preserves the session on retryable refresh transport failures.
+  // Forward actual sign-out and every other error; expiry still suspends
+  // command authority through SessionEpochOwner.hasValidSession.
+  Stream<AuthState> get _sessionEvents =>
+      _client.auth.onAuthStateChange.handleError(
+        (Object _) {},
+        test: (error) => error is AuthRetryableFetchException,
+      );
+
+  Stream<void> authStateChanges() => _sessionEvents.map((_) {});
 
   /// Additive, ordered, token-free SDK observations. Slice B must revoke
   /// synchronously BEFORE calling signOut/signIn; this stream cannot do that.
   Stream<DriverAuthEvent> driverAuthEvents() =>
-      _client.auth.onAuthStateChange.map((state) => DriverAuthEvent(
+      _sessionEvents.map((state) => DriverAuthEvent(
             switch (state.event) {
               AuthChangeEvent.initialSession =>
                 DriverAuthEventKind.initialSession,
