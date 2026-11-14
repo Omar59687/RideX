@@ -27,11 +27,162 @@ void main() {
   late List<RiderTripLocationUpdate> updates;
   late List<Object> errors;
   late Completer<void> streamDone;
-  late List<({
-    bool Function(RiderTripLocationUpdate) matches,
-    Completer<void> completed,
-  })> updateWaiters;
+  late List<
+      ({
+        bool Function(RiderTripLocationUpdate) matches,
+        Completer<void> completed,
+      })> updateWaiters;
   late StreamSubscription<RiderTripLocationUpdate> subscription;
+
+  testWidgets(
+      'polling reads canonical movement without subscribed channels and stops on session replacement',
+      (tester) async {
+    subscription = adapter
+        .watchTrip(_tripId, pollInterval: const Duration(seconds: 5))
+        .listen(updates.add, onError: errors.add);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    expect(
+        updates.whereType<RiderTripLocationSnapshot>().last.location.sequence,
+        1);
+    locationSource.latest = _location(sequence: 2, now: now);
+    await tester.pump(const Duration(seconds: 5));
+    expect(
+        updates.whereType<RiderTripLocationSnapshot>().last.location.sequence,
+        2);
+    expect(tripSource.readCount, greaterThanOrEqualTo(3));
+    locationSource.authenticatedSessionIdentity = Object();
+    final reads = locationSource.readCount;
+    await tester.pump(const Duration(seconds: 5));
+    expect(updates.whereType<RiderTripLocationCleared>().last.reason,
+        RiderTripLocationClearReason.sessionChanged);
+    await tester.pump(const Duration(seconds: 10));
+    expect(locationSource.readCount, reads);
+    unawaited(subscription.cancel());
+    await tester.pump();
+  });
+
+  testWidgets(
+      'polling withholds stale observations and stops when Trip becomes terminal',
+      (tester) async {
+    locationSource.latest =
+        _location(sequence: 1, now: now.subtract(const Duration(minutes: 2)));
+    subscription = adapter
+        .watchTrip(_tripId, pollInterval: const Duration(seconds: 5))
+        .listen(updates.add, onError: errors.add);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    expect(updates.whereType<RiderTripLocationSnapshot>(), isEmpty);
+    tripSource.trip =
+        _trip(status: DriverTripLifecycleStatus.completed, version: 2);
+    final reads = locationSource.readCount;
+    await tester.pump(const Duration(seconds: 5));
+    expect(locationSource.readCount, reads);
+    unawaited(subscription.cancel());
+    await tester.pump();
+  });
+
+  testWidgets(
+      'polling keeps canonical location when the Realtime channel errors without retrying',
+      (tester) async {
+    subscription = adapter
+        .watchTrip(_tripId, pollInterval: const Duration(seconds: 5))
+        .listen(updates.add, onError: errors.add);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    expect(
+        updates.whereType<RiderTripLocationSnapshot>().last.location.sequence,
+        1);
+    locationSource.emit(const RiderTripLocationChannelSignal(
+      RiderTripLocationChannelStatus.channelError,
+    ));
+    await tester.pump();
+    expect(updates.whereType<RiderTripLocationCleared>(), isEmpty);
+    expect(locationSource.watchCount, 1);
+    locationSource.latest = _location(sequence: 2, now: now);
+    await tester.pump(const Duration(seconds: 5));
+    expect(
+        updates.whereType<RiderTripLocationSnapshot>().last.location.sequence,
+        2);
+    expect(locationSource.watchCount, 1);
+    expect(locationSource.readCount, greaterThanOrEqualTo(3));
+    expect(updates.last, isA<RiderTripLocationSnapshot>());
+    locationSource.emit(const RiderTripLocationChannelSignal(
+        RiderTripLocationChannelStatus.subscribed));
+    await tester.pump();
+    expect(updates.last, isA<RiderTripLocationSnapshot>());
+    await tester.pump(const Duration(seconds: 5));
+    expect(updates.last, isA<RiderTripLocationSnapshot>());
+    unawaited(subscription.cancel());
+    await tester.pump();
+  });
+
+  test('polling bootstraps after transient initial Trip read failure',
+      () async {
+    tripSource =
+        FakeTripRealtimeSource(authenticatedUserId: _riderId, trip: _trip());
+    locationSource = FakeRiderTripLocationSource(
+        authenticatedUserId: _riderId,
+        latest: _location(sequence: 1, now: now));
+    adapter = RiderTripLocationAdapter(
+        trips: TripRealtimeAdapter(tripSource),
+        locations: locationSource,
+        clock: () => now);
+    tripSource.failNextRead = true;
+    subscription = adapter
+        .watchTrip(_tripId, pollInterval: const Duration(seconds: 5))
+        .listen(updates.add, onError: errors.add);
+    await Future<void>.delayed(Duration.zero);
+    expect(locationSource.readCount, 0);
+    await Future<void>.delayed(const Duration(seconds: 5));
+    await Future<void>.delayed(Duration.zero);
+    expect(updates.whereType<RiderTripLocationSnapshot>(), isNotEmpty);
+    expect(errors, isEmpty);
+    await subscription.cancel();
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    expect(locationSource.activeSubscriptions, 0);
+    expect(tripSource.activeSubscriptions, 0);
+  });
+
+  test('an older in-flight poll cannot revoke newer verified Trip state',
+      () async {
+    tripSource =
+        FakeTripRealtimeSource(authenticatedUserId: _riderId, trip: _trip());
+    locationSource = FakeRiderTripLocationSource(
+        authenticatedUserId: _riderId,
+        latest: _location(sequence: 1, now: now));
+    adapter = RiderTripLocationAdapter(
+        trips: TripRealtimeAdapter(tripSource),
+        locations: locationSource,
+        clock: () => now);
+    subscription = adapter
+        .watchTrip(_tripId, pollInterval: const Duration(seconds: 5))
+        .listen(updates.add, onError: errors.add);
+    await Future<void>.delayed(Duration.zero);
+    final gate = Completer<void>();
+    tripSource.nextReadGate = gate;
+    await Future<void>.delayed(const Duration(seconds: 5));
+    await Future<void>.delayed(Duration.zero);
+    tripSource.trip = _trip(version: 2);
+    tripSource.emit(const TripRealtimeChangeSignal(
+        tripId: _tripId, source: TripRealtimeChangeSource.tripRow));
+    await Future<void>.delayed(Duration.zero);
+    gate.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(errors, isEmpty);
+    await Future<void>.delayed(const Duration(seconds: 5));
+    await Future<void>.delayed(Duration.zero);
+    expect(updates.whereType<RiderTripLocationSnapshot>(), isNotEmpty);
+    expect(locationSource.activeSubscriptions, 1);
+    await subscription.cancel();
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    expect(locationSource.activeSubscriptions, 0);
+    expect(tripSource.activeSubscriptions, 0);
+  });
 
   setUp(() {
     tripSource = FakeTripRealtimeSource(
@@ -101,18 +252,19 @@ void main() {
 
   Future<void> listen() async {
     subscription = adapter.watchTrip(_tripId).listen(
-      (update) {
-        record(update);
-      },
-      onError: (Object error, StackTrace _) => errors.add(error),
-      onDone: () {
-        if (!streamDone.isCompleted) streamDone.complete();
-      },
-    );
+          (update) {
+            record(update);
+          },
+          onError: (Object error, StackTrace _) => errors.add(error),
+          onDone: () {
+            if (!streamDone.isCompleted) streamDone.complete();
+          },
+        );
     await waitForLocationSource();
   }
 
-  test('subscribes only after the canonical Trip assigns this Driver', () async {
+  test('subscribes only after the canonical Trip assigns this Driver',
+      () async {
     await listen();
     expect(locationSource.watchCount, 1);
     expect(locationSource.lastTripId, _tripId);
@@ -195,9 +347,11 @@ void main() {
     ));
     await locationSource.waitForReadCount(readCount + 5);
 
-    expect(updates.whereType<RiderTripLocationSnapshot>().map(
-      (update) => update.location.sequence,
-    ), [1, 2, 4]);
+    expect(
+        updates.whereType<RiderTripLocationSnapshot>().map(
+              (update) => update.location.sequence,
+            ),
+        [1, 2, 4]);
   });
 
   test('rereads canonical location after reconnect and recovers missed event',
@@ -292,11 +446,13 @@ void main() {
       RiderTripLocationChannelStatus.channelError,
     ));
     await waitForUpdate(
-      (update) => update is RiderTripLocationCleared &&
+      (update) =>
+          update is RiderTripLocationCleared &&
           update.reason == RiderTripLocationClearReason.staleLocation,
     );
     await waitForUpdate(
-      (update) => update is RiderTripLocationConnectionUpdate &&
+      (update) =>
+          update is RiderTripLocationConnectionUpdate &&
           update.status == RiderTripLocationChannelStatus.channelError,
     );
     await retryRequested.future;
@@ -309,7 +465,8 @@ void main() {
       RiderTripLocationChannelStatus.subscribed,
     ));
     await waitForUpdateCount(
-      (update) => update is RiderTripLocationConnectionUpdate &&
+      (update) =>
+          update is RiderTripLocationConnectionUpdate &&
           update.status == RiderTripLocationChannelStatus.subscribed,
       2,
     );
@@ -324,8 +481,8 @@ void main() {
 
     expect(
       updates.whereType<RiderTripLocationSnapshot>().map(
-        (update) => update.location.sequence,
-      ),
+            (update) => update.location.sequence,
+          ),
       [1, 3],
     );
     expect(locationSource.activeSubscriptions, 1);
@@ -382,7 +539,8 @@ void main() {
       RiderTripLocationChannelStatus.subscribed,
     ));
     await waitForUpdateCount(
-      (update) => update is RiderTripLocationConnectionUpdate &&
+      (update) =>
+          update is RiderTripLocationConnectionUpdate &&
           update.status == RiderTripLocationChannelStatus.subscribed,
       2,
     );
@@ -409,7 +567,8 @@ void main() {
       RiderTripLocationChannelStatus.subscribed,
     ));
     await waitForUpdateCount(
-      (update) => update is RiderTripLocationConnectionUpdate &&
+      (update) =>
+          update is RiderTripLocationConnectionUpdate &&
           update.status == RiderTripLocationChannelStatus.subscribed,
       3,
     );
@@ -427,8 +586,8 @@ void main() {
     expect(locationSource.readCount, 3);
     expect(
       updates.whereType<RiderTripLocationSnapshot>().map(
-        (update) => update.location.sequence,
-      ),
+            (update) => update.location.sequence,
+          ),
       [1, 3],
     );
   });
@@ -496,8 +655,7 @@ void main() {
     expect(updates.whereType<RiderTripLocationSnapshot>(), isEmpty);
   });
 
-  test('rejects a canonical row for another Driver on the same Trip',
-      () async {
+  test('rejects a canonical row for another Driver on the same Trip', () async {
     await listen();
     locationSource.latest = _location(
       sequence: 1,
@@ -593,7 +751,8 @@ void main() {
   test('cleans the auth listener when location channel creation throws',
       () async {
     await _expectLocationSetupFailure(
-      channelFactory: (_) => throw StateError('injected channel creation error'),
+      channelFactory: (_) =>
+          throw StateError('injected channel creation error'),
       expectedChannelRemovals: 0,
     );
   });
@@ -710,13 +869,16 @@ RiderTripLocation _location({
     );
 
 final class FakeTripRealtimeSource implements TripRealtimeSource {
-  FakeTripRealtimeSource({required this.authenticatedUserId, required this.trip});
+  FakeTripRealtimeSource(
+      {required this.authenticatedUserId, required this.trip});
 
   @override
   String? authenticatedUserId;
   @override
   Object? authenticatedSessionIdentity = Object();
   TripRealtimeTrip trip;
+  bool failNextRead = false;
+  Completer<void>? nextReadGate;
   final _signals = StreamController<TripRealtimeSourceSignal>.broadcast();
   int readCount = 0;
   int activeSubscriptions = 0;
@@ -741,7 +903,15 @@ final class FakeTripRealtimeSource implements TripRealtimeSource {
   Future<TripRealtimeTrip?> readCanonicalTrip(String tripId) async {
     readCount++;
     if (!nextRead.isCompleted) nextRead.complete();
-    return trip;
+    if (failNextRead) {
+      failNextRead = false;
+      throw const TripRealtimeException(TripRealtimeFailure.sourceUnavailable);
+    }
+    final snapshot = trip;
+    final gate = nextReadGate;
+    nextReadGate = null;
+    if (gate != null) await gate.future;
+    return snapshot;
   }
 
   void emit(TripRealtimeSourceSignal signal) => _signals.add(signal);
@@ -816,15 +986,14 @@ final class FakeRiderTripLocationSource implements RiderTripLocationSource {
     final readNumber = readCount;
     if (!nextRead.isCompleted) nextRead.complete();
     final snapshot = latest;
-    final gate = readGates[readNumber] ??
-        (readNumber == 1 ? readGate : null);
+    final gate = readGates[readNumber] ?? (readNumber == 1 ? readGate : null);
     if (gate != null) {
       await gate.future;
       readGates.remove(readNumber);
       if (readNumber == 1) readGate = null;
     }
-    final returned = readReturns[readNumber] ??
-        (readNumber == 1 ? readReturned : null);
+    final returned =
+        readReturns[readNumber] ?? (readNumber == 1 ? readReturned : null);
     if (returned != null && !returned.isCompleted) returned.complete();
     return snapshot;
   }

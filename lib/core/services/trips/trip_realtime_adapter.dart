@@ -11,7 +11,23 @@ final class TripRealtimeAdapter {
 
   final TripRealtimeSource _source;
 
-  Stream<TripRealtimeUpdate> watchTrip(String tripId) =>
+  /// An authenticated canonical reread, independent of channel availability.
+  Future<TripRealtimeTrip> readVerifiedTrip(String tripId) async {
+    final owner = _source.authenticatedUserId;
+    final session = _source.authenticatedSessionIdentity;
+    if (!isCanonicalTripId(tripId) || owner == null || session == null) {
+      throw const TripRealtimeException(TripRealtimeFailure.unauthenticated);
+    }
+    return _readVerified(
+      tripId: tripId.toLowerCase(),
+      ownerId: owner.toLowerCase(),
+      sessionIdentity: session,
+    );
+  }
+
+  Stream<TripRealtimeUpdate> watchTrip(
+    String tripId,
+  ) =>
       Stream<TripRealtimeUpdate>.multi((controller) {
         if (!isCanonicalTripId(tripId)) {
           controller.addError(
@@ -55,8 +71,7 @@ final class TripRealtimeAdapter {
           final safeError = error is TripRealtimeException
               ? error
               : const TripRealtimeException(
-                  TripRealtimeFailure.sourceUnavailable,
-                );
+                  TripRealtimeFailure.sourceUnavailable);
           controller.addError(safeError, stackTrace);
           unawaited(controller.close());
           final subscription = sourceSubscription;
@@ -85,8 +100,7 @@ final class TripRealtimeAdapter {
         Future<void> processSignal(TripRealtimeSourceSignal signal) async {
           if (signal is TripRealtimeSessionChangedSignal) {
             throw const TripRealtimeException(
-              TripRealtimeFailure.sessionChanged,
-            );
+                TripRealtimeFailure.sessionChanged);
           }
           if (signal case TripRealtimeChannelSignal(:final status)) {
             emit(TripRealtimeConnectionUpdate(status));
@@ -144,29 +158,32 @@ final class TripRealtimeAdapter {
           }
         }
 
-        emit(const TripRealtimeConnectionUpdate(
-          TripRealtimeChannelStatus.connecting,
-        ));
+        emit(
+          const TripRealtimeConnectionUpdate(
+              TripRealtimeChannelStatus.connecting),
+        );
         try {
           sourceSubscription = _source.watchTrip(tripId).listen(
-            (signal) => schedule(() => processSignal(signal)),
-            onError: (Object _) => schedule(() async {
-              wasDisconnected = true;
-              emit(
-                const TripRealtimeConnectionUpdate(
-                  TripRealtimeChannelStatus.channelError,
-                ),
+                (signal) => schedule(() => processSignal(signal)),
+                onError: (Object _) => schedule(() async {
+                  wasDisconnected = true;
+                  emit(
+                    const TripRealtimeConnectionUpdate(
+                      TripRealtimeChannelStatus.channelError,
+                    ),
+                  );
+                }),
+                onDone: () => schedule(() async {
+                  if (cancelled || terminal) return;
+                  emit(
+                    const TripRealtimeConnectionUpdate(
+                      TripRealtimeChannelStatus.closed,
+                    ),
+                  );
+                  terminal = true;
+                  unawaited(controller.close());
+                }),
               );
-            }),
-            onDone: () => schedule(() async {
-              if (cancelled || terminal) return;
-              emit(const TripRealtimeConnectionUpdate(
-                TripRealtimeChannelStatus.closed,
-              ));
-              terminal = true;
-              unawaited(controller.close());
-            }),
-          );
         } on Object catch (error, stackTrace) {
           fail(error, stackTrace);
           return;
