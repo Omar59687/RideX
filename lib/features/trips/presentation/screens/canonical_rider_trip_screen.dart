@@ -35,9 +35,72 @@ class CanonicalRiderTripScreen extends ConsumerStatefulWidget {
 }
 
 class _CanonicalRiderTripScreenState
-    extends ConsumerState<CanonicalRiderTripScreen> {
+    extends ConsumerState<CanonicalRiderTripScreen>
+    with WidgetsBindingObserver {
   Stream<RiderTripLocationUpdate>? _locationStream;
   String? _locationStreamKey;
+  Timer? _pollTimer;
+  bool _foreground = true;
+  int _foregroundEpoch = 0;
+  bool _polling = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _foreground = WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+      if (!_foreground ||
+          _polling ||
+          !mounted ||
+          !isCanonicalTripId(widget.tripId) ||
+          !isCanonicalTripId(widget.bookingRequestId)) {
+        return;
+      }
+      final request = RiderTripLifecycleRequest(
+        tripId: widget.tripId,
+        bookingRequestId: widget.bookingRequestId,
+      );
+      if (ref
+              .read(riderTripLifecycleControllerProvider(request))
+              .trip
+              ?.isTerminal ==
+          true) {
+        return;
+      }
+      _polling = true;
+      try {
+        await ref
+            .read(riderTripLifecycleControllerProvider(request).notifier)
+            .refreshCanonically();
+      } finally {
+        _polling = false;
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    if (state == AppLifecycleState.resumed) {
+      // A backgrounded app may never build the paused state, leaving the old
+      // stream key in place. Force a fresh canonical location watch on resume
+      // so a closed or expired stream cannot become permanent.
+      _foregroundEpoch++;
+      _locationStream = null;
+      _locationStreamKey = null;
+    }
+    setState(() => _foreground = state == AppLifecycleState.resumed);
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
   bool _cancelling = false;
   bool _rechecking = false;
 
@@ -57,17 +120,22 @@ class _CanonicalRiderTripScreenState
     final state = ref.watch(riderTripLifecycleControllerProvider(request));
     final adapter = ref.watch(riderTripLocationAdapterProvider);
     final session = ref.watch(sessionControllerProvider);
-    final streamKey = state.phase == RiderTripLifecyclePhase.verified &&
+    final streamKey = _foreground &&
+            state.phase == RiderTripLifecyclePhase.verified &&
             state.trip != null &&
             adapter != null &&
             state.trip!.riderId.toLowerCase() == session.user?.id.toLowerCase()
-        ? '${widget.tripId}:${state.trip!.driver.driverId}:${identityHashCode(adapter)}:${identityHashCode(session)}'
+        ? '$_foregroundEpoch:${widget.tripId}:${state.trip!.driver.driverId}:${identityHashCode(adapter)}:${identityHashCode(session)}'
         : null;
     if (streamKey != _locationStreamKey) {
       _locationStreamKey = streamKey;
       _locationStream = streamKey == null || adapter == null
           ? null
-          : adapter.watchTrip(widget.tripId);
+          : adapter.watchTrip(
+              widget.tripId,
+              pollInterval: const Duration(seconds: 10),
+              isForeground: () => mounted && _foreground,
+            );
     }
 
     final trip = state.trip;
@@ -108,11 +176,13 @@ class _CanonicalRiderTripScreenState
                       trip.riderId.toLowerCase() !=
                           session.user?.id.toLowerCase()) {
                     return const Text(
-                        'Waiting for a fresh verified Driver location.');
+                      'Waiting for a fresh verified Driver location.',
+                    );
                   }
                   return GoogleCanonicalDriverMap(
                     key: ValueKey(
-                        'verified-driver-map-${trip.tripId}-${trip.driver.driverId}'),
+                      'verified-driver-map-${trip.tripId}-${trip.driver.driverId}',
+                    ),
                     location: location,
                   );
                 },

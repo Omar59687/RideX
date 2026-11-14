@@ -33,7 +33,11 @@ final class RiderTripLocationAdapter {
   final RiderTripLocationDelay _delay;
   final Duration maximumLocationAge;
 
-  Stream<RiderTripLocationUpdate> watchTrip(String tripId) =>
+  Stream<RiderTripLocationUpdate> watchTrip(
+    String tripId, {
+    Duration? pollInterval,
+    bool Function()? isForeground,
+  }) =>
       Stream<RiderTripLocationUpdate>.multi((controller) {
         if (!isCanonicalTripId(tripId)) {
           controller.addError(
@@ -61,6 +65,8 @@ final class RiderTripLocationAdapter {
 
         final normalizedTripId = tripId.toLowerCase();
         final normalizedOwnerId = ownerId.toLowerCase();
+        Timer? pollTimer;
+        var pollPending = false;
         var cancelled = false;
         var terminated = false;
         var tripSubscriptionReady = false;
@@ -89,12 +95,17 @@ final class RiderTripLocationAdapter {
         bool sessionIsCurrent() =>
             _locations.authenticatedUserId?.toLowerCase() ==
                 normalizedOwnerId &&
-            identical(
-              _locations.authenticatedSessionIdentity,
-              sessionIdentity,
-            );
+            identical(_locations.authenticatedSessionIdentity, sessionIdentity);
 
         void emit(RiderTripLocationUpdate update) {
+          // Channel availability does not revoke a successful canonical poll.
+          // Keep the current snapshot visible until its own expiry or a failed
+          // canonical verification clears it.
+          if (pollInterval != null &&
+              latestLocation != null &&
+              update is RiderTripLocationConnectionUpdate) {
+            return;
+          }
           if (isActive()) controller.add(update);
         }
 
@@ -113,6 +124,7 @@ final class RiderTripLocationAdapter {
             await existing;
             return;
           }
+          pollTimer?.cancel();
           final cleanup = () async {
             await stopLocationSource();
             final subscription = tripSubscription;
@@ -141,9 +153,11 @@ final class RiderTripLocationAdapter {
         void clearStaleLocation() {
           if (latestLocation == null) return;
           latestLocation = null;
-          emit(const RiderTripLocationCleared(
-            RiderTripLocationClearReason.staleLocation,
-          ));
+          emit(
+            const RiderTripLocationCleared(
+              RiderTripLocationClearReason.staleLocation,
+            ),
+          );
         }
 
         void fail(RiderTripLocationFailure failure) {
@@ -152,11 +166,13 @@ final class RiderTripLocationAdapter {
           pendingReadGeneration = null;
           connectedSourceGeneration = null;
           if (latestLocation != null || assignedDriverId != null) {
-            controller.add(RiderTripLocationCleared(
-              failure == RiderTripLocationFailure.sessionChanged
-                  ? RiderTripLocationClearReason.sessionChanged
-                  : RiderTripLocationClearReason.authorizationRevoked,
-            ));
+            controller.add(
+              RiderTripLocationCleared(
+                failure == RiderTripLocationFailure.sessionChanged
+                    ? RiderTripLocationClearReason.sessionChanged
+                    : RiderTripLocationClearReason.authorizationRevoked,
+              ),
+            );
           }
           latestLocation = null;
           assignedDriverId = null;
@@ -179,14 +195,25 @@ final class RiderTripLocationAdapter {
                 fail(error.failure);
               }
             } on TripRealtimeException catch (error) {
-              fail(error.failure == TripRealtimeFailure.sessionChanged
-                  ? RiderTripLocationFailure.sessionChanged
-                  : RiderTripLocationFailure.notAuthorized);
+              if (pollInterval != null &&
+                  error.failure == TripRealtimeFailure.sourceUnavailable) {
+                clearStaleLocation();
+                emit(const RiderTripLocationVerificationUpdate(
+                    RiderTripLocationFailure.sourceUnavailable));
+                return;
+              }
+              fail(
+                error.failure == TripRealtimeFailure.sessionChanged
+                    ? RiderTripLocationFailure.sessionChanged
+                    : RiderTripLocationFailure.notAuthorized,
+              );
             } on Object {
               if (isActive()) {
-                emit(const RiderTripLocationVerificationUpdate(
-                  RiderTripLocationFailure.sourceUnavailable,
-                ));
+                emit(
+                  const RiderTripLocationVerificationUpdate(
+                    RiderTripLocationFailure.sourceUnavailable,
+                  ),
+                );
               }
             }
           });
@@ -202,9 +229,10 @@ final class RiderTripLocationAdapter {
 
         bool isReadCurrent(int generation, int readEpoch) =>
             isActive() &&
+            (isForeground?.call() ?? true) &&
             readEpoch == locationReadEpoch &&
             generation == sourceGeneration &&
-            connectedSourceGeneration == generation;
+            (pollInterval != null || connectedSourceGeneration == generation);
 
         Future<void> verifyCanonicalLocation({
           required String expectedTripId,
@@ -217,6 +245,25 @@ final class RiderTripLocationAdapter {
             throw const RiderTripLocationException(
               RiderTripLocationFailure.sessionChanged,
             );
+          }
+          if (pollInterval != null) {
+            final trip = await _trips.readVerifiedTrip(expectedTripId);
+            if (!isReadCurrent(generation, readEpoch)) return;
+            if (!sessionIsCurrent()) {
+              fail(RiderTripLocationFailure.sessionChanged);
+              return;
+            }
+            if (trip.riderId.toLowerCase() != normalizedOwnerId ||
+                trip.driverId.toLowerCase() != expectedDriverId.toLowerCase()) {
+              fail(RiderTripLocationFailure.notAuthorized);
+              return;
+            }
+            if (trip.version < latestTripVersion) return;
+            if (!isRiderTripLocationActive(trip.status)) {
+              terminate(RiderTripLocationClearReason.noLongerActive);
+              return;
+            }
+            latestTripVersion = trip.version;
           }
           final location = await _locations.readLatestTripLocation(
             tripId: expectedTripId,
@@ -242,12 +289,21 @@ final class RiderTripLocationAdapter {
           if (location.receivedAt.isAfter(now) ||
               location.recordedAt.isAfter(now) ||
               age > maximumLocationAge ||
+              now.difference(location.recordedAt) > maximumLocationAge ||
               age.isNegative) {
             clearStaleLocation();
             return;
           }
           final previousReceivedAt = highestReceivedAt;
           final previousRecordedAt = highestRecordedAt;
+          if (pollInterval != null &&
+              location.sequence == highestLocationSequence &&
+              location.receivedAt == previousReceivedAt &&
+              location.recordedAt == previousRecordedAt) {
+            latestLocation = location;
+            emit(RiderTripLocationSnapshot(location));
+            return;
+          }
           if (location.sequence <= highestLocationSequence ||
               (previousReceivedAt != null &&
                   !location.receivedAt.isAfter(previousReceivedAt)) ||
@@ -278,14 +334,25 @@ final class RiderTripLocationAdapter {
             return;
           }
           if (error is TripRealtimeException) {
-            fail(error.failure == TripRealtimeFailure.sessionChanged
-                ? RiderTripLocationFailure.sessionChanged
-                : RiderTripLocationFailure.notAuthorized);
+            if (pollInterval != null &&
+                error.failure == TripRealtimeFailure.sourceUnavailable) {
+              clearStaleLocation();
+              emit(const RiderTripLocationVerificationUpdate(
+                  RiderTripLocationFailure.sourceUnavailable));
+              return;
+            }
+            fail(
+              error.failure == TripRealtimeFailure.sessionChanged
+                  ? RiderTripLocationFailure.sessionChanged
+                  : RiderTripLocationFailure.notAuthorized,
+            );
             return;
           }
-          emit(const RiderTripLocationVerificationUpdate(
-            RiderTripLocationFailure.sourceUnavailable,
-          ));
+          emit(
+            const RiderTripLocationVerificationUpdate(
+              RiderTripLocationFailure.sourceUnavailable,
+            ),
+          );
         }
 
         void requestCanonicalLocationRead({
@@ -293,7 +360,12 @@ final class RiderTripLocationAdapter {
           required String expectedDriverId,
           required int generation,
         }) {
-          if (!isActive() || connectedSourceGeneration != generation) return;
+          if (!isActive() ||
+              !(isForeground?.call() ?? true) ||
+              (pollInterval == null &&
+                  connectedSourceGeneration != generation)) {
+            return;
+          }
           if (locationReadInFlight) {
             // Keep only the latest requested generation while a prior read is
             // unresolved. A reconnect can proceed without starting unbounded
@@ -319,7 +391,8 @@ final class RiderTripLocationAdapter {
               pendingReadGeneration = null;
               if (pendingGeneration != null &&
                   isActive() &&
-                  connectedSourceGeneration == pendingGeneration &&
+                  (pollInterval != null ||
+                      connectedSourceGeneration == pendingGeneration) &&
                   sourceGeneration == pendingGeneration) {
                 final driverId = assignedDriverId;
                 if (driverId != null) {
@@ -334,10 +407,7 @@ final class RiderTripLocationAdapter {
           }());
         }
 
-        void scheduleRetry(
-          int generation,
-          Future<void> Function() reconnect,
-        ) {
+        void scheduleRetry(int generation, Future<void> Function() reconnect) {
           if (!isActive() || generation != sourceGeneration || retryPending) {
             return;
           }
@@ -406,62 +476,24 @@ final class RiderTripLocationAdapter {
           final generation = ++sourceGeneration;
           final expectedDriverId = currentDriverId;
           try {
-            final subscription = _locations
-                .watchTripLocation(normalizedTripId)
-                .listen(
-                  (signal) {
-                    if (!isActive() || generation != sourceGeneration) return;
-                    if (signal is RiderTripLocationSessionChangedSignal ||
-                        !sessionIsCurrent()) {
-                      terminate(RiderTripLocationClearReason.sessionChanged);
-                      return;
-                    }
-                    if (signal
-                        case RiderTripLocationChannelSignal(:final status)) {
-                      if (status == RiderTripLocationChannelStatus.subscribed) {
-                        connectedSourceGeneration = generation;
-                        retryPending = false;
-                        retryAttempt = 0;
-                        retryGeneration++;
-                        emit(RiderTripLocationConnectionUpdate(status));
-                        schedule(() async {
-                          if (isReadCurrent(generation, locationReadEpoch)) {
-                            requestCanonicalLocationRead(
-                              expectedTripId: normalizedTripId,
-                              expectedDriverId: expectedDriverId,
-                              generation: generation,
-                            );
-                          }
-                        });
-                      } else {
-                        connectedSourceGeneration = null;
-                        locationReadEpoch++;
-                        pendingReadGeneration = null;
-                        clearStaleLocation();
-                        emit(RiderTripLocationConnectionUpdate(status));
-                        if (status ==
-                                RiderTripLocationChannelStatus.channelError ||
-                            status == RiderTripLocationChannelStatus.closed ||
-                            status ==
-                                RiderTripLocationChannelStatus.timedOut) {
-                          scheduleRetry(generation, startLocationSource);
-                        }
-                      }
-                      return;
-                    }
-                    if (signal is RiderTripLocationChangedSignal &&
-                        connectedSourceGeneration != generation) {
-                      return;
-                    }
+            final subscription =
+                _locations.watchTripLocation(normalizedTripId).listen(
+              (signal) {
+                if (!isActive() || generation != sourceGeneration) return;
+                if (signal is RiderTripLocationSessionChangedSignal ||
+                    !sessionIsCurrent()) {
+                  terminate(RiderTripLocationClearReason.sessionChanged);
+                  return;
+                }
+                if (signal case RiderTripLocationChannelSignal(:final status)) {
+                  if (status == RiderTripLocationChannelStatus.subscribed) {
+                    connectedSourceGeneration = generation;
+                    retryPending = false;
+                    retryAttempt = 0;
+                    retryGeneration++;
+                    emit(RiderTripLocationConnectionUpdate(status));
                     schedule(() async {
-                      if (!isActive() || generation != sourceGeneration) return;
-                      if (signal
-                          case RiderTripLocationChangedSignal change) {
-                        if (change.tripId.toLowerCase() != normalizedTripId ||
-                            change.driverId.toLowerCase() !=
-                                expectedDriverId.toLowerCase()) {
-                          return;
-                        }
+                      if (isReadCurrent(generation, locationReadEpoch)) {
                         requestCanonicalLocationRead(
                           expectedTripId: normalizedTripId,
                           expectedDriverId: expectedDriverId,
@@ -469,33 +501,79 @@ final class RiderTripLocationAdapter {
                         );
                       }
                     });
-                  },
-                  onError: (Object _) {
-                    if (!isActive() || generation != sourceGeneration) return;
-                    if (!sessionIsCurrent()) {
-                      terminate(RiderTripLocationClearReason.sessionChanged);
+                  } else {
+                    connectedSourceGeneration = null;
+                    if (pollInterval == null) {
+                      locationReadEpoch++;
+                      pendingReadGeneration = null;
+                      clearStaleLocation();
+                    }
+                    emit(RiderTripLocationConnectionUpdate(status));
+                    if (pollInterval == null &&
+                        (status ==
+                                RiderTripLocationChannelStatus.channelError ||
+                            status == RiderTripLocationChannelStatus.closed ||
+                            status ==
+                                RiderTripLocationChannelStatus.timedOut)) {
+                      scheduleRetry(generation, startLocationSource);
+                    }
+                  }
+                  return;
+                }
+                if (signal is RiderTripLocationChangedSignal &&
+                    connectedSourceGeneration != generation) {
+                  return;
+                }
+                schedule(() async {
+                  if (!isActive() || generation != sourceGeneration) return;
+                  if (signal case RiderTripLocationChangedSignal change) {
+                    if (change.tripId.toLowerCase() != normalizedTripId ||
+                        change.driverId.toLowerCase() !=
+                            expectedDriverId.toLowerCase()) {
                       return;
                     }
-                    connectedSourceGeneration = null;
-                    locationReadEpoch++;
-                    pendingReadGeneration = null;
-                    clearStaleLocation();
-                    emit(const RiderTripLocationConnectionUpdate(
-                      RiderTripLocationChannelStatus.channelError,
-                    ));
-                    scheduleRetry(generation, startLocationSource);
-                  },
-                  onDone: () {
-                    if (!isActive() || generation != sourceGeneration) return;
-                    connectedSourceGeneration = null;
-                    locationReadEpoch++;
-                    pendingReadGeneration = null;
-                    clearStaleLocation();
-                    emit(const RiderTripLocationConnectionUpdate(
-                      RiderTripLocationChannelStatus.closed,
-                    ));
-                    scheduleRetry(generation, startLocationSource);
-                  },
+                    requestCanonicalLocationRead(
+                      expectedTripId: normalizedTripId,
+                      expectedDriverId: expectedDriverId,
+                      generation: generation,
+                    );
+                  }
+                });
+              },
+              onError: (Object _) {
+                if (!isActive() || generation != sourceGeneration) return;
+                if (!sessionIsCurrent()) {
+                  terminate(RiderTripLocationClearReason.sessionChanged);
+                  return;
+                }
+                connectedSourceGeneration = null;
+                if (pollInterval == null) {
+                  locationReadEpoch++;
+                  pendingReadGeneration = null;
+                  clearStaleLocation();
+                  scheduleRetry(generation, startLocationSource);
+                }
+                emit(
+                  const RiderTripLocationConnectionUpdate(
+                    RiderTripLocationChannelStatus.channelError,
+                  ),
+                );
+              },
+              onDone: () {
+                if (!isActive() || generation != sourceGeneration) return;
+                connectedSourceGeneration = null;
+                if (pollInterval == null) {
+                  locationReadEpoch++;
+                  pendingReadGeneration = null;
+                  clearStaleLocation();
+                  scheduleRetry(generation, startLocationSource);
+                }
+                emit(
+                  const RiderTripLocationConnectionUpdate(
+                    RiderTripLocationChannelStatus.closed,
+                  ),
+                );
+              },
             );
             if (isActive() && generation == sourceGeneration) {
               locationSubscription = subscription;
@@ -504,13 +582,17 @@ final class RiderTripLocationAdapter {
             }
           } on Object {
             connectedSourceGeneration = null;
-            locationReadEpoch++;
-            pendingReadGeneration = null;
-            clearStaleLocation();
-            emit(const RiderTripLocationConnectionUpdate(
-              RiderTripLocationChannelStatus.channelError,
-            ));
-            scheduleRetry(generation, startLocationSource);
+            if (pollInterval == null) {
+              locationReadEpoch++;
+              pendingReadGeneration = null;
+              clearStaleLocation();
+              scheduleRetry(generation, startLocationSource);
+            }
+            emit(
+              const RiderTripLocationConnectionUpdate(
+                RiderTripLocationChannelStatus.channelError,
+              ),
+            );
           }
         }
 
@@ -553,6 +635,13 @@ final class RiderTripLocationAdapter {
             return;
           }
           await startLocationSource();
+          if (pollInterval != null && isActive() && assignedDriverId != null) {
+            requestCanonicalLocationRead(
+              expectedTripId: normalizedTripId,
+              expectedDriverId: assignedDriverId!,
+              generation: sourceGeneration,
+            );
+          }
         }
 
         void handleTripStreamUpdate(TripRealtimeUpdate update) {
@@ -583,6 +672,40 @@ final class RiderTripLocationAdapter {
           schedule(() => handleTripUpdate(update));
         }
 
+        if (pollInterval != null &&
+            pollInterval >= const Duration(seconds: 5)) {
+          pollTimer = Timer.periodic(pollInterval, (_) {
+            if (!isActive() || pollPending || !(isForeground?.call() ?? true)) {
+              return;
+            }
+            if (!sessionIsCurrent()) {
+              terminate(RiderTripLocationClearReason.sessionChanged);
+              return;
+            }
+            pollPending = true;
+            schedule(() async {
+              try {
+                if (assignedDriverId == null) {
+                  final trip = await _trips.readVerifiedTrip(normalizedTripId);
+                  if (!isActive()) return;
+                  await handleTripUpdate(VerifiedTripRealtimeEvent(
+                      trip: trip,
+                      cause: TripRealtimeEventCause.initialCanonicalRead));
+                }
+                final driver = assignedDriverId;
+                if (driver == null || !isActive()) return;
+                requestCanonicalLocationRead(
+                  expectedTripId: normalizedTripId,
+                  expectedDriverId: driver,
+                  generation: sourceGeneration,
+                );
+              } finally {
+                pollPending = false;
+              }
+            });
+          });
+        }
+
         controller.onCancel = () async {
           if (!cancelled) {
             cancelled = true;
@@ -595,27 +718,37 @@ final class RiderTripLocationAdapter {
         };
 
         tripSubscription = _trips.watchTrip(tripId).listen(
-          handleTripStreamUpdate,
-          onError: (Object error) {
-            if (!isActive()) return;
-            if (!sessionIsCurrent() ||
-                (error is TripRealtimeException &&
-                    error.failure == TripRealtimeFailure.sessionChanged)) {
-              terminate(RiderTripLocationClearReason.sessionChanged);
-              return;
-            }
-            schedule(() async {
-              final failure = error is TripRealtimeException &&
-                      error.failure == TripRealtimeFailure.sessionChanged
-                  ? RiderTripLocationFailure.sessionChanged
-                  : RiderTripLocationFailure.notAuthorized;
-              fail(failure);
-            });
-          },
-          onDone: () => schedule(() async {
-            if (isActive()) fail(RiderTripLocationFailure.sourceUnavailable);
-          }),
-        );
+              handleTripStreamUpdate,
+              onError: (Object error) {
+                if (!isActive()) return;
+                if (!sessionIsCurrent() ||
+                    (error is TripRealtimeException &&
+                        error.failure == TripRealtimeFailure.sessionChanged)) {
+                  terminate(RiderTripLocationClearReason.sessionChanged);
+                  return;
+                }
+                if (pollInterval != null &&
+                    error is TripRealtimeException &&
+                    error.failure == TripRealtimeFailure.sourceUnavailable) {
+                  clearStaleLocation();
+                  emit(const RiderTripLocationVerificationUpdate(
+                      RiderTripLocationFailure.sourceUnavailable));
+                  return;
+                }
+                schedule(() async {
+                  final failure = error is TripRealtimeException &&
+                          error.failure == TripRealtimeFailure.sessionChanged
+                      ? RiderTripLocationFailure.sessionChanged
+                      : RiderTripLocationFailure.notAuthorized;
+                  fail(failure);
+                });
+              },
+              onDone: () => schedule(() async {
+                if (isActive() && pollInterval == null) {
+                  fail(RiderTripLocationFailure.sourceUnavailable);
+                }
+              }),
+            );
         tripSubscriptionReady = true;
         for (final action in pending) {
           enqueue(action);
