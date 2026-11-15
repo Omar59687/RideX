@@ -74,8 +74,8 @@ jobs:
         run: supabase start
       - name: Apply canonical migrations to disposable local database
         run: supabase db reset --local
-      - name: Full pgTAP suite
-        run: supabase test db
+      - name: Full pgTAP suite (test files only)
+        run: supabase test db supabase/tests/database/*.test.sql
       - name: Pull isolated PostgreSQL test image
         run: docker pull public.ecr.aws/supabase/postgres:17.11.0.006
       - name: Offline activation contract tests
