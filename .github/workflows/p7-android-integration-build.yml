@@ -1,0 +1,52 @@
+name: Phase 7 Android integration build
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p7-android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-build:
+    name: Build default and gated acceptance Android APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.2'
+          channel: stable
+          cache: true
+      - name: Resolve committed Flutter dependencies
+        run: flutter pub get
+      - name: Compile standard Android debug entrypoint (all acceptance gates off)
+        run: |
+          flutter build apk --debug --no-pub -t lib/main.dart
+          test -s build/app/outputs/flutter-apk/app-debug.apk
+          sha256sum build/app/outputs/flutter-apk/app-debug.apk
+      - name: Compile canonical Cash and Driver acceptance entrypoint safely
+        run: |
+          # Verify both opt-in compilation paths without approval, backend
+          # credentials, Maps keys, or enabled Driver offer commands.
+          # This is build-only: never install, launch, or upload this APK.
+          flutter build apk --debug --no-pub \
+            -t lib/main_acceptance.dart \
+            --dart-define=RIDEX_ENABLE_CASH_MATCHING_INTEGRATION=true \
+            --dart-define=RIDEX_ENABLE_TEST_DRIVER_CANONICAL=true \
+            --dart-define=RIDEX_APPROVED_NONPRODUCTION=false \
+            --dart-define=RIDEX_APPROVED_OFFER_COMMANDS=false
+          test -s build/app/outputs/flutter-apk/app-debug.apk
+          sha256sum build/app/outputs/flutter-apk/app-debug.apk
