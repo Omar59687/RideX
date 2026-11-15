@@ -149,6 +149,8 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
   bool _connected = false, _disposed = false, _revoked = false;
   bool _decisionPending = false, _unknown = false, _handedOff = false;
   bool _stale = false;
+  bool _notifyingListeners = false, _notificationPending = false;
+  bool _notificationScheduled = false;
   int _generation = 0, _publication = 0, _revision = -1;
   final Set<String> _expired = {};
 
@@ -187,7 +189,34 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
 
   void _publish() {
     _publication++;
-    if (!_disposed) notifyListeners();
+    if (_disposed) return;
+    if (_notifyingListeners) {
+      // A synchronous delivery callback can invalidate state from inside a
+      // listener. Revoke captured views immediately, but serialize the second
+      // ChangeNotifier notification to avoid reentrant listener dispatch.
+      _notificationPending = true;
+      if (!_notificationScheduled) {
+        _notificationScheduled = true;
+        scheduleMicrotask(() {
+          _notificationScheduled = false;
+          if (_disposed || !_notificationPending) return;
+          _notificationPending = false;
+          _notifyPublication();
+        });
+      }
+      return;
+    }
+    _notifyPublication();
+  }
+
+  void _notifyPublication() {
+    if (_disposed) return;
+    _notifyingListeners = true;
+    try {
+      notifyListeners();
+    } finally {
+      _notifyingListeners = false;
+    }
   }
 
   void _onSession() {
