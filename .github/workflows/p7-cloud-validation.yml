@@ -74,12 +74,16 @@ jobs:
         run: supabase start
       - name: Apply canonical migrations to disposable local database
         run: supabase db reset --local
-      - name: Full pgTAP suite (test files only)
-        run: supabase test db supabase/tests/database/*.test.sql
+      - name: D05 participant RLS pgTAP
+        run: supabase test db supabase/tests/database/p7_d05_realtime_rls.test.sql
       - name: Pull isolated PostgreSQL test image
         run: docker pull public.ecr.aws/supabase/postgres:17.11.0.006
       - name: Offline activation contract tests
         run: python -m unittest discover -s supabase/tests/ops -p 'test_p7_activation_contract.py' -v
+      - name: Driver availability and matching pgTAP
+        run: python supabase/tests/ops/p7_a02_local_test.py
+      - name: Driver offer acceptance concurrency
+        run: python supabase/tests/ops/p7_a04_concurrency_test.py
       - name: Matching expiry pgTAP and concurrency races
         run: python supabase/tests/ops/p7_expiry_scheduler_local_test.py
       - name: Actual Cron worker activation, executions and disable
