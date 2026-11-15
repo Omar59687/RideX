@@ -189,14 +189,23 @@ void main() {
   test('reentrant pending-publication disconnect prevents command handoff',
       () async {
     await h.offer();
+    final frameworkErrors = <FlutterErrorDetails>[];
+    final previousErrorHandler = FlutterError.onError;
+    FlutterError.onError = frameworkErrors.add;
     h.controller.addListener(() {
       if (h.view.phase == CanonicalDriverPresentationPhase.pending) {
         h.delivery.disconnect();
       }
     });
-    await h.controller.decide(h.view, CanonicalOfferDecision.accept);
+    try {
+      await h.controller.decide(h.view, CanonicalOfferDecision.accept);
+      await h.flush();
+    } finally {
+      FlutterError.onError = previousErrorHandler;
+    }
     expect(h.port.calls, isEmpty);
     expect(h.keys, 0);
+    expect(frameworkErrors, isEmpty);
   });
   test('reentrant pending-publication replacement prevents old offer command',
       () async {
