@@ -1,0 +1,91 @@
+name: Phase 7 cloud validation
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p7-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: Flutter regression and analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.2'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Format changed Dart files
+        run: >-
+          dart format --output=none --set-exit-if-changed
+          lib/features/driver_flow/presentation/providers/canonical_driver_presentation_controller.dart
+          test/canonical_driver_presentation_controller_test.dart
+      - name: Full serial Flutter suite
+        run: flutter test --no-pub --concurrency=1
+      - name: Focused Driver presentation regression
+        run: flutter test --no-pub --concurrency=1 test/canonical_driver_presentation_controller_test.dart
+      - name: Full analyzer (known non-gating baseline diagnostics)
+        continue-on-error: true
+        run: flutter analyze --no-pub
+
+  deno:
+    name: Edge Function tests and types
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Edge Function unit tests
+        working-directory: supabase/functions
+        run: deno test --node-modules-dir=auto
+      - name: Relevant function and matching type checks
+        run: >-
+          deno check --no-config --node-modules-dir=auto
+          supabase/functions/places/index.ts
+          supabase/functions/fare/index.ts
+          supabase/functions/cash-matching/index.ts
+          supabase/functions/_shared/matching/cash_matching_adapter.ts
+
+  database:
+    name: Isolated PostgreSQL, RLS, expiry, Cron and publication guards
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start fresh local Supabase stack
+        run: supabase start
+      - name: Apply canonical migrations to disposable local database
+        run: supabase db reset --local
+      - name: Full pgTAP suite
+        run: supabase test db
+      - name: Pull isolated PostgreSQL test image
+        run: docker pull public.ecr.aws/supabase/postgres:17.11.0.006
+      - name: Offline activation contract tests
+        run: python -m unittest discover -s supabase/tests/ops -p 'test_p7_activation_contract.py' -v
+      - name: Matching expiry pgTAP and concurrency races
+        run: python supabase/tests/ops/p7_expiry_scheduler_local_test.py
+      - name: Actual Cron worker activation, executions and disable
+        run: python supabase/tests/ops/p7_expiry_cron_worker_local_test.py
+      - name: Realtime publication activation and rollback guards
+        run: python supabase/tests/ops/p7_realtime_publication_local_test.py
+      - name: Stop only this workflow's disposable Supabase stack
+        if: always()
+        run: supabase stop --no-backup
