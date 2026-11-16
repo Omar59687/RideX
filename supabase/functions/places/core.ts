@@ -59,7 +59,7 @@ export interface PlacesHandlerDependencies {
 
 export interface CallerAuthorizationDependencies {
   supabaseUrl: string;
-  supabaseAnonKey: string;
+  publishableKey: string;
   fetch?: FetchLike;
   timeoutMs?: number;
 }
@@ -689,7 +689,7 @@ export async function authorizeCaller(
   if (!/^Bearer [^\s]{20,8192}$/u.test(authorization)) {
     throw new HttpError(401, "unauthorized", "Authentication is required.");
   }
-  if (!dependencies.supabaseUrl || !dependencies.supabaseAnonKey) {
+  if (!dependencies.supabaseUrl || !dependencies.publishableKey) {
     throw new HttpError(503, "service_unavailable", "Location service is unavailable.");
   }
 
@@ -707,7 +707,7 @@ export async function authorizeCaller(
     response = await fetchWithTimeout(dependencies.fetch ?? fetch, usersUrl, {
       method: "GET",
       headers: {
-        apikey: dependencies.supabaseAnonKey,
+        apikey: dependencies.publishableKey,
         authorization,
         accept: "application/json",
       },

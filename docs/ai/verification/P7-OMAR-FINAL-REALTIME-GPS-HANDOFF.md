@@ -140,7 +140,7 @@ These are synthetic/fake-backed runs; record actual counts per command. The full
 
 The default `supabase/config.toml` project is `ridex` and requests database port `54322`; the R08 container already owns that port. Do not start/reset the default RideX project while R08 is present. Use only a separate checkout at `C:\RideX-D05-Isolated` configured with project ID `ridex-d05-isolated`, Kong/API loopback port `55421`, and database loopback port `55422`. The acceptance harness requires containers `supabase_db_ridex-d05-isolated`, `supabase_kong_ridex-d05-isolated`, and `supabase_realtime_ridex-d05-isolated`, matching D05 project/workdir labels, exact loopback bindings, and a healthy Realtime container.
 
-Before setting credentials, starting fixtures, resetting the database, or using service-role access, run the existing D05 Docker identity preflight in the isolated checkout. Do not bypass it. Use only local D05 anon/service keys held in Windows environment variables; never production keys. Do not run if any container name, label, workdir, health status, URL host, or port differs from the D05 constants in `test/p7_d05_realtime_acceptance_test.dart`.
+Before setting credentials, starting fixtures, resetting the database, or using service-role access, run the existing D05 Docker identity preflight in the isolated checkout. Do not bypass it. Use only actual isolated D05 publishable (`sb_publishable_`) and secret (`sb_secret_`) keys held in Windows environment variables; never production keys. Do not rename/reuse a legacy anon/service-role JWT as if it were an opaque key. Verify that the local Supabase gateway supports these key types before enabling the D05 live harness; otherwise leave its live acceptance BLOCKED. Do not run if any container name, label, workdir, health status, URL host, or port differs from the D05 constants in `test/p7_d05_realtime_acceptance_test.dart`.
 
 The existing preflight does not inspect publication operations. After the containers are proven to be the isolated D05 project, inspect its publication and subscriber list. If it is newly isolated and has no unrelated subscribers, configure that **local D05 database only** to publish INSERT/UPDATE and not DELETE/TRUNCATE; then the deferred migration's guard may pass when explicitly applied. Do not change hosted or shared publication settings. The current harness proves Trip INSERT/UPDATE and Driver location INSERT; it does not prove `trip_status_events` delivery, DELETE behavior, JWT role revocation on an open channel, or hosted RLS.
 
@@ -155,8 +155,8 @@ For the live acceptance, set only the isolated local values and run:
 ```powershell
 $env:D05_REALTIME_ACCEPTANCE = '1'
 $env:D05_SUPABASE_URL = 'http://127.0.0.1:55421'
-$env:D05_SUPABASE_ANON_KEY = '<isolated-local-anon-key>'
-$env:D05_SUPABASE_SERVICE_ROLE_KEY = '<isolated-local-service-role-key>'
+$env:D05_SUPABASE_PUBLISHABLE_KEY = '<isolated-local-sb_publishable-key>'
+$env:D05_SUPABASE_SECRET_KEY = '<isolated-local-sb_secret-key>'
 flutter test --no-pub test/p7_d05_realtime_acceptance_test.dart
 ```
 

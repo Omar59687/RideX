@@ -391,6 +391,9 @@ verify_jwt = true
 [functions.stripe-test-intent]
 verify_jwt = true
 
+[functions.cash-matching]
+verify_jwt = true
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

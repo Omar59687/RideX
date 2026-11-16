@@ -4,10 +4,7 @@ import {
   type FetchLike,
   runCardFixtureOperator,
 } from "./r06_prepare_card_fixture.ts";
-import {
-  CardFixtureError,
-  R06_PROJECT_URL,
-} from "./r06_card_fixture_contract.ts";
+import { CardFixtureError, R06_PROJECT_URL } from "./r06_card_fixture_contract.ts";
 
 interface AttemptContext {
   riderId: string;
@@ -21,8 +18,7 @@ interface AttemptContext {
   operationKey: string;
 }
 
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const APPROVAL_PREFIX = "owner-approved-r06-card-concurrency-";
 
 export interface ConcurrencyAcceptanceEvidence {
@@ -33,9 +29,7 @@ export interface ConcurrencyAcceptanceEvidence {
 }
 
 function parseRecord(value: unknown): Record<string, unknown> {
-  const candidate = Array.isArray(value) && value.length === 1
-    ? value[0]
-    : value;
+  const candidate = Array.isArray(value) && value.length === 1 ? value[0] : value;
   if (
     typeof candidate !== "object" || candidate === null ||
     Array.isArray(candidate)
@@ -58,7 +52,7 @@ export function assertConcurrencyApproval(
 }
 
 export function createConcurrencyRuntime(
-  serviceKey: string,
+  secretKey: string,
   fetcher: FetchLike = fetch,
 ):
   & Pick<
@@ -70,8 +64,7 @@ export function createConcurrencyRuntime(
   } {
   let evidence: ConcurrencyAcceptanceEvidence | null = null;
   const headers = {
-    apikey: serviceKey,
-    authorization: `Bearer ${serviceKey}`,
+    apikey: secretKey,
     accept: "application/json",
     "content-type": "application/json",
   };
@@ -197,12 +190,8 @@ export function createConcurrencyRuntime(
       const replies = claimResults.map((result) =>
         (result as PromiseFulfilledResult<Record<string, unknown>>).value
       );
-      const claimed = replies.filter((reply) =>
-        reply.disposition === "claimed"
-      );
-      const existing = replies.filter((reply) =>
-        reply.disposition === "existing"
-      );
+      const claimed = replies.filter((reply) => reply.disposition === "claimed");
+      const existing = replies.filter((reply) => reply.disposition === "existing");
       const expected = expectedContext(withAttempt);
       for (const reply of replies) {
         const contextValue = reply.context as
@@ -211,9 +200,7 @@ export function createConcurrencyRuntime(
         if (
           reply.state !== "reserved" || reply.reference !== null ||
           !contextValue ||
-          Object.entries(expected).some(([key, value]) =>
-            contextValue[key] !== value
-          )
+          Object.entries(expected).some(([key, value]) => contextValue[key] !== value)
         ) throw new CardFixtureError("claim_context_mismatch");
       }
       if (
@@ -236,9 +223,7 @@ export function createConcurrencyRuntime(
         | undefined;
       if (
         !recoveredContext ||
-        Object.entries(expected).some(([key, value]) =>
-          recoveredContext[key] !== value
-        )
+        Object.entries(expected).some(([key, value]) => recoveredContext[key] !== value)
       ) throw new CardFixtureError("reservation_reconnect_unverified");
       evidence = {
         winner: replies[0].disposition === "claimed" ? "claimA" : "claimB",
@@ -251,29 +236,26 @@ export function createConcurrencyRuntime(
 }
 
 if (import.meta.main) {
-  const fixtureId = Deno.args.find((_, index) =>
-    Deno.args[index - 1] === "--fixture-id"
-  ) ?? "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const fixtureId = Deno.args.find((_, index) => Deno.args[index - 1] === "--fixture-id") ?? "";
+  const secretKey = Deno.env.get("SUPABASE_SECRET_KEY") ?? "";
   assertConcurrencyApproval(
     fixtureId,
     Deno.env.get("R06_CONCURRENCY_APPROVAL_REF"),
   );
-  if (!serviceKey) throw new CardFixtureError("configuration_missing");
-  const runtime = createConcurrencyRuntime(serviceKey);
+  if (!secretKey) throw new CardFixtureError("configuration_missing");
+  const runtime = createConcurrencyRuntime(secretKey);
   const result = await runCardFixtureOperator(
     [...Deno.args, "--execute"],
     {
       SUPABASE_URL: Deno.env.get("SUPABASE_URL"),
       RIDEX_BACKEND_NAMESPACE: Deno.env.get("RIDEX_BACKEND_NAMESPACE"),
-      SUPABASE_ANON_KEY: Deno.env.get("SUPABASE_ANON_KEY"),
-      SUPABASE_SERVICE_ROLE_KEY: serviceKey,
+      SUPABASE_PUBLISHABLE_KEY: Deno.env.get("SUPABASE_PUBLISHABLE_KEY"),
+      SUPABASE_SECRET_KEY: secretKey,
       R06_RIDER_ACCESS_TOKEN: Deno.env.get("R06_RIDER_ACCESS_TOKEN"),
       R06_DRIVER_ACCESS_TOKEN: Deno.env.get("R06_DRIVER_ACCESS_TOKEN"),
       LOCALAPPDATA: Deno.env.get("LOCALAPPDATA"),
       R06_FIXTURE_STATE_FILE: Deno.env.get("R06_FIXTURE_STATE_FILE"),
-      R06_EXECUTION_APPROVAL_REF:
-        `owner-approved-r06-card-fixture-${fixtureId}`,
+      R06_EXECUTION_APPROVAL_REF: `owner-approved-r06-card-fixture-${fixtureId}`,
     },
     runtime,
   );

@@ -269,7 +269,7 @@ export class SupabaseCashMatchingPort implements CashMatchingPort {
     private readonly url: string,
     private readonly publicKey: string,
     private readonly riderBearer: string,
-    private readonly serviceKey: string,
+    private readonly secretKey: string,
     private readonly send: typeof fetch = fetch,
   ) {
     let parsed: URL | null = null;
@@ -282,19 +282,19 @@ export class SupabaseCashMatchingPort implements CashMatchingPort {
       ["localhost", "127.0.0.1", "::1", "[::1]"].includes(parsed.hostname);
     if (
       (!parsed || (parsed.protocol !== "https:" && !loopbackHttp)) ||
-      !publicKey || !riderBearer || !serviceKey
+      !publicKey || !riderBearer || !secretKey
     ) {
       throw new CashMatchingError("invalid_request");
     }
   }
   private async call(path: string, privileged = false, body?: Row): Promise<unknown> {
-    const key = privileged ? this.serviceKey : this.publicKey;
+    const key = privileged ? this.secretKey : this.publicKey;
     const response = await this.send(this.url + path, {
       method: body ? "POST" : "GET",
       signal: AbortSignal.timeout(15_000),
       headers: {
         apikey: key,
-        Authorization: "Bearer " + (privileged ? this.serviceKey : this.riderBearer),
+        ...(!privileged ? { Authorization: "Bearer " + this.riderBearer } : {}),
         "Content-Type": "application/json",
       },
       ...(body ? { body: JSON.stringify(body) } : {}),

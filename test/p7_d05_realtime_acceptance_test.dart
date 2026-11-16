@@ -4,6 +4,8 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // P7-D05 local-only real Realtime acceptance harness.
@@ -15,20 +17,20 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // exposure, and any hosted Supabase acceptance. Direct Trip updates are used
 // so the append-only trip_status_events table is never populated by fixtures.
 //
-// The service-role client is used only for fixture setup, cleanup, and
+// The secret-key client is used only for fixture setup, cleanup, and
 // canonical fixture writes. It is never used as a subscribing identity.
 //
 // Live execution is fail-closed: assertD05Identity inspects fixed Docker
 // containers and requires D05 project labels, expected loopback port bindings,
-// and a healthy Realtime container before any service-role client or DB write.
+// and a healthy Realtime container before any secret-key client or DB write.
 // Docker labels are local configuration evidence, not cryptographic identity;
 // they do not protect against a compromised Docker daemon or containers being
 // changed after this preflight.
 
 const _acceptanceFlag = 'D05_REALTIME_ACCEPTANCE';
 const _urlVariable = 'D05_SUPABASE_URL';
-const _anonVariable = 'D05_SUPABASE_ANON_KEY';
-const _serviceVariable = 'D05_SUPABASE_SERVICE_ROLE_KEY';
+const _publishableVariable = 'D05_SUPABASE_PUBLISHABLE_KEY';
+const _secretVariable = 'D05_SUPABASE_SECRET_KEY';
 const _localHosts = {'127.0.0.1', 'localhost'};
 const _localPort = 55421;
 const _eventTimeout = Duration(seconds: 20);
@@ -46,6 +48,31 @@ const _d05InspectTimeout = Duration(seconds: 10);
 
 void main() {
   final environment = _Environment.fromPlatform();
+
+  test('test fixture secret stays out of Authorization bearer headers',
+      () async {
+    const secret = 'sb_secret_test_only';
+    String? capturedAuthorization;
+    String? capturedApiKey;
+    final client = _SecretApiKeyHttpClient(
+      secret,
+      MockClient((request) async {
+        capturedAuthorization = request.headers['authorization'];
+        capturedApiKey = request.headers['apikey'];
+        return http.Response('', 200);
+      }),
+    );
+    await client.get(
+      Uri.parse('https://example.supabase.co/rest/v1/test'),
+      headers: {
+        'apikey': secret,
+        'Authorization': 'Bearer $secret',
+      },
+    );
+    expect(capturedAuthorization, isNull);
+    expect(capturedApiKey, secret);
+    client.close();
+  });
 
   group('P7-D05 local real Realtime acceptance', () {
     late _Harness harness;
@@ -357,8 +384,8 @@ void main() {
 
     test('rejects a wrong CLI workdir label', () {
       final snapshots = _validD05DockerSnapshots();
-      _labelsOf(snapshots[_d05KongContainer]!)[
-          'com.supabase.cli.workdir'] = r'C:\Other-Project';
+      _labelsOf(snapshots[_d05KongContainer]!)['com.supabase.cli.workdir'] =
+          r'C:\Other-Project';
       expect(
         () => _verifyD05DockerIdentity(snapshots),
         throwsA(isA<StateError>()),
@@ -410,8 +437,8 @@ void main() {
     test('uses the injected inspect runner without real Docker', () async {
       final environment = _Environment(
         url: 'http://127.0.0.1:55421',
-        anonKey: 'test-anon-value',
-        serviceKey: 'test-service-value',
+        publishableKey: 'sb_publishable_test',
+        secretKey: 'sb_secret_test',
         skipReason: null,
       );
       final inspected = <String>[];
@@ -432,8 +459,8 @@ void main() {
     test('rejects a missing Docker executable via the runner', () async {
       final environment = _Environment(
         url: 'http://127.0.0.1:55421',
-        anonKey: 'test-anon-value',
-        serviceKey: 'test-service-value',
+        publishableKey: 'sb_publishable_test',
+        secretKey: 'sb_secret_test',
         skipReason: null,
       );
       await expectLater(
@@ -451,8 +478,8 @@ void main() {
 final class _Environment {
   const _Environment({
     required this.url,
-    required this.anonKey,
-    required this.serviceKey,
+    required this.publishableKey,
+    required this.secretKey,
     required this.skipReason,
   });
 
@@ -461,24 +488,24 @@ final class _Environment {
     if (values[_acceptanceFlag] != '1') {
       return const _Environment(
         url: '',
-        anonKey: '',
-        serviceKey: '',
+        publishableKey: '',
+        secretKey: '',
         skipReason: 'Set D05_REALTIME_ACCEPTANCE, D05_SUPABASE_URL, '
-            'D05_SUPABASE_ANON_KEY, D05_SUPABASE_SERVICE_ROLE_KEY to run '
+            'D05_SUPABASE_PUBLISHABLE_KEY, D05_SUPABASE_SECRET_KEY to run '
             'local D05 Realtime acceptance.',
       );
     }
     return _Environment(
       url: (values[_urlVariable] ?? '').trim(),
-      anonKey: (values[_anonVariable] ?? '').trim(),
-      serviceKey: (values[_serviceVariable] ?? '').trim(),
+      publishableKey: (values[_publishableVariable] ?? '').trim(),
+      secretKey: (values[_secretVariable] ?? '').trim(),
       skipReason: null,
     );
   }
 
   final String url;
-  final String anonKey;
-  final String serviceKey;
+  final String publishableKey;
+  final String secretKey;
   final String? skipReason;
 
   // Read-only Docker preflight. This runs before the service-role client is
@@ -522,8 +549,8 @@ final class _Environment {
   void assertLocalOnly() {
     final missing = [
       if (url.isEmpty) _urlVariable,
-      if (anonKey.isEmpty) _anonVariable,
-      if (serviceKey.isEmpty) _serviceVariable,
+      if (publishableKey.isEmpty) _publishableVariable,
+      if (secretKey.isEmpty) _secretVariable,
     ];
     if (missing.isNotEmpty) {
       throw StateError(
@@ -847,6 +874,7 @@ final class _Actor {
 final class _Harness {
   _Harness._({
     required this.service,
+    required this.serviceHttpClient,
     required this.namespace,
     required this.actors,
     required this.vehicleIdsByActor,
@@ -857,7 +885,12 @@ final class _Harness {
 
   static Future<_Harness> create(_Environment environment) async {
     await environment.assertD05Identity();
-    final service = _client(environment, environment.serviceKey);
+    final serviceHttpClient = _SecretApiKeyHttpClient(environment.secretKey);
+    final service = _client(
+      environment,
+      environment.secretKey,
+      httpClient: serviceHttpClient,
+    );
     final namespace = DateTime.now().toUtc().microsecondsSinceEpoch.toString();
     final password = 'D05a!$namespace';
     final random = Random.secure();
@@ -967,7 +1000,7 @@ final class _Harness {
       expect(blockedRow['is_blocked'], isTrue);
 
       for (final actor in actors) {
-        final client = _client(environment, environment.anonKey);
+        final client = _client(environment, environment.publishableKey);
         clients.add(client);
         final signedIn = await client.auth.signInWithPassword(
           email: actor.email,
@@ -1013,12 +1046,13 @@ final class _Harness {
 
       return _Harness._(
         service: service,
+        serviceHttpClient: serviceHttpClient,
         namespace: namespace,
         actors: actors,
         vehicleIdsByActor: Map<String, String>.unmodifiable(vehiclesByActor),
         pricingId: createdPricingId,
         pricingVersion: pricingVersion,
-        redactions: [environment.anonKey, environment.serviceKey],
+        redactions: [environment.publishableKey, environment.secretKey],
       );
     } catch (error, stackTrace) {
       final cleanupErrors = <String>[];
@@ -1055,17 +1089,12 @@ final class _Harness {
       for (final actor in actors.where((actor) => actor.id.isNotEmpty)) {
         await cleanup(
           'driver profile',
-          () => service
-              .from('driver_profiles')
-              .delete()
-              .eq('user_id', actor.id),
+          () =>
+              service.from('driver_profiles').delete().eq('user_id', actor.id),
         );
         await cleanup(
           'rider profile',
-          () => service
-              .from('rider_profiles')
-              .delete()
-              .eq('user_id', actor.id),
+          () => service.from('rider_profiles').delete().eq('user_id', actor.id),
         );
         await cleanup(
           'auth user',
@@ -1073,12 +1102,14 @@ final class _Harness {
         );
       }
       await cleanup('service client', service.dispose);
+      await cleanup(
+          'service HTTP client', () async => serviceHttpClient.close());
 
       Error.throwWithStackTrace(
         _SetupFailure(
           error,
           cleanupErrors,
-          [environment.anonKey, environment.serviceKey],
+          [environment.publishableKey, environment.secretKey],
         ),
         stackTrace,
       );
@@ -1086,6 +1117,7 @@ final class _Harness {
   }
 
   final SupabaseClient service;
+  final http.Client serviceHttpClient;
   final String namespace;
   final List<_Actor> actors;
   final Map<String, String> vehicleIdsByActor;
@@ -1269,11 +1301,10 @@ final class _Harness {
     for (final actor in actors.where((actor) => actor.role == 'driver')) {
       await attempt(
         'driver availability for ${actor.key}',
-        () =>
-            service.from('driver_availability').delete().eq(
-                  'driver_id',
-                  actor.id,
-                ),
+        () => service.from('driver_availability').delete().eq(
+              'driver_id',
+              actor.id,
+            ),
       );
     }
     for (final tripId in _tripIds.reversed) {
@@ -1310,14 +1341,12 @@ final class _Harness {
     }
     await attempt(
       'pricing configuration $pricingId',
-      () =>
-          service.from('pricing_configurations').delete().eq('id', pricingId),
+      () => service.from('pricing_configurations').delete().eq('id', pricingId),
     );
     for (final actor in actors.reversed) {
       await attempt(
         'driver profile for ${actor.key}',
-        () =>
-            service.from('driver_profiles').delete().eq('user_id', actor.id),
+        () => service.from('driver_profiles').delete().eq('user_id', actor.id),
       );
       await attempt(
         'rider profile for ${actor.key}',
@@ -1337,6 +1366,7 @@ final class _Harness {
       );
     }
     await attempt('service client', service.dispose);
+    await attempt('service HTTP client', () async => serviceHttpClient.close());
 
     if (cleanupErrors.isNotEmpty) {
       Error.throwWithStackTrace(
@@ -1472,12 +1502,41 @@ final class _Probe {
   }
 }
 
-SupabaseClient _client(_Environment environment, String key) {
+SupabaseClient _client(
+  _Environment environment,
+  String key, {
+  http.Client? httpClient,
+}) {
   return SupabaseClient(
     environment.url,
     key,
     authOptions: const AuthClientOptions(autoRefreshToken: false),
+    httpClient: httpClient,
   );
+}
+
+/// Supabase Flutter's API-key fallback is a legacy JWT bearer. Strip that
+/// fallback for test-only opaque secret keys while preserving real user JWTs.
+final class _SecretApiKeyHttpClient extends http.BaseClient {
+  _SecretApiKeyHttpClient(this._secretKey, [http.Client? inner])
+      : _inner = inner ?? http.Client();
+
+  final String _secretKey;
+  final http.Client _inner;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    for (final header in request.headers.entries.toList()) {
+      if (header.key.toLowerCase() == 'authorization' &&
+          header.value == 'Bearer $_secretKey') {
+        request.headers.remove(header.key);
+      }
+    }
+    return _inner.send(request);
+  }
+
+  @override
+  void close() => _inner.close();
 }
 
 Future<void> _signOutAndDispose(SupabaseClient client) async {
@@ -1586,9 +1645,8 @@ final class _CleanupFailure implements Exception {
 
   @override
   String toString() {
-    final errors = cleanupErrors
-        .map((error) => _redactText(error, redactions))
-        .join('; ');
+    final errors =
+        cleanupErrors.map((error) => _redactText(error, redactions)).join('; ');
     return '$message: $errors';
   }
 }

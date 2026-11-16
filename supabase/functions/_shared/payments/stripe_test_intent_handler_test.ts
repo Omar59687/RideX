@@ -349,13 +349,13 @@ test("canonical reader scopes payment, Trip and attempt queries and uses server 
   const seen: URL[] = [];
   const reader = createCanonicalIntentContextReader({
     supabaseUrl: "https://project.supabase.co",
-    anonKey: "public-test-key",
-    serviceRoleKey: "server-test-secret",
+    publishableKey: "sb_publishable_test",
+    secretKey: "sb_secret_test",
     fetch: async (input, init) => {
       const url = new URL(String(input));
       seen.push(url);
-      assert.equal(new Headers(init?.headers).get("apikey"), "server-test-secret");
-      assert.equal(new Headers(init?.headers).get("authorization"), "Bearer server-test-secret");
+      assert.equal(new Headers(init?.headers).get("apikey"), "sb_secret_test");
+      assert.equal(new Headers(init?.headers).get("authorization"), null);
       if (url.pathname.endsWith("/payments")) return Response.json([payment]);
       if (url.pathname.endsWith("/trips")) return Response.json([trip]);
       if (url.pathname.endsWith("/payment_attempts")) return Response.json([attempt]);
@@ -396,8 +396,8 @@ test("canonical reader denies foreign payment and inconsistent attempt", async (
   ];
   const reader = createCanonicalIntentContextReader({
     supabaseUrl: "https://project.supabase.co",
-    anonKey: "key",
-    serviceRoleKey: "secret",
+    publishableKey: "sb_publishable_test",
+    secretKey: "sb_secret_test",
     fetch: async () => {
       call++;
       return Response.json(rows[0]);
@@ -445,16 +445,16 @@ test("Auth profile reader rejects blocked and non-Rider accounts", async () => {
   ) {
     await assert.rejects(authorizeStripeTestRider(request(), {
       supabaseUrl: "https://project.supabase.co",
-      anonKey: "anon",
-      serviceRoleKey: "service",
+      publishableKey: "sb_publishable_test",
+      secretKey: "sb_secret_test",
       fetch: async () => Response.json([user]),
     }));
   }
   assert.equal(
     await authorizeStripeTestRider(request(), {
       supabaseUrl: "https://project.supabase.co",
-      anonKey: "anon",
-      serviceRoleKey: "service",
+      publishableKey: "sb_publishable_test",
+      secretKey: "sb_secret_test",
       fetch: async () => Response.json([{ id: riderId, role: "rider", is_blocked: false }]),
     }),
     riderId,

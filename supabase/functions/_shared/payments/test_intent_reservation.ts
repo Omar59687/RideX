@@ -141,19 +141,19 @@ export async function reconcileReservedTestIntent(
 
 export class SupabaseTestIntentReservationStore implements TestIntentReservationStore {
   readonly #base: URL;
-  readonly #serviceKey: string;
+  readonly #secretKey: string;
   readonly #transport: typeof fetch;
   constructor(
     url: string,
-    serviceKey: string,
+    secretKey: string,
     transport: typeof fetch = fetch,
   ) {
     this.#base = new URL(url);
-    this.#serviceKey = serviceKey;
+    this.#secretKey = secretKey;
     this.#transport = transport;
     if (
       this.#base.protocol !== "https:" || this.#base.username || this.#base.password ||
-      this.#base.pathname !== "/" || this.#base.search || this.#base.hash || !serviceKey
+      this.#base.pathname !== "/" || this.#base.search || this.#base.hash || !secretKey
     ) {
       throw new TestIntentError("not_configured");
     }
@@ -166,8 +166,7 @@ export class SupabaseTestIntentReservationStore implements TestIntentReservation
         redirect: "error",
         signal: AbortSignal.timeout(4000),
         headers: {
-          apikey: this.#serviceKey,
-          authorization: "Bearer " + this.#serviceKey,
+          apikey: this.#secretKey,
           "content-type": "application/json",
         },
         body: JSON.stringify(body),

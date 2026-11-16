@@ -16,8 +16,7 @@ import {
 } from "./p6_r07_fixture_contract.ts";
 import { stageAcceptedFixtureTrip } from "./p6_r07_trip_lifecycle.ts";
 
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const safeFailure =
   "R07 fixture stopped safely; inspect the designated test project using authorized read-only tools.";
 
@@ -31,7 +30,7 @@ async function requestJson(
   path: string,
   options: {
     method?: string;
-    token: string;
+    token?: string;
     apikey: string;
     body?: unknown;
   },
@@ -43,15 +42,11 @@ async function requestJson(
       method: options.method ?? "GET",
       headers: {
         apikey: key,
-        authorization: `Bearer ${options.token}`,
+        ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
         accept: "application/json",
-        ...(options.body === undefined
-          ? {}
-          : { "content-type": "application/json" }),
+        ...(options.body === undefined ? {} : { "content-type": "application/json" }),
       },
-      ...(options.body === undefined
-        ? {}
-        : { body: JSON.stringify(options.body) }),
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
       signal: AbortSignal.timeout(8000),
     });
   } catch {
@@ -81,9 +76,7 @@ function noRows(payload: unknown): unknown[] {
 }
 
 function rpcObject(payload: unknown): Record<string, unknown> {
-  const row = Array.isArray(payload) && payload.length === 1
-    ? payload[0]
-    : payload;
+  const row = Array.isArray(payload) && payload.length === 1 ? payload[0] : payload;
   if (typeof row !== "object" || row === null || Array.isArray(row)) {
     throw new Error("backend_response_invalid");
   }
@@ -92,12 +85,12 @@ function rpcObject(payload: unknown): Record<string, unknown> {
 
 async function actor(
   token: string,
-  anonKey: string,
-  serviceKey: string,
+  publishableKey: string,
+  secretKey: string,
   role: "driver" | "rider",
 ) {
   const auth = rpcObject(
-    await requestJson("/auth/v1/user", { token, apikey: anonKey }),
+    await requestJson("/auth/v1/user", { token, apikey: publishableKey }),
   );
   if (typeof auth.id !== "string" || !UUID.test(auth.id)) {
     throw new Error("fixture_actor_not_eligible");
@@ -105,7 +98,7 @@ async function actor(
   const profile = oneRow(
     await requestJson(
       `/rest/v1/users?select=id,email,role,is_blocked&id=eq.${auth.id}&limit=2`,
-      { token: serviceKey, apikey: serviceKey },
+      { apikey: secretKey },
     ),
   );
   if (profile.id !== auth.id || profile.email !== auth.email) {
@@ -118,7 +111,7 @@ async function actor(
       ...oneRow(
         await requestJson(
           `/rest/v1/driver_profiles?select=user_id,approval_status&user_id=eq.${auth.id}&limit=2`,
-          { token: serviceKey, apikey: serviceKey },
+          { apikey: secretKey },
         ),
       ),
     };
@@ -130,8 +123,8 @@ async function actor(
 async function main(): Promise<void> {
   const options = parseFixtureArgs(Deno.args);
   const namespace = requiredEnv("RIDEX_BACKEND_NAMESPACE");
-  const anonKey = requiredEnv("SUPABASE_ANON_KEY");
-  const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const publishableKey = requiredEnv("SUPABASE_PUBLISHABLE_KEY");
+  const secretKey = requiredEnv("SUPABASE_SECRET_KEY");
   const driverToken = requiredEnv("R07_DRIVER_ACCESS_TOKEN");
   if (namespace !== R07_NAMESPACE) {
     throw new Error("backend_namespace_mismatch");
@@ -143,7 +136,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const driver = await actor(driverToken, anonKey, serviceKey, "driver");
+  const driver = await actor(driverToken, publishableKey, secretKey, "driver");
   if (driver.email !== R07_ACTORS.driver) {
     throw new Error("fixture_actor_not_eligible");
   }
@@ -152,11 +145,11 @@ async function main(): Promise<void> {
     const [vehiclesPayload, availabilityPayload] = await Promise.all([
       requestJson(
         `/rest/v1/vehicles?select=id&driver_id=eq.${driver.id}&limit=2`,
-        { token: serviceKey, apikey: serviceKey },
+        { apikey: secretKey },
       ),
       requestJson(
         `/rest/v1/driver_availability?select=driver_id,state,vehicle_id,reserved_booking_request_id,active_trip_id,version&driver_id=eq.${driver.id}&limit=2`,
-        { token: serviceKey, apikey: serviceKey },
+        { apikey: secretKey },
       ),
     ]);
     const vehicles = noRows(vehiclesPayload);
@@ -172,7 +165,7 @@ async function main(): Promise<void> {
       await requestJson("/rest/v1/rpc/driver_create_vehicle", {
         method: "POST",
         token: driverToken,
-        apikey: anonKey,
+        apikey: publishableKey,
         body: {
           vehicle_type: "economy",
           vehicle_make: "RideX Test Fixture",
@@ -195,7 +188,7 @@ async function main(): Promise<void> {
       await requestJson("/rest/v1/rpc/driver_set_vehicle_active", {
         method: "POST",
         token: driverToken,
-        apikey: anonKey,
+        apikey: publishableKey,
         body: {
           target_vehicle_id: created.id,
           expected_version: created.version,
@@ -212,7 +205,7 @@ async function main(): Promise<void> {
       await requestJson("/rest/v1/rpc/driver_set_availability", {
         method: "POST",
         token: driverToken,
-        apikey: anonKey,
+        apikey: publishableKey,
         body: {
           requested_state: "available",
           requested_vehicle_id: created.id,
@@ -235,7 +228,7 @@ async function main(): Promise<void> {
   }
 
   const riderToken = requiredEnv("R07_RIDER_ACCESS_TOKEN");
-  const rider = await actor(riderToken, anonKey, serviceKey, "rider");
+  const rider = await actor(riderToken, publishableKey, secretKey, "rider");
   if (rider.email !== R07_ACTORS.rider) {
     throw new Error("fixture_actor_not_eligible");
   }
@@ -249,23 +242,23 @@ async function main(): Promise<void> {
   ] = await Promise.all([
     requestJson(
       `/rest/v1/booking_requests?select=id,rider_id,status,version,payment_method,vehicle_type_code,fare_quote_id&id=eq.${options.bookingId}&limit=2`,
-      { token: serviceKey, apikey: serviceKey },
+      { apikey: secretKey },
     ),
     requestJson(
       `/rest/v1/vehicles?select=id,driver_id,vehicle_type_code,is_active&id=eq.${options.vehicleId}&limit=2`,
-      { token: serviceKey, apikey: serviceKey },
+      { apikey: secretKey },
     ),
     requestJson(
       `/rest/v1/driver_availability?select=driver_id,state,vehicle_id&driver_id=eq.${driver.id}&limit=2`,
-      { token: serviceKey, apikey: serviceKey },
+      { apikey: secretKey },
     ),
     requestJson(
       `/rest/v1/trips?select=id&booking_request_id=eq.${options.bookingId}&limit=2`,
-      { token: serviceKey, apikey: serviceKey },
+      { apikey: secretKey },
     ),
     requestJson(
       `/rest/v1/driver_match_offers?select=id,status,driver_id&booking_request_id=eq.${options.bookingId}&limit=2`,
-      { token: serviceKey, apikey: serviceKey },
+      { apikey: secretKey },
     ),
   ]);
   const booking = oneRow(bookingPayload);
@@ -274,7 +267,7 @@ async function main(): Promise<void> {
       `/rest/v1/fare_quotes?select=id,booking_request_id,rider_id,status,vehicle_type_code&id=eq.${
         String(booking.fare_quote_id)
       }&limit=2`,
-      { token: serviceKey, apikey: serviceKey },
+      { apikey: secretKey },
     ),
   );
   assertFixturePrerequisites({
@@ -300,8 +293,7 @@ async function main(): Promise<void> {
   const offer = rpcObject(
     await requestJson("/rest/v1/rpc/backend_create_driver_match_offer", {
       method: "POST",
-      token: serviceKey,
-      apikey: serviceKey,
+      apikey: secretKey,
       body: {
         target_booking_request_id: options.bookingId,
         target_driver_id: driver.id,
@@ -322,7 +314,7 @@ async function main(): Promise<void> {
     await requestJson("/rest/v1/rpc/driver_transition_trip", {
       method: "POST",
       token: driverToken,
-      apikey: anonKey,
+      apikey: publishableKey,
       body: {
         target_id: offer.id,
         requested_status: "accepted",
@@ -350,7 +342,7 @@ async function main(): Promise<void> {
       oneRow(
         await requestJson(
           `/rest/v1/trips?select=id,booking_request_id,driver_id,rider_id,vehicle_id,status,version,payment_method&id=eq.${tripId}&driver_id=eq.${driver.id}&limit=2`,
-          { token: driverToken, apikey: anonKey },
+          { token: driverToken, apikey: publishableKey },
         ),
       ),
     transition: async (status, version, key) =>
@@ -360,7 +352,7 @@ async function main(): Promise<void> {
           {
             method: "POST",
             token: driverToken,
-            apikey: anonKey,
+            apikey: publishableKey,
             body: {
               target_id: tripId,
               requested_status: status,

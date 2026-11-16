@@ -391,7 +391,8 @@ Deno.test("transport keeps privileged credentials only on allowlisted backend RP
     const privileged = c.url.includes("backend_find_nearby_driver_candidates") ||
       c.url.includes("backend_create_driver_match_offer") ||
       c.url.includes("backend_expire_booking_match_offers");
-    eq(h.Authorization, "Bearer " + (privileged ? "server-test" : "rider-test"));
+    eq(h.Authorization, privileged ? undefined : "Bearer rider-test");
+    if (privileged) eq(h.apikey, "server-test");
     if (c.url.includes("rider_matching_")) eq(h.apikey, "public-test");
   }
   eq(calls.filter((c) => c.init.method === "POST").map((c) => new URL(c.url).pathname), [

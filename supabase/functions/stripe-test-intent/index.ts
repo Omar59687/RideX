@@ -8,10 +8,17 @@ import {
   type TestIntentProvider,
 } from "../_shared/payments/test_intent_provider.ts";
 import { SupabaseTestIntentReservationStore } from "../_shared/payments/test_intent_reservation.ts";
+import { resolveDefaultApiKey } from "../_shared/api_keys.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const publishableKey = resolveDefaultApiKey(
+  Deno.env.get("SUPABASE_PUBLISHABLE_KEYS"),
+  Deno.env.get("SUPABASE_PUBLISHABLE_KEY"),
+);
+const secretKey = resolveDefaultApiKey(
+  Deno.env.get("SUPABASE_SECRET_KEYS"),
+  Deno.env.get("SUPABASE_SECRET_KEY"),
+);
 
 // R06 remains intentionally closed in production until an owner approves the
 // JOD Test Mode account and deploys/verifies the proposed durable reservation.
@@ -26,18 +33,18 @@ Deno.serve(createStripeTestIntentHandler({
   authorize: (request) =>
     authorizeStripeTestRider(request, {
       supabaseUrl,
-      anonKey,
-      serviceRoleKey,
+      publishableKey,
+      secretKey,
     }),
   readAuthorizedContext: createCanonicalIntentContextReader({
     supabaseUrl,
-    anonKey,
-    serviceRoleKey,
+    publishableKey,
+    secretKey,
   }),
   provider: disabledProvider,
   // No reservation mutation occurs while the dispatch gate is false.
-  reservationStore: supabaseUrl && serviceRoleKey
-    ? new SupabaseTestIntentReservationStore(supabaseUrl, serviceRoleKey)
+  reservationStore: supabaseUrl && secretKey
+    ? new SupabaseTestIntentReservationStore(supabaseUrl, secretKey)
     : undefined,
   assertProviderReady: () => {
     throw new TestIntentError("not_configured");

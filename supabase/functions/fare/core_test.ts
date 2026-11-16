@@ -256,7 +256,7 @@ Deno.test("backend quote reloads owned canonical stops and uses trusted Google m
 
   const calculateFare = createBackendQuoteCaller({
     supabaseUrl: "https://project.supabase.co",
-    serviceRoleKey: SERVICE_KEY,
+    secretKey: SERVICE_KEY,
     googleRoutesApiKey: ROUTES_KEY,
     fetch: fetchImpl,
   });
@@ -271,14 +271,14 @@ Deno.test("backend quote reloads owned canonical stops and uses trusted Google m
   assertEquals(calls.length, 4);
   const rpcHeaders = new Headers(calls[3].init?.headers);
   assertEquals(rpcHeaders.get("apikey"), SERVICE_KEY);
-  assertEquals(rpcHeaders.get("authorization"), `Bearer ${SERVICE_KEY}`);
+  assertEquals(rpcHeaders.get("authorization"), null);
 });
 
 Deno.test("backend quote refuses another rider's booking before routing", async () => {
   let calls = 0;
   const calculateFare = createBackendQuoteCaller({
     supabaseUrl: "https://project.supabase.co",
-    serviceRoleKey: SERVICE_KEY,
+    secretKey: SERVICE_KEY,
     googleRoutesApiKey: ROUTES_KEY,
     fetch: (input) => {
       calls++;
@@ -316,7 +316,7 @@ Deno.test("backend quote rejects stale versions without calling Google", async (
   let calls = 0;
   const calculateFare = createBackendQuoteCaller({
     supabaseUrl: "https://project.supabase.co",
-    serviceRoleKey: SERVICE_KEY,
+    secretKey: SERVICE_KEY,
     googleRoutesApiKey: ROUTES_KEY,
     fetch: (input) => {
       calls++;
@@ -344,7 +344,7 @@ Deno.test("backend quote rejects stale versions without calling Google", async (
 Deno.test("missing server configuration fails closed", async () => {
   const calculateFare = createBackendQuoteCaller({
     supabaseUrl: "",
-    serviceRoleKey: "",
+    secretKey: "",
     googleRoutesApiKey: "",
   });
   const handler = createFareHandler({
@@ -358,7 +358,7 @@ Deno.test("missing server configuration fails closed", async () => {
 Deno.test("authorizeCaller validates the authenticated non-blocked rider", async () => {
   const caller = await authorizeCaller(request(validBody()), {
     supabaseUrl: "https://project.supabase.co",
-    supabaseAnonKey: "anon-key",
+    publishableKey: "sb_publishable_test",
     fetch: (input, init) => {
       assertEquals(
         String(input),
@@ -387,7 +387,7 @@ Deno.test("authorizeCaller rejects blocked and non-rider callers", async () => {
     try {
       await authorizeCaller(request(validBody()), {
         supabaseUrl: "https://project.supabase.co",
-        supabaseAnonKey: "anon-key",
+        publishableKey: "sb_publishable_test",
         fetch: () => Response.json([row]),
       });
     } catch (caught) {

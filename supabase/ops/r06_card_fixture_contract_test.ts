@@ -21,10 +21,7 @@ import {
   R06_RIDER_EMAIL,
   R06_VEHICLE_ID,
 } from "./r06_card_fixture_contract.ts";
-import {
-  type FetchLike,
-  runCardFixtureOperator,
-} from "./r06_prepare_card_fixture.ts";
+import { type FetchLike, runCardFixtureOperator } from "./r06_prepare_card_fixture.ts";
 
 const RIDER_ID = "22000000-0000-4000-8000-000000000001";
 const DRIVER_ID = "22000000-0000-4000-8000-000000000002";
@@ -69,13 +66,12 @@ function environment(
   return {
     SUPABASE_URL: R06_PROJECT_URL,
     RIDEX_BACKEND_NAMESPACE: R06_NAMESPACE,
-    SUPABASE_ANON_KEY: "test-anon-key",
-    SUPABASE_SERVICE_ROLE_KEY: "test-service-key",
+    SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
+    SUPABASE_SECRET_KEY: "sb_secret_test",
     R06_RIDER_ACCESS_TOKEN: "rider-session-token-placeholder",
     R06_DRIVER_ACCESS_TOKEN: "driver-session-token-placeholder",
     LOCALAPPDATA: "C:\\Users\\Test\\AppData\\Local",
-    R06_FIXTURE_STATE_FILE:
-      "C:\\Users\\Test\\AppData\\Local\\RideX\\R06\\card-fixture-state.json",
+    R06_FIXTURE_STATE_FILE: "C:\\Users\\Test\\AppData\\Local\\RideX\\R06\\card-fixture-state.json",
     ...overrides,
   };
 }
@@ -185,11 +181,29 @@ Deno.test("rejects wrong project and namespace before network access", () => {
     throw new Error("wrong endpoint was accepted");
   }
   if (
-    errorCode(() =>
-      assertEnvironment({ ...env, RIDEX_BACKEND_NAMESPACE: "other" }, false)
-    ) !== "project_or_namespace_mismatch"
+    errorCode(() => assertEnvironment({ ...env, RIDEX_BACKEND_NAMESPACE: "other" }, false)) !==
+      "project_or_namespace_mismatch"
   ) {
     throw new Error("wrong namespace was accepted");
+  }
+});
+
+Deno.test("rejects legacy or swapped API key types", () => {
+  const env = environment();
+  for (
+    const invalid of [
+      { ...env, SUPABASE_PUBLISHABLE_KEY: "legacy-anon-jwt" },
+      { ...env, SUPABASE_SECRET_KEY: "legacy-service-role-jwt" },
+      {
+        ...env,
+        SUPABASE_PUBLISHABLE_KEY: "sb_secret_test",
+        SUPABASE_SECRET_KEY: "sb_publishable_test",
+      },
+    ]
+  ) {
+    if (errorCode(() => assertEnvironment(invalid, false)) !== "configuration_invalid") {
+      throw new Error("legacy or swapped key type was accepted");
+    }
   }
 });
 
@@ -236,9 +250,8 @@ Deno.test("read-only mode is the default and execution requires explicit approva
     true,
   );
   if (
-    errorCode(() =>
-      assertExecutionApproval({ ...options, execute: true }, environment())
-    ) !== "execution_approval_missing"
+    errorCode(() => assertExecutionApproval({ ...options, execute: true }, environment())) !==
+      "execution_approval_missing"
   ) {
     throw new Error("execution without approval accepted");
   }
@@ -474,23 +487,20 @@ Deno.test("Attempt guard requires original pending cycle-one key and live two-mi
     }
   }
   if (
-    errorCode(() =>
-      assertAttempt(attempt(new Date(NOW - 120_000).toISOString()), expected)
-    ) !== "canonical_attempt_mismatch_or_expired"
+    errorCode(() => assertAttempt(attempt(new Date(NOW - 120_000).toISOString()), expected)) !==
+      "canonical_attempt_mismatch_or_expired"
   ) {
     throw new Error("expired Attempt accepted");
   }
   if (
-    errorCode(() =>
-      assertAttempt({ ...attempt(), payment_id: TRIP_ID }, expected)
-    ) !== "canonical_attempt_mismatch_or_expired"
+    errorCode(() => assertAttempt({ ...attempt(), payment_id: TRIP_ID }, expected)) !==
+      "canonical_attempt_mismatch_or_expired"
   ) {
     throw new Error("foreign Payment Attempt accepted");
   }
   if (
-    errorCode(() =>
-      assertAttempt({ ...attempt(), idempotency_key: "rotated" }, expected)
-    ) !== "canonical_attempt_mismatch_or_expired"
+    errorCode(() => assertAttempt({ ...attempt(), idempotency_key: "rotated" }, expected)) !==
+      "canonical_attempt_mismatch_or_expired"
   ) {
     throw new Error("rotated operation key accepted");
   }
@@ -498,15 +508,30 @@ Deno.test("Attempt guard requires original pending cycle-one key and live two-mi
 
 function readOnlyTransport(): {
   fetcher: FetchLike;
-  calls: { url: string; method: string }[];
+  calls: {
+    url: string;
+    method: string;
+    authorization?: string | null;
+    apiKey?: string | null;
+  }[];
 } {
-  const calls: { url: string; method: string }[] = [];
+  const calls: {
+    url: string;
+    method: string;
+    authorization?: string | null;
+    apiKey?: string | null;
+  }[] = [];
   const fetcher: FetchLike = async (input, init) => {
     const url = new URL(String(input));
     const method = init?.method ?? "GET";
-    calls.push({ url: `${url.origin}${url.pathname}${url.search}`, method });
-    const json = (value: unknown) =>
-      new Response(JSON.stringify(value), { status: 200 });
+    const headers = new Headers(init?.headers);
+    calls.push({
+      url: `${url.origin}${url.pathname}${url.search}`,
+      method,
+      authorization: headers.get("authorization"),
+      apiKey: headers.get("apikey"),
+    });
+    const json = (value: unknown) => new Response(JSON.stringify(value), { status: 200 });
     if (url.pathname === "/auth/v1/user") {
       const token = new Headers(init?.headers).get("authorization");
       return json(
@@ -584,11 +609,21 @@ Deno.test("read-only preflight issues only GETs and never invokes a financial RP
     throw new Error("preflight status incorrect");
   }
   if (
-    transport.calls.some((call) =>
-      call.method !== "GET" || /\/rpc\/|stripe\.com/iu.test(call.url)
-    )
+    transport.calls.some((call) => call.method !== "GET" || /\/rpc\/|stripe\.com/iu.test(call.url))
   ) {
     throw new Error("read-only preflight performed or targeted a mutation");
+  }
+  if (
+    transport.calls.some((call) =>
+      call.url.includes("/auth/v1/user")
+        ? !/^Bearer (rider|driver)-session-token-placeholder$/u.test(
+          call.authorization ?? "",
+        ) ||
+          call.apiKey !== "sb_publishable_test"
+        : call.authorization !== null || call.apiKey !== "sb_secret_test"
+    )
+  ) {
+    throw new Error("operator secret or actor authorization header was misused");
   }
 });
 
@@ -687,9 +722,7 @@ Deno.test("fixture isolation matches this run's unique label and retains older f
     environment(),
     { fetcher: transport.fetcher, stateExists: async () => false },
   );
-  const markerRequest = transport.calls.find((call) =>
-    call.url.includes("pickup-%3E%3Elabel")
-  );
+  const markerRequest = transport.calls.find((call) => call.url.includes("pickup-%3E%3Elabel"));
   if (
     !markerRequest ||
     !markerRequest.url.includes(
@@ -739,8 +772,7 @@ function canonicalExecutionTransport(): {
     trip: trip(),
   };
   let driverOnTrip = false;
-  const respond = (value: unknown, status = 200) =>
-    new Response(JSON.stringify(value), { status });
+  const respond = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
   const fetcher: FetchLike = async (input, init) => {
     const url = new URL(String(input));
     const method = init?.method ?? "GET";

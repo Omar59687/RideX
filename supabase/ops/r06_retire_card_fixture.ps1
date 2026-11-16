@@ -5,7 +5,7 @@
 .DESCRIPTION
   Reads the app's ignored .env.json, prompts for both actor passwords with
   hidden input, validates short-lived Supabase Auth sessions, then uses a
-  separately prompted service_role key only for allowlisted read-only evidence
+  separately prompted Supabase secret API key only for allowlisted read-only evidence
   collection. Rider and Driver mutations always use their own actor sessions.
   No SQL, token/password persistence, or provider call is used.
 #>
@@ -180,7 +180,9 @@ function Get-R06Configuration {
     if ($config -and $config.PSObject.Properties['SUPABASE_URL']) { $config.SUPABASE_URL = $null }
     $config = $null
   }
-  if ($url -cne $script:R06ProjectUrl -or [string]::IsNullOrWhiteSpace($key)) {
+  if ($url -cne $script:R06ProjectUrl -or
+      [string]::IsNullOrWhiteSpace($key) -or
+      -not $key.StartsWith('sb_publishable_', [StringComparison]::Ordinal)) {
     throw 'project_config_mismatch'
   }
   $result = @{ Url = $url; Key = $key }
@@ -205,34 +207,18 @@ function Invoke-R06Request {
   return Invoke-R06Http -Method $Method -Uri ($script:R06ProjectUrl + $Path) -Headers $headers -Body $Body
 }
 
-function Assert-R06OperatorKey {
+function Assert-R06SecretKey {
   param([Parameter(Mandatory)][Security.SecureString]$OperatorKey)
-  $plainKey = $null; $payload = $null
+  $plainKey = $null
   try {
     $plainKey = Convert-R06SecureString $OperatorKey
-    $payload = Get-R06JwtPayload $plainKey
-    $issuer = $payload.PSObject.Properties['iss']
-    $projectRef = $payload.PSObject.Properties['ref']
-    $role = $payload.PSObject.Properties['role']
-    $expiry = $payload.PSObject.Properties['exp']
-    if (-not $issuer -or -not $projectRef -or -not $role -or -not $expiry -or
-        $issuer.Value -isnot [string] -or $projectRef.Value -isnot [string] -or
-        $role.Value -isnot [string] -or
-        ($expiry.Value -isnot [int] -and $expiry.Value -isnot [long]) -or
-        $issuer.Value -cne 'supabase' -or
-        $projectRef.Value -cne $script:R06ProjectRef -or
-        $role.Value -cne 'service_role' -or
-        [long]$expiry.Value -le [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()) {
+    if ($plainKey -notmatch '^sb_secret_[A-Za-z0-9_-]+$') {
       throw 'operator_credential_invalid'
     }
   } catch {
-    # Local JWT decoding is a shape/claim check, not signature verification.
-    # The allowlisted read-only API preflight below authenticates the key with
-    # Supabase before either actor mutation can be reached.
     throw 'operator_credential_invalid'
   } finally {
     $plainKey = $null
-    if ($payload) { $payload = $null }
   }
 }
 
@@ -252,10 +238,10 @@ function Invoke-R06OperatorRead {
   $headers = $null
   try {
     $plainKey = Convert-R06SecureString $OperatorKey
-    $headers = @{ apikey = $plainKey; Authorization = "Bearer $plainKey"; Accept = 'application/json' }
+    $headers = @{ apikey = $plainKey; Accept = 'application/json' }
     return Invoke-R06Http -Method $method -Uri ($script:R06ProjectUrl + $Path) -Headers $headers -Body $Body
   } finally {
-    if ($headers) { $headers.Authorization = $null; $headers.apikey = $null }
+    if ($headers) { $headers.apikey = $null }
     $plainKey = $null
     $Body = $null
   }
@@ -408,8 +394,8 @@ function Invoke-R06Retirement {
     $config = Get-R06Configuration
     $riderPassword = Read-Host 'Password for approved R06 Rider' -AsSecureString
     $driverPassword = Read-Host 'Password for approved R06 Driver' -AsSecureString
-    $operatorKey = Read-Host 'Service-role key for read-only R06 preflight' -AsSecureString
-    Assert-R06OperatorKey -OperatorKey $operatorKey
+    $operatorKey = Read-Host 'Supabase secret API key for read-only R06 preflight' -AsSecureString
+    Assert-R06SecretKey -OperatorKey $operatorKey
     $rider = Get-R06Actor -Kind rider -Email $script:R06RiderEmail -Password $riderPassword -AnonKey $config.Key
     $riderPassword = $null
     $driver = Get-R06Actor -Kind driver -Email $script:R06DriverEmail -Password $driverPassword -AnonKey $config.Key
