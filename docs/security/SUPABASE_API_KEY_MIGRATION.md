@@ -32,6 +32,22 @@ Supabase Auth/PostgREST. Do not disable JWT verification or replace the caller
 JWT with the server secret. Payment-provider authorization headers are separate
 provider credentials and are not Supabase API keys.
 
+## Isolated D05 live-harness compatibility gate
+
+The migrated D05 harness now requires **real opaque** local
+`sb_publishable_` and `sb_secret_` keys; it does not accept the older
+JWT-based `anon` / `service_role` keys simply renamed as environment
+variables. Before running live D05 acceptance, confirm that the *isolated*
+Supabase CLI/gateway version actually supports and issues these new key types.
+Keep the existing Docker identity, loopback URL and port preflight unchanged.
+Never paste hosted project keys into the local isolated stack.
+
+If the isolated project cannot provide working opaque API keys, leave D05
+live-isolated verification **BLOCKED** and do not use synthetic placeholder
+keys as evidence of an end-to-end PASS. This limitation does not invalidate
+the already completed offline unit tests or the separate hosted RideX Phase 7
+live acceptance.
+
 ## Safe rollout and retirement gates
 
 1. An owner with Supabase project Settings and API-key management access creates
