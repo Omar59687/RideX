@@ -118,16 +118,15 @@ void main() {
       );
     });
 
-    test('accepts a structurally valid legacy anon key', () {
+    test('rejects a structurally valid legacy anon key', () {
       final key = _syntheticJwt(role: 'anon');
-
-      final environment = EnvConfig.validateSupabaseEnvironment(
-        url: validUrl,
-        publishableKey: key,
+      expect(
+        () => EnvConfig.validateSupabaseEnvironment(
+          url: validUrl,
+          publishableKey: key,
+        ),
+        throwsFailure(EnvConfigFailure.invalidPublishableKey),
       );
-
-      expect(environment, isNotNull);
-      expect(environment!.publishableKey, key);
     });
   });
 }

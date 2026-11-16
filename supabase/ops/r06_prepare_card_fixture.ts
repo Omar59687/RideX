@@ -29,12 +29,10 @@ import {
   R06_VEHICLE_ID,
 } from "./r06_card_fixture_contract.ts";
 
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const MAX_RESPONSE_BYTES = 32 * 1024;
 const REQUEST_TIMEOUT_MS = 8_000;
-const ACTIVE_TRIP_STATUSES =
-  "(accepted,driverArriving,driverArrived,inProgress)";
+const ACTIVE_TRIP_STATUSES = "(accepted,driverArriving,driverArrived,inProgress)";
 
 export type FetchLike = (
   input: RequestInfo | URL,
@@ -102,9 +100,7 @@ function record(value: unknown): Record<string, unknown> {
 function rows(value: unknown): Record<string, unknown>[] {
   if (
     !Array.isArray(value) ||
-    value.some((entry) =>
-      typeof entry !== "object" || entry === null || Array.isArray(entry)
-    )
+    value.some((entry) => typeof entry !== "object" || entry === null || Array.isArray(entry))
   ) {
     throw new CardFixtureError("backend_response_invalid");
   }
@@ -143,8 +139,8 @@ function quoteRoute(options: CardFixtureOptions): {
 class SupabaseFixtureGateway {
   readonly #fetch: FetchLike;
   readonly #now: () => number;
-  readonly #anonKey: string;
-  readonly #serviceKey: string;
+  readonly #publishableKey: string;
+  readonly #secretKey: string;
 
   constructor(
     private readonly environment: CardFixtureEnvironment,
@@ -152,13 +148,13 @@ class SupabaseFixtureGateway {
   ) {
     this.#fetch = runtime.fetcher ?? fetch;
     this.#now = runtime.now ?? Date.now;
-    this.#anonKey = environment.SUPABASE_ANON_KEY!;
-    this.#serviceKey = environment.SUPABASE_SERVICE_ROLE_KEY!;
+    this.#publishableKey = environment.SUPABASE_PUBLISHABLE_KEY!;
+    this.#secretKey = environment.SUPABASE_SECRET_KEY!;
   }
 
   async #request(path: string, options: {
     method?: string;
-    token: string;
+    token?: string;
     apiKey: string;
     body?: unknown;
   }): Promise<unknown> {
@@ -170,15 +166,11 @@ class SupabaseFixtureGateway {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         headers: {
           apikey: options.apiKey,
-          authorization: `Bearer ${options.token}`,
+          ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
           accept: "application/json",
-          ...(options.body === undefined
-            ? {}
-            : { "content-type": "application/json" }),
+          ...(options.body === undefined ? {} : { "content-type": "application/json" }),
         },
-        ...(options.body === undefined
-          ? {}
-          : { body: JSON.stringify(options.body) }),
+        ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
       });
     } catch {
       throw new CardFixtureError("request_outcome_unknown_stop_do_not_retry");
@@ -213,8 +205,7 @@ class SupabaseFixtureGateway {
     }
     return rows(
       await this.#request(url.pathname + url.search, {
-        token: this.#serviceKey,
-        apiKey: this.#serviceKey,
+        apiKey: this.#secretKey,
       }),
     );
   }
@@ -222,12 +213,12 @@ class SupabaseFixtureGateway {
   async #rpc(
     name: string,
     body: Record<string, unknown>,
-    identity: { token: string; apiKey: string },
+    identity: { token?: string; apiKey: string },
   ): Promise<Record<string, unknown>> {
     return oneRow(
       await this.#request(`/rest/v1/rpc/${name}`, {
         method: "POST",
-        token: identity.token,
+        ...(identity.token ? { token: identity.token } : {}),
         apiKey: identity.apiKey,
         body,
       }),
@@ -238,7 +229,7 @@ class SupabaseFixtureGateway {
     return record(
       await this.#request("/auth/v1/user", {
         token,
-        apiKey: this.#anonKey,
+        apiKey: this.#publishableKey,
       }),
     );
   }
@@ -277,18 +268,14 @@ class SupabaseFixtureGateway {
       ) {
         throw new CardFixtureError("fixture_actor_not_eligible");
       }
-      approvalStatus = driverProfiles[0].approval_status === "approved"
-        ? "approved"
-        : undefined;
+      approvalStatus = driverProfiles[0].approval_status === "approved" ? "approved" : undefined;
     }
     const actor = {
       id: authUser.id,
       email: authUser.email,
       role: profile.role,
       is_blocked: profile.is_blocked,
-      ...(approvalStatus === undefined
-        ? {}
-        : { approval_status: approvalStatus }),
+      ...(approvalStatus === undefined ? {} : { approval_status: approvalStatus }),
     } as CardFixtureActor;
     assertActor(actor, role);
     return actor;
@@ -304,7 +291,7 @@ class SupabaseFixtureGateway {
     }
     return this.#rpc(name, body, {
       token: this.environment.R06_RIDER_ACCESS_TOKEN!,
-      apiKey: this.#anonKey,
+      apiKey: this.#publishableKey,
     });
   }
 
@@ -318,7 +305,7 @@ class SupabaseFixtureGateway {
     }
     return this.#rpc(name, body, {
       token: this.environment.R06_DRIVER_ACCESS_TOKEN!,
-      apiKey: this.#anonKey,
+      apiKey: this.#publishableKey,
     });
   }
 
@@ -327,8 +314,7 @@ class SupabaseFixtureGateway {
     body: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     return this.#rpc(name, body, {
-      token: this.#serviceKey,
-      apiKey: this.#serviceKey,
+      apiKey: this.#secretKey,
     });
   }
 
@@ -344,7 +330,7 @@ class SupabaseFixtureGateway {
       await this.#request("/functions/v1/fare", {
         method: "POST",
         token: this.environment.R06_RIDER_ACCESS_TOKEN!,
-        apiKey: this.#anonKey,
+        apiKey: this.#publishableKey,
         body: {
           operation: "quote",
           booking_request_id: bookingId,
@@ -411,8 +397,7 @@ class SupabaseFixtureGateway {
         limit: "2",
       }),
       this.#select("driver_availability", {
-        select:
-          "driver_id,state,vehicle_id,reserved_booking_request_id,active_trip_id,version",
+        select: "driver_id,state,vehicle_id,reserved_booking_request_id,active_trip_id,version",
         driver_id: `eq.${driver.id}`,
         limit: "2",
       }),
@@ -786,8 +771,8 @@ function readEnvironment(): CardFixtureEnvironment {
   return {
     SUPABASE_URL: Deno.env.get("SUPABASE_URL"),
     RIDEX_BACKEND_NAMESPACE: Deno.env.get("RIDEX_BACKEND_NAMESPACE"),
-    SUPABASE_ANON_KEY: Deno.env.get("SUPABASE_ANON_KEY"),
-    SUPABASE_SERVICE_ROLE_KEY: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+    SUPABASE_PUBLISHABLE_KEY: Deno.env.get("SUPABASE_PUBLISHABLE_KEY"),
+    SUPABASE_SECRET_KEY: Deno.env.get("SUPABASE_SECRET_KEY"),
     R06_RIDER_ACCESS_TOKEN: Deno.env.get("R06_RIDER_ACCESS_TOKEN"),
     R06_DRIVER_ACCESS_TOKEN: Deno.env.get("R06_DRIVER_ACCESS_TOKEN"),
     LOCALAPPDATA: Deno.env.get("LOCALAPPDATA"),
@@ -801,9 +786,7 @@ if (import.meta.main) {
     const result = await runCardFixtureOperator(Deno.args, readEnvironment());
     console.log(JSON.stringify(result));
   } catch (error) {
-    const code = error instanceof CardFixtureError
-      ? error.code
-      : "fixture_stopped_safely";
+    const code = error instanceof CardFixtureError ? error.code : "fixture_stopped_safely";
     console.error(JSON.stringify({ status: "BLOCKED", reason: code }));
     Deno.exitCode = 1;
   }

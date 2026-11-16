@@ -356,8 +356,8 @@ export function createStripeTestIntentHandler(
 
 export interface StripeIntentServerDependencies {
   readonly supabaseUrl: string;
-  readonly anonKey: string;
-  readonly serviceRoleKey: string;
+  readonly publishableKey: string;
+  readonly secretKey: string;
   readonly fetch?: FetchLike;
   readonly timeoutMs?: number;
 }
@@ -393,7 +393,7 @@ export async function authorizeStripeTestRider(
   if (!/^Bearer [^\s]{20,8192}$/u.test(authorization)) {
     throw new HttpError(401, "unauthorized", "Authentication is required.");
   }
-  if (!dependencies.supabaseUrl || !dependencies.anonKey || !dependencies.serviceRoleKey) {
+  if (!dependencies.supabaseUrl || !dependencies.publishableKey || !dependencies.secretKey) {
     throw new HttpError(503, "service_unavailable", "Test preparation is unavailable.");
   }
   let url: URL;
@@ -408,7 +408,7 @@ export async function authorizeStripeTestRider(
   try {
     response = await fetchTimed(dependencies.fetch ?? fetch, url, {
       method: "GET",
-      headers: { apikey: dependencies.anonKey, authorization, accept: "application/json" },
+      headers: { apikey: dependencies.publishableKey, authorization, accept: "application/json" },
     }, dependencies.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   } catch {
     throw new HttpError(503, "service_unavailable", "Test preparation is unavailable.");
@@ -448,8 +448,7 @@ async function getRows(
   const response = await fetchTimed(fetcher, url, {
     method: "GET",
     headers: {
-      apikey: dependencies.serviceRoleKey,
-      authorization: `Bearer ${dependencies.serviceRoleKey}`,
+      apikey: dependencies.secretKey,
       accept: "application/json",
     },
   }, dependencies.timeoutMs ?? DEFAULT_TIMEOUT_MS);
@@ -462,7 +461,7 @@ export function createCanonicalIntentContextReader(
 ): (request: StripeIntentReadRequest) => Promise<CanonicalIntentContext | null> {
   return async (request) => {
     if (
-      !dependencies.supabaseUrl || !dependencies.serviceRoleKey ||
+      !dependencies.supabaseUrl || !dependencies.secretKey ||
       !validId(request.riderId) || !validId(request.paymentId) ||
       !validId(request.tripId) || !validId(request.attemptId)
     ) throw new Error("invalid_configuration");

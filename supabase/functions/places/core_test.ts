@@ -786,7 +786,7 @@ Deno.test("caller authorization returns the trusted RLS user ID for an unblocked
     }),
     {
       supabaseUrl: "https://project.supabase.co",
-      supabaseAnonKey: "anon-key",
+      publishableKey: "sb_publishable_test",
       fetch: (input, init) => {
         assert(String(input).startsWith("https://project.supabase.co/rest/v1/users?"));
         headers = new Headers(init?.headers);
@@ -795,7 +795,7 @@ Deno.test("caller authorization returns the trusted RLS user ID for an unblocked
     },
   );
   assertEquals(headers.get("authorization"), TOKEN);
-  assertEquals(headers.get("apikey"), "anon-key");
+  assertEquals(headers.get("apikey"), "sb_publishable_test");
   assertEquals(callerId, CALLER_ID);
 });
 
@@ -804,7 +804,7 @@ Deno.test("caller authorization rejects missing auth, Driver, blocked Rider, and
   try {
     await authorizeCaller(new Request("http://localhost"), {
       supabaseUrl: "https://project.supabase.co",
-      supabaseAnonKey: "anon-key",
+      publishableKey: "sb_publishable_test",
       fetch: () => {
         calls++;
         return Response.json([]);
@@ -829,7 +829,7 @@ Deno.test("caller authorization rejects missing auth, Driver, blocked Rider, and
       authorize: (req) =>
         authorizeCaller(req, {
           supabaseUrl: "https://project.supabase.co",
-          supabaseAnonKey: "anon-key",
+          publishableKey: "sb_publishable_test",
           fetch: () => Response.json(profile),
         }),
       fetch: () => Response.json({}),

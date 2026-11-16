@@ -63,7 +63,7 @@ New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
 $env:SUPABASE_URL = 'https://ykasivejjchupswqyxpm.supabase.co'
 $env:RIDEX_BACKEND_NAMESPACE = 'ridex-grad-ykasivejjchupswqyxpm-v1'
 $env:R06_FIXTURE_STATE_FILE = "$stateDir\card-fixture-state.json"
-deno run --allow-net=ykasivejjchupswqyxpm.supabase.co --allow-env=LOCALAPPDATA,SUPABASE_URL,RIDEX_BACKEND_NAMESPACE,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,R06_RIDER_ACCESS_TOKEN,R06_DRIVER_ACCESS_TOKEN,R06_FIXTURE_STATE_FILE,R06_EXECUTION_APPROVAL_REF --allow-read="$stateDir" --allow-write="$stateDir" supabase/ops/r06_prepare_card_fixture.ts --fixture-id $fixtureId
+deno run --allow-net=ykasivejjchupswqyxpm.supabase.co --allow-env=LOCALAPPDATA,SUPABASE_URL,RIDEX_BACKEND_NAMESPACE,SUPABASE_PUBLISHABLE_KEY,SUPABASE_SECRET_KEY,R06_RIDER_ACCESS_TOKEN,R06_DRIVER_ACCESS_TOKEN,R06_FIXTURE_STATE_FILE,R06_EXECUTION_APPROVAL_REF --allow-read="$stateDir" --allow-write="$stateDir" supabase/ops/r06_prepare_card_fixture.ts --fixture-id $fixtureId
 ```
 
 `--fixture-id` is required. Omitting `--execute` performs only preflight. The
@@ -152,7 +152,7 @@ set a new fixture UUID, and run:
 
 ```powershell
 $env:R06_FIXTURE_STATE_FILE = "$stateDir\concurrency-acceptance-state.json"
-deno run --allow-net=ykasivejjchupswqyxpm.supabase.co --allow-env=LOCALAPPDATA,SUPABASE_URL,RIDEX_BACKEND_NAMESPACE,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,R06_RIDER_ACCESS_TOKEN,R06_DRIVER_ACCESS_TOKEN,R06_FIXTURE_STATE_FILE,R06_CONCURRENCY_APPROVAL_REF --allow-read="$stateDir" --allow-write="$stateDir" supabase/ops/r06_accept_card_concurrency.ts --fixture-id $fixtureId
+deno run --allow-net=ykasivejjchupswqyxpm.supabase.co --allow-env=LOCALAPPDATA,SUPABASE_URL,RIDEX_BACKEND_NAMESPACE,SUPABASE_PUBLISHABLE_KEY,SUPABASE_SECRET_KEY,R06_RIDER_ACCESS_TOKEN,R06_DRIVER_ACCESS_TOKEN,R06_FIXTURE_STATE_FILE,R06_CONCURRENCY_APPROVAL_REF --allow-read="$stateDir" --allow-write="$stateDir" supabase/ops/r06_accept_card_concurrency.ts --fixture-id $fixtureId
 ```
 
 The operator requires `R06_CONCURRENCY_APPROVAL_REF=owner-approved-r06-card-concurrency-<same UUID>` and reserves this create-new state file before any write. Do not repeat an execution after a timeout or partial result; reconcile using read-only canonical and reservation RPCs.

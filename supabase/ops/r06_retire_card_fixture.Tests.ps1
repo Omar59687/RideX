@@ -23,17 +23,7 @@ function New-TestJwtFromClaims {
   return "e30.$encoded.signature"
 }
 
-function New-TestOperatorJwt {
-  param([hashtable]$Overrides = @{})
-  $claims = @{
-    iss = 'supabase'
-    ref = 'ykasivejjchupswqyxpm'
-    role = 'service_role'
-    exp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 3000
-  }
-  foreach ($name in $Overrides.Keys) { $claims[$name] = $Overrides[$name] }
-  return New-TestJwtFromClaims -Claims $claims
-}
+function New-TestSecretKey { return 'sb_secret_test_only_opaque_key' }
 
 function Project-R06TestRows {
   param([string]$Uri, [object[]]$Rows)
@@ -61,6 +51,8 @@ function New-R06TestTransport {
       try { $payload = Get-R06JwtPayload $Matches[1] } catch { }
     }
     $role = ''; $subject = ''
+    $secretKey = [string]$Headers['apikey']
+    $isSecretKey = $secretKey.StartsWith('sb_secret_', [StringComparison]::Ordinal)
     if ($payload) {
       $role = [string]$payload.role
       if ($payload.PSObject.Properties['sub']) { $subject = [string]$payload.sub }
@@ -68,9 +60,10 @@ function New-R06TestTransport {
     $global:r06TestRequests.Add([pscustomobject]@{
       Method = $Method; Uri = $Uri; Role = $role; Subject = $subject
       ApiKeyPresent = -not [string]::IsNullOrWhiteSpace([string]$Headers['apikey'])
-      LegacyBearerMatchesApiKey = ($role -eq 'service_role' -and $Headers['apikey'] -ceq $Matches[1])
+      SecretKeyPresent = $isSecretKey
+      SecretKeyUsedAsBearer = ($isSecretKey -and $authorization -ceq ("Bearer " + $secretKey))
     })
-    if ($role -eq 'service_role' -and $global:r06Scenario -eq 'bad_operator_auth') {
+    if ($isSecretKey -and $global:r06Scenario -eq 'bad_operator_auth') {
       throw 'simulated_401_invalid_signature'
     }
     if ($Uri -like '*/auth/v1/token*') {
@@ -169,23 +162,23 @@ Describe 'R06 local retirement operator' {
     $global:r06Stage = 'preflight'
     $global:r06ReadCount = 0
     $global:r06AttemptCreatedAt = [DateTimeOffset]::UtcNow.AddMinutes(-10).ToString('o')
-    $global:r06OperatorJwt = $null
+    $global:r06OperatorKey = $null
     Mock Get-R06Configuration { return @{ Url = $script:R06ProjectUrl; Key = 'test-publishable-key' } }
     Mock Read-Host {
       $global:r06ReadCount++
       if ($global:r06ReadCount -eq 3) {
-        $operatorJwt = if ($global:r06OperatorJwt) { $global:r06OperatorJwt } else { New-TestOperatorJwt }
-        return ConvertTo-SecureString $operatorJwt -AsPlainText -Force
+        $operatorKey = if ($global:r06OperatorKey) { $global:r06OperatorKey } else { New-TestSecretKey }
+        return ConvertTo-SecureString $operatorKey -AsPlainText -Force
       }
       return ConvertTo-SecureString 'test-only-password-do-not-print' -AsPlainText -Force
     }
   }
 
   It 'reconciles exact selected Payment fields before authorized Driver restoration' {
-    $global:r06OperatorJwt = New-TestOperatorJwt -Overrides @{ signature_marker = 'test-only-operator-secret-marker' }
+    $global:r06OperatorKey = New-TestSecretKey
     $output = Invoke-R06Retirement -HttpTransport (New-R06TestTransport) | Out-String
     $output | Should Match 'R06 retirement complete'
-    $output | Should Not Match 'test-only-password-do-not-print|test-refresh-token|test-only-operator-secret-marker'
+    $output | Should Not Match 'test-only-password-do-not-print|test-refresh-token|sb_secret_test_only_opaque_key'
     $global:r06MutationCalls | Should Be 2
     $retire = @($global:r06TestRequests | Where-Object { $_.Uri -like '*/rpc/rider_retire_r06_card_fixture' })
     $availability = @($global:r06TestRequests | Where-Object { $_.Uri -like '*/rpc/driver_set_availability' })
@@ -195,10 +188,10 @@ Describe 'R06 local retirement operator' {
     $availability.Count | Should Be 1
     $availability[0].Role | Should Be 'authenticated'
     $availability[0].Subject | Should Be $global:r06TestDriverId
-    $operatorReads = @($global:r06TestRequests | Where-Object { $_.Role -eq 'service_role' })
+    $operatorReads = @($global:r06TestRequests | Where-Object { $_.SecretKeyPresent })
     $operatorReads.Count | Should BeGreaterThan 0
     @($operatorReads | Where-Object {
-      -not $_.ApiKeyPresent -or -not $_.LegacyBearerMatchesApiKey -or
+      -not $_.ApiKeyPresent -or $_.SecretKeyUsedAsBearer -or
       ($_.Method -ne 'GET' -and $_.Uri -notlike '*/rpc/backend_read_stripe_test_preparation')
     }).Count | Should Be 0
     @($operatorReads | Where-Object { $_.Uri -notmatch '^https://ykasivejjchupswqyxpm\.supabase\.co/rest/v1/(trips|payments|payment_attempts|receipts|driver_availability|vehicles)\?' -and $_.Uri -notlike '*/rpc/backend_read_stripe_test_preparation' }).Count | Should Be 0
@@ -321,69 +314,49 @@ Describe 'R06 local retirement operator' {
   }
 
   It 'refuses non-read-only privileged paths before making a request' {
-    $key = ConvertTo-SecureString (New-TestOperatorJwt) -AsPlainText -Force
+    $key = ConvertTo-SecureString (New-TestSecretKey) -AsPlainText -Force
     { Invoke-R06OperatorRead -Path '/rest/v1/rpc/rider_retire_r06_card_fixture' -OperatorKey $key -Body @{} } | Should Throw
     $global:r06TestRequests.Count | Should Be 0
     $key.Dispose()
   }
 
-  It 'accepts documented legacy service-role claims for the exact project' {
-    $key = ConvertTo-SecureString (New-TestOperatorJwt) -AsPlainText -Force
-    { Assert-R06OperatorKey -OperatorKey $key } | Should Not Throw
+  It 'accepts an opaque Supabase secret API key' {
+    $key = ConvertTo-SecureString (New-TestSecretKey) -AsPlainText -Force
+    { Assert-R06SecretKey -OperatorKey $key } | Should Not Throw
     $key.Dispose()
   }
 
-  It 'rejects wrong project, issuer, role, and expired legacy service-role claims' {
-    $invalidClaims = @(
-      @{ ref = 'another-project-reference' },
-      @{ iss = 'https://ykasivejjchupswqyxpm.supabase.co/auth/v1' },
-      @{ role = 'anon' },
-      @{ exp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - 1 }
-    )
-    foreach ($override in $invalidClaims) {
-      $key = ConvertTo-SecureString (New-TestOperatorJwt -Overrides $override) -AsPlainText -Force
-      { Assert-R06OperatorKey -OperatorKey $key } | Should Throw 'operator_credential_invalid'
-      $key.Dispose()
-    }
-  }
-
-  It 'rejects missing, malformed, and opaque secret-key claims without leaking input' {
+  It 'rejects legacy JWT and malformed secret-key values without leaking input' {
     $invalidTokens = @(
-      (New-TestJwtFromClaims -Claims @{ iss = 'supabase'; role = 'service_role'; exp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 3000 }),
-      (New-TestJwtFromClaims -Claims @{ iss = 'supabase'; ref = 'ykasivejjchupswqyxpm'; role = 'service_role'; exp = 'not-a-number' }),
-      'sb_secret_test_only_opaque_key'
+      (New-TestJwt -Subject '11111111-1111-4111-8111-111111111111' -ExpiresAt ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 3000) -Role 'service_role'),
+      'sb_secret_',
+      'sb_publishable_not_a_secret'
     )
     foreach ($token in $invalidTokens) {
       $key = ConvertTo-SecureString $token -AsPlainText -Force
-      $errorMessage = ''
-      try { Assert-R06OperatorKey -OperatorKey $key } catch { $errorMessage = $_.Exception.Message }
-      $errorMessage | Should Be 'operator_credential_invalid'
-      $errorMessage | Should Not Match ([regex]::Escape($token))
+      { Assert-R06SecretKey -OperatorKey $key } | Should Throw 'operator_credential_invalid'
       $key.Dispose()
     }
   }
 
   It 'makes no authentication or mutation request after rejecting operator credentials' {
-    $global:r06OperatorJwt = New-TestOperatorJwt -Overrides @{
-      ref = 'wrong-project-reference'
-      signature_marker = 'test-only-secret-marker'
-    }
+    $global:r06OperatorKey = 'not-a-valid-secret-key'
     $errorMessage = ''
     try { Invoke-R06Retirement -HttpTransport (New-R06TestTransport) | Out-Null }
     catch { $errorMessage = $_.Exception.Message }
     $errorMessage | Should Be 'operator_credential_invalid'
-    $errorMessage | Should Not Match 'test-only-secret-marker|test-only-password-do-not-print'
+    $errorMessage | Should Not Match 'not-a-valid-secret-key|test-only-password-do-not-print'
     $global:r06TestRequests.Count | Should Be 0
     $global:r06MutationCalls | Should Be 0
   }
 
-  It 'halts without mutation when Supabase rejects the operator JWT on the read-only preflight' {
+  It 'halts without mutation when Supabase rejects the operator secret key on read-only preflight' {
     $global:r06Scenario = 'bad_operator_auth'
     $errorMessage = ''
     try { Invoke-R06Retirement -HttpTransport (New-R06TestTransport) | Out-Null }
     catch { $errorMessage = $_.Exception.Message }
     $errorMessage | Should Be 'r06_request_failed'
-    $operatorReads = @($global:r06TestRequests | Where-Object { $_.Role -eq 'service_role' })
+    $operatorReads = @($global:r06TestRequests | Where-Object { $_.SecretKeyPresent })
     $operatorReads.Count | Should Be 1
     $operatorReads[0].Method | Should Be 'GET'
     $operatorReads[0].Uri | Should Match '/rest/v1/trips\?'

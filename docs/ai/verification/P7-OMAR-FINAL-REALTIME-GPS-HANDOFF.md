@@ -155,8 +155,8 @@ For the live acceptance, set only the isolated local values and run:
 ```powershell
 $env:D05_REALTIME_ACCEPTANCE = '1'
 $env:D05_SUPABASE_URL = 'http://127.0.0.1:55421'
-$env:D05_SUPABASE_ANON_KEY = '<isolated-local-anon-key>'
-$env:D05_SUPABASE_SERVICE_ROLE_KEY = '<isolated-local-service-role-key>'
+$env:D05_SUPABASE_PUBLISHABLE_KEY = '<isolated-local-anon-key>'
+$env:D05_SUPABASE_SECRET_KEY = '<isolated-local-service-role-key>'
 flutter test --no-pub test/p7_d05_realtime_acceptance_test.dart
 ```
 

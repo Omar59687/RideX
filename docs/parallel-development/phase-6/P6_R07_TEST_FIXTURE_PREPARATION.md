@@ -274,8 +274,8 @@ treating prepared checks as executed acceptance evidence.
 
 Run from the repository root with Deno 2. The operator must load secrets into the
 process environment through a private secret manager/shell, never a command-line
-argument or checked-in file: `SUPABASE_ANON_KEY`,
-`SUPABASE_SERVICE_ROLE_KEY`, `R07_DRIVER_ACCESS_TOKEN`, `R07_RIDER_ACCESS_TOKEN`,
+argument or checked-in file: `SUPABASE_PUBLISHABLE_KEY`,
+`SUPABASE_SECRET_KEY`, `R07_DRIVER_ACCESS_TOKEN`, `R07_RIDER_ACCESS_TOKEN`,
 and `RIDEX_BACKEND_NAMESPACE=ridex-grad-ykasivejjchupswqyxpm-v1`. The script
 pins the URL to the approved project and checks both auth tokens against the exact
 account labels plus live unblocked profiles/Driver approval.
@@ -283,7 +283,7 @@ account labels plus live unblocked profiles/Driver approval.
 First run the read-only vehicle preflight:
 
 ```powershell
-deno run --allow-env=RIDEX_BACKEND_NAMESPACE,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,R07_DRIVER_ACCESS_TOKEN,R07_RIDER_ACCESS_TOKEN,R07_EXECUTION_APPROVAL_REF --allow-net=ykasivejjchupswqyxpm.supabase.co supabase/ops/p6_r07_prepare_cash_trip.ts `
+deno run --allow-env=RIDEX_BACKEND_NAMESPACE,SUPABASE_PUBLISHABLE_KEY,SUPABASE_SECRET_KEY,R07_DRIVER_ACCESS_TOKEN,R07_RIDER_ACCESS_TOKEN,R07_EXECUTION_APPROVAL_REF --allow-net=ykasivejjchupswqyxpm.supabase.co supabase/ops/p6_r07_prepare_cash_trip.ts `
   --prepare-vehicle
 ```
 
@@ -297,7 +297,7 @@ After the Rider has created and locked a Cash booking through the canonical app
 flow and the Driver vehicle is ready, run its read-only Trip preflight:
 
 ```powershell
-deno run --allow-env=RIDEX_BACKEND_NAMESPACE,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,R07_DRIVER_ACCESS_TOKEN,R07_RIDER_ACCESS_TOKEN,R07_EXECUTION_APPROVAL_REF --allow-net=ykasivejjchupswqyxpm.supabase.co supabase/ops/p6_r07_prepare_cash_trip.ts `
+deno run --allow-env=RIDEX_BACKEND_NAMESPACE,SUPABASE_PUBLISHABLE_KEY,SUPABASE_SECRET_KEY,R07_DRIVER_ACCESS_TOKEN,R07_RIDER_ACCESS_TOKEN,R07_EXECUTION_APPROVAL_REF --allow-net=ykasivejjchupswqyxpm.supabase.co supabase/ops/p6_r07_prepare_cash_trip.ts `
   --booking-id <canonical-booking-uuid> --vehicle-id <owned-vehicle-uuid>
 ```
 

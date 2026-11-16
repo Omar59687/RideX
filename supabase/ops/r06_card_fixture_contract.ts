@@ -12,8 +12,7 @@ export const R06_FIXTURE_LABEL_PREFIX = "RIDEX_R06_CARD_TEST_";
 export const R06_EXECUTION_APPROVAL_PREFIX = "owner-approved-r06-card-fixture-";
 export const INITIAL_AUTHORIZATION_WINDOW_MS = 120_000;
 
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const OPERATION_KEY = /^[A-Za-z0-9:_-]{8,128}$/u;
 
 export class CardFixtureError extends Error {
@@ -30,8 +29,8 @@ export interface CardFixtureOptions {
 export interface CardFixtureEnvironment {
   SUPABASE_URL?: string;
   RIDEX_BACKEND_NAMESPACE?: string;
-  SUPABASE_ANON_KEY?: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;
+  SUPABASE_PUBLISHABLE_KEY?: string;
+  SUPABASE_SECRET_KEY?: string;
   R06_RIDER_ACCESS_TOKEN?: string;
   R06_DRIVER_ACCESS_TOKEN?: string;
   LOCALAPPDATA?: string;
@@ -105,8 +104,8 @@ export function assertEnvironment(
   ) throw new CardFixtureError("project_or_namespace_mismatch");
   for (
     const name of [
-      "SUPABASE_ANON_KEY",
-      "SUPABASE_SERVICE_ROLE_KEY",
+      "SUPABASE_PUBLISHABLE_KEY",
+      "SUPABASE_SECRET_KEY",
       "R06_RIDER_ACCESS_TOKEN",
       "R06_DRIVER_ACCESS_TOKEN",
     ] as const
@@ -114,6 +113,12 @@ export function assertEnvironment(
     if (!environment[name]?.trim()) {
       throw new CardFixtureError("configuration_missing");
     }
+  }
+  if (
+    !environment.SUPABASE_PUBLISHABLE_KEY!.trim().startsWith("sb_publishable_") ||
+    !environment.SUPABASE_SECRET_KEY!.trim().startsWith("sb_secret_")
+  ) {
+    throw new CardFixtureError("configuration_invalid");
   }
   if (execute) {
     const statePath = environment.R06_FIXTURE_STATE_FILE?.trim();
@@ -129,9 +134,7 @@ export function assertEnvironment(
       : [];
     if (
       !statePath || !isAbsolutePath(statePath) ||
-      !expectedStatePaths.some((path) =>
-        statePath.toLowerCase() === path.toLowerCase()
-      )
+      !expectedStatePaths.some((path) => statePath.toLowerCase() === path.toLowerCase())
     ) {
       throw new CardFixtureError("state_file_required");
     }
@@ -158,9 +161,7 @@ export function assertActor(
   actor: CardFixtureActor,
   expectedRole: "rider" | "driver",
 ): void {
-  const expectedEmail = expectedRole === "rider"
-    ? R06_RIDER_EMAIL
-    : R06_DRIVER_EMAIL;
+  const expectedEmail = expectedRole === "rider" ? R06_RIDER_EMAIL : R06_DRIVER_EMAIL;
   if (
     !UUID.test(actor.id) || actor.email.toLowerCase() !== expectedEmail ||
     actor.role !== expectedRole || actor.is_blocked !== false ||
@@ -304,9 +305,7 @@ export function assertAttempt(
     now?: number;
   },
 ): void {
-  const createdAt = typeof attempt.created_at === "string"
-    ? Date.parse(attempt.created_at)
-    : NaN;
+  const createdAt = typeof attempt.created_at === "string" ? Date.parse(attempt.created_at) : NaN;
   const now = expected.now ?? Date.now();
   if (
     !UUID.test(String(attempt.id)) ||

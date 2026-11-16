@@ -52,7 +52,7 @@ export interface FareHandlerDependencies {
 
 export interface BackendQuoteCallerDependencies {
   supabaseUrl: string;
-  serviceRoleKey: string;
+  secretKey: string;
   googleRoutesApiKey: string;
   fetch?: FetchLike;
   timeoutMs?: number;
@@ -60,7 +60,7 @@ export interface BackendQuoteCallerDependencies {
 
 export interface CallerAuthorizationDependencies {
   supabaseUrl: string;
-  supabaseAnonKey: string;
+  publishableKey: string;
   fetch?: FetchLike;
   timeoutMs?: number;
 }
@@ -321,8 +321,7 @@ export function createBackendQuoteCaller(
   const timeoutMs = dependencies.timeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS;
 
   const serviceHeaders = {
-    apikey: dependencies.serviceRoleKey,
-    authorization: `Bearer ${dependencies.serviceRoleKey}`,
+    apikey: dependencies.secretKey,
     accept: "application/json",
   };
 
@@ -369,7 +368,7 @@ export function createBackendQuoteCaller(
   return async (input) => {
     if (
       !dependencies.supabaseUrl ||
-      !dependencies.serviceRoleKey ||
+      !dependencies.secretKey ||
       !dependencies.googleRoutesApiKey
     ) {
       throw new HttpError(503, "service_unavailable", "Fare service is unavailable.");
@@ -648,7 +647,7 @@ export async function authorizeCaller(
   if (!/^Bearer [^\s]{20,8192}$/u.test(authorization)) {
     throw new HttpError(401, "unauthorized", "Authentication is required.");
   }
-  if (!dependencies.supabaseUrl || !dependencies.supabaseAnonKey) {
+  if (!dependencies.supabaseUrl || !dependencies.publishableKey) {
     throw new HttpError(503, "service_unavailable", "Fare service is unavailable.");
   }
 
@@ -666,7 +665,7 @@ export async function authorizeCaller(
     response = await fetchWithTimeout(dependencies.fetch ?? fetch, usersUrl, {
       method: "GET",
       headers: {
-        apikey: dependencies.supabaseAnonKey,
+        apikey: dependencies.publishableKey,
         authorization,
         accept: "application/json",
       },

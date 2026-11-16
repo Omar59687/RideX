@@ -144,11 +144,7 @@ class EnvConfig {
       if (role == 'service_role') {
         throw const EnvConfigException(EnvConfigFailure.forbiddenBackendKey);
       }
-      if (role != 'anon') {
-        throw const EnvConfigException(
-          EnvConfigFailure.invalidPublishableKey,
-        );
-      }
+      throw const EnvConfigException(EnvConfigFailure.invalidPublishableKey);
     } on EnvConfigException {
       rethrow;
     } on Object {
