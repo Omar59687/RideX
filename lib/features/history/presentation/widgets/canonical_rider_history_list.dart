@@ -133,16 +133,16 @@ class _CanonicalRiderHistoryListState extends State<CanonicalRiderHistoryList> {
                 trip.status == DriverTripLifecycleStatus.cancelledByDriver ||
                 trip.status == DriverTripLifecycleStatus.cancelledByAdmin,
         };
+        if (trip.riderId != expectedRiderId || !allowed) {
+          throw const RiderHistoryException(RiderHistoryFailure.invalidResponse);
+        }
+        if (!seen.add(trip.tripId)) continue;
         final ordered = previous == null ||
             trip.createdAt.isBefore(previous.createdAt) ||
             (trip.createdAt.isAtSameMomentAs(previous.createdAt) &&
                 trip.tripId.compareTo(previous.tripId) < 0);
-        if (trip.riderId != expectedRiderId || !allowed || !ordered) {
+        if (!ordered) {
           throw const RiderHistoryException(RiderHistoryFailure.invalidResponse);
-        }
-        if (!seen.add(trip.tripId)) {
-          // An overlapping page is allowed, but cursor must still advance.
-          continue;
         }
         next.add(trip);
         previous = trip;
