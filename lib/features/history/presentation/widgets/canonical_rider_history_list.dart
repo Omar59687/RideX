@@ -72,7 +72,7 @@ class _CanonicalRiderHistoryListState extends State<CanonicalRiderHistoryList> {
       mounted && generation == _generation && _isAuthorized;
 
   Future<void> _load({required bool reset}) async {
-    if (!reset && (_loading || !_hasMore)) return;
+    if (!reset && (_loading || (!_hasMore && !_failed))) return;
     final generation = ++_generation;
     if (!_isAuthorized) {
       setState(() {
@@ -86,6 +86,9 @@ class _CanonicalRiderHistoryListState extends State<CanonicalRiderHistoryList> {
       return;
     }
     final cursor = reset ? null : _cursor;
+    final filter = _filter;
+    final expectedRiderId = widget.riderId;
+    final expectedRepository = widget.repository;
     setState(() {
       if (reset) {
         _trips.clear();
@@ -97,10 +100,10 @@ class _CanonicalRiderHistoryListState extends State<CanonicalRiderHistoryList> {
       _failed = false;
     });
     try {
-      final page = await widget.repository.readPage(
+      final page = await expectedRepository.readPage(
         RiderHistoryRequest(
-          riderId: widget.riderId,
-          filter: _filter,
+          riderId: expectedRiderId,
+          filter: filter,
           cursor: cursor,
         ),
       );
@@ -134,13 +137,15 @@ class _CanonicalRiderHistoryListState extends State<CanonicalRiderHistoryList> {
             trip.createdAt.isBefore(previous.createdAt) ||
             (trip.createdAt.isAtSameMomentAs(previous.createdAt) &&
                 trip.tripId.compareTo(previous.tripId) < 0);
-        if (trip.riderId != widget.riderId || !allowed || !ordered) {
+        if (trip.riderId != expectedRiderId || !allowed || !ordered) {
           throw const RiderHistoryException(RiderHistoryFailure.invalidResponse);
         }
-        if (seen.add(trip.tripId)) {
-          next.add(trip);
-          previous = trip;
+        if (!seen.add(trip.tripId)) {
+          // An overlapping page is allowed, but cursor must still advance.
+          continue;
         }
+        next.add(trip);
+        previous = trip;
       }
       if (page.nextCursor != null &&
           (next.isEmpty ||
@@ -213,7 +218,7 @@ class _CanonicalRiderHistoryListState extends State<CanonicalRiderHistoryList> {
           ],
         ),
         Expanded(
-          child: _failed
+          child: _failed && _trips.isEmpty
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -241,16 +246,22 @@ class _CanonicalRiderHistoryListState extends State<CanonicalRiderHistoryList> {
                           ),
                         )
                       : ListView.builder(
-                          itemCount: _trips.length + (_hasMore ? 1 : 0),
+                          itemCount: _trips.length + (_hasMore || _failed ? 1 : 0),
                           itemBuilder: (context, index) {
                             if (index == _trips.length) {
                               return Center(
                                 child: TextButton(
-                                  key: const Key('canonical-history-more'),
+                                  key: Key(_failed
+                                      ? 'canonical-history-retry'
+                                      : 'canonical-history-more'),
                                   onPressed: _loading
                                       ? null
                                       : () => _load(reset: false),
-                                  child: Text(_loading ? 'Loading...' : 'Load more'),
+                                  child: Text(_loading
+                                      ? 'Loading...'
+                                      : _failed
+                                          ? 'Retry'
+                                          : 'Load more'),
                                 ),
                               );
                             }
