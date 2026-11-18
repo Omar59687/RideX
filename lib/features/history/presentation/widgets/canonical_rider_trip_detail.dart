@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:ridex/features/history/data/rider_exact_trip_detail.dart';
-import 'package:ridex/features/history/data/rider_trip_history_contract.dart';
 
 /// Feature-local exact-ID details. Intentionally not wired into global router.
 /// Payment/receipt are never inferred from a completed Trip.
