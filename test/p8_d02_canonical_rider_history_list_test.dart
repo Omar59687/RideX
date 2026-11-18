@@ -55,6 +55,26 @@ class _ControlledReader implements RiderTripHistoryRepository {
   }) async => null;
 }
 
+
+class _ScriptedReader implements RiderTripHistoryRepository {
+  final requests = <RiderHistoryRequest>[];
+  final pending = <Completer<RiderHistoryPage>>[];
+
+  @override
+  Future<RiderHistoryPage> readPage(RiderHistoryRequest request) {
+    requests.add(request);
+    final completer = Completer<RiderHistoryPage>();
+    pending.add(completer);
+    return completer.future;
+  }
+
+  @override
+  Future<RiderHistoryTrip?> readExactTrip({
+    required String riderId,
+    required String tripId,
+  }) async => null;
+}
+
 void main() {
   testWidgets('empty canonical history shows no demo records', (tester) async {
     final repository = FakeRiderTripHistoryRepository(
@@ -143,4 +163,105 @@ void main() {
     expect(find.text('Trip history could not be loaded.'), findsOneWidget);
     expect(find.byKey(const Key('canonical-history-retry')), findsOneWidget);
   });
+  testWidgets('load more deduplicates overlapping rows with stable cursor',
+      (tester) async {
+    final repo = _ScriptedReader();
+    await tester.pumpWidget(screen(repo, riderA, () => riderA, (_) {}));
+    final first = record(1, riderA);
+    final second = record(2, riderA);
+    final third = record(3, riderA);
+    repo.pending[0].complete(RiderHistoryPage(
+      trips: [first, second],
+      nextCursor: RiderHistoryCursor(
+        createdAt: second.createdAt, tripId: second.tripId,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('canonical-history-more')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('canonical-history-more')));
+    await tester.pump();
+    expect(repo.requests[1].cursor!.tripId, second.tripId);
+    repo.pending[1].complete(RiderHistoryPage(
+      trips: [second, third], nextCursor: null,
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byKey(Key('canonical-history-${second.tripId}')), findsOneWidget);
+    expect(find.byKey(Key('canonical-history-${third.tripId}')), findsOneWidget);
+    expect(find.byKey(const Key('canonical-history-more')), findsNothing);
+  });
+
+  testWidgets('failed next page retains rows and retry preserves cursor',
+      (tester) async {
+    final repo = _ScriptedReader();
+    await tester.pumpWidget(screen(repo, riderA, () => riderA, (_) {}));
+    final first = record(1, riderA);
+    final cursor = RiderHistoryCursor(
+      createdAt: first.createdAt, tripId: first.tripId,
+    );
+    repo.pending[0].complete(RiderHistoryPage(
+      trips: [first], nextCursor: cursor,
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('canonical-history-more')));
+    await tester.pump();
+    repo.pending[1].completeError(
+      const RiderHistoryException(RiderHistoryFailure.unavailable),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(Key('canonical-history-${first.tripId}')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('canonical-history-retry')));
+    await tester.pump();
+    expect(repo.requests[2].cursor!.tripId, first.tripId);
+    repo.pending[2].complete(RiderHistoryPage(
+      trips: [record(2, riderA)], nextCursor: null,
+    ));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Synthetic pickup 1'), findsOneWidget);
+    expect(find.textContaining('Synthetic pickup 2'), findsOneWidget);
+  });
+
+  testWidgets('older filter response is discarded after filter change',
+      (tester) async {
+    final repo = _ScriptedReader();
+    await tester.pumpWidget(screen(repo, riderA, () => riderA, (_) {}));
+    await tester.tap(find.byKey(const Key('canonical-filter-cancelled')));
+    await tester.pump();
+    expect(repo.requests[1].filter, RiderHistoryFilter.cancelled);
+    repo.pending[1].complete(RiderHistoryPage(
+      trips: [record(2, riderA,
+          status: DriverTripLifecycleStatus.cancelledByRider)],
+      nextCursor: null,
+    ));
+    await tester.pumpAndSettle();
+    repo.pending[0].complete(RiderHistoryPage(
+      trips: [record(1, riderA)], nextCursor: null,
+    ));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Synthetic pickup 1'), findsNothing);
+    expect(find.textContaining('Synthetic pickup 2'), findsOneWidget);
+  });
+
+  testWidgets('adapter cannot display a foreign Rider trip',
+      (tester) async {
+    final repo = _ScriptedReader();
+    await tester.pumpWidget(screen(repo, riderA, () => riderA, (_) {}));
+    repo.pending[0].complete(RiderHistoryPage(
+      trips: [record(1, riderB)], nextCursor: null,
+    ));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Synthetic pickup 1'), findsNothing);
+    expect(find.byKey(const Key('canonical-history-retry')), findsOneWidget);
+  });
+
+  testWidgets('can open only an owned canonical Trip ID', (tester) async {
+    final opened = <String>[];
+    final repo = FakeRiderTripHistoryRepository(
+      records: [record(1, riderA)], currentRiderId: () => riderA,
+    );
+    await tester.pumpWidget(screen(repo, riderA, () => riderA, opened.add));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(Key('canonical-history-${record(1, riderA).tripId}')));
+    expect(opened, [record(1, riderA).tripId]);
+  });
+
 }
