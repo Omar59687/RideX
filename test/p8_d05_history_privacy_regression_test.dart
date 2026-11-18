@@ -187,4 +187,43 @@ void main() {
     expect(find.text('Trip not available.'), findsOneWidget);
     expect(find.textContaining('Paid'), findsNothing);
   });
+  test('missing route summary is rejected without creating a display row', () {
+    expect(
+      () => RiderHistoryTrip(
+        tripId: tripId,
+        bookingRequestId: bookingId,
+        riderId: riderA,
+        status: DriverTripLifecycleStatus.completed,
+        createdAt: DateTime.utc(2026, 11, 18),
+        updatedAt: DateTime.utc(2026, 11, 18),
+        pickupLabel: ' ',
+        destinationLabel: 'Synthetic destination',
+        lockedFareFils: 1234,
+        currency: 'JOD',
+      ),
+      throwsA(isA<RiderHistoryException>()),
+    );
+  });
+
+  test('failed and admin-cancelled Trip are terminal, not active', () {
+    expect(record(status: DriverTripLifecycleStatus.failed).isTerminal, isTrue);
+    expect(
+      record(status: DriverTripLifecycleStatus.cancelledByAdmin).isTerminal,
+      isTrue,
+    );
+    expect(record(status: DriverTripLifecycleStatus.inProgress).isTerminal,
+        isFalse);
+  });
+
+  test('history request pagination refuses unbounded limits', () {
+    expect(
+      () => RiderHistoryRequest(riderId: riderA, limit: 51),
+      throwsArgumentError,
+    );
+    expect(
+      () => RiderHistoryRequest(riderId: riderA, limit: 0),
+      throwsArgumentError,
+    );
+  });
+
 }
