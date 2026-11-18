@@ -106,6 +106,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Synthetic pickup 1'), findsOneWidget);
     current = riderB;
+    await tester.pumpWidget(
+      screen(repository, riderA, () => current, opened.add),
+    );
     await tester.pump();
     expect(find.textContaining('Synthetic pickup 1'), findsNothing);
     expect(find.textContaining('Sign in as the owning Rider'), findsOneWidget);
