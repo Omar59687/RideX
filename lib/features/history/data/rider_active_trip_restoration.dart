@@ -114,12 +114,17 @@ final class RiderActiveTripRestorer {
     if (!_current(riderId, epoch)) {
       _fail(RiderActiveRestoreFailure.staleSession);
     }
-    // A vanished or terminal Trip must not be restored as active.
-    if (fresh == null || fresh.isTerminal) return null;
-    if (!_validTrip(fresh, riderId) ||
+    // Do not allow a foreign/mismatched terminal row to masquerade as a
+    // legitimate finished Trip. Authenticate identity before terminal status.
+    if (fresh == null) return null;
+    if (fresh.riderId != riderId ||
         fresh.tripId != discovered.tripId ||
         fresh.bookingRequestId != discovered.bookingRequestId ||
         fresh.updatedAt.isBefore(discovered.updatedAt)) {
+      _fail(RiderActiveRestoreFailure.invalidResponse);
+    }
+    if (fresh.isTerminal) return null;
+    if (!_validTrip(fresh, riderId)) {
       _fail(RiderActiveRestoreFailure.invalidResponse);
     }
     return RiderActiveTripSnapshot(fresh);
