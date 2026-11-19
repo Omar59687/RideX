@@ -114,3 +114,38 @@ flutter analyze --no-pub
 Keep the dependency lock unchanged. Run the existing Cash booking regression
 suite after the focused tests; no Cash production code was modified in this
 workstream.
+
+
+## 2026-11-19 implementation-first continuation (tests intentionally deferred)
+
+Owner direction: complete source work before running combined Phase 8 verification. This is **not** a waiver of tests, independent review, integration approval or financial gates.
+
+B03 source checkpoint on this branch:
+- `lib/features/rider_payments/models/rider_receipt_state.dart` adds a typed, feature-only receipt proof and receipt reader interface. It requires distinct server-issued receipt, Trip and Payment IDs, card method, JOD amount and UTC issue time. The exact Trip/Payment comparison is fail-closed; null evidence and unknown outcomes remain distinct.
+- `lib/features/rider_payments/presentation/widgets/rider_receipt_panel.dart` adds read-only, accessible receipt presentation with separate unavailable/loading/not-issued/unknown/error/verified states. It does not fabricate receipt links or expose financial commands.
+- `test/rider_receipt_panel_test.dart` authors additional identity and UI checks. These tests have **not run** and their compilation is not asserted.
+
+Receipt UX is presently a feature-owned widget/contract, **not a production-wired authenticated receipt adapter**. The default reader throws unavailable; never interpret it as a valid empty result. The existing Rider checkout panel still has no live card action. Receipt visibility must be fed only from an independently authenticated, exact-ID canonical receipt read after backend review. In particular, a completed Trip or captured Payment alone must not cause the widget to display `RiderReceiptVerified`.
+
+### B05 consumer handoff / non-negotiable backend fields
+
+Review Yousuf's P8-A01 draft on `feature/p8-a01-payment-contracts` before implementing any live Card or receipt RPC. A01 is **proposed, not approved**. Required backend inputs and outputs for eventual feature adapter:
+
+1. Exact authenticated Rider-scoped Trip read: Trip ID, Booking ID, Rider ID, assigned Driver ID, current version/status and Card payment method. No booking-only authorization.
+2. Canonical Card Payment: server-issued Payment ID, exact Trip and Booking IDs, status, positive version, server-calculated JOD fils. Unknown/missing/mismatched identity must not be shown as authorized/captured.
+3. Independent receipt read: exact receipt ID and number, Trip ID, Payment ID, JOD amount, payment method and issued-at timestamp. A standalone receipt read must provide its own actor/ownership protections; missing receipt is not proof of provider failure.
+4. Post-match authorization boundary: separately approved Card matching gate, idempotent immutable intent, expected versions and server-controlled actor checks. No provider credentials or financial commands in the client; default Card gate OFF.
+5. UNKNOWN reconciliation: never auto-initiate a new provider attempt after a lost response. Only canonical server reconciliation may resolve status. App returns remain advisory.
+
+No RPC name or wire mapping has been assumed. No shared router/providers, Rider History, Driver, SQL, Edge, hosted or Stripe files were modified.
+
+### B06 integration-only checklist (not yet executed)
+
+- Gather approved SHAs, exact owned-file manifests, contracts and pending dependencies from Yousuf (#151), Moath (#153 if applicable), and Sanad (History branch), without cherry-picking unapproved sources.
+- Prepare a distinct integration branch from **current** main, with sole ownership of central router/providers; do not use this feature branch as a general shared workspace.
+- Wire feature-local checkout and receipt UI only to canonical actor-scoped reads with matching session/Trip/Booking/Payment/Receipt IDs and server versions. Keep Card hidden or disabled until matching and provider gates are explicitly approved.
+- Preserve Cash and existing Driver/History paths, session/logout invalidation, default-OFF flags and rollback boundaries.
+- **Only after combined integration:** run focused Rider receipt/controller tests, all Flutter and Cash regressions, formatter/analyzer, Deno, isolated pgTAP, debug APK builds and final read-only E2E. Treat hosted/Stripe acceptance as separate authorization.
+- Do not open PR, merge, deploy, trigger real Stripe operations or mutate hosted Supabase without separate owner approval.
+
+Current milestone truth: B01-B04 source authored (B03 receipt extension added, not wired); B05 backend adapter blocked by unapproved A01/A02/A04 contract and Card matching; B06 runtime integration not started; all new and old source tests deferred by owner.
