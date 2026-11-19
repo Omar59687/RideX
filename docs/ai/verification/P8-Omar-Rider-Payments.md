@@ -10,6 +10,7 @@
 - B03: `078913a52e248e33e2ca3205d2279fb0917887c9`
 - B04 hardening: `5af5cd6753d1b6f4be439ef3c348fa1868d648d4`
 - B04 resume-race correction: `8d7ac7a8a968bbdb7df427d5d08d5fc65bce826f`
+- B04 session-epoch fence: `c1b31a186c4a6309751b9af607c37e7e057c39bc`
 
 These commits are local only. They have not been pushed or opened as a PR.
 
@@ -42,6 +43,9 @@ These commits are local only. They have not been pushed or opened as a PR.
   default. It is not connected to production. Issue #151's approved backend
   request/response contract is still required before a live authenticated
   adapter can be implemented; no RPC or Payment ID was inferred.
+- The duplicate-handoff fence is session-memory scoped. Cross-process
+  idempotency must come from Yousuf's approved backend contract before any
+  real authorization handoff is enabled.
 - The repository's `CardPayment` contract has no receipt evidence field or
   canonical receipt reader. The UI therefore does not claim receipt issuance
   or availability. Receipt presentation remains blocked on an approved
@@ -57,13 +61,15 @@ These commits are local only. They have not been pushed or opened as a PR.
 
 ## Tests and validation
 
-Authored focused coverage: 15 controller tests, 7 fake launcher/handoff tests,
+Authored focused coverage: 14 controller tests, 8 fake launcher/handoff tests,
 and 4 widget tests (26 total). They cover missing and foreign Trips, blocked
 Rider, Cash gating, assignment eligibility, terminal Trips, duplicate reads
 and handoffs, stale Trip/Payment versions, UNKNOWN/error retry, session
 replacement including A→B→A, late reads, cancellation/malformed/network
 returns, logout during provider UI, app resume, post-return reread, lifecycle
-copy, dark theme, and retry presentation.
+copy, dark theme, and retry presentation. A deterministic test also reuses
+the same session object after A→B→A and checks that the old handoff return is
+fenced by the session epoch.
 
 Execution status in the implementation workspace:
 
