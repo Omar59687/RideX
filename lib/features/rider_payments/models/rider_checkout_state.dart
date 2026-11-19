@@ -219,8 +219,10 @@ final class RiderCheckoutState {
 
   final RiderCheckoutTripState trip;
   final RiderCheckoutPaymentState payment;
+
   /// Independent receipt evidence; never inferred from [payment].
   final RiderReceiptState receipt;
+
   /// Distinguishes a completed receipt read that was unavailable from the
   /// default no-reader state.
   final bool receiptCheckAttempted;

@@ -10,16 +10,17 @@ const paymentId = '22222222-2222-4222-8222-222222222222';
 RiderVerifiedReceipt receipt({
   String trip = tripId,
   String payment = paymentId,
-}) => RiderVerifiedReceipt(
-  receiptId: '33333333-3333-4333-8333-333333333333',
-  receiptNumber: 'RDX-EXAMPLE-001',
-  tripId: trip,
-  paymentId: payment,
-  amountPaidFils: 3250,
-  currency: 'JOD',
-  paymentMethod: PaymentMethod.card,
-  issuedAt: DateTime.utc(2026, 11, 19),
-);
+}) =>
+    RiderVerifiedReceipt(
+      receiptId: '33333333-3333-4333-8333-333333333333',
+      receiptNumber: 'RDX-EXAMPLE-001',
+      tripId: trip,
+      paymentId: payment,
+      amountPaidFils: 3250,
+      currency: 'JOD',
+      paymentMethod: PaymentMethod.card,
+      issuedAt: DateTime.utc(2026, 11, 19),
+    );
 
 void main() {
   test('canonical receipt identity must match both Trip and Payment', () {
@@ -75,7 +76,8 @@ void main() {
     );
   });
 
-  testWidgets('unknown and absent receipts never show receipt number', (tester) async {
+  testWidgets('unknown and absent receipts never show receipt number',
+      (tester) async {
     for (final state in <RiderReceiptState>[
       const RiderReceiptUnavailable(),
       const RiderReceiptUnknown(),
@@ -85,12 +87,14 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: Scaffold(body: RiderReceiptPanel(state: state))),
       );
-      expect(find.byKey(const ValueKey('rider-verified-receipt-number')), findsNothing);
+      expect(find.byKey(const ValueKey('rider-verified-receipt-number')),
+          findsNothing);
       expect(tester.takeException(), isNull);
     }
   });
 
-  testWidgets('verified receipt is distinct from payment status', (tester) async {
+  testWidgets('verified receipt is distinct from payment status',
+      (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -103,7 +107,8 @@ void main() {
     expect(find.textContaining('paid'), findsNothing);
   });
 
-  testWidgets('retry is read-only, explicit, and not shown for unavailable', (tester) async {
+  testWidgets('retry is read-only, explicit, and not shown for unavailable',
+      (tester) async {
     var calls = 0;
     await tester.pumpWidget(
       MaterialApp(

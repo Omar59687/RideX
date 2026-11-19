@@ -183,7 +183,8 @@ void main() {
     expect(find.text('Receipt'), findsOneWidget);
     expect(find.textContaining('Receipt outcome is unknown'), findsOneWidget);
     expect(find.text('Verified receipt is available.'), findsNothing);
-    expect(find.byKey(const ValueKey('rider-verified-receipt-number')), findsNothing);
+    expect(find.byKey(const ValueKey('rider-verified-receipt-number')),
+        findsNothing);
   });
 
   testWidgets(
@@ -219,5 +220,4 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
-
 }
