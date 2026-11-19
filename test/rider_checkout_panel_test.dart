@@ -4,6 +4,7 @@ import 'package:ridex/core/models/card_payment.dart';
 import 'package:ridex/core/models/driver_trip_completion.dart';
 import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
+import 'package:ridex/features/rider_payments/models/rider_receipt_state.dart';
 import 'package:ridex/features/rider_payments/presentation/widgets/rider_checkout_panel.dart';
 
 void main() {
@@ -148,4 +149,41 @@ void main() {
     expect(retries, 1);
     expect(find.text('Recheck status'), findsOneWidget);
   });
+  testWidgets('receipt section is opt-in and never inferred from payment', (
+    tester,
+  ) async {
+    final payment = CardPayment(
+      paymentId: '55555555-5555-4555-8555-555555555555',
+      bookingRequestId: '22222222-2222-4222-8222-222222222222',
+      tripId: 'a1b2c3d4-e5f6-4a1b-8c2d-a1b2c3d4e5f6',
+      amountFils: 7450,
+      status: CardPaymentStatus.cardPaymentSucceeded,
+      version: 2,
+    );
+    final state = RiderCheckoutState(
+      trip: const RiderCheckoutTripUnavailable(),
+      payment: RiderCheckoutCaptured(payment),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: Scaffold(body: RiderCheckoutPanel(state: state))),
+    );
+    expect(find.text('Receipt'), findsNothing);
+    expect(find.text('Verified receipt is available.'), findsNothing);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RiderCheckoutPanel(
+            state: state,
+            receiptState: const RiderReceiptUnknown(),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Receipt'), findsOneWidget);
+    expect(find.textContaining('Receipt outcome is unknown'), findsOneWidget);
+    expect(find.text('Verified receipt is available.'), findsNothing);
+    expect(find.byKey(const ValueKey('rider-verified-receipt-number')), findsNothing);
+  });
+
 }
