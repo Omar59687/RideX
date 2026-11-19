@@ -58,7 +58,8 @@ void main() {
     expect(launcher.requests.single.tripId, _tripId);
     expect(launcher.requests.single.expectedTripVersion, 4);
     expect(controller.state.payment, isA<RiderCheckoutActionRequired>());
-    expect(reader.paymentReads, [_tripId, _tripId]);
+    // Initial read, pre-handoff check, and mandatory post-return reconciliation.
+    expect(reader.paymentReads, [_tripId, _tripId, _tripId]);
   });
 
   test('duplicate handoff calls share one launch and cannot relaunch', () async {
@@ -107,7 +108,8 @@ void main() {
       await controller.refresh(tripId: _tripId);
       await controller.startCheckout();
       expect(controller.state.payment, isA<RiderCheckoutActionRequired>());
-      expect(reader.paymentReads, [_tripId, _tripId]);
+      // Every advisory return must trigger an additional canonical re-read.
+      expect(reader.paymentReads, [_tripId, _tripId, _tripId]);
       controller.dispose();
     }
   });
@@ -144,7 +146,8 @@ void main() {
     final launchCount = launcher.requests.length;
     await controller.onAppResumed();
 
-    expect(reader.paymentReads, [_tripId, _tripId, _tripId]);
+    // Initial, pre-handoff, post-return, and explicit app-resume read.
+    expect(reader.paymentReads, [_tripId, _tripId, _tripId, _tripId]);
     expect(launcher.requests, hasLength(launchCount));
   });
 
