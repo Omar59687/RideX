@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/core/providers/driver_cash_completion_providers.dart';
 import 'package:ridex/features/driver_flow/presentation/providers/driver_completion_interaction_provider.dart';
 import 'package:ridex/features/trips/presentation/widgets/driver_cash_completion_panel.dart';
+import 'package:ridex/features/driver_flow/presentation/widgets/driver_completion_handoff_panel.dart';
 
 /// No route parameter, mock Trip, version or financial authority enters here.
 /// The existing session-scoped composition discovers canonical backend context.
@@ -64,6 +65,8 @@ class _DriverCanonicalTripState extends ConsumerState<DriverCanonicalTripScreen>
                     ),
                     SizedBox(height: 24),
                     DriverCashCompletionPanel(),
+                    SizedBox(height: 16),
+                    DriverCompletionHandoffPanel(),
                   ],
                 )
               : const Text(

@@ -1,5 +1,23 @@
 # RideX Current Status
 
+## P8-C05 Driver Trip/Payment/Receipt handoff - 2026-11-19
+
+Separate branch `feature/p8-c05-driver-completion-handoff` stacks on approved C04
+`c630ecc`, C03 `c152f44`, C02 `1bd8a96`, C01 `30a27aa`/`2c52bc3`, origin/main `3be1aa6`.
+Adds an explicitly read-only, session-scoped typed handoff with independent Trip,
+Payment and Receipt outcomes. Driver finance access remains unconfigured: issue
+#151 has no published final draft/fixtures and 020/027 deny Driver payment reads.
+Existing completion/journal/recovery engines remain unchanged. Independent review
+is APPROVED. Focused regressions: 619 passed, including 52 handoff tests;
+seven changed Dart files analyze cleanly; Android debug build passed. Full analysis
+retains 21 inherited diagnostics in ten unchanged files. Flutter 3.41.2 / Dart
+3.11.0 requires temporary SDK resolution; exact lock enforcement exits 65 and the
+committed lockfile remains unchanged.
+See [C05 contract and exact owner dependencies](../verification/P8_C05_DRIVER_COMPLETION_HANDOFF.md).
+Default-OFF, unchanged lockfile and earlier worktrees are preserved. C05 awaits
+owner approval; C06 has not started. No hosted writes, financial/Stripe operations,
+emulator actions, push, PR, merge or deployment.
+
 ## P8-C04 Driver active Trip restoration - 2026-11-19
 
 Separate branch `feature/p8-c04-driver-active-trip-restoration` stacks on approved
