@@ -20,9 +20,9 @@ class RiderCheckoutController extends ChangeNotifier {
     required SessionState Function() readSession,
     RiderCheckoutLauncher launcher = const DisabledRiderCheckoutLauncher(),
     this.readDeadline = const Duration(seconds: 15),
-  }) : _reader = reader,
-       _readSession = readSession,
-       _launcher = launcher {
+  })  : _reader = reader,
+        _readSession = readSession,
+        _launcher = launcher {
     if (readDeadline <= Duration.zero) {
       throw ArgumentError.value(
         readDeadline,
@@ -99,11 +99,9 @@ class RiderCheckoutController extends ChangeNotifier {
   /// refund a payment.
   Future<void> retry() {
     final tripId = _tripId;
-    final tripFailed =
-        _state.trip is RiderCheckoutTripReadError ||
+    final tripFailed = _state.trip is RiderCheckoutTripReadError ||
         _state.trip is RiderCheckoutTripStale;
-    final paymentFailed =
-        _state.payment is RiderCheckoutPaymentReadError ||
+    final paymentFailed = _state.payment is RiderCheckoutPaymentReadError ||
         _state.payment is RiderCheckoutPaymentUnknown;
     if (tripId == null || (!tripFailed && !paymentFailed)) {
       return Future<void>.value();
@@ -130,8 +128,7 @@ class RiderCheckoutController extends ChangeNotifier {
     if (riderId == null || !identical(owner, _ownerSession)) {
       return Future<void>.value();
     }
-    final key =
-        '${riderId.toLowerCase()}:${trip.trip.tripId.toLowerCase()}:'
+    final key = '${riderId.toLowerCase()}:${trip.trip.tripId.toLowerCase()}:'
         '${trip.trip.version}';
     if (_attemptedHandoffKey == key) return Future<void>.value();
     final generation = _generation;
@@ -190,8 +187,7 @@ class RiderCheckoutController extends ChangeNotifier {
     }
     final freshRiderId = _authenticatedRiderId(owner);
     if (freshRiderId == null) return;
-    final freshKey =
-        '${freshRiderId.toLowerCase()}:'
+    final freshKey = '${freshRiderId.toLowerCase()}:'
         '${freshTrip.tripId.toLowerCase()}:${freshTrip.version}';
     if (freshKey != key || _attemptedHandoffKey == freshKey) return;
     _attemptedHandoffKey = freshKey;

@@ -46,17 +46,14 @@ class RiderCheckoutPanel extends StatelessWidget {
       RiderCheckoutRefunded() => 'Refund status is verified.',
       RiderCheckoutPaymentReadError() => 'Payment status could not be read.',
     };
-    final canRetry =
-        onRetry != null &&
+    final canRetry = onRetry != null &&
         (state.trip is RiderCheckoutTripReadError ||
             state.trip is RiderCheckoutTripStale ||
             state.payment is RiderCheckoutPaymentReadError ||
             state.payment is RiderCheckoutPaymentUnknown);
-    final isLoading =
-        state.trip is RiderCheckoutTripLoading ||
+    final isLoading = state.trip is RiderCheckoutTripLoading ||
         state.payment is RiderCheckoutPaymentLoading;
-    final hasError =
-        state.trip is RiderCheckoutTripReadError ||
+    final hasError = state.trip is RiderCheckoutTripReadError ||
         state.trip is RiderCheckoutTripStale ||
         state.payment is RiderCheckoutPaymentReadError ||
         state.payment is RiderCheckoutPaymentUnknown;

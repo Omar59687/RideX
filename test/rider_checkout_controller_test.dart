@@ -31,28 +31,30 @@ RiderCheckoutTrip _trip({
   int version = 4,
   DriverTripLifecycleStatus status = DriverTripLifecycleStatus.accepted,
   PaymentMethod method = PaymentMethod.card,
-}) => RiderCheckoutTrip(
-  tripId: tripId,
-  bookingRequestId: _bookingId,
-  riderId: riderId,
-  driverId: _driverId,
-  version: version,
-  status: status,
-  paymentMethod: method,
-);
+}) =>
+    RiderCheckoutTrip(
+      tripId: tripId,
+      bookingRequestId: _bookingId,
+      riderId: riderId,
+      driverId: _driverId,
+      version: version,
+      status: status,
+      paymentMethod: method,
+    );
 
 CardPayment _payment({
   String? paymentId = _paymentId,
   CardPaymentStatus status = CardPaymentStatus.cardPaymentAuthorized,
   int version = 2,
-}) => CardPayment(
-  paymentId: paymentId,
-  bookingRequestId: _bookingId,
-  tripId: _tripId,
-  amountFils: 7450,
-  status: status,
-  version: version,
-);
+}) =>
+    CardPayment(
+      paymentId: paymentId,
+      bookingRequestId: _bookingId,
+      tripId: _tripId,
+      amountFils: 7450,
+      status: status,
+      version: version,
+    );
 
 void main() {
   test('missing Trip never reads Payment', () async {
