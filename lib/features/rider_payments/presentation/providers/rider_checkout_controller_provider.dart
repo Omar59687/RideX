@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/features/rider_payments/application/rider_checkout_controller.dart';
+import 'package:ridex/features/rider_payments/application/rider_checkout_launcher.dart';
 import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
 
 /// Feature-local injection seam. No Supabase or payment provider is wired in
@@ -9,10 +10,15 @@ final riderCheckoutReaderProvider = Provider<RiderCheckoutReader>(
   (ref) => const UnavailableRiderCheckoutReader(),
 );
 
+final riderCheckoutLauncherProvider = Provider<RiderCheckoutLauncher>(
+  (ref) => const DisabledRiderCheckoutLauncher(),
+);
+
 final riderCheckoutControllerProvider =
     ChangeNotifierProvider.autoDispose<RiderCheckoutController>((ref) {
   final controller = RiderCheckoutController(
     reader: ref.watch(riderCheckoutReaderProvider),
+    launcher: ref.watch(riderCheckoutLauncherProvider),
     readSession: () => ref.read(sessionControllerProvider),
   );
   ref.listen(sessionControllerProvider, (previous, next) {

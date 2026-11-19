@@ -7,6 +7,7 @@ import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/features/rider_payments/application/rider_checkout_launcher.dart';
 import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
 
 /// Read-only controller for the post-assignment Rider checkout presentation.
@@ -17,9 +18,11 @@ class RiderCheckoutController extends ChangeNotifier {
   RiderCheckoutController({
     required RiderCheckoutReader reader,
     required SessionState Function() readSession,
+    RiderCheckoutLauncher launcher = const DisabledRiderCheckoutLauncher(),
     this.readDeadline = const Duration(seconds: 15),
   })  : _reader = reader,
-        _readSession = readSession {
+        _readSession = readSession,
+        _launcher = launcher {
     if (readDeadline <= Duration.zero) {
       throw ArgumentError.value(readDeadline, 'readDeadline', 'Must be positive.');
     }
@@ -27,12 +30,16 @@ class RiderCheckoutController extends ChangeNotifier {
 
   final RiderCheckoutReader _reader;
   final SessionState Function() _readSession;
+  final RiderCheckoutLauncher _launcher;
   final Duration readDeadline;
 
   RiderCheckoutState _state = const RiderCheckoutState.unavailable();
   RiderCheckoutState get state => _state;
 
   Future<void>? _pending;
+  Future<void>? _handoffPending;
+  Object? _handoffToken;
+  String? _attemptedHandoffKey;
   String? _pendingTripId;
   String? _tripId;
   SessionState? _ownerSession;
@@ -90,6 +97,99 @@ class RiderCheckoutController extends ChangeNotifier {
     return refresh(tripId: tripId);
   }
 
+  /// Rechecks canonical Trip and Payment state before handing off to an
+  /// optional checkout adapter. A callback/redirect is advisory only; after
+  /// it returns, the controller reads canonical state again. One handoff is
+  /// allowed per Rider/Trip/version in this session to prevent duplicate
+  /// authorization attempts when a callback is repeated or ambiguous.
+  Future<void> startCheckout() {
+    if (_disposed) return Future<void>.value();
+    final existing = _handoffPending;
+    if (existing != null) return existing;
+    final trip = _state.trip;
+    if (trip is! RiderCheckoutTripEligible ||
+        _state.payment is! RiderCheckoutActionRequired) {
+      return Future<void>.value();
+    }
+    final owner = _readSession();
+    final riderId = _authenticatedRiderId(owner);
+    if (riderId == null || !identical(owner, _ownerSession)) {
+      return Future<void>.value();
+    }
+    final key = '${riderId.toLowerCase()}:${trip.trip.tripId.toLowerCase()}:'
+        '${trip.trip.version}';
+    if (_attemptedHandoffKey == key) return Future<void>.value();
+    final generation = _generation;
+    final token = Object();
+    _handoffToken = token;
+    final operation = _launchAndReconcile(
+      trip: trip.trip,
+      key: key,
+      owner: owner,
+      generation: generation,
+    );
+    _handoffPending = operation.whenComplete(() {
+      if (identical(_handoffToken, token)) {
+        _handoffPending = null;
+        _handoffToken = null;
+      }
+    });
+    return _handoffPending!;
+  }
+
+  /// Reconciliation hook for app foreground/resume. It never relaunches
+  /// checkout and never treats the return signal as canonical payment state.
+  Future<void> onAppResumed() {
+    final tripId = _tripId;
+    if (tripId == null || _disposed) return Future<void>.value();
+    return refresh(tripId: tripId);
+  }
+
+  Future<void> _launchAndReconcile({
+    required RiderCheckoutTrip trip,
+    required String key,
+    required SessionState owner,
+    required int generation,
+  }) async {
+    if (!_isCurrent(generation, owner)) return;
+    // Confirm fresh Trip and Payment state immediately before external UI.
+    final canonicalRead = refresh(tripId: trip.tripId);
+    final preflightGeneration = _generation;
+    await canonicalRead;
+    if (preflightGeneration != _generation ||
+        !_isCurrent(_generation, owner) ||
+        _state.trip is! RiderCheckoutTripEligible ||
+        _state.payment is! RiderCheckoutActionRequired) {
+      return;
+    }
+    final tripState = _state.trip;
+    if (tripState is! RiderCheckoutTripEligible) return;
+    final freshTrip = tripState.trip;
+    if (freshTrip.version != trip.version ||
+        freshTrip.tripId.toLowerCase() != trip.tripId.toLowerCase()) {
+      return;
+    }
+    final freshRiderId = _authenticatedRiderId(owner);
+    if (freshRiderId == null) return;
+    final freshKey = '${freshRiderId.toLowerCase()}:'
+        '${freshTrip.tripId.toLowerCase()}:${freshTrip.version}';
+    if (freshKey != key || _attemptedHandoffKey == freshKey) return;
+    _attemptedHandoffKey = freshKey;
+
+    try {
+      await _launcher.launch(RiderCheckoutLaunchRequest(
+        tripId: freshTrip.tripId,
+        expectedTripVersion: freshTrip.version,
+      ));
+    } on Object {
+      // The provider outcome is uncertain. Reconciliation below is the only
+      // route to a payment state; it does not permit a second handoff.
+    }
+    if (preflightGeneration == _generation && _isCurrent(_generation, owner)) {
+      await refresh(tripId: freshTrip.tripId);
+    }
+  }
+
   /// Invalidates all data and fences late reads after logout, account change,
   /// profile refresh, or SDK session replacement. The owner calls this from
   /// its feature-local session listener.
@@ -98,6 +198,9 @@ class RiderCheckoutController extends ChangeNotifier {
     _generation++;
     _pending = null;
     _pendingTripId = null;
+    _handoffPending = null;
+    _handoffToken = null;
+    _attemptedHandoffKey = null;
     _ownerSession = null;
     _tripId = null;
     _lastTrip = null;
@@ -280,6 +383,9 @@ class RiderCheckoutController extends ChangeNotifier {
     _disposed = true;
     _generation++;
     _pending = null;
+    _handoffPending = null;
+    _handoffToken = null;
+    _attemptedHandoffKey = null;
     _ownerSession = null;
     _lastTrip = null;
     _lastPayment = null;
