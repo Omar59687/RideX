@@ -41,14 +41,13 @@ final class RiderCheckoutTrip {
   final PaymentMethod paymentMethod;
 
   bool get isTerminal => switch (status) {
-        DriverTripLifecycleStatus.completed ||
-        DriverTripLifecycleStatus.cancelledByRider ||
-        DriverTripLifecycleStatus.cancelledByDriver ||
-        DriverTripLifecycleStatus.cancelledByAdmin ||
-        DriverTripLifecycleStatus.failed =>
-          true,
-        _ => false,
-      };
+    DriverTripLifecycleStatus.completed ||
+    DriverTripLifecycleStatus.cancelledByRider ||
+    DriverTripLifecycleStatus.cancelledByDriver ||
+    DriverTripLifecycleStatus.cancelledByAdmin ||
+    DriverTripLifecycleStatus.failed => true,
+    _ => false,
+  };
 
   bool get isEligibleAssignedCardTrip =>
       paymentMethod == PaymentMethod.card &&
@@ -56,17 +55,12 @@ final class RiderCheckoutTrip {
         DriverTripLifecycleStatus.accepted ||
         DriverTripLifecycleStatus.driverArriving ||
         DriverTripLifecycleStatus.driverArrived ||
-        DriverTripLifecycleStatus.inProgress =>
-          true,
+        DriverTripLifecycleStatus.inProgress => true,
         _ => false,
       };
 }
 
-enum RiderCheckoutTripReadFailure {
-  unauthorized,
-  unavailable,
-  invalidResponse,
-}
+enum RiderCheckoutTripReadFailure { unauthorized, unavailable, invalidResponse }
 
 final class RiderCheckoutTripReadException implements Exception {
   const RiderCheckoutTripReadException(this.failure);
@@ -207,28 +201,24 @@ final class RiderCheckoutPaymentReadError extends RiderCheckoutPaymentState {
 
 /// Trip and Payment state are intentionally independent dimensions.
 final class RiderCheckoutState {
-  const RiderCheckoutState({
-    required this.trip,
-    required this.payment,
-  });
+  const RiderCheckoutState({required this.trip, required this.payment});
 
   const RiderCheckoutState.unavailable()
-      : trip = const RiderCheckoutTripUnavailable(),
-        payment = const RiderCheckoutPaymentUnavailable();
+    : trip = const RiderCheckoutTripUnavailable(),
+      payment = const RiderCheckoutPaymentUnavailable();
 
   final RiderCheckoutTripState trip;
   final RiderCheckoutPaymentState payment;
 }
 
-RiderCheckoutPaymentState riderCheckoutPaymentState(CardPayment payment) =>
-    switch (payment.status) {
-      CardPaymentStatus.cardPaymentPending =>
-        RiderCheckoutPaymentPending(payment),
-      CardPaymentStatus.cardPaymentAuthorized => RiderCheckoutAuthorized(payment),
-      CardPaymentStatus.cardPaymentSucceeded => RiderCheckoutCaptured(payment),
-      CardPaymentStatus.cardPaymentFailed => RiderCheckoutPaymentFailed(payment),
-      CardPaymentStatus.paymentCancelled =>
-        RiderCheckoutPaymentCancelled(payment),
-      CardPaymentStatus.refundPending => RiderCheckoutRefundPending(payment),
-      CardPaymentStatus.refunded => RiderCheckoutRefunded(payment),
-    };
+RiderCheckoutPaymentState riderCheckoutPaymentState(
+  CardPayment payment,
+) => switch (payment.status) {
+  CardPaymentStatus.cardPaymentPending => RiderCheckoutPaymentPending(payment),
+  CardPaymentStatus.cardPaymentAuthorized => RiderCheckoutAuthorized(payment),
+  CardPaymentStatus.cardPaymentSucceeded => RiderCheckoutCaptured(payment),
+  CardPaymentStatus.cardPaymentFailed => RiderCheckoutPaymentFailed(payment),
+  CardPaymentStatus.paymentCancelled => RiderCheckoutPaymentCancelled(payment),
+  CardPaymentStatus.refundPending => RiderCheckoutRefundPending(payment),
+  CardPaymentStatus.refunded => RiderCheckoutRefunded(payment),
+};

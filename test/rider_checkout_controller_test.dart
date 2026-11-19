@@ -32,27 +32,27 @@ RiderCheckoutTrip _trip({
   DriverTripLifecycleStatus status = DriverTripLifecycleStatus.accepted,
   PaymentMethod method = PaymentMethod.card,
 }) => RiderCheckoutTrip(
-      tripId: tripId,
-      bookingRequestId: _bookingId,
-      riderId: riderId,
-      driverId: _driverId,
-      version: version,
-      status: status,
-      paymentMethod: method,
-    );
+  tripId: tripId,
+  bookingRequestId: _bookingId,
+  riderId: riderId,
+  driverId: _driverId,
+  version: version,
+  status: status,
+  paymentMethod: method,
+);
 
 CardPayment _payment({
   String? paymentId = _paymentId,
   CardPaymentStatus status = CardPaymentStatus.cardPaymentAuthorized,
   int version = 2,
 }) => CardPayment(
-      paymentId: paymentId,
-      bookingRequestId: _bookingId,
-      tripId: _tripId,
-      amountFils: 7450,
-      status: status,
-      version: version,
-    );
+  paymentId: paymentId,
+  bookingRequestId: _bookingId,
+  tripId: _tripId,
+  amountFils: 7450,
+  status: status,
+  version: version,
+);
 
 void main() {
   test('missing Trip never reads Payment', () async {
@@ -88,24 +88,26 @@ void main() {
     expect(reader.paymentReads, isEmpty);
   });
 
-  test('eligible assigned Card Trip maps canonical authorization separately',
-      () async {
-    final reader = FakeRiderCheckoutReader()
-      ..trip = _trip()
-      ..payment = _payment();
-    final session = SessionState.fromUser(_rider);
-    final controller = RiderCheckoutController(
-      reader: reader,
-      readSession: () => session,
-    );
-    addTearDown(controller.dispose);
+  test(
+    'eligible assigned Card Trip maps canonical authorization separately',
+    () async {
+      final reader = FakeRiderCheckoutReader()
+        ..trip = _trip()
+        ..payment = _payment();
+      final session = SessionState.fromUser(_rider);
+      final controller = RiderCheckoutController(
+        reader: reader,
+        readSession: () => session,
+      );
+      addTearDown(controller.dispose);
 
-    await controller.refresh(tripId: _tripId);
+      await controller.refresh(tripId: _tripId);
 
-    expect(controller.state.trip, isA<RiderCheckoutTripEligible>());
-    expect(controller.state.payment, isA<RiderCheckoutAuthorized>());
-    expect(reader.paymentReads, [_tripId]);
-  });
+      expect(controller.state.trip, isA<RiderCheckoutTripEligible>());
+      expect(controller.state.payment, isA<RiderCheckoutAuthorized>());
+      expect(reader.paymentReads, [_tripId]);
+    },
+  );
 
   test('Payment without a canonical Payment ID remains UNKNOWN', () async {
     final reader = FakeRiderCheckoutReader()
@@ -140,25 +142,28 @@ void main() {
     expect(reader.paymentReads, isEmpty);
   });
 
-  test('older Trip version is stale and cannot restore Payment state', () async {
-    final reader = FakeRiderCheckoutReader()
-      ..trip = _trip(version: 5)
-      ..payment = _payment();
-    final session = SessionState.fromUser(_rider);
-    final controller = RiderCheckoutController(
-      reader: reader,
-      readSession: () => session,
-    );
-    addTearDown(controller.dispose);
+  test(
+    'older Trip version is stale and cannot restore Payment state',
+    () async {
+      final reader = FakeRiderCheckoutReader()
+        ..trip = _trip(version: 5)
+        ..payment = _payment();
+      final session = SessionState.fromUser(_rider);
+      final controller = RiderCheckoutController(
+        reader: reader,
+        readSession: () => session,
+      );
+      addTearDown(controller.dispose);
 
-    await controller.refresh(tripId: _tripId);
-    reader.trip = _trip(version: 4);
-    await controller.refresh(tripId: _tripId);
+      await controller.refresh(tripId: _tripId);
+      reader.trip = _trip(version: 4);
+      await controller.refresh(tripId: _tripId);
 
-    expect(controller.state.trip, isA<RiderCheckoutTripStale>());
-    expect(controller.state.payment, isA<RiderCheckoutPaymentUnavailable>());
-    expect(reader.paymentReads, [_tripId]);
-  });
+      expect(controller.state.trip, isA<RiderCheckoutTripStale>());
+      expect(controller.state.payment, isA<RiderCheckoutPaymentUnavailable>());
+      expect(reader.paymentReads, [_tripId]);
+    },
+  );
 
   test('unknown Payment read stays unknown and retry is read-only', () async {
     final reader = FakeRiderCheckoutReader()
@@ -227,59 +232,68 @@ void main() {
     expect(controller.state.payment, isA<RiderCheckoutPaymentUnavailable>());
   });
 
-  test('Rider A to B to A replacement fences the first session response',
-      () async {
-    final paymentGate = Completer<CardPayment?>();
-    final paymentStarted = Completer<void>();
-    final reader = FakeRiderCheckoutReader()
-      ..trip = _trip()
-      ..paymentGate = paymentGate
-      ..paymentReadStarted = paymentStarted;
-    var session = SessionState.fromUser(_rider);
-    final controller = RiderCheckoutController(
-      reader: reader,
-      readSession: () => session,
-    );
-    addTearDown(controller.dispose);
+  test(
+    'Rider A to B to A replacement fences the first session response',
+    () async {
+      final paymentGate = Completer<CardPayment?>();
+      final paymentStarted = Completer<void>();
+      final reader = FakeRiderCheckoutReader()
+        ..trip = _trip()
+        ..paymentGate = paymentGate
+        ..paymentReadStarted = paymentStarted;
+      var session = SessionState.fromUser(_rider);
+      final controller = RiderCheckoutController(
+        reader: reader,
+        readSession: () => session,
+      );
+      addTearDown(controller.dispose);
 
-    final firstSessionRead = controller.refresh(tripId: _tripId);
-    await paymentStarted.future;
-    session = SessionState.fromUser(AppUser(
-      id: '66666666-6666-4666-8666-666666666666',
-      name: 'Other Rider',
-      email: 'other@example.test',
-      role: RideRole.rider,
-    ));
-    controller.sessionChanged();
-    session = SessionState.fromUser(_rider);
-    controller.sessionChanged();
-    paymentGate.complete(_payment());
-    await firstSessionRead;
+      final firstSessionRead = controller.refresh(tripId: _tripId);
+      await paymentStarted.future;
+      session = SessionState.fromUser(
+        AppUser(
+          id: '66666666-6666-4666-8666-666666666666',
+          name: 'Other Rider',
+          email: 'other@example.test',
+          role: RideRole.rider,
+        ),
+      );
+      controller.sessionChanged();
+      session = SessionState.fromUser(_rider);
+      controller.sessionChanged();
+      paymentGate.complete(_payment());
+      await firstSessionRead;
 
-    expect(controller.state.trip, isA<RiderCheckoutTripUnavailable>());
-    expect(controller.state.payment, isA<RiderCheckoutPaymentUnavailable>());
-    expect(reader.paymentReads, [_tripId]);
-  });
+      expect(controller.state.trip, isA<RiderCheckoutTripUnavailable>());
+      expect(controller.state.payment, isA<RiderCheckoutPaymentUnavailable>());
+      expect(reader.paymentReads, [_tripId]);
+    },
+  );
 
-  test('older Payment version is unknown and cannot replace newer status',
-      () async {
-    final reader = FakeRiderCheckoutReader()
-      ..trip = _trip()
-      ..payment = _payment(version: 3);
-    final session = SessionState.fromUser(_rider);
-    final controller = RiderCheckoutController(
-      reader: reader,
-      readSession: () => session,
-    );
-    addTearDown(controller.dispose);
+  test(
+    'older Payment version is unknown and cannot replace newer status',
+    () async {
+      final reader = FakeRiderCheckoutReader()
+        ..trip = _trip()
+        ..payment = _payment(version: 3);
+      final session = SessionState.fromUser(_rider);
+      final controller = RiderCheckoutController(
+        reader: reader,
+        readSession: () => session,
+      );
+      addTearDown(controller.dispose);
 
-    await controller.refresh(tripId: _tripId);
-    reader.payment = _payment(version: 2, status: CardPaymentStatus.cardPaymentPending);
-    await controller.refresh(tripId: _tripId);
+      await controller.refresh(tripId: _tripId);
+      reader.payment = _payment(
+        version: 2,
+        status: CardPaymentStatus.cardPaymentPending,
+      );
+      await controller.refresh(tripId: _tripId);
 
-    expect(controller.state.payment, isA<RiderCheckoutPaymentUnknown>());
-    expect(reader.paymentReads, [_tripId, _tripId]);
-  });
+      expect(controller.state.payment, isA<RiderCheckoutPaymentUnknown>());
+      expect(reader.paymentReads, [_tripId, _tripId]);
+    },
+  );
 
   test('trip read failure can be retried without payment actions', () async {
     final reader = FakeRiderCheckoutReader()
@@ -326,48 +340,52 @@ void main() {
     expect(reader.paymentReads, isEmpty);
   });
 
-  test('Trip owned by another Rider is unavailable and Payment is not read',
-      () async {
-    final reader = FakeRiderCheckoutReader()
-      ..trip = _trip(riderId: '66666666-6666-4666-8666-666666666666');
-    final session = SessionState.fromUser(_rider);
-    final controller = RiderCheckoutController(
-      reader: reader,
-      readSession: () => session,
-    );
-    addTearDown(controller.dispose);
+  test(
+    'Trip owned by another Rider is unavailable and Payment is not read',
+    () async {
+      final reader = FakeRiderCheckoutReader()
+        ..trip = _trip(riderId: '66666666-6666-4666-8666-666666666666');
+      final session = SessionState.fromUser(_rider);
+      final controller = RiderCheckoutController(
+        reader: reader,
+        readSession: () => session,
+      );
+      addTearDown(controller.dispose);
 
-    await controller.refresh(tripId: _tripId);
+      await controller.refresh(tripId: _tripId);
 
-    expect(controller.state.trip, isA<RiderCheckoutTripUnavailable>());
-    expect(reader.paymentReads, isEmpty);
-  });
+      expect(controller.state.trip, isA<RiderCheckoutTripUnavailable>());
+      expect(reader.paymentReads, isEmpty);
+    },
+  );
 
-  test('late read for previous Trip cannot replace selected Trip state',
-      () async {
-    const otherTripId = '77777777-7777-4777-8777-777777777777';
-    final firstTripGate = Completer<RiderCheckoutTrip?>();
-    final reader = FakeRiderCheckoutReader()
-      ..trip = _trip(tripId: otherTripId)
-      ..tripGate = firstTripGate;
-    final session = SessionState.fromUser(_rider);
-    final controller = RiderCheckoutController(
-      reader: reader,
-      readSession: () => session,
-    );
-    addTearDown(controller.dispose);
+  test(
+    'late read for previous Trip cannot replace selected Trip state',
+    () async {
+      const otherTripId = '77777777-7777-4777-8777-777777777777';
+      final firstTripGate = Completer<RiderCheckoutTrip?>();
+      final reader = FakeRiderCheckoutReader()
+        ..trip = _trip(tripId: otherTripId)
+        ..tripGate = firstTripGate;
+      final session = SessionState.fromUser(_rider);
+      final controller = RiderCheckoutController(
+        reader: reader,
+        readSession: () => session,
+      );
+      addTearDown(controller.dispose);
 
-    final oldRead = controller.refresh(tripId: _tripId);
-    final currentRead = controller.refresh(tripId: otherTripId);
-    await currentRead;
-    firstTripGate.complete(_trip());
-    await oldRead;
+      final oldRead = controller.refresh(tripId: _tripId);
+      final currentRead = controller.refresh(tripId: otherTripId);
+      await currentRead;
+      firstTripGate.complete(_trip());
+      await oldRead;
 
-    final state = controller.state.trip;
-    if (state is RiderCheckoutTripEligible) {
-      expect(state.trip.tripId, otherTripId);
-    } else {
-      fail('Expected the current Trip to remain eligible.');
-    }
-  });
+      final state = controller.state.trip;
+      if (state is RiderCheckoutTripEligible) {
+        expect(state.trip.tripId, otherTripId);
+      } else {
+        fail('Expected the current Trip to remain eligible.');
+      }
+    },
+  );
 }

@@ -34,7 +34,10 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Assigned Trip verified for Card checkout.'), findsOneWidget);
+    expect(
+      find.text('Assigned Trip verified for Card checkout.'),
+      findsOneWidget,
+    );
     expect(
       find.text('Card checkout is required but not available in this build.'),
       findsOneWidget,
@@ -60,10 +63,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(
-      find.textContaining('outcome is unknown'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('outcome is unknown'), findsOneWidget);
     expect(find.textContaining('paid'), findsNothing);
     expect(find.textContaining('failed'), findsNothing);
   });
@@ -80,9 +80,18 @@ void main() {
       version: 2,
     );
     final cases = <(RiderCheckoutPaymentState, String)>[
-      (RiderCheckoutPaymentPending(payment), 'Payment is pending; it is not confirmed.'),
-      (RiderCheckoutAuthorized(payment), 'Card authorization is verified; capture is separate.'),
-      (RiderCheckoutCaptured(payment), 'Captured status was read from the payment record.'),
+      (
+        RiderCheckoutPaymentPending(payment),
+        'Payment is pending; it is not confirmed.',
+      ),
+      (
+        RiderCheckoutAuthorized(payment),
+        'Card authorization is verified; capture is separate.',
+      ),
+      (
+        RiderCheckoutCaptured(payment),
+        'Captured status was read from the payment record.',
+      ),
       (RiderCheckoutPaymentFailed(payment), 'Card payment failed.'),
       (RiderCheckoutPaymentCancelled(payment), 'Card payment was cancelled.'),
       (RiderCheckoutRefundPending(payment), 'Refund is pending.'),
