@@ -1,6 +1,7 @@
 import 'package:ridex/core/models/card_payment.dart';
 import 'package:ridex/core/models/driver_trip_completion.dart';
 import 'package:ridex/core/models/payment_method.dart';
+import 'package:ridex/features/rider_payments/models/rider_receipt_state.dart';
 
 /// Minimal canonical Trip fields needed by Rider checkout.
 ///
@@ -201,16 +202,28 @@ final class RiderCheckoutPaymentReadError extends RiderCheckoutPaymentState {
   final RiderCheckoutPaymentReadFailure failure;
 }
 
-/// Trip and Payment state are intentionally independent dimensions.
+/// Trip, Payment and receipt state are intentionally independent dimensions.
 final class RiderCheckoutState {
-  const RiderCheckoutState({required this.trip, required this.payment});
+  const RiderCheckoutState({
+    required this.trip,
+    required this.payment,
+    this.receipt = const RiderReceiptUnavailable(),
+    this.receiptCheckAttempted = false,
+  });
 
   const RiderCheckoutState.unavailable()
       : trip = const RiderCheckoutTripUnavailable(),
-        payment = const RiderCheckoutPaymentUnavailable();
+        payment = const RiderCheckoutPaymentUnavailable(),
+        receipt = const RiderReceiptUnavailable(),
+        receiptCheckAttempted = false;
 
   final RiderCheckoutTripState trip;
   final RiderCheckoutPaymentState payment;
+  /// Independent receipt evidence; never inferred from [payment].
+  final RiderReceiptState receipt;
+  /// Distinguishes a completed receipt read that was unavailable from the
+  /// default no-reader state.
+  final bool receiptCheckAttempted;
 }
 
 RiderCheckoutPaymentState riderCheckoutPaymentState(

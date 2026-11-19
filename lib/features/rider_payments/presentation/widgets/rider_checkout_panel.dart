@@ -114,10 +114,10 @@ class RiderCheckoutPanel extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (receiptState != null) ...[
+                if (receiptState != null || state.receiptCheckAttempted) ...[
                   const SizedBox(height: 12),
                   RiderReceiptPanel(
-                    state: receiptState!,
+                    state: receiptState ?? state.receipt,
                     onRecheck: onReceiptRecheck,
                   ),
                 ],

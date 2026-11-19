@@ -157,3 +157,86 @@ Current milestone truth: B01-B04 source authored (B03 receipt extension added, n
 - `test/rider_checkout_panel_test.dart` now includes a widget regression for the captured-Card/no-receipt behavior. The five authored receipt tests remain unexecuted.
 - The published GitHub source passed seven simple presence/invariant checks (receipt identity fence, throwing disabled reader, opt-in display, no inferred receipt and no provider calls in widget). These are **static source checks, not Dart format, Flutter analyzer, executable test or build results**.
 - Next implementer must review the final published feature branch HEAD before modifying it, coordinate approved backend contract, and work in an isolated branch/worktree if separate account.
+
+## Isolated closure follow-on (2026-11-19)
+
+Implementation continued in isolated local worktree/branch
+`feature/p8-omar-payments-closure`, based exactly on remote checkpoint
+`b8bf00f9d74babeb915ca1a0d6510ac93cb84410`. The prior
+`feature/p8-b01-rider-payment-state` worktree and branch were preserved. No
+source changes were made to shared booking, router/provider, Cash, History,
+Supabase, or payment execution code.
+
+This follow-on hardens Payment identity and completes feature-local receipt
+read presentation: a canonical Payment ID must be a UUID and cannot change
+across increasing versions for the same Trip. After a canonical captured,
+refund-pending or refunded Payment read, the controller performs an
+independent receipt read scoped by exact Trip and Payment IDs. A returned
+receipt must also match the canonical Payment amount and currency. Missing,
+foreign, unknown and unavailable receipt outcomes remain distinct. Receipt
+reads share the controller's session/generation fence; logout and account
+replacement prevent delayed receipt results from being displayed. The panel
+uses the controller's independent receipt state and only displays a receipt
+number after exact-identity evidence. The production/default reader remains
+unavailable, so this is a testable feature-local seam, not a live backend
+integration.
+
+The focused source tree contains **43 authored tests** across
+`rider_checkout_controller_test.dart` (24),
+`rider_checkout_handoff_test.dart` (8),
+`rider_checkout_panel_test.dart` (6), and
+`rider_receipt_panel_test.dart` (5). This total includes Cash-only gating,
+callback/session recovery, stale version, UNKNOWN, receipt identity,
+no-inferred-receipt, and new logout/late-receipt regressions.
+
+The current verification environment has no `flutter` or `dart` executable.
+Therefore `flutter pub get`, Dart formatting, all four focused suites and
+`flutter analyze --no-pub` are **NOT RUN**. `git diff --check` is the only
+executed local code check. GitHub commit status for the base checkpoint had
+no status entries; the new isolated branch was not pushed, so it has no CI
+run. Do not treat the authored tests as passing.
+
+### B05/B06 closure boundary
+
+Yousuf's branch `feature/p8-a01-payment-contracts` at
+`93d17481fc341590c9ff97d3c60e966106c9c511` contains a **proposed** A01
+contract, not an approved runtime API. Its current matching/acceptance path
+is Cash-only; post-match Card authorization, canonical Card/receipt read
+wire mappings, server idempotency and trusted payment effects remain
+unavailable to this consumer. Accordingly no Supabase implementation,
+RPC-name mapping, provider dispatch, or financial action was added. B05 is
+BLOCKED pending consumer/owner review and approved backend work. B06 is
+PARTIAL: this handoff and feature-local composition are prepared, but shared
+route/provider integration, team SHA reconciliation, combined regressions,
+Android build and live/nonproduction acceptance remain for the integration
+checkpoint.
+
+Issue #149 remains open: the hosted R06/X2 migration discrepancy blocks any
+claim of hosted financial safety or activation readiness. No hosted data,
+migration, or payment operation was accessed or changed.
+
+Exact local Windows commands after applying the committed patch:
+
+```powershell
+flutter pub get
+dart format --output=none --set-exit-if-changed lib/features/rider_payments test/rider_checkout_controller_test.dart test/rider_checkout_handoff_test.dart test/rider_checkout_panel_test.dart test/rider_receipt_panel_test.dart
+flutter test --no-pub --concurrency=1 test/rider_checkout_controller_test.dart
+flutter test --no-pub --concurrency=1 test/rider_checkout_handoff_test.dart
+flutter test --no-pub --concurrency=1 test/rider_checkout_panel_test.dart
+flutter test --no-pub --concurrency=1 test/rider_receipt_panel_test.dart
+flutter analyze --no-pub
+```
+
+Keep `pubspec.lock` unchanged. Run Cash booking regressions and combined Flutter
+suite after shared integration; do not activate Card or use production
+credentials during those checks.
+
+### B06 integration order and exact dependency handoff
+
+1. **Yousuf / backend contract:** obtain owner and consumer approval of A01 and the final A02/A04 response mapping. The approved reader must provide the authenticated Rider's canonical Trip and assigned Driver, current Trip version/status, Booking link, Card method, server-issued Payment ID, exact Trip/Booking Payment links, status, positive version and integer JOD fils. It must also define how the client obtains the Payment ID for the existing ID-scoped canonical reader and how a receipt is independently looked up by Trip/Payment. The current A01 draft does not make these runtime operations approved or available.
+2. **Omar / feature adapter:** implement the concrete authenticated `RiderCheckoutReader` and `RiderReceiptReader` only after those wire contracts and actor checks are approved. Preserve the feature controller's session fences and exact identity checks. Keep `RiderCheckoutLauncher` disabled until the Card matching prerequisite, backend idempotency, and separate financial rollout approval are satisfied.
+3. **Shared UI integration owner:** on a separate integration branch from then-current main, designate one writer for central provider/router composition. Mount the feature panel only for an authenticated Rider's exact canonical assigned Card Trip; preserve the existing Cash route and all default-off gates. Do not duplicate booking or matching behavior.
+4. **Moath and Sanad consumers:** review the synthetic status/read mapping against Driver completion and Rider History contracts. Do not change their owned implementation in this branch. Receipt evidence may be reused only through its approved actor-scoped reader and exact linked IDs.
+5. **Combined acceptance:** run the four focused payment suites, existing Cash booking regressions, full serial Flutter suite, changed-file formatter, analyzer, and default/gated Android debug builds. Yousuf separately owns isolated SQL/Deno and migration evidence. Keep live provider, hosted migration, production account, and financial acceptance as separate explicit gates.
+
+Current dependency blocker is the missing approved source of a Payment ID for a Trip-scoped Rider read and the missing approved independent receipt lookup mapping. Also unresolved: Card matching is Cash-only today; capture-pending is not a current canonical `CardPaymentStatus`; trusted capture/void/refund/webhook effects and hosted R06/X2 parity remain backend/operator gates.

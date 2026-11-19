@@ -116,3 +116,9 @@ final class UnavailableRiderReceiptReader implements RiderReceiptReader {
 final class RiderReceiptUnavailableException implements Exception {
   const RiderReceiptUnavailableException();
 }
+
+/// The receipt reader could not establish whether a receipt exists. This is
+/// distinct from an authoritative empty result and must remain UNKNOWN.
+final class RiderReceiptOutcomeUnknownException implements Exception {
+  const RiderReceiptOutcomeUnknownException();
+}

@@ -186,4 +186,38 @@ void main() {
     expect(find.byKey(const ValueKey('rider-verified-receipt-number')), findsNothing);
   });
 
+  testWidgets(
+    'completed receipt read presents unavailable without inventing a receipt',
+    (tester) async {
+      final payment = CardPayment(
+        paymentId: '55555555-5555-4555-8555-555555555555',
+        bookingRequestId: '22222222-2222-4222-8222-222222222222',
+        tripId: 'a1b2c3d4-e5f6-4a1b-8c2d-a1b2c3d4e5f6',
+        amountFils: 7450,
+        status: CardPaymentStatus.cardPaymentSucceeded,
+        version: 2,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RiderCheckoutPanel(
+              state: RiderCheckoutState(
+                trip: const RiderCheckoutTripUnavailable(),
+                payment: RiderCheckoutCaptured(payment),
+                receiptCheckAttempted: true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Receipt verification is unavailable.'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('rider-verified-receipt-number')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
 }

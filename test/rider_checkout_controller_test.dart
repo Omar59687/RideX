@@ -9,6 +9,7 @@ import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/features/rider_payments/application/rider_checkout_controller.dart';
 import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
+import 'package:ridex/features/rider_payments/models/rider_receipt_state.dart';
 
 import 'helpers/fake_rider_checkout_reader.dart';
 
@@ -54,6 +55,22 @@ CardPayment _payment({
       amountFils: 7450,
       status: status,
       version: version,
+    );
+
+RiderVerifiedReceipt _receipt({
+  String tripId = _tripId,
+  String receiptPaymentId = _paymentId,
+  int amountFils = 7450,
+}) =>
+    RiderVerifiedReceipt(
+      receiptId: '66666666-6666-4666-8666-666666666666',
+      receiptNumber: 'RDX-TEST-001',
+      tripId: tripId,
+      paymentId: receiptPaymentId,
+      amountPaidFils: amountFils,
+      currency: 'JOD',
+      paymentMethod: PaymentMethod.card,
+      issuedAt: DateTime.utc(2026, 11, 19),
     );
 
 void main() {
@@ -111,6 +128,137 @@ void main() {
     },
   );
 
+  test(
+    'verified capture requires an independent exact-identity receipt read',
+    () async {
+      final reader = FakeRiderCheckoutReader()
+        ..trip = _trip()
+        ..payment = _payment(status: CardPaymentStatus.cardPaymentSucceeded);
+      final receiptReader = FakeRiderReceiptReader()..receipt = _receipt();
+      final session = SessionState.fromUser(_rider);
+      final controller = RiderCheckoutController(
+        reader: reader,
+        receiptReader: receiptReader,
+        readSession: () => session,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.refresh(tripId: _tripId);
+
+      expect(controller.state.payment, isA<RiderCheckoutCaptured>());
+      expect(controller.state.receipt, isA<RiderReceiptVerified>());
+      expect(receiptReader.reads, [(tripId: _tripId, paymentId: _paymentId)]);
+      expect(controller.state.receiptCheckAttempted, isTrue);
+    },
+  );
+
+  test('capture without receipt evidence remains not issued', () async {
+    final reader = FakeRiderCheckoutReader()
+      ..trip = _trip()
+      ..payment = _payment(status: CardPaymentStatus.cardPaymentSucceeded);
+    final receiptReader = FakeRiderReceiptReader();
+    final session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      receiptReader: receiptReader,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+
+    expect(controller.state.payment, isA<RiderCheckoutCaptured>());
+    expect(controller.state.receipt, isA<RiderReceiptNotIssued>());
+  });
+
+  test('unconfigured receipt reader stays unavailable after capture', () async {
+    final reader = FakeRiderCheckoutReader()
+      ..trip = _trip()
+      ..payment = _payment(status: CardPaymentStatus.cardPaymentSucceeded);
+    final session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+
+    expect(controller.state.receipt, isA<RiderReceiptUnavailable>());
+    expect(controller.state.receiptCheckAttempted, isTrue);
+  });
+
+  test(
+    'foreign receipt identity stays unknown after canonical Payment read',
+    () async {
+      final reader = FakeRiderCheckoutReader()
+        ..trip = _trip()
+        ..payment = _payment(status: CardPaymentStatus.cardPaymentSucceeded);
+      final receiptReader = FakeRiderReceiptReader()
+        ..receipt = _receipt(
+          receiptPaymentId: '77777777-7777-4777-8777-777777777777',
+        );
+      final session = SessionState.fromUser(_rider);
+      final controller = RiderCheckoutController(
+        reader: reader,
+        receiptReader: receiptReader,
+        readSession: () => session,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.refresh(tripId: _tripId);
+
+      expect(controller.state.receipt, isA<RiderReceiptUnknown>());
+    },
+  );
+
+  test('receipt amount must match canonical Payment amount', () async {
+    final reader = FakeRiderCheckoutReader()
+      ..trip = _trip()
+      ..payment = _payment(status: CardPaymentStatus.cardPaymentSucceeded);
+    final receiptReader = FakeRiderReceiptReader()
+      ..receipt = _receipt(amountFils: 7451);
+    final session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      receiptReader: receiptReader,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+
+    expect(controller.state.receipt, isA<RiderReceiptUnknown>());
+  });
+
+  test('late receipt read is fenced after logout', () async {
+    final receiptGate = Completer<RiderVerifiedReceipt?>();
+    final receiptStarted = Completer<void>();
+    final reader = FakeRiderCheckoutReader()
+      ..trip = _trip()
+      ..payment = _payment(status: CardPaymentStatus.cardPaymentSucceeded);
+    final receiptReader = FakeRiderReceiptReader()
+      ..gate = receiptGate
+      ..readStarted = receiptStarted;
+    var session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      receiptReader: receiptReader,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    final pending = controller.refresh(tripId: _tripId);
+    await receiptStarted.future;
+    session = const SessionState.unauthenticated();
+    controller.sessionChanged();
+    receiptGate.complete(_receipt());
+    await pending;
+
+    expect(controller.state.receipt, isA<RiderReceiptUnavailable>());
+    expect(controller.state.payment, isA<RiderCheckoutPaymentUnavailable>());
+  });
+
   test('Payment without a canonical Payment ID remains UNKNOWN', () async {
     final reader = FakeRiderCheckoutReader()
       ..trip = _trip()
@@ -125,6 +273,41 @@ void main() {
     await controller.refresh(tripId: _tripId);
 
     expect(controller.state.payment, isA<RiderCheckoutPaymentUnknown>());
+  });
+
+  test('malformed canonical Payment ID remains UNKNOWN', () async {
+    final reader = FakeRiderCheckoutReader()
+      ..trip = _trip()
+      ..payment = _payment(paymentId: 'not-a-server-payment-uuid');
+    final session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+
+    expect(controller.state.payment, isA<RiderCheckoutPaymentUnknown>());
+  });
+
+  test('unknown receipt read is not treated as a missing receipt', () async {
+    final reader = FakeRiderCheckoutReader()
+      ..trip = _trip()
+      ..payment = _payment(status: CardPaymentStatus.cardPaymentSucceeded);
+    final receiptReader = FakeRiderReceiptReader()
+      ..error = const RiderReceiptOutcomeUnknownException();
+    final session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      receiptReader: receiptReader,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+
+    expect(controller.state.receipt, isA<RiderReceiptUnknown>());
   });
 
   test('terminal Trip clears checkout and never reads Card status', () async {
@@ -296,6 +479,27 @@ void main() {
       expect(reader.paymentReads, [_tripId, _tripId]);
     },
   );
+
+  test('Payment identity cannot change across canonical versions', () async {
+    final reader = FakeRiderCheckoutReader()
+      ..trip = _trip()
+      ..payment = _payment(version: 2);
+    final session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+    reader.payment = _payment(
+      paymentId: '88888888-8888-4888-8888-888888888888',
+      version: 3,
+    );
+    await controller.refresh(tripId: _tripId);
+
+    expect(controller.state.payment, isA<RiderCheckoutPaymentUnknown>());
+  });
 
   test('trip read failure can be retried without payment actions', () async {
     final reader = FakeRiderCheckoutReader()

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:ridex/core/models/card_payment.dart';
 import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
+import 'package:ridex/features/rider_payments/models/rider_receipt_state.dart';
 
 class FakeRiderCheckoutReader implements RiderCheckoutReader {
   RiderCheckoutTrip? trip;
@@ -42,5 +43,32 @@ class FakeRiderCheckoutReader implements RiderCheckoutReader {
     paymentError = null;
     if (error != null) throw error;
     return payment;
+  }
+}
+
+class FakeRiderReceiptReader implements RiderReceiptReader {
+  RiderVerifiedReceipt? receipt;
+  Object? error;
+  Completer<RiderVerifiedReceipt?>? gate;
+  Completer<void>? readStarted;
+  final reads = <({String tripId, String paymentId})>[];
+
+  @override
+  Future<RiderVerifiedReceipt?> readReceipt({
+    required String tripId,
+    required String paymentId,
+  }) async {
+    reads.add((tripId: tripId, paymentId: paymentId));
+    final started = readStarted;
+    if (started != null && !started.isCompleted) started.complete();
+    final currentGate = gate;
+    if (currentGate != null) {
+      gate = null;
+      return currentGate.future;
+    }
+    final currentError = error;
+    error = null;
+    if (currentError != null) throw currentError;
+    return receipt;
   }
 }

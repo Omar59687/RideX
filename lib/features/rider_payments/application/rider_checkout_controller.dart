@@ -9,6 +9,7 @@ import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/features/rider_payments/application/rider_checkout_launcher.dart';
 import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
+import 'package:ridex/features/rider_payments/models/rider_receipt_state.dart';
 
 /// Read-only controller for the post-assignment Rider checkout presentation.
 ///
@@ -18,9 +19,11 @@ class RiderCheckoutController extends ChangeNotifier {
   RiderCheckoutController({
     required RiderCheckoutReader reader,
     required SessionState Function() readSession,
+    RiderReceiptReader receiptReader = const UnavailableRiderReceiptReader(),
     RiderCheckoutLauncher launcher = const DisabledRiderCheckoutLauncher(),
     this.readDeadline = const Duration(seconds: 15),
   })  : _reader = reader,
+        _receiptReader = receiptReader,
         _readSession = readSession,
         _launcher = launcher {
     if (readDeadline <= Duration.zero) {
@@ -33,6 +36,7 @@ class RiderCheckoutController extends ChangeNotifier {
   }
 
   final RiderCheckoutReader _reader;
+  final RiderReceiptReader _receiptReader;
   final SessionState Function() _readSession;
   final RiderCheckoutLauncher _launcher;
   final Duration readDeadline;
@@ -349,7 +353,7 @@ class RiderCheckoutController extends ChangeNotifier {
         );
         return;
       }
-      if (payment.paymentId?.trim().isNotEmpty != true ||
+      if (!isCanonicalTripId(payment.paymentId ?? '') ||
           payment.tripId?.toLowerCase() != trip.tripId.toLowerCase() ||
           payment.bookingRequestId?.toLowerCase() !=
               trip.bookingRequestId.toLowerCase()) {
@@ -363,7 +367,9 @@ class RiderCheckoutController extends ChangeNotifier {
       }
       final previousPayment = _lastPayment;
       if (previousPayment != null &&
-          (payment.version < previousPayment.version ||
+          (payment.paymentId?.toLowerCase() !=
+                  previousPayment.paymentId?.toLowerCase() ||
+              payment.version < previousPayment.version ||
               (payment.version == previousPayment.version &&
                   payment != previousPayment))) {
         _set(
@@ -375,10 +381,42 @@ class RiderCheckoutController extends ChangeNotifier {
         return;
       }
       _lastPayment = payment;
+      final paymentState = riderCheckoutPaymentState(payment);
+      final receiptEligible =
+          payment.status == CardPaymentStatus.cardPaymentSucceeded ||
+              payment.status == CardPaymentStatus.refundPending ||
+              payment.status == CardPaymentStatus.refunded;
+      if (!receiptEligible) {
+        _set(
+          RiderCheckoutState(
+            trip: RiderCheckoutTripEligible(trip),
+            payment: paymentState,
+          ),
+        );
+        return;
+      }
       _set(
         RiderCheckoutState(
           trip: RiderCheckoutTripEligible(trip),
-          payment: riderCheckoutPaymentState(payment),
+          payment: paymentState,
+          receipt: const RiderReceiptLoading(),
+          receiptCheckAttempted: true,
+        ),
+      );
+      final receiptState = await _readReceipt(
+        tripId: trip.tripId,
+        paymentId: payment.paymentId!,
+        payment: payment,
+        generation: generation,
+        owner: owner,
+      );
+      if (!_isCurrent(generation, owner)) return;
+      _set(
+        RiderCheckoutState(
+          trip: RiderCheckoutTripEligible(trip),
+          payment: paymentState,
+          receipt: receiptState,
+          receiptCheckAttempted: true,
         ),
       );
     } on RiderCheckoutPaymentReadException catch (error) {
@@ -411,6 +449,40 @@ class RiderCheckoutController extends ChangeNotifier {
           ),
         ),
       );
+    }
+  }
+
+  Future<RiderReceiptState> _readReceipt({
+    required String tripId,
+    required String paymentId,
+    required CardPayment payment,
+    required int generation,
+    required SessionState owner,
+  }) async {
+    try {
+      final receipt = await _receiptReader
+          .readReceipt(tripId: tripId, paymentId: paymentId)
+          .timeout(readDeadline);
+      if (!_isCurrent(generation, owner)) {
+        return const RiderReceiptUnavailable();
+      }
+      final state = verifiedReceiptForPayment(
+        receipt: receipt,
+        tripId: tripId,
+        paymentId: paymentId,
+      );
+      if (state is RiderReceiptVerified &&
+          (state.receipt.amountPaidFils != payment.amountFils ||
+              state.receipt.currency != payment.currency)) {
+        return const RiderReceiptUnknown();
+      }
+      return state;
+    } on RiderReceiptOutcomeUnknownException {
+      return const RiderReceiptUnknown();
+    } on RiderReceiptUnavailableException {
+      return const RiderReceiptUnavailable();
+    } on Object {
+      return const RiderReceiptReadError();
     }
   }
 
