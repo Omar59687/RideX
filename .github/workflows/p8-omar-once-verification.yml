@@ -30,6 +30,8 @@ jobs:
       - name: Resolve dependencies without modifying tracked files
         run: flutter pub get
       - name: Check owned Dart file formatting
+        id: format_check
+        continue-on-error: true
         run: |
           dart format --output=none --set-exit-if-changed \
             lib/features/rider_payments \
@@ -63,6 +65,15 @@ jobs:
       - name: Full analyzer (baseline non-gating diagnostics)
         continue-on-error: true
         run: flutter analyze --no-pub
+      - name: Enforce formatting after collecting all test results
+        if: always()
+        env:
+          FORMAT_OUTCOME: ${{ steps.format_check.outcome }}
+        run: |
+          if [ "$FORMAT_OUTCOME" != "success" ]; then
+            echo "Omar-owned Dart formatting is NOT clean: $FORMAT_OUTCOME" >&2
+            exit 1
+          fi
 
   android-build:
     name: Default and guarded Cash-Driver Android APK compilation
