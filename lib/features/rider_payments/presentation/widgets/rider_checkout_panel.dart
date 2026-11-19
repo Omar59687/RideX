@@ -8,11 +8,7 @@ import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
 /// launch a provider or dispatch a financial command. B02 owns the approved
 /// provider-neutral handoff seam.
 class RiderCheckoutPanel extends StatelessWidget {
-  const RiderCheckoutPanel({
-    super.key,
-    required this.state,
-    this.onRetry,
-  });
+  const RiderCheckoutPanel({super.key, required this.state, this.onRetry});
 
   final RiderCheckoutState state;
   final VoidCallback? onRetry;
@@ -23,8 +19,10 @@ class RiderCheckoutPanel extends StatelessWidget {
     final tripMessage = switch (state.trip) {
       RiderCheckoutTripUnavailable() => 'Trip is unavailable.',
       RiderCheckoutTripLoading() => 'Verifying assigned Trip.',
-      RiderCheckoutTripEligible() => 'Assigned Trip verified for Card checkout.',
-      RiderCheckoutTripIneligible() => 'This Trip is not eligible for Card checkout.',
+      RiderCheckoutTripEligible() =>
+        'Assigned Trip verified for Card checkout.',
+      RiderCheckoutTripIneligible() =>
+        'This Trip is not eligible for Card checkout.',
       RiderCheckoutTripStale() => 'Trip changed; verify its current status.',
       RiderCheckoutTripTerminal() => 'Trip has ended. Checkout is unavailable.',
       RiderCheckoutTripReadError() => 'Trip status could not be verified.',
@@ -34,25 +32,31 @@ class RiderCheckoutPanel extends StatelessWidget {
       RiderCheckoutPaymentLoading() => 'Loading canonical payment status.',
       RiderCheckoutActionRequired() =>
         'Card checkout is required but not available in this build.',
-      RiderCheckoutPaymentPending() => 'Payment is pending; it is not confirmed.',
+      RiderCheckoutPaymentPending() =>
+        'Payment is pending; it is not confirmed.',
       RiderCheckoutPaymentUnknown() =>
         'Payment outcome is unknown. Recheck canonical status before any action.',
-      RiderCheckoutAuthorized() => 'Card authorization is verified; capture is separate.',
-      RiderCheckoutCaptured() => 'Captured status was read from the payment record.',
+      RiderCheckoutAuthorized() =>
+        'Card authorization is verified; capture is separate.',
+      RiderCheckoutCaptured() =>
+        'Captured status was read from the payment record.',
       RiderCheckoutPaymentFailed() => 'Card payment failed.',
       RiderCheckoutPaymentCancelled() => 'Card payment was cancelled.',
       RiderCheckoutRefundPending() => 'Refund is pending.',
       RiderCheckoutRefunded() => 'Refund status is verified.',
       RiderCheckoutPaymentReadError() => 'Payment status could not be read.',
     };
-    final canRetry = onRetry != null &&
+    final canRetry =
+        onRetry != null &&
         (state.trip is RiderCheckoutTripReadError ||
             state.trip is RiderCheckoutTripStale ||
             state.payment is RiderCheckoutPaymentReadError ||
             state.payment is RiderCheckoutPaymentUnknown);
-    final isLoading = state.trip is RiderCheckoutTripLoading ||
+    final isLoading =
+        state.trip is RiderCheckoutTripLoading ||
         state.payment is RiderCheckoutPaymentLoading;
-    final hasError = state.trip is RiderCheckoutTripReadError ||
+    final hasError =
+        state.trip is RiderCheckoutTripReadError ||
         state.trip is RiderCheckoutTripStale ||
         state.payment is RiderCheckoutPaymentReadError ||
         state.payment is RiderCheckoutPaymentUnknown;
@@ -75,10 +79,7 @@ class RiderCheckoutPanel extends StatelessWidget {
                   label: 'Trip status. $tripMessage',
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.route_outlined,
-                      color: colors.primary,
-                    ),
+                    leading: Icon(Icons.route_outlined, color: colors.primary),
                     title: const Text('Trip'),
                     subtitle: Text(
                       tripMessage,
