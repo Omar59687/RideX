@@ -11,6 +11,7 @@
 - B04 hardening: `5af5cd6753d1b6f4be439ef3c348fa1868d648d4`
 - B04 resume-race correction: `8d7ac7a8a968bbdb7df427d5d08d5fc65bce826f`
 - B04 session-epoch fence: `c1b31a186c4a6309751b9af607c37e7e057c39bc`
+- B04 Payment identity guard: `3de74f778c36830503d7aeee5156f72140a64aa4`
 
 These commits are local only. They have not been pushed or opened as a PR.
 
@@ -23,6 +24,8 @@ These commits are local only. They have not been pushed or opened as a PR.
 - Session identity and generation fencing clear checkout state on logout or
   account replacement and suppress late Trip/Payment reads. Duplicate reads
   share one active operation; older Trip or Payment versions fail closed.
+  Canonical Payment responses without a Payment ID, or with a foreign Trip or
+  Booking ID, remain UNKNOWN rather than displaying an authorized status.
 - A provider-neutral checkout launcher interface accepts only Trip ID and
   expected Trip version. Its default implementation is disabled. Return,
   cancel, malformed, network-failure, and unavailable signals are advisory;
@@ -61,8 +64,8 @@ These commits are local only. They have not been pushed or opened as a PR.
 
 ## Tests and validation
 
-Authored focused coverage: 14 controller tests, 8 fake launcher/handoff tests,
-and 4 widget tests (26 total). They cover missing and foreign Trips, blocked
+Authored focused coverage: 15 controller tests, 8 fake launcher/handoff tests,
+and 4 widget tests (27 total). They cover missing and foreign Trips, blocked
 Rider, Cash gating, assignment eligibility, terminal Trips, duplicate reads
 and handoffs, stale Trip/Payment versions, UNKNOWN/error retry, session
 replacement including A→B→A, late reads, cancellation/malformed/network
