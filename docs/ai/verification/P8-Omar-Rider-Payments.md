@@ -149,3 +149,11 @@ No RPC name or wire mapping has been assumed. No shared router/providers, Rider 
 - Do not open PR, merge, deploy, trigger real Stripe operations or mutate hosted Supabase without separate owner approval.
 
 Current milestone truth: B01-B04 source authored (B03 receipt extension added, not wired); B05 backend adapter blocked by unapproved A01/A02/A04 contract and Card matching; B06 runtime integration not started; all new and old source tests deferred by owner.
+
+### Subsequent B03 feature-local wiring checkpoint
+
+- `RiderCheckoutPanel` now takes optional `receiptState` and `onReceiptRecheck` parameters and displays `RiderReceiptPanel` only when an independently sourced receipt state is explicitly passed.
+- Default omission exposes **no receipt** section; captured Card status alone cannot yield verified receipt presentation. No shared router, provider, Cash or History surface was edited.
+- `test/rider_checkout_panel_test.dart` now includes a widget regression for the captured-Card/no-receipt behavior. The five authored receipt tests remain unexecuted.
+- The published GitHub source passed seven simple presence/invariant checks (receipt identity fence, throwing disabled reader, opt-in display, no inferred receipt and no provider calls in widget). These are **static source checks, not Dart format, Flutter analyzer, executable test or build results**.
+- Next implementer must review the final published feature branch HEAD before modifying it, coordinate approved backend contract, and work in an isolated branch/worktree if separate account.
