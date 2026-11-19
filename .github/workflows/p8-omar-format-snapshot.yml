@@ -13,11 +13,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: 2d132f78c1b97e2fbda10a6562912ebe8744b4ad
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.41.2'
           channel: stable
           cache: true
+      - name: Resolve repo language version before formatting
+        run: flutter pub get
       - name: Show exact canonical Dart formatted files (no repository write)
         shell: bash
         run: |
