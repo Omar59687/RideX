@@ -1,14 +1,91 @@
-﻿{
+{
   "contract_version": "p8-a01-draft-v1",
   "synthetic_only": true,
   "omar_card_pending": {
-    "request": {"trip_id": "00000000-0000-4000-8000-000000000001", "payment_id": "00000000-0000-4000-8000-000000000002", "expected_trip_version": 3, "expected_payment_version": 1, "idempotency_key": "fixture-auth-1"},
-    "response": {"trip_id": "00000000-0000-4000-8000-000000000001", "payment_id": "00000000-0000-4000-8000-000000000002", "payment_version": 1, "outcome": "PENDING", "card_status": "cardPaymentPending", "amount_fils": 3250, "currency": "JOD", "receipt": null}
+    "request": {
+      "trip_id": "00000000-0000-4000-8000-000000000001",
+      "payment_id": "00000000-0000-4000-8000-000000000002",
+      "expected_trip_version": 3,
+      "expected_payment_version": 1,
+      "idempotency_key": "fixture-auth-1"
+    },
+    "response": {
+      "trip_id": "00000000-0000-4000-8000-000000000001",
+      "payment_id": "00000000-0000-4000-8000-000000000002",
+      "payment_version": 1,
+      "outcome": "PENDING",
+      "card_status": "cardPaymentPending",
+      "amount_fils": 3250,
+      "currency": "JOD",
+      "receipt": null
+    },
+    "example_kind": "PROPOSED_SYNTHETIC_NOT_WIRE"
   },
   "moath_trip_completed": {
-    "response": {"trip_id": "00000000-0000-4000-8000-000000000001", "trip_version": 4, "trip_status": "completed", "financial_outcome": "UNKNOWN", "receipt": null}
+    "response": {
+      "trip_id": "00000000-0000-4000-8000-000000000001",
+      "trip_version": 4,
+      "trip_status": "completed",
+      "financial_outcome": "UNKNOWN",
+      "receipt": null,
+      "payment_id": "00000000-0000-4000-8000-000000000002",
+      "payment_version": 2,
+      "capture_outcome": "UNKNOWN"
+    },
+    "example_kind": "PROPOSED_SYNTHETIC_NOT_WIRE"
   },
   "sanad_payment_receipt": {
-    "response": {"trip_id": "00000000-0000-4000-8000-000000000001", "payment": {"id": "00000000-0000-4000-8000-000000000002", "trip_id": "00000000-0000-4000-8000-000000000001", "version": 3, "method": "card", "card_status": "cardPaymentSucceeded", "amount_fils": 3250, "currency": "JOD"}, "receipt": {"id": "00000000-0000-4000-8000-000000000003", "receipt_number": "RDX-20261119-ABCDEFGH", "trip_id": "00000000-0000-4000-8000-000000000001", "payment_id": "00000000-0000-4000-8000-000000000002", "amount_paid_fils": 3250, "currency": "JOD", "payment_method": "card", "issued_at": "2026-11-19T12:00:00Z"}}
+    "response": {
+      "trip_id": "00000000-0000-4000-8000-000000000001",
+      "payment": {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "trip_id": "00000000-0000-4000-8000-000000000001",
+        "version": 3,
+        "method": "card",
+        "card_status": "cardPaymentSucceeded",
+        "currency": "JOD",
+        "booking_request_id": "00000000-0000-4000-8000-000000000004",
+        "rider_id": "00000000-0000-4000-8000-000000000005",
+        "final_amount_fils": 3250,
+        "cash_status": null,
+        "card_brand": null,
+        "card_last_four": null
+      },
+      "receipt": {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "receipt_number": "RDX-20261119-ABCDEFGH",
+        "trip_id": "00000000-0000-4000-8000-000000000001",
+        "payment_id": "00000000-0000-4000-8000-000000000002",
+        "amount_paid_fils": 3250,
+        "currency": "JOD",
+        "payment_method": "card",
+        "issued_at": "2026-11-19T12:00:00Z"
+      }
+    },
+    "example_kind": "PROPOSED_SYNTHETIC_NOT_WIRE"
+  },
+  "capture_pending": {
+    "example_kind": "PROPOSED_SYNTHETIC_NOT_WIRE",
+    "response": {
+      "trip_id": "00000000-0000-4000-8000-000000000001",
+      "trip_status": "completed",
+      "payment_id": "00000000-0000-4000-8000-000000000002",
+      "payment_version": 2,
+      "card_status": "cardPaymentAuthorized",
+      "capture_outcome": "PENDING",
+      "receipt": null
+    }
+  },
+  "refund_pending": {
+    "example_kind": "PROPOSED_SYNTHETIC_NOT_WIRE",
+    "response": {
+      "trip_id": "00000000-0000-4000-8000-000000000001",
+      "payment_id": "00000000-0000-4000-8000-000000000002",
+      "payment_version": 4,
+      "card_status": "refundPending",
+      "refund_amount_fils": 3250,
+      "currency": "JOD",
+      "receipt": null
+    }
   }
 }
