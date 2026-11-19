@@ -147,4 +147,34 @@ void main() {
     expect(reader.paymentReads, [_tripId, _tripId, _tripId]);
     expect(launcher.requests, hasLength(launchCount));
   });
+
+  test('logout during provider UI fences its late return signal', () async {
+    final reader = FakeRiderCheckoutReader()..trip = _trip();
+    final started = Completer<void>();
+    final gate = Completer<RiderCheckoutReturnSignal>();
+    final launcher = FakeRiderCheckoutLauncher()
+      ..launchStarted = started
+      ..gate = gate;
+    var session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      launcher: launcher,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+    final pending = controller.startCheckout();
+    await started.future;
+    session = const SessionState.unauthenticated();
+    controller.sessionChanged();
+    gate.complete(RiderCheckoutReturnSignal.returned);
+    await pending;
+
+    expect(controller.state.trip, isA<RiderCheckoutTripUnavailable>());
+    expect(controller.state.payment, isA<RiderCheckoutPaymentUnavailable>());
+    // Initial and pre-handoff canonical reads only; the late callback causes
+    // no read after the Rider session has been revoked.
+    expect(reader.paymentReads, [_tripId, _tripId]);
+  });
 }
