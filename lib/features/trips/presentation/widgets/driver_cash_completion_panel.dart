@@ -74,7 +74,7 @@ class DriverCashCompletionPanel extends ConsumerWidget {
             child: const Text('Check completion availability')),
       if (controller != null && state == DriverCashCompletionState.ready)
         FilledButton(
-            onPressed: controller.complete,
+            onPressed: controller.canComplete ? controller.complete : null,
             child: const Text('Complete Cash trip')),
       const Divider(),
       Text(recoveryText, key: const ValueKey('canonical-cash-recovery-status')),

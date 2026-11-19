@@ -332,7 +332,9 @@ class DriverCompletionCoordinator {
   ///
   /// Concurrent callers share the same future. After settlement, later
   /// calls return the settled outcome without new staging or dispatch.
-  Future<DriverCoordinatorOutcome> complete() {
+  Future<DriverCoordinatorOutcome> complete({
+    Future<bool> Function(CanonicalDriverCompletionContext)? beforeDispatch,
+  }) {
     if (_retired || _disposed) {
       return Future.value(const CoordinatorInvalidated());
     }
@@ -344,7 +346,7 @@ class DriverCompletionCoordinator {
     if (settled != null) {
       return _validateCached(settled);
     }
-    final future = _runOnce();
+    final future = _runOnce(beforeDispatch);
     _inFlight = future;
     future.whenComplete(() {
       if (identical(_inFlight, future)) {
@@ -382,7 +384,9 @@ class DriverCompletionCoordinator {
     }
   }
 
-  Future<DriverCoordinatorOutcome> _runOnce() async {
+  Future<DriverCoordinatorOutcome> _runOnce(
+    Future<bool> Function(CanonicalDriverCompletionContext)? beforeDispatch,
+  ) async {
     final generation = _generation;
     if (_retired || _disposed || !_isCurrent(generation)) {
       return _settle(
@@ -535,6 +539,27 @@ class DriverCompletionCoordinator {
           generation,
           CoordinatorBlocked(reason),
         );
+    }
+
+    // C02 optional Driver interaction check after durable staging. A failed or
+    // throwing check preserves the original evidence and never grants replay.
+    if (beforeDispatch != null) {
+      try {
+        final allowed = await beforeDispatch(context);
+        final current = await _sessionReader();
+        if (!_isCurrent(generation) || !current.sameOwner(sessionBefore)) {
+          return _settle(
+              generation, CoordinatorInvalidated(stagedCommand: stagedCommand),
+              publish: false);
+        }
+        if (!allowed) {
+          return _settle(
+              generation, CoordinatorUnresolved(stagedCommand: stagedCommand));
+        }
+      } on Object {
+        return _exceptionAfterBoundary(generation, sessionBefore,
+            CoordinatorUnresolved(stagedCommand: stagedCommand));
+      }
     }
 
     final DriverCompleteTripResult result;
