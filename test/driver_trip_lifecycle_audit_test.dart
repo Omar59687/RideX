@@ -17,11 +17,12 @@ void main() {
     String id = f.tripId,
     int version = 1,
     DriverTripLifecycleStatus target = DriverTripLifecycleStatus.driverArriving,
-  }) => repository.inspectTransition(
-    tripId: id,
-    expectedVersion: version,
-    requestedStatus: target,
-  );
+  }) =>
+      repository.inspectTransition(
+        tripId: id,
+        expectedVersion: version,
+        requestedStatus: target,
+      );
 
   test('all enum pairs match only the RPC/trigger Driver edges', () {
     const edges = {
@@ -69,7 +70,8 @@ void main() {
         (await inspect(
           version: 5,
           target: DriverTripLifecycleStatus.completed,
-        )).outcome,
+        ))
+            .outcome,
         CanonicalDriverOutcome.stale,
       );
       expect(port.calls, isEmpty);
@@ -186,6 +188,43 @@ void main() {
       expect(port.transitions, isEmpty);
     },
   );
+  for (final revoked in [
+    'logout',
+    'role',
+    'blocked',
+    'approval',
+    'assigned-driver',
+    'actor',
+    'trip-id'
+  ]) {
+    test('fake original-key replay still requires authority: $revoked', () {
+      port.transition(
+          f.tripId, DriverTripLifecycleStatus.driverArriving, 1, 'key');
+      switch (revoked) {
+        case 'logout':
+          port.valid = false;
+        case 'role':
+          port.user!['role'] = 'rider';
+        case 'blocked':
+          port.user!['is_blocked'] = true;
+        case 'approval':
+          port.profile!['approval_status'] = 'rejected';
+        case 'assigned-driver':
+          port.trip!['driver_id'] = f.otherId;
+        case 'actor':
+          port.driver = f.otherId;
+        case 'trip-id':
+          port.trip!['id'] = f.otherId;
+      }
+      expect(
+          () => port.transition(
+              f.tripId, DriverTripLifecycleStatus.driverArriving, 1, 'key'),
+          throwsStateError);
+      expect(port.transitions, hasLength(1));
+      expect(port.trip!['version'], 2);
+    });
+  }
+
   test(
     'fake transition rejects skips, stale versions and conflicting original key',
     () {

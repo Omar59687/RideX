@@ -17,11 +17,6 @@ class FakeDriverTripTransitionPort extends FakeCanonicalDriverPort {
     int version,
     String key,
   ) {
-    final payload = ('$id|${target.name}', version);
-    if (_keys.containsKey(key)) {
-      if (_keys[key] != payload) throw StateError('idempotency conflict');
-      return;
-    }
     if (!valid ||
         user?['role'] != 'driver' ||
         user?['is_blocked'] != false ||
@@ -29,6 +24,11 @@ class FakeDriverTripTransitionPort extends FakeCanonicalDriverPort {
         trip?['id'] != id ||
         trip?['driver_id'] != driver) {
       throw StateError('unauthorized');
+    }
+    final payload = ('$id|${target.name}', version);
+    if (_keys.containsKey(key)) {
+      if (_keys[key] != payload) throw StateError('idempotency conflict');
+      return;
     }
     if (trip?['version'] != version) throw StateError('stale version');
     const edges = {

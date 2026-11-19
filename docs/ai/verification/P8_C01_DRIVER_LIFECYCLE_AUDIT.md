@@ -100,18 +100,32 @@ payment settlement or receipt and is never production authority.
   Existing completion/coordinator/journal/recovery suites are included. Initial
   full run caught one obsolete mock-success widget expectation; updated it and
   reran the full suite successfully.
-- Host SDK: Flutter 3.41.2 / Dart 3.11.0; differs from guide's 3.27.3/3.6.1.
-  SDK dependency-resolution and generated plugin changes are excluded.
+- Host SDK: Flutter 3.41.2 / Dart 3.11.0, also the existing CI version.
+  The guide's 3.27.3/3.6.1 is stale: the parent lockfile requires Dart >=3.8.
+  Tests use temporary SDK-resolved dependencies, not exact committed-lockfile
+  resolution. `flutter pub get --offline --enforce-lockfile` fails on this SDK:
+  characters 1.4.0 -> 1.4.1, matcher 0.12.17 -> 0.12.18,
+  material_color_utilities 0.11.1 -> 0.13.0, meta 1.16.0 -> 1.17.0,
+  test_api 0.7.6 -> 0.7.9. Existing CI explicitly permits ephemeral `pub get`.
+  Both parent and C01 lockfile blob: bb6148d20da9613013f01aa25dfefe82566360f1.
+  No lockfile, dependency manifest, platform metadata or generated changes are
+  committed. Exact-lockfile/older-toolchain acceptance remains unverified.
 - No hosted configuration, hosted mutation, Stripe, migration, PR, push or merge.
 
 ## Remaining boundaries and exact handoff
 
-Omar integration request: keep the Driver branch of the shared
-TripCompletionScreen/router disconnected from trusted success until canonical
-completed evidence is supplied by the reviewed existing completion composition.
-Its current Driver view can render hard-coded success/fare on direct navigation;
-C01 removes the Driver-owned mock navigation to it but does not edit that shared
-Rider/Driver screen or global router. This is a known integration risk.
+Omar integration request (shared files, not changed here): gate
+`/driver/completed` in `lib/app/router/app_router.dart` and the Driver branch of
+`lib/features/trips/presentation/screens/trip_completion_screen.dart`. Direct URL,
+deep link, restored route and in-app navigation must not render trusted success
+from role alone, route parameters or any MockTrip, including a completed mock.
+Require the reviewed existing completion/recovery owner to supply current,
+session-bound canonical evidence for the exact Trip assigned to this Driver,
+with completed status and canonical version. Without it, show unavailable or
+recovery-required presentation. Remove hard-coded Driver fare JOD 1.99 and keep
+payment/receipt claims unverified unless their own authorized evidence exists.
+C01 removes mock success navigation from the Driver-owned active screen; it does
+not fix this inherited direct-navigation presentation gap in shared ownership.
 
 C02 must attach reviewed nonproduction completion interaction to existing
 coordinator/journal, revalidate active Trip/vehicle eligibility at dispatch, and
@@ -123,3 +137,25 @@ File flush is not universal directory-fsync/power-loss acceptance. Hosted migrat
 discrepancy #149, live device authority and trusted hosted completion remain unproven.
 
 C01 status: implemented locally; awaiting checkpoint review. Stop before C02.
+
+## Independent review follow-up
+
+A fresh reviewer inspected commit 2c52bc35708dd719168db051107113c7a9e87916,
+its actual diff, backend wrappers/trigger, repository/presentation paths and tests.
+No critical/high findings. One medium test-fake finding was corrected: original-key
+replay returned before checking current authority. The fake now checks valid
+session, role, block/approval and owned Trip before acknowledging a replay.
+Seven focused negative cases cover logout, role, block, approval, assigned Driver,
+actor and Trip ID changes. Six initially added cases were run against the original
+fake and failed, confirming the regression; all seven pass after correction.
+
+Review verification: 321 focused tests passed (lifecycle, legacy screen/journey,
+canonical repository, coordinator, memory/file journal, read-only recovery).
+All seven C01 Dart files pass scoped analysis. Full analysis reproduces the
+same 21 diagnostics, in ten source files whose blobs are identical to the C01
+parent. No production runtime or shared ownership changes were needed.
+
+Review verdict: APPROVED for the bounded local C01 checkpoint after this fix;
+owner approval is still required before C02. This does not approve hosted
+completion or the shared success screen. Exact-lockfile limitation above is
+inherited and explicitly qualified.
