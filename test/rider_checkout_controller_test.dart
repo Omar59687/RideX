@@ -42,10 +42,11 @@ RiderCheckoutTrip _trip({
     );
 
 CardPayment _payment({
+  String? paymentId = _paymentId,
   CardPaymentStatus status = CardPaymentStatus.cardPaymentAuthorized,
   int version = 2,
 }) => CardPayment(
-      paymentId: _paymentId,
+      paymentId: paymentId,
       bookingRequestId: _bookingId,
       tripId: _tripId,
       amountFils: 7450,
@@ -104,6 +105,22 @@ void main() {
     expect(controller.state.trip, isA<RiderCheckoutTripEligible>());
     expect(controller.state.payment, isA<RiderCheckoutAuthorized>());
     expect(reader.paymentReads, [_tripId]);
+  });
+
+  test('Payment without a canonical Payment ID remains UNKNOWN', () async {
+    final reader = FakeRiderCheckoutReader()
+      ..trip = _trip()
+      ..payment = _payment(paymentId: null);
+    final session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+
+    expect(controller.state.payment, isA<RiderCheckoutPaymentUnknown>());
   });
 
   test('terminal Trip clears checkout and never reads Card status', () async {

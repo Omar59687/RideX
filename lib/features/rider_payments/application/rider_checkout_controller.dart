@@ -272,6 +272,10 @@ class RiderCheckoutController extends ChangeNotifier {
         (trip.version < previous.version ||
             (trip.version == previous.version &&
                 (trip.status != previous.status ||
+                    trip.bookingRequestId.toLowerCase() !=
+                        previous.bookingRequestId.toLowerCase() ||
+                    trip.riderId.toLowerCase() !=
+                        previous.riderId.toLowerCase() ||
                     trip.driverId.toLowerCase() !=
                         previous.driverId.toLowerCase() ||
                     trip.paymentMethod != previous.paymentMethod)))) {
@@ -317,7 +321,8 @@ class RiderCheckoutController extends ChangeNotifier {
         ));
         return;
       }
-      if (payment.tripId?.toLowerCase() != trip.tripId.toLowerCase() ||
+      if (payment.paymentId?.trim().isNotEmpty != true ||
+          payment.tripId?.toLowerCase() != trip.tripId.toLowerCase() ||
           payment.bookingRequestId?.toLowerCase() !=
               trip.bookingRequestId.toLowerCase()) {
         _set(RiderCheckoutState(
@@ -330,8 +335,7 @@ class RiderCheckoutController extends ChangeNotifier {
       if (previousPayment != null &&
           (payment.version < previousPayment.version ||
               (payment.version == previousPayment.version &&
-                  (payment.status != previousPayment.status ||
-                      payment.paymentId != previousPayment.paymentId)))) {
+                  payment != previousPayment))) {
         _set(RiderCheckoutState(
           trip: RiderCheckoutTripEligible(trip),
           payment: const RiderCheckoutPaymentUnknown(),
