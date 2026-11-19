@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ridex/core/widgets/app_button.dart';
 import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
+import 'package:ridex/features/rider_payments/models/rider_receipt_state.dart';
+import 'package:ridex/features/rider_payments/presentation/widgets/rider_receipt_panel.dart';
 
 /// Accessible, presentation-only B01 checkout status surface.
 ///
@@ -8,10 +10,21 @@ import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
 /// launch a provider or dispatch a financial command. B02 owns the approved
 /// provider-neutral handoff seam.
 class RiderCheckoutPanel extends StatelessWidget {
-  const RiderCheckoutPanel({super.key, required this.state, this.onRetry});
+  const RiderCheckoutPanel({
+    super.key,
+    required this.state,
+    this.onRetry,
+    this.receiptState,
+    this.onReceiptRecheck,
+  });
 
   final RiderCheckoutState state;
   final VoidCallback? onRetry;
+
+  /// Absent until an independently authorized canonical receipt reader is
+  /// wired. Payment status or Trip completion never implies a receipt.
+  final RiderReceiptState? receiptState;
+  final VoidCallback? onReceiptRecheck;
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +114,13 @@ class RiderCheckoutPanel extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (receiptState != null) ...[
+                  const SizedBox(height: 12),
+                  RiderReceiptPanel(
+                    state: receiptState!,
+                    onRecheck: onReceiptRecheck,
+                  ),
+                ],
                 if (canRetry) ...[
                   const SizedBox(height: 12),
                   AppButton(
