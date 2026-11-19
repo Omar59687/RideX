@@ -13,7 +13,25 @@
 - B04 session-epoch fence: `c1b31a186c4a6309751b9af607c37e7e057c39bc`
 - B04 Payment identity guard: `3de74f778c36830503d7aeee5156f72140a64aa4`
 
-These commits are local only. They have not been pushed or opened as a PR.
+The original local commits remain unchanged in the local branch. Git HTTPS
+push was unavailable in the implementation environment, so the authenticated
+GitHub connector replayed each checkpoint's exact tree changes and messages
+onto the remote branch. GitHub generated different remote commit SHAs. The
+final local and remote tree SHA was verified identical before the later
+handoff-document update. No PR was opened.
+
+| Local commit | Replayed remote commit |
+| --- | --- |
+| `49e79f981f83e736835aa70653e4c9d0805c43db` | `eb7b32fed8e0c6319afded4ec7ee4c3686eb32e5` |
+| `ddde68270af0f08250db0ac3db56feff979f96eb` | `c02db2840376c61c279f768cb30fb831cf638eb0` |
+| `078913a52e248e33e2ca3205d2279fb0917887c9` | `c5035dfdeb3b3a70e57adbe43c9fbdf33f7fe10b` |
+| `5af5cd6753d1b6f4be439ef3c348fa1868d648d4` | `ca8f085e2fb1e209057a3c2c3df4982ffacd708b` |
+| `8d7ac7a8a968bbdb7df427d5d08d5fc65bce826f` | `f204ad972994bc8b83cdcf7bde6d01d6133e77f8` |
+| `5f0b7bcc72f59b25d3f1e69b9164b4fd4f77cee6` | `656aaf602343cba0331edb4840bd8c8e16b8782f` |
+| `c1b31a186c4a6309751b9af607c37e7e057c39bc` | `18ecbaf25e1e1c3afb7e548c80208e3c92dae2b1` |
+| `e44905b4dbdbaf49c665631f3146a4934fa27c98` | `83ba404c7996cc88e4bc561b57597d35be9a9528` |
+| `3de74f778c36830503d7aeee5156f72140a64aa4` | `dd863a8f55b61aebe6c3a6da745f978af09b5f64` |
+| `24a1d73e368533ea6d81883d686c8dd6c7281885` | `953697b907abc650f535e02507b0e99e88719d50` |
 
 ## Implemented
 
