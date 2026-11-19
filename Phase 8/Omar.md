@@ -79,3 +79,21 @@ Build a secure, accessible Rider Card UI from typed local fakes while Yousuf wor
 - No PR, merge, hosted deployment, migration, credentials, Stripe dispatch, capture/refund, or financial data mutation without owner permission. Each PR needs an independent reviewer.
 - Do not label mock tests, local pgTAP or CI success as hosted financial acceptance. Default Card execution remains disabled.
 - Phase 7 source integration is merged, but hosted Realtime/Cron and live actor/device acceptance remain unproven. R06/X2 hosted migration discrepancy is tracked in issue #149. Do not bypass these gates.
+
+
+## Implementation-first progress — 19 November 2026
+
+Owner has requested that the team finish implementation before running the combined Phase 8 verification. Test deferral is not test acceptance.
+
+| Task | Implemented source | Pending for true completion |
+| --- | --- | --- |
+| B01 | Typed Rider Card Trip/payment states, session-bound canonical read seam and fake tests | Execute focused tests; integration verification |
+| B02 | Provider-neutral launch interface, default-disabled implementation and callback reconciliation | Reviewed backend/provider gate; executable provider adapter requires owner approval |
+| B03 | Payment lifecycle panel plus independently verified receipt state/model/panel and authored tests | Approved canonical receipt reader, feature wiring, executed widget tests |
+| B04 | Duplicate handoff, stale response, session epoch and resume protections authored | Execute focused tests, format/analyzer and Cash regressions |
+| B05 | Feature-local Trip/Payment reader seams and new receipt reader seam only | Yousuf's approved contract, secure live read adapter and Card matching prerequisites |
+| B06 | Integration coordination/handoff checklist documented | Reviewed cross-stream SHAs, separate integration branch, shared runtime wiring and combined verification |
+
+Primary source branch: `feature/p8-b01-rider-payment-state`. See `docs/ai/verification/P8-Omar-Rider-Payments.md` for exact implementation and security notes.
+
+Keep Card financial execution default-OFF. No claim of hosted checkout, successful Card capture, canonical receipt issuance, or completed B05/B06 can be made until the backend and integration gates are satisfied. No independent source test in the receipt extension has yet run.
