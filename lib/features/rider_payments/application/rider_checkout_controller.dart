@@ -229,7 +229,11 @@ class RiderCheckoutController extends ChangeNotifier {
     final owner = _ownerSession;
     final riderId = _authenticatedRiderId(owner);
     if (owner == null || riderId == null) {
-      if (_isCurrent(generation, owner)) {
+      // _isCurrent intentionally rejects invalid actors, so it cannot be
+      // used to clear Loading for a blocked or unauthenticated Rider.
+      if (!_disposed &&
+          generation == _generation &&
+          identical(_readSession(), owner)) {
         _set(const RiderCheckoutState.unavailable());
       }
       return;
