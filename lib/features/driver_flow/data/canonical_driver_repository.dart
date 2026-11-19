@@ -294,6 +294,73 @@ final class CanonicalDriverRepository {
     }
   }
 
+  /// Scope health hints to this exact SDK/authority lifetime; never a lease.
+  bool matchesPresentationAuthority(
+          DriverAuthorityOwner owner, Object session) =>
+      _current && _owner.sameOwner(owner) && identical(_session, session);
+
+  /// C04 read-only restoration. Availability discovers assignment; a previously
+  /// verified or journal ID is merely an exact reread locator, never authority.
+  Future<CanonicalDriverResult> restoreActiveTrip({
+    CanonicalDriverTrip? pinned,
+    String? recoveryTripId,
+  }) async {
+    try {
+      await _authorize();
+      final before = await _availability();
+      final id = pinned?.id ??
+          before.tripId ??
+          (recoveryTripId == null ? null : _id(recoveryTripId));
+      if (id == null) {
+        final after = await _availability();
+        await _authorize();
+        if (before.version != after.version ||
+            before.state != after.state ||
+            before.tripId != after.tripId ||
+            before.vehicleId != after.vehicleId) {
+          return _result(CanonicalDriverOutcome.stale);
+        }
+        return _result(CanonicalDriverOutcome.observed, availability: after);
+      }
+      final read = await readTrip(id);
+      if (read.outcome != CanonicalDriverOutcome.observed) return read;
+      final trip = read.trip!;
+      final after = await _availability();
+      await _authorize();
+      if (pinned != null &&
+          (trip.id != pinned.id ||
+              trip.bookingId != pinned.bookingId ||
+              trip.quoteId != pinned.quoteId ||
+              trip.riderId != pinned.riderId ||
+              trip.vehicleId != pinned.vehicleId ||
+              trip.version < pinned.version ||
+              (_restorationTerminal(pinned.status) &&
+                  trip.status != pinned.status) ||
+              (!_restorationTerminal(trip.status) &&
+                  trip.status.index < pinned.status.index))) {
+        _staleTrips.add(id);
+        return _result(CanonicalDriverOutcome.stale);
+      }
+      if (_restorationTerminal(trip.status)) {
+        return _result(CanonicalDriverOutcome.observed, trip: trip);
+      }
+      bool assigned(DriverFlowAvailability value) =>
+          value.state == DriverAvailabilityState.onTrip &&
+          value.tripId == trip.id &&
+          value.vehicleId == trip.vehicleId &&
+          value.bookingId == null;
+      if (!assigned(before) ||
+          !assigned(after) ||
+          before.version != after.version) {
+        return _result(CanonicalDriverOutcome.stale);
+      }
+      return _result(CanonicalDriverOutcome.observed,
+          availability: after, trip: trip);
+    } on Object catch (error) {
+      return _failure(error);
+    }
+  }
+
   /// Read-only C01 preflight. An observed result is not a dispatch lease.
   /// Reuses authenticated reads; never stages, generates a key or invokes RPC.
   /// C02 must revalidate at dispatch through the existing completion owner.
@@ -520,3 +587,13 @@ DateTime _date(Object? value) {
   }
   return DateTime.parse(value).toUtc();
 }
+
+bool _restorationTerminal(DriverTripLifecycleStatus status) => switch (status) {
+      DriverTripLifecycleStatus.completed ||
+      DriverTripLifecycleStatus.cancelledByRider ||
+      DriverTripLifecycleStatus.cancelledByDriver ||
+      DriverTripLifecycleStatus.cancelledByAdmin ||
+      DriverTripLifecycleStatus.failed =>
+        true,
+      _ => false,
+    };

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ridex/features/driver_flow/domain/driver_restoration_hints.dart';
 import 'package:ridex/features/driver_flow/application/driver_completion_interaction.dart';
 import 'package:ridex/features/driver_flow/data/supabase_canonical_driver_port.dart';
 import 'package:ridex/features/driver_flow/presentation/providers/driver_completion_interaction_provider.dart';
@@ -692,6 +693,36 @@ void main() {
         isFalse);
   });
 
+  test(
+      'C04 restoration hints borrow canonical recovery and hide IDs on revocation',
+      () async {
+    await store.stage(
+        backendNamespace: namespace,
+        driverId: fixture.driver,
+        command: DriverCompleteTripCommand(
+            tripId: trip,
+            expectedTripVersion: 4,
+            idempotencyKey: 'c04-original'));
+    status = 'completed';
+    version = 5;
+    final recovery = container().read(driverCashCompletionProvider)!.recovery;
+    await recovery.reconcile();
+    final hints = DriverCompletionRestorationHints(recovery);
+    addTearDown(hints.dispose);
+    expect(hints.value.tripId, trip);
+    expect(hints.value.requiresRecovery, isFalse);
+    blocked = true;
+    await recovery.reconcile();
+    expect(hints.value.tripId, isNull);
+    expect(hints.value.requiresRecovery, isTrue);
+    expect(bodies, isEmpty);
+    final original = await store.inspect(
+        backendNamespace: namespace,
+        driverId: fixture.driver,
+        tripId: trip) as CompletionValid;
+    expect(original.command.idempotencyKey, 'c04-original');
+  });
+
   for (final terminal in [
     'cancelledByRider',
     'cancelledByDriver',
@@ -1011,6 +1042,16 @@ void main() {
           DriverCashRecoveryState.completionVerifiedReceiptVerified);
       expect(await journalBytes(), bytes);
       expectReadOnly();
+    });
+
+    test(
+        'C04 multiple historical recovery records never choose a restoration ID',
+        () async {
+      final recovery = await startRecovery([1, 2]);
+      final hints = DriverCompletionRestorationHints(recovery);
+      addTearDown(hints.dispose);
+      expect(hints.value.tripId, isNull);
+      expect(bodies, isEmpty);
     });
 
     test('strongest canonical version is retained independently for each Trip',

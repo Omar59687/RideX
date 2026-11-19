@@ -11,6 +11,7 @@ import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import '../../data/canonical_driver_repository.dart';
 import '../../domain/canonical_driver_delivery.dart';
+import '../../domain/driver_restoration_hints.dart';
 import '../../domain/driver_flow_contract.dart';
 import 'driver_trip_presentation_controller.dart' show DriverTripCompletionGate;
 
@@ -30,6 +31,8 @@ enum CanonicalDriverPresentationPhase {
   offer,
   expired,
   trip,
+  terminal,
+  recoveryRequired,
   declined,
   pending,
   unknown,
@@ -64,14 +67,43 @@ final class CanonicalDriverPresentationView {
         CanonicalDriverPresentationPhase.offer,
         CanonicalDriverPresentationPhase.expired,
         CanonicalDriverPresentationPhase.trip,
+        CanonicalDriverPresentationPhase.terminal,
+        CanonicalDriverPresentationPhase.recoveryRequired,
         CanonicalDriverPresentationPhase.pending,
         CanonicalDriverPresentationPhase.unknown,
       }.contains(phase);
   CanonicalDriverOffer? get offer => _show ? _controller._result?.offer : null;
-  CanonicalDriverTrip? get trip =>
-      _show && phase == CanonicalDriverPresentationPhase.trip
+  CanonicalDriverTrip? get trip => _show &&
+          {
+            CanonicalDriverPresentationPhase.trip,
+            CanonicalDriverPresentationPhase.recoveryRequired
+          }.contains(phase) &&
+          _controller._result?.trip != null &&
+          (!_controller.restorationEnabled ||
+              !_terminal(_controller._result!.trip!.status))
+      ? _controller._result?.trip
+      : null;
+  CanonicalDriverTrip? get terminalTrip =>
+      _show && phase == CanonicalDriverPresentationPhase.terminal
           ? _controller._result?.trip
           : null;
+  bool get restorationEnabled => _controller.restorationEnabled;
+  bool get recoveryRequired =>
+      _current && _controller.recoveryHints?.value.requiresRecovery == true;
+  bool get gpsFresh {
+    final hint = _controller.locationHints?.value;
+    if (trip == null ||
+        hint == null ||
+        !_controller.repository
+            .matchesPresentationAuthority(hint.owner, hint.sdkSession) ||
+        hint.tripId.toLowerCase() != trip!.id) {
+      return false;
+    }
+    final age =
+        _controller._clock().toUtc().difference(hint.recordedAt.toUtc());
+    return age >= Duration.zero && age <= const Duration(seconds: 45);
+  }
+
   bool get canDecide =>
       _current &&
       phase == CanonicalDriverPresentationPhase.offer &&
@@ -100,6 +132,10 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
     CanonicalDriverDelivery? delivery,
     this.enabled = false,
     this.offerActionsEnabled = false,
+    this.restorationEnabled = false,
+    this.recoveryHints,
+    this.locationHints,
+    this.retireCompletion,
     DateTime Function()? clock,
     String Function()? createIdempotencyKey,
   })  : _sessionSource = session,
@@ -114,6 +150,8 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
         : delivery == null
             ? CanonicalDriverPresentationPhase.missingDelivery
             : CanonicalDriverPresentationPhase.disconnected;
+    recoveryHints?.addListener(_onRestorationHint);
+    locationHints?.addListener(_publish);
     _sessionSource.addListener(_onSession);
     _authorityInvalidations.addListener(_revoke);
     if (enabled && delivery != null && _authorized) {
@@ -133,7 +171,12 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
   }
 
   final CanonicalDriverRepository repository;
-  final bool enabled, offerActionsEnabled;
+  final bool enabled, offerActionsEnabled, restorationEnabled;
+  final ValueListenable<DriverRestorationRecoveryHint>? recoveryHints;
+  final ValueListenable<DriverRestorationLocationHint?>? locationHints;
+
+  /// Forward deferral to C02 invalidateInteraction when invoked during build.
+  final void Function(bool deferNotification)? retireCompletion;
   final ValueListenable<SessionState> _sessionSource;
   final SessionState _session;
   final Listenable _authorityInvalidations;
@@ -177,6 +220,15 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
     if (_unknown) return CanonicalDriverPresentationPhase.unknown;
     if (_decisionPending) return CanonicalDriverPresentationPhase.pending;
     if (_stale) return CanonicalDriverPresentationPhase.stale;
+    if (restorationEnabled &&
+        _phase != CanonicalDriverPresentationPhase.terminal &&
+        {
+          CanonicalDriverPresentationPhase.trip,
+          CanonicalDriverPresentationPhase.empty
+        }.contains(_phase) &&
+        recoveryHints?.value.requiresRecovery == true) {
+      return CanonicalDriverPresentationPhase.recoveryRequired;
+    }
     final offer = _result?.offer;
     if (_phase == CanonicalDriverPresentationPhase.offer &&
         offer != null &&
@@ -223,7 +275,17 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
     if (!identical(_sessionSource.value, _session)) _revoke();
   }
 
-  void _revoke() {
+  void _retireCommands({bool deferNotification = false}) {
+    try {
+      retireCompletion?.call(deferNotification);
+    } on Object {/* Read state must still retire. */}
+  }
+
+  /// Permanent retirement. Foreground/login must construct a fresh read owner.
+  void retire({bool deferNotification = false}) =>
+      _revoke(deferred: deferNotification);
+
+  void _revoke({bool deferred = false}) {
     if (_disposed || _revoked) return;
     _revoked = true;
     _generation++;
@@ -232,7 +294,13 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
     _pinnedTrip = null;
     _offerId = null;
     _phase = CanonicalDriverPresentationPhase.unauthorized;
-    _publish();
+    _retireCommands(deferNotification: deferred);
+    if (deferred) {
+      _publication++;
+      scheduleMicrotask(_publish);
+    } else {
+      _publish();
+    }
     unawaited(_cancel());
   }
 
@@ -245,7 +313,8 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
   }
 
   void _disconnect() {
-    if (_disposed) return;
+    if (_disposed || _revoked) return;
+    _retireCommands();
     _generation++;
     _connected = false;
     _result = null;
@@ -262,6 +331,7 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
       return;
     }
     _revision = signal.revision;
+    if (restorationEnabled && signal is CanonicalDriverOfferHint) return;
     if (signal is CanonicalDriverConnectionHint) {
       if (!signal.connected) {
         _disconnect();
@@ -318,6 +388,35 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
     _phase = CanonicalDriverPresentationPhase.loading;
     _publish();
     if (!_readCurrent(generation)) return;
+    if (restorationEnabled) {
+      final restored = await repository.restoreActiveTrip(
+          pinned: _pinnedTrip, recoveryTripId: recoveryHints?.value.tripId);
+      if (!_readCurrent(generation)) return;
+      if (restored.outcome == CanonicalDriverOutcome.unauthorized) {
+        _revoke();
+        return;
+      }
+      if (restored.outcome == CanonicalDriverOutcome.observed) {
+        if (restored.trip != null) {
+          _admitTrip(restored);
+          if (_phase == CanonicalDriverPresentationPhase.trip &&
+              _terminal(restored.trip!.status)) {
+            _phase = CanonicalDriverPresentationPhase.terminal;
+          }
+        } else {
+          _result = restored;
+          _phase = CanonicalDriverPresentationPhase.empty;
+        }
+      } else {
+        _result = null;
+        _stale = restored.outcome == CanonicalDriverOutcome.stale;
+        _phase = _stale
+            ? CanonicalDriverPresentationPhase.stale
+            : CanonicalDriverPresentationPhase.unavailable;
+      }
+      _publish();
+      return;
+    }
     final result = _pinnedTrip == null
         ? await repository.observe(offerId: _offerId)
         : await repository.readTrip(_pinnedTrip!.id);
@@ -406,8 +505,14 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
     _phase = CanonicalDriverPresentationPhase.trip;
   }
 
+  void _onRestorationHint() {
+    if (!restorationEnabled || !_authorized) return;
+    if (!_decisionPending && !_unknown) unawaited(refresh());
+  }
+
   void tick() {
     if (_disposed) return;
+    if (restorationEnabled && _result?.trip != null) _publish();
     final offer = _attempt ?? _result?.offer;
     if (offer != null &&
         !_clock().toUtc().isBefore(offer.expiresAt) &&
@@ -550,6 +655,9 @@ final class CanonicalDriverPresentationController extends ChangeNotifier {
     _generation++;
     _result = null;
     _pinnedTrip = null;
+    recoveryHints?.removeListener(_onRestorationHint);
+    locationHints?.removeListener(_publish);
+    _retireCommands(deferNotification: true);
     _sessionSource.removeListener(_onSession);
     _authorityInvalidations.removeListener(_revoke);
     unawaited(_cancel());

@@ -1,5 +1,22 @@
 # RideX Current Status
 
+## P8-C04 Driver active Trip restoration - 2026-11-19
+
+Separate branch `feature/p8-c04-driver-active-trip-restoration` stacks on approved
+C03 `c152f44`, C02 `1bd8a96`, C01 `30a27aa`/`2c52bc3`, and origin/main `3be1aa6`.
+Extends the existing canonical repository/presentation owner with opt-in read-only
+restoration, assignment rechecks, terminal/UNKNOWN/GPS presentation and a fresh
+foreground owner. C01-C03 engines and legacy B10 runtime remain unchanged.
+Final focused suite: 732 passed; changed-file analysis clean; Android debug build
+passed. Full analysis retains 21 inherited diagnostics. Lockfile unchanged on
+Flutter 3.41.2 / Dart 3.11.0. Independent review is APPROVED after lifecycle
+replacement-race regressions/fixes.
+See [C04 verification and exact integration request](../verification/P8_C04_DRIVER_ACTIVE_TRIP_RESTORATION.md).
+Omar must wire the default-null Driver-owned provider/entry with reviewed inputs;
+completion remains default OFF. Earlier worktrees remain clean. C04 awaits owner
+approval; C05 has not started. No hosted writes, emulator operations, push, PR,
+merge or deployment.
+
 ## P8-C03 durable journal and UNKNOWN recovery - 2026-11-19
 
 Separate branch `feature/p8-c03-durable-completion-recovery` stacks on approved
