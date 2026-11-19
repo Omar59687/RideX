@@ -120,7 +120,9 @@ final class DriverCompletionRecoveryCoordinator {
   DriverCompleteTripCommand? _command;
   DriverReadOnlyRecoveryOutcome? _current;
 
-  DriverReadOnlyRecoveryOutcome? get current => _current;
+  /// Cached evidence remains account-owned even between recovery invocations.
+  DriverReadOnlyRecoveryOutcome? get current =>
+      _owns(_generation) ? _current : null;
 
   void invalidate() {
     _invalidated = true;
@@ -242,7 +244,9 @@ final class DriverCompletionRecoveryCoordinator {
               generation, DriverReadOnlyRecoveryDisposition.readFailed,
               readFailure: CanonicalTripReadFailure.foreignEvidence);
         }
-        if (trip.backendVersion < _command!.expectedTripVersion) {
+        if (trip.backendVersion < _command!.expectedTripVersion ||
+            (trip.status == DriverTripLifecycleStatus.completed &&
+                trip.backendVersion == _command!.expectedTripVersion)) {
           return _publish(
             generation,
             DriverReadOnlyRecoveryDisposition.conflictingEvidence,
@@ -252,8 +256,8 @@ final class DriverCompletionRecoveryCoordinator {
         final previous = _strongest;
         if (previous != null &&
             (trip.backendVersion < previous.backendVersion ||
-                (previous.status == DriverTripLifecycleStatus.completed &&
-                    trip.status != DriverTripLifecycleStatus.completed) ||
+                (_isTerminal(previous.status) &&
+                    trip.status != previous.status) ||
                 (trip.backendVersion == previous.backendVersion &&
                     trip.status != previous.status))) {
           return _publish(
@@ -274,6 +278,16 @@ final class DriverCompletionRecoveryCoordinator {
         return _publish(generation, disposition, observedTrip: trip);
     }
   }
+
+  static bool _isTerminal(DriverTripLifecycleStatus status) => switch (status) {
+        DriverTripLifecycleStatus.completed ||
+        DriverTripLifecycleStatus.cancelledByRider ||
+        DriverTripLifecycleStatus.cancelledByDriver ||
+        DriverTripLifecycleStatus.cancelledByAdmin ||
+        DriverTripLifecycleStatus.failed =>
+          true,
+        _ => false,
+      };
 
   DriverReadOnlyRecoveryOutcome _publish(
     int generation,

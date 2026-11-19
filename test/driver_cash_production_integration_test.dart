@@ -665,6 +665,66 @@ void main() {
   });
 
   test(
+      'C03 rejected original-version completion cannot poison aggregate terminal evidence',
+      () async {
+    await store.stage(
+        backendNamespace: namespace,
+        driverId: fixture.driver,
+        command: DriverCompleteTripCommand(
+            tripId: trip,
+            expectedTripVersion: 4,
+            idempotencyKey: 'conflicting-evidence'));
+    status = 'completed';
+    version = 4;
+    final recovery = container().read(driverCashCompletionProvider)!.recovery;
+    await recovery.reconcile();
+    expect(
+        recovery.state, DriverCashRecoveryState.journalCorruptedOrUnavailable);
+    expect(recovery.canonicalEvidence, isEmpty);
+    status = 'cancelledByAdmin';
+    version = 5;
+    await recovery.reconcile();
+    expect(recovery.state, DriverCashRecoveryState.completionNotVisible);
+    expect(recovery.canonicalEvidence[trip]!.status,
+        DriverTripLifecycleStatus.cancelledByAdmin);
+    expect(bodies, isEmpty);
+    expect(requests.any((r) => r.$2.endsWith('/user_trip_receipt_summary')),
+        isFalse);
+  });
+
+  for (final terminal in [
+    'cancelledByRider',
+    'cancelledByDriver',
+    'cancelledByAdmin',
+    'failed'
+  ]) {
+    test('C03 aggregate retains terminal $terminal across recovery passes',
+        () async {
+      await store.stage(
+          backendNamespace: namespace,
+          driverId: fixture.driver,
+          command: DriverCompleteTripCommand(
+              tripId: trip,
+              expectedTripVersion: 4,
+              idempotencyKey: 'terminal-evidence'));
+      status = terminal;
+      version = 5;
+      final recovery = container().read(driverCashCompletionProvider)!.recovery;
+      await recovery.reconcile();
+      expect(recovery.state, DriverCashRecoveryState.completionNotVisible);
+      status = 'completed';
+      version = 6;
+      requests.clear();
+      await recovery.reconcile();
+      expect(recovery.state, DriverCashRecoveryState.outcomeUnknown);
+      expect(recovery.canonicalEvidence[trip]!.status.backendValue, terminal);
+      expect(requests.any((r) => r.$2.endsWith('/user_trip_receipt_summary')),
+          isFalse);
+      expect(bodies, isEmpty);
+    });
+  }
+
+  test(
       'startup recovery reads existing command and receipt without RPC dispatch',
       () async {
     await store.stage(

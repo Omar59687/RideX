@@ -1,5 +1,22 @@
 # RideX Current Status
 
+## P8-C03 durable journal and UNKNOWN recovery - 2026-11-19
+
+Separate branch `feature/p8-c03-durable-completion-recovery` stacks on approved
+C02 `1bd8a96`, reviewed C01 `30a27aa`/`2c52bc3`, and origin/main `3be1aa6`.
+Existing journal/dispatch infrastructure is retained. Minimal Driver recovery
+fixes revoke cached evidence on authority change, reject impossible completion
+versions, preserve all terminal states and exclude rejected aggregate evidence.
+New tests cover actual native journal ordering/faults, abrupt child-process exits,
+restart/no-replay and A-B-A late callbacks. Final focused tests: 527 passed;
+changed-file analysis clean; Android debug build passed. Full analysis retains
+21 inherited diagnostics. Lockfile unchanged on Flutter 3.41.2 / Dart 3.11.0.
+Independent review is APPROVED.
+See [C03 verification and limits](../verification/P8_C03_DURABLE_UNKNOWN_RECOVERY.md).
+Default-OFF and Omar's C02 integration handoff remain unchanged. Earlier worktrees
+are preserved. C03 awaits owner approval; C04 has not started. No hosted writes,
+emulator operations, push, PR, merge or deployment.
+
 ## P8-C02 canonical Driver completion interaction - 2026-11-19
 
 Separate local branch `feature/p8-c02-canonical-driver-completion` stacks on
