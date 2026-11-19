@@ -1,5 +1,115 @@
 # RideX Current Status
 
+## P8-C06 final Driver verification and integration package - 2026-11-19
+
+Branch `feature/p8-c06-driver-final-integration` stacks on approved C05 `27cfad6`,
+C04 `c630ecc`, C03 `c152f44`, C02 `1bd8a96`, C01 `30a27aa`/`2c52bc3` and fetched
+origin/main `3be1aa6`. Previous checkpoint worktrees remain clean and unchanged.
+Fresh cumulative independent review: APPROVED, no critical/high/medium findings.
+C06 adds final handoff/evidence and one formatter-only policy correction;
+no semantic source fix or new feature was needed.
+
+Full suite: **3,037 passed, 0 failed, 6 skipped** across 163 files; includes 1,518
+Driver-focused tests in 44 files. All 31 cumulative changed Dart files analyze
+and format cleanly. Full analysis retains 21 inherited diagnostics in ten files
+identical to origin/main. Standard and gated acceptance Android debug builds pass;
+neither APK was installed/launched. Flutter 3.41.2 / Dart 3.11.0 temporary resolution
+was restored; committed lockfile unchanged, exact-lock enforcement still exits 65.
+
+[Final package, manifest, review and results](../verification/P8_C06_DRIVER_FINAL_INTEGRATION.md).
+[Exact Omar/Yousuf/Sanad handoff and safe integration order](../verification/P8_C06_OMAR_INTEGRATION_HANDOFF.md).
+P8-C is **READY FOR OWNER INTEGRATION REVIEW**. Completion stays default-OFF:
+Omar's shared-route/provider/lifecycle integration and Yousuf's reviewed Driver-safe
+Payment projection remain activation dependencies. Hosted/device acceptance,
+issue #149 and native power-loss/stale-lock limits remain open. No further Moath
+Phase 8 checkpoint remains. No hosted mutations, financial/Stripe operations,
+backend/shared-router/provider/other-feature edits, emulator/session operations,
+push, PR, merge or deployment were performed.
+
+## P8-C05 Driver Trip/Payment/Receipt handoff - 2026-11-19
+
+Separate branch `feature/p8-c05-driver-completion-handoff` stacks on approved C04
+`c630ecc`, C03 `c152f44`, C02 `1bd8a96`, C01 `30a27aa`/`2c52bc3`, origin/main `3be1aa6`.
+Adds an explicitly read-only, session-scoped typed handoff with independent Trip,
+Payment and Receipt outcomes. Driver finance access remains unconfigured: issue
+#151 has no published final draft/fixtures and 020/027 deny Driver payment reads.
+Existing completion/journal/recovery engines remain unchanged. Independent review
+is APPROVED. Focused regressions: 619 passed, including 52 handoff tests;
+seven changed Dart files analyze cleanly; Android debug build passed. Full analysis
+retains 21 inherited diagnostics in ten unchanged files. Flutter 3.41.2 / Dart
+3.11.0 requires temporary SDK resolution; exact lock enforcement exits 65 and the
+committed lockfile remains unchanged.
+See [C05 contract and exact owner dependencies](../verification/P8_C05_DRIVER_COMPLETION_HANDOFF.md).
+Default-OFF, unchanged lockfile and earlier worktrees are preserved. C05 awaits
+owner approval; C06 has not started. No hosted writes, financial/Stripe operations,
+emulator actions, push, PR, merge or deployment.
+
+## P8-C04 Driver active Trip restoration - 2026-11-19
+
+Separate branch `feature/p8-c04-driver-active-trip-restoration` stacks on approved
+C03 `c152f44`, C02 `1bd8a96`, C01 `30a27aa`/`2c52bc3`, and origin/main `3be1aa6`.
+Extends the existing canonical repository/presentation owner with opt-in read-only
+restoration, assignment rechecks, terminal/UNKNOWN/GPS presentation and a fresh
+foreground owner. C01-C03 engines and legacy B10 runtime remain unchanged.
+Final focused suite: 732 passed; changed-file analysis clean; Android debug build
+passed. Full analysis retains 21 inherited diagnostics. Lockfile unchanged on
+Flutter 3.41.2 / Dart 3.11.0. Independent review is APPROVED after lifecycle
+replacement-race regressions/fixes.
+See [C04 verification and exact integration request](../verification/P8_C04_DRIVER_ACTIVE_TRIP_RESTORATION.md).
+Omar must wire the default-null Driver-owned provider/entry with reviewed inputs;
+completion remains default OFF. Earlier worktrees remain clean. C04 awaits owner
+approval; C05 has not started. No hosted writes, emulator operations, push, PR,
+merge or deployment.
+
+## P8-C03 durable journal and UNKNOWN recovery - 2026-11-19
+
+Separate branch `feature/p8-c03-durable-completion-recovery` stacks on approved
+C02 `1bd8a96`, reviewed C01 `30a27aa`/`2c52bc3`, and origin/main `3be1aa6`.
+Existing journal/dispatch infrastructure is retained. Minimal Driver recovery
+fixes revoke cached evidence on authority change, reject impossible completion
+versions, preserve all terminal states and exclude rejected aggregate evidence.
+New tests cover actual native journal ordering/faults, abrupt child-process exits,
+restart/no-replay and A-B-A late callbacks. Final focused tests: 527 passed;
+changed-file analysis clean; Android debug build passed. Full analysis retains
+21 inherited diagnostics. Lockfile unchanged on Flutter 3.41.2 / Dart 3.11.0.
+Independent review is APPROVED.
+See [C03 verification and limits](../verification/P8_C03_DURABLE_UNKNOWN_RECOVERY.md).
+Default-OFF and Omar's C02 integration handoff remain unchanged. Earlier worktrees
+are preserved. C03 awaits owner approval; C04 has not started. No hosted writes,
+emulator operations, push, PR, merge or deployment.
+
+## P8-C02 canonical Driver completion interaction - 2026-11-19
+
+Separate local branch `feature/p8-c02-canonical-driver-completion` stacks on
+reviewed C01 `30a27aa`; origin/main remains `3be1aa6`. Reuses the existing Cash
+controller/coordinator/journal with a default-off Driver-owned interaction gate,
+post-staging authorization check and authenticated canonical reread before success.
+No router/shared-provider/payment/backend changes. Focused regression: 429 passed;
+changed-file analysis clean, full analysis retains 21 inherited diagnostics.
+Android debug build passes on Flutter 3.41.2 / Dart 3.11.0; lockfile unchanged.
+Fresh independent review is
+APPROVED after a route-build notification fix and push/pop regression.
+See [C02 behavior, tests and exact Omar handoff](../verification/P8_C02_DRIVER_COMPLETION_INTERACTION.md).
+C01 worktree remains clean. C02 awaits owner approval; C03 has not started.
+No push, PR, merge, hosted writes or accepted Phase 7 Trip changes.
+
+## P8-C01 Driver lifecycle authority audit - 2026-11-19
+
+Moath / Developer 3, issue #153. Local branch
+`feature/p8-c01-driver-completion-flow`, based on origin/main `3be1aa6`.
+Added read-only canonical transition preflight and RPC/trigger edge policy,
+fake Trip/transition security tests, and disabled legacy Driver mock completion
+so it cannot navigate to fabricated success. Existing completion coordinator,
+command journal and recovery remain unchanged. Shared router/providers, Rider
+UI, payments and migrations remain untouched.
+See [C01 source path, verification and handoff](../verification/P8_C01_DRIVER_LIFECYCLE_AUDIT.md).
+Final full suite: 2869 passed, 6 skipped, 0 failed. Focused initial suite: 51 passed.
+Scoped analysis is clean; full analysis retains 21 inherited diagnostics.
+Independent review found one medium fake replay-authorization defect, fixed with
+seven negative regressions. Review verification: 321 focused tests passed;
+changed-file analysis clean. APPROVED for local C01, awaiting owner approval.
+C02 is not started. No push, PR, merge or hosted action.
+
 ## P7-B09 inactive Driver offer discovery - 2026-11-11
 
 Local B09 from main `4278505` adds session-owned bounded normal-user offer SELECT

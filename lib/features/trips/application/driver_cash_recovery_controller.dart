@@ -137,7 +137,9 @@ final class DriverCashRecoveryController extends ChangeNotifier
             await source.readSession();
             if (!_owns(generation)) return;
             final key = command.tripId.toLowerCase();
-            final observed = outcome.observedTrip;
+            // Rejected/conflicting observations are diagnostic only. Retain
+            // exclusively evidence accepted by the recovery coordinator.
+            final observed = outcome.strongestTrip;
             if (observed != null && !_retainStrongest(observed)) {
               _outcomes[key] = DriverCashRecoveryState.outcomeUnknown;
               continue;
@@ -180,9 +182,16 @@ final class DriverCashRecoveryController extends ChangeNotifier
               case DriverReadOnlyRecoveryDisposition.nonterminalTrip:
                 _outcomes[key] = DriverCashRecoveryState.completionNotVisible;
               case DriverReadOnlyRecoveryDisposition.journalBlocked:
-              case DriverReadOnlyRecoveryDisposition.conflictingEvidence:
                 _outcomes[key] =
                     DriverCashRecoveryState.journalCorruptedOrUnavailable;
+              case DriverReadOnlyRecoveryDisposition.conflictingEvidence:
+                // A weaker Trip reread does not corrupt already verified
+                // evidence. Keep its prior unresolved classification without
+                // installing the rejected observation into the cache.
+                _outcomes[key] =
+                    outcome.observedTrip != null && _strongest.containsKey(key)
+                        ? DriverCashRecoveryState.outcomeUnknown
+                        : DriverCashRecoveryState.journalCorruptedOrUnavailable;
               case DriverReadOnlyRecoveryDisposition.readFailed:
                 _outcomes[key] = DriverCashRecoveryState.networkReadFailure;
               case DriverReadOnlyRecoveryDisposition.invalidated:
@@ -230,8 +239,15 @@ final class DriverCashRecoveryController extends ChangeNotifier
     final previous = _strongest[key];
     if (previous != null &&
         (next.backendVersion < previous.backendVersion ||
-            (previous.status == DriverTripLifecycleStatus.completed &&
-                next.status != DriverTripLifecycleStatus.completed) ||
+            (switch (previous.status) {
+              DriverTripLifecycleStatus.completed ||
+              DriverTripLifecycleStatus.cancelledByRider ||
+              DriverTripLifecycleStatus.cancelledByDriver ||
+              DriverTripLifecycleStatus.cancelledByAdmin ||
+              DriverTripLifecycleStatus.failed =>
+                next.status != previous.status,
+              _ => false,
+            }) ||
             (next.backendVersion == previous.backendVersion &&
                 next.status != previous.status))) {
       return false;
