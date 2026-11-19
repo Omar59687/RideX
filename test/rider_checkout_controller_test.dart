@@ -70,7 +70,7 @@ void main() {
     expect(reader.paymentReads, isEmpty);
   });
 
-  test('Cash or unaccepted Trip cannot read or initiate Card checkout', () async {
+  test('Cash Trip cannot read or initiate Card checkout', () async {
     final reader = FakeRiderCheckoutReader()
       ..trip = _trip(method: PaymentMethod.cash);
     final session = SessionState.fromUser(_rider);
