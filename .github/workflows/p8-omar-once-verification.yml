@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: p8-omar-verify
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   rider-payments:
