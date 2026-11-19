@@ -1,5 +1,31 @@
 # RideX Current Status
 
+## P8-C06 final Driver verification and integration package - 2026-11-19
+
+Branch `feature/p8-c06-driver-final-integration` stacks on approved C05 `27cfad6`,
+C04 `c630ecc`, C03 `c152f44`, C02 `1bd8a96`, C01 `30a27aa`/`2c52bc3` and fetched
+origin/main `3be1aa6`. Previous checkpoint worktrees remain clean and unchanged.
+Fresh cumulative independent review: APPROVED, no critical/high/medium findings.
+C06 adds final handoff/evidence and one formatter-only policy correction;
+no semantic source fix or new feature was needed.
+
+Full suite: **3,037 passed, 0 failed, 6 skipped** across 163 files; includes 1,518
+Driver-focused tests in 44 files. All 31 cumulative changed Dart files analyze
+and format cleanly. Full analysis retains 21 inherited diagnostics in ten files
+identical to origin/main. Standard and gated acceptance Android debug builds pass;
+neither APK was installed/launched. Flutter 3.41.2 / Dart 3.11.0 temporary resolution
+was restored; committed lockfile unchanged, exact-lock enforcement still exits 65.
+
+[Final package, manifest, review and results](../verification/P8_C06_DRIVER_FINAL_INTEGRATION.md).
+[Exact Omar/Yousuf/Sanad handoff and safe integration order](../verification/P8_C06_OMAR_INTEGRATION_HANDOFF.md).
+P8-C is **READY FOR OWNER INTEGRATION REVIEW**. Completion stays default-OFF:
+Omar's shared-route/provider/lifecycle integration and Yousuf's reviewed Driver-safe
+Payment projection remain activation dependencies. Hosted/device acceptance,
+issue #149 and native power-loss/stale-lock limits remain open. No further Moath
+Phase 8 checkpoint remains. No hosted mutations, financial/Stripe operations,
+backend/shared-router/provider/other-feature edits, emulator/session operations,
+push, PR, merge or deployment were performed.
+
 ## P8-C05 Driver Trip/Payment/Receipt handoff - 2026-11-19
 
 Separate branch `feature/p8-c05-driver-completion-handoff` stacks on approved C04

@@ -7,18 +7,19 @@ abstract final class DriverTripTransitionPolicy {
   static bool allows(
     DriverTripLifecycleStatus from,
     DriverTripLifecycleStatus to,
-  ) => switch (from) {
-    DriverTripLifecycleStatus.accepted =>
-      to == DriverTripLifecycleStatus.driverArriving ||
-          to == DriverTripLifecycleStatus.cancelledByDriver,
-    DriverTripLifecycleStatus.driverArriving =>
-      to == DriverTripLifecycleStatus.driverArrived ||
-          to == DriverTripLifecycleStatus.cancelledByDriver,
-    DriverTripLifecycleStatus.driverArrived =>
-      to == DriverTripLifecycleStatus.inProgress ||
-          to == DriverTripLifecycleStatus.cancelledByDriver,
-    DriverTripLifecycleStatus.inProgress =>
-      to == DriverTripLifecycleStatus.completed,
-    _ => false,
-  };
+  ) =>
+      switch (from) {
+        DriverTripLifecycleStatus.accepted =>
+          to == DriverTripLifecycleStatus.driverArriving ||
+              to == DriverTripLifecycleStatus.cancelledByDriver,
+        DriverTripLifecycleStatus.driverArriving =>
+          to == DriverTripLifecycleStatus.driverArrived ||
+              to == DriverTripLifecycleStatus.cancelledByDriver,
+        DriverTripLifecycleStatus.driverArrived =>
+          to == DriverTripLifecycleStatus.inProgress ||
+              to == DriverTripLifecycleStatus.cancelledByDriver,
+        DriverTripLifecycleStatus.inProgress =>
+          to == DriverTripLifecycleStatus.completed,
+        _ => false,
+      };
 }
