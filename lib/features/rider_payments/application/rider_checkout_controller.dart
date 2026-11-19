@@ -46,6 +46,7 @@ class RiderCheckoutController extends ChangeNotifier {
   RiderCheckoutTrip? _lastTrip;
   CardPayment? _lastPayment;
   int _generation = 0;
+  int _sessionEpoch = 0;
   bool _disposed = false;
 
   Future<void> refresh({required String tripId}) {
@@ -125,6 +126,7 @@ class RiderCheckoutController extends ChangeNotifier {
         '${trip.trip.version}';
     if (_attemptedHandoffKey == key) return Future<void>.value();
     final generation = _generation;
+    final sessionEpoch = _sessionEpoch;
     final token = Object();
     _handoffToken = token;
     final operation = _launchAndReconcile(
@@ -132,6 +134,7 @@ class RiderCheckoutController extends ChangeNotifier {
       key: key,
       owner: owner,
       generation: generation,
+      sessionEpoch: sessionEpoch,
     );
     _handoffPending = operation.whenComplete(() {
       if (identical(_handoffToken, token)) {
@@ -155,13 +158,15 @@ class RiderCheckoutController extends ChangeNotifier {
     required String key,
     required SessionState owner,
     required int generation,
+    required int sessionEpoch,
   }) async {
-    if (!_isCurrent(generation, owner)) return;
+    if (_sessionEpoch != sessionEpoch || !_isCurrent(generation, owner)) return;
     // Confirm fresh Trip and Payment state immediately before external UI.
     final canonicalRead = refresh(tripId: trip.tripId);
     final preflightGeneration = _generation;
     await canonicalRead;
-    if (preflightGeneration != _generation ||
+    if (_sessionEpoch != sessionEpoch ||
+        preflightGeneration != _generation ||
         !_isCurrent(_generation, owner) ||
         _state.trip is! RiderCheckoutTripEligible ||
         _state.payment is! RiderCheckoutActionRequired) {
@@ -190,7 +195,8 @@ class RiderCheckoutController extends ChangeNotifier {
       // The provider outcome is uncertain. Reconciliation below is the only
       // route to a payment state; it does not permit a second handoff.
     }
-    if (identical(_readSession(), owner) &&
+    if (_sessionEpoch == sessionEpoch &&
+        identical(_readSession(), owner) &&
         _authenticatedRiderId(owner) != null &&
         _tripId?.toLowerCase() == freshTrip.tripId.toLowerCase()) {
       // Always reread after the adapter returns. An app-resume read may have
@@ -205,6 +211,7 @@ class RiderCheckoutController extends ChangeNotifier {
   /// its feature-local session listener.
   void sessionChanged() {
     if (_disposed) return;
+    _sessionEpoch++;
     _generation++;
     _pending = null;
     _pendingTripId = null;
@@ -391,6 +398,7 @@ class RiderCheckoutController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _sessionEpoch++;
     _generation++;
     _pending = null;
     _handoffPending = null;

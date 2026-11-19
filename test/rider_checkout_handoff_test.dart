@@ -204,4 +204,44 @@ void main() {
     expect(reader.paymentReads, [_tripId, _tripId, _tripId, _tripId]);
     expect(controller.state.payment, isA<RiderCheckoutActionRequired>());
   });
+
+  test('session epoch fences return when A to B to A reuses the same object',
+      () async {
+    final reader = FakeRiderCheckoutReader()..trip = _trip();
+    final started = Completer<void>();
+    final gate = Completer<RiderCheckoutReturnSignal>();
+    final launcher = FakeRiderCheckoutLauncher()
+      ..launchStarted = started
+      ..gate = gate;
+    final sessionA = SessionState.fromUser(_rider);
+    var session = sessionA;
+    final controller = RiderCheckoutController(
+      reader: reader,
+      launcher: launcher,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+    final oldHandoff = controller.startCheckout();
+    await started.future;
+    session = SessionState.fromUser(AppUser(
+      id: '66666666-6666-4666-8666-666666666666',
+      name: 'Other Rider',
+      email: 'other@example.test',
+      role: RideRole.rider,
+    ));
+    controller.sessionChanged();
+    session = sessionA;
+    controller.sessionChanged();
+    await controller.refresh(tripId: _tripId);
+    final paymentReadCountBeforeOldReturn = reader.paymentReads.length;
+
+    gate.complete(RiderCheckoutReturnSignal.returned);
+    await oldHandoff;
+
+    expect(reader.paymentReads, hasLength(paymentReadCountBeforeOldReturn));
+    expect(controller.state.trip, isA<RiderCheckoutTripEligible>());
+    expect(controller.state.payment, isA<RiderCheckoutActionRequired>());
+  });
 }
