@@ -1,0 +1,40 @@
+name: P8 Omar formatter evidence
+
+on:
+  push:
+    branches: [ci/p8-omar-format-snapshot-20261119]
+
+permissions:
+  contents: read
+
+jobs:
+  formatted-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.2'
+          channel: stable
+          cache: true
+      - name: Show exact canonical Dart formatted files (no repository write)
+        shell: bash
+        run: |
+          files=(
+            lib/features/rider_payments/application/rider_checkout_controller.dart
+            lib/features/rider_payments/models/rider_checkout_state.dart
+            lib/features/rider_payments/presentation/widgets/rider_checkout_panel.dart
+            test/rider_checkout_controller_test.dart
+            test/rider_checkout_handoff_test.dart
+            test/rider_checkout_panel_test.dart
+          )
+          dart format "${files[@]}"
+          git diff --check
+          git diff --stat
+          for f in "${files[@]}"; do
+            echo "RIDEX_FORMATTED_BEGIN:$f"
+            base64 -w0 "$f"
+            echo
+            echo "RIDEX_FORMATTED_END:$f"
+          done
