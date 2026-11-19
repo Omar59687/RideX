@@ -19,6 +19,7 @@ class RiderCheckoutPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final tripMessage = switch (state.trip) {
       RiderCheckoutTripUnavailable() => 'Trip is unavailable.',
       RiderCheckoutTripLoading() => 'Verifying assigned Trip.',
@@ -49,36 +50,72 @@ class RiderCheckoutPanel extends StatelessWidget {
             state.trip is RiderCheckoutTripStale ||
             state.payment is RiderCheckoutPaymentReadError ||
             state.payment is RiderCheckoutPaymentUnknown);
+    final isLoading = state.trip is RiderCheckoutTripLoading ||
+        state.payment is RiderCheckoutPaymentLoading;
+    final hasError = state.trip is RiderCheckoutTripReadError ||
+        state.trip is RiderCheckoutTripStale ||
+        state.payment is RiderCheckoutPaymentReadError ||
+        state.payment is RiderCheckoutPaymentUnknown;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          liveRegion: true,
-          label: 'Trip status. $tripMessage',
-          child: Text(
-            tripMessage,
-            key: const ValueKey('rider-checkout-trip-status'),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (isLoading) ...[
+                  const LinearProgressIndicator(),
+                  const SizedBox(height: 16),
+                ],
+                Semantics(
+                  liveRegion: true,
+                  label: 'Trip status. $tripMessage',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      Icons.route_outlined,
+                      color: colors.primary,
+                    ),
+                    title: const Text('Trip'),
+                    subtitle: Text(
+                      tripMessage,
+                      key: const ValueKey('rider-checkout-trip-status'),
+                    ),
+                  ),
+                ),
+                const Divider(),
+                Semantics(
+                  liveRegion: true,
+                  label: 'Payment status. $paymentMessage',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      hasError ? Icons.info_outline : Icons.payment_outlined,
+                      color: hasError ? colors.error : colors.primary,
+                    ),
+                    title: const Text('Payment'),
+                    subtitle: Text(
+                      paymentMessage,
+                      key: const ValueKey('rider-checkout-payment-status'),
+                    ),
+                  ),
+                ),
+                if (canRetry) ...[
+                  const SizedBox(height: 12),
+                  AppButton(
+                    key: const ValueKey('rider-checkout-retry'),
+                    label: 'Recheck status',
+                    onPressed: onRetry,
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 8),
-        Semantics(
-          liveRegion: true,
-          label: 'Payment status. $paymentMessage',
-          child: Text(
-            paymentMessage,
-            key: const ValueKey('rider-checkout-payment-status'),
-          ),
-        ),
-        if (canRetry) ...[
-          const SizedBox(height: 12),
-          AppButton(
-            key: const ValueKey('rider-checkout-retry'),
-            label: 'Recheck status',
-            onPressed: onRetry,
-          ),
-        ],
-      ],
+      ),
     );
   }
 }
