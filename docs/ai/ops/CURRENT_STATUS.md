@@ -1,5 +1,19 @@
 # RideX Current Status
 
+## P8-C01 Driver lifecycle authority audit - 2026-11-19
+
+Moath / Developer 3, issue #153. Local branch
+`feature/p8-c01-driver-completion-flow`, based on origin/main `3be1aa6`.
+Added read-only canonical transition preflight and RPC/trigger edge policy,
+fake Trip/transition security tests, and disabled legacy Driver mock completion
+so it cannot navigate to fabricated success. Existing completion coordinator,
+command journal and recovery remain unchanged. Shared router/providers, Rider
+UI, payments and migrations remain untouched.
+See [C01 source path, verification and handoff](../verification/P8_C01_DRIVER_LIFECYCLE_AUDIT.md).
+Final full suite: 2869 passed, 6 skipped, 0 failed. Focused initial suite: 51 passed.
+Scoped analysis is clean; full analysis retains 21 inherited diagnostics.
+C01 awaits review. C02 is not started. No push, PR, merge or hosted action.
+
 ## P7-B09 inactive Driver offer discovery - 2026-11-11
 
 Local B09 from main `4278505` adds session-owned bounded normal-user offer SELECT

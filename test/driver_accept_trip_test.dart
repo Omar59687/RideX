@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'helpers/test_app.dart';
 
 void main() {
-  testWidgets('driver completes the preserved mock trip flow', (tester) async {
+  testWidgets(
+      'driver demo reaches active Trip but cannot claim canonical completion',
+      (tester) async {
     await tester.binding.setSurfaceSize(const Size(430, 932));
     tester.platformDispatcher.textScaleFactorTestValue = 1.3;
     tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
@@ -54,13 +56,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Drive to destination'), findsOneWidget);
 
-    await tester.tap(find.text('Complete trip'));
+    final completion =
+        find.widgetWithText(ElevatedButton, 'Completion unavailable');
+    expect(tester.widget<ElevatedButton>(completion).onPressed, isNull);
+    await tester.tap(completion);
     await tester.pumpAndSettle();
-    expect(find.text('Ride finished successfully'), findsOneWidget);
-
-    await tester.tap(find.text('Open trip history'));
-    await tester.pumpAndSettle();
-    expect(find.text('Trip history'), findsOneWidget);
+    expect(find.text('Drive to destination'), findsOneWidget);
+    expect(find.text('Ride finished successfully'), findsNothing);
+    expect(find.textContaining('Payment and receipt are not verified.'),
+        findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

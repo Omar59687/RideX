@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../domain/driver_trip_transition_policy.dart';
+
 import 'package:ridex/core/models/driver_authority.dart';
 import 'package:ridex/core/models/driver_availability.dart';
 import 'package:ridex/core/models/driver_trip_completion.dart';
@@ -286,6 +288,45 @@ final class CanonicalDriverRepository {
         return _result(CanonicalDriverOutcome.stale);
       }
       await _authorize();
+      return _result(CanonicalDriverOutcome.observed, trip: trip);
+    } on Object catch (error) {
+      return _failure(error);
+    }
+  }
+
+  /// Read-only C01 preflight. An observed result is not a dispatch lease.
+  /// Reuses authenticated reads; never stages, generates a key or invokes RPC.
+  /// C02 must revalidate at dispatch through the existing completion owner.
+  Future<CanonicalDriverResult> inspectTransition({
+    required String tripId,
+    required int expectedVersion,
+    required DriverTripLifecycleStatus requestedStatus,
+  }) async {
+    try {
+      final id = _id(tripId);
+      if (expectedVersion < 1) {
+        return _result(CanonicalDriverOutcome.stale);
+      }
+      await _authorize();
+      final before = await _availability();
+      final read = await readTrip(id, expectedVersion: expectedVersion);
+      if (read.outcome != CanonicalDriverOutcome.observed) return read;
+      final trip = read.trip!;
+      final after = await _availability();
+      await _authorize();
+      bool matches(DriverFlowAvailability value) =>
+          value.state == DriverAvailabilityState.onTrip &&
+          value.tripId == id &&
+          value.vehicleId == trip.vehicleId &&
+          value.bookingId == null;
+      if (!matches(before) ||
+          !matches(after) ||
+          before.version != after.version) {
+        return _result(CanonicalDriverOutcome.stale);
+      }
+      if (!DriverTripTransitionPolicy.allows(trip.status, requestedStatus)) {
+        return _result(CanonicalDriverOutcome.unsupported);
+      }
       return _result(CanonicalDriverOutcome.observed, trip: trip);
     } on Object catch (error) {
       return _failure(error);
