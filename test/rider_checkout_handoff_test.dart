@@ -177,4 +177,31 @@ void main() {
     // no read after the Rider session has been revoked.
     expect(reader.paymentReads, [_tripId, _tripId]);
   });
+
+  test('provider return forces a fresh read after an earlier app-resume read',
+      () async {
+    final reader = FakeRiderCheckoutReader()..trip = _trip();
+    final started = Completer<void>();
+    final gate = Completer<RiderCheckoutReturnSignal>();
+    final launcher = FakeRiderCheckoutLauncher()
+      ..launchStarted = started
+      ..gate = gate;
+    final session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      launcher: launcher,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+    final pending = controller.startCheckout();
+    await started.future;
+    await controller.onAppResumed();
+    gate.complete(RiderCheckoutReturnSignal.returned);
+    await pending;
+
+    expect(reader.paymentReads, [_tripId, _tripId, _tripId, _tripId]);
+    expect(controller.state.payment, isA<RiderCheckoutActionRequired>());
+  });
 }

@@ -49,12 +49,17 @@ class RiderCheckoutController extends ChangeNotifier {
   bool _disposed = false;
 
   Future<void> refresh({required String tripId}) {
+    return _refresh(tripId: tripId, force: false);
+  }
+
+  Future<void> _refresh({required String tripId, required bool force}) {
     if (_disposed || !isCanonicalTripId(tripId)) {
       return Future<void>.value();
     }
     final currentSession = _readSession();
     final pending = _pending;
-    if (pending != null &&
+    if (!force &&
+        pending != null &&
         _pendingTripId?.toLowerCase() == tripId.toLowerCase() &&
         identical(currentSession, _ownerSession)) {
       return pending;
@@ -185,8 +190,13 @@ class RiderCheckoutController extends ChangeNotifier {
       // The provider outcome is uncertain. Reconciliation below is the only
       // route to a payment state; it does not permit a second handoff.
     }
-    if (preflightGeneration == _generation && _isCurrent(_generation, owner)) {
-      await refresh(tripId: freshTrip.tripId);
+    if (identical(_readSession(), owner) &&
+        _authenticatedRiderId(owner) != null &&
+        _tripId?.toLowerCase() == freshTrip.tripId.toLowerCase()) {
+      // Always reread after the adapter returns. An app-resume read may have
+      // completed while the provider UI was still open and is too early to
+      // reconcile the eventual return signal.
+      await _refresh(tripId: freshTrip.tripId, force: true);
     }
   }
 
