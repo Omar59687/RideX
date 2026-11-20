@@ -91,7 +91,37 @@ abstract interface class RiderCheckoutReader {
   Future<RiderCheckoutTrip?> readTrip({required String tripId});
 
   /// Called only after [readTrip] returns an eligible canonical Card Trip.
-  Future<CardPayment?> readCardPayment({required String tripId});
+  ///
+  /// Implementations must return [RiderCheckoutPaymentFound] only for a
+  /// canonical, linked Payment. [RiderCheckoutPaymentActionRequiredRead] is
+  /// an explicit read outcome, not a null/missing-row fallback; a future
+  /// production adapter may emit it only when its reviewed backend contract
+  /// proves that checkout is safe to begin and no prior effect is uncertain.
+  /// Malformed, hidden, unauthorized, or uncertain responses must throw a
+  /// typed read exception instead of being represented as action-required.
+  Future<RiderCheckoutPaymentReadResult> readCardPayment({
+    required String tripId,
+  });
+}
+
+/// Typed outcomes of an authenticated canonical Payment read. These are
+/// client-side read results, not new database or provider status values.
+sealed class RiderCheckoutPaymentReadResult {
+  const RiderCheckoutPaymentReadResult();
+}
+
+final class RiderCheckoutPaymentFound extends RiderCheckoutPaymentReadResult {
+  const RiderCheckoutPaymentFound(this.payment);
+
+  final CardPayment payment;
+}
+
+/// The backend contract explicitly established that no Payment action has
+/// started and no uncertain attempt exists. Null, hidden rows, and failed
+/// reads must never be mapped to this result.
+final class RiderCheckoutPaymentActionRequiredRead
+    extends RiderCheckoutPaymentReadResult {
+  const RiderCheckoutPaymentActionRequiredRead();
 }
 
 /// Safe default until B05 provides a reviewed authenticated backend reader.
@@ -102,7 +132,13 @@ final class UnavailableRiderCheckoutReader implements RiderCheckoutReader {
   Future<RiderCheckoutTrip?> readTrip({required String tripId}) async => null;
 
   @override
-  Future<CardPayment?> readCardPayment({required String tripId}) async => null;
+  Future<RiderCheckoutPaymentReadResult> readCardPayment({
+    required String tripId,
+  }) async {
+    throw const RiderCheckoutPaymentReadException(
+      RiderCheckoutPaymentReadFailure.unavailable,
+    );
+  }
 }
 
 sealed class RiderCheckoutTripState {

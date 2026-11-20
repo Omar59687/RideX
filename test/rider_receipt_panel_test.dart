@@ -50,14 +50,6 @@ void main() {
     );
     expect(
       verifiedReceiptForPayment(
-        receipt: null,
-        tripId: tripId,
-        paymentId: paymentId,
-      ),
-      isA<RiderReceiptNotIssued>(),
-    );
-    expect(
-      verifiedReceiptForPayment(
         receipt: receipt(),
         tripId: 'not-a-uuid',
         paymentId: paymentId,

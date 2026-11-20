@@ -340,85 +340,27 @@ class RiderCheckoutController extends ChangeNotifier {
     );
 
     try {
-      final payment = await _reader
+      final paymentRead = await _reader
           .readCardPayment(tripId: trip.tripId)
           .timeout(readDeadline);
       if (!_isCurrent(generation, owner)) return;
-      if (payment == null) {
-        _set(
-          RiderCheckoutState(
-            trip: RiderCheckoutTripEligible(trip),
-            payment: const RiderCheckoutActionRequired(),
-          ),
-        );
-        return;
+      switch (paymentRead) {
+        case RiderCheckoutPaymentActionRequiredRead():
+          _set(
+            RiderCheckoutState(
+              trip: RiderCheckoutTripEligible(trip),
+              payment: const RiderCheckoutActionRequired(),
+            ),
+          );
+          return;
+        case RiderCheckoutPaymentFound(:final payment):
+          await _applyPaymentRead(
+            trip: trip,
+            payment: payment,
+            generation: generation,
+            owner: owner,
+          );
       }
-      if (!isCanonicalTripId(payment.paymentId ?? '') ||
-          payment.tripId?.toLowerCase() != trip.tripId.toLowerCase() ||
-          payment.bookingRequestId?.toLowerCase() !=
-              trip.bookingRequestId.toLowerCase()) {
-        _set(
-          RiderCheckoutState(
-            trip: RiderCheckoutTripEligible(trip),
-            payment: const RiderCheckoutPaymentUnknown(),
-          ),
-        );
-        return;
-      }
-      final previousPayment = _lastPayment;
-      if (previousPayment != null &&
-          (payment.paymentId?.toLowerCase() !=
-                  previousPayment.paymentId?.toLowerCase() ||
-              payment.version < previousPayment.version ||
-              (payment.version == previousPayment.version &&
-                  payment != previousPayment))) {
-        _set(
-          RiderCheckoutState(
-            trip: RiderCheckoutTripEligible(trip),
-            payment: const RiderCheckoutPaymentUnknown(),
-          ),
-        );
-        return;
-      }
-      _lastPayment = payment;
-      final paymentState = riderCheckoutPaymentState(payment);
-      final receiptEligible =
-          payment.status == CardPaymentStatus.cardPaymentSucceeded ||
-              payment.status == CardPaymentStatus.refundPending ||
-              payment.status == CardPaymentStatus.refunded;
-      if (!receiptEligible) {
-        _set(
-          RiderCheckoutState(
-            trip: RiderCheckoutTripEligible(trip),
-            payment: paymentState,
-          ),
-        );
-        return;
-      }
-      _set(
-        RiderCheckoutState(
-          trip: RiderCheckoutTripEligible(trip),
-          payment: paymentState,
-          receipt: const RiderReceiptLoading(),
-          receiptCheckAttempted: true,
-        ),
-      );
-      final receiptState = await _readReceipt(
-        tripId: trip.tripId,
-        paymentId: payment.paymentId!,
-        payment: payment,
-        generation: generation,
-        owner: owner,
-      );
-      if (!_isCurrent(generation, owner)) return;
-      _set(
-        RiderCheckoutState(
-          trip: RiderCheckoutTripEligible(trip),
-          payment: paymentState,
-          receipt: receiptState,
-          receiptCheckAttempted: true,
-        ),
-      );
     } on RiderCheckoutPaymentReadException catch (error) {
       if (!_isCurrent(generation, owner)) return;
       if (error.failure == RiderCheckoutPaymentReadFailure.unauthorized) {
@@ -452,6 +394,80 @@ class RiderCheckoutController extends ChangeNotifier {
     }
   }
 
+  Future<void> _applyPaymentRead({
+    required RiderCheckoutTrip trip,
+    required CardPayment payment,
+    required int generation,
+    required SessionState owner,
+  }) async {
+    if (!isCanonicalTripId(payment.paymentId ?? '') ||
+        payment.tripId?.toLowerCase() != trip.tripId.toLowerCase() ||
+        payment.bookingRequestId?.toLowerCase() !=
+            trip.bookingRequestId.toLowerCase()) {
+      _set(
+        RiderCheckoutState(
+          trip: RiderCheckoutTripEligible(trip),
+          payment: const RiderCheckoutPaymentUnknown(),
+        ),
+      );
+      return;
+    }
+    final previousPayment = _lastPayment;
+    if (previousPayment != null &&
+        (payment.paymentId?.toLowerCase() !=
+                previousPayment.paymentId?.toLowerCase() ||
+            payment.version < previousPayment.version ||
+            (payment.version == previousPayment.version &&
+                payment != previousPayment))) {
+      _set(
+        RiderCheckoutState(
+          trip: RiderCheckoutTripEligible(trip),
+          payment: const RiderCheckoutPaymentUnknown(),
+        ),
+      );
+      return;
+    }
+    _lastPayment = payment;
+    final paymentState = riderCheckoutPaymentState(payment);
+    final receiptEligible =
+        payment.status == CardPaymentStatus.cardPaymentSucceeded ||
+            payment.status == CardPaymentStatus.refundPending ||
+            payment.status == CardPaymentStatus.refunded;
+    if (!receiptEligible) {
+      _set(
+        RiderCheckoutState(
+          trip: RiderCheckoutTripEligible(trip),
+          payment: paymentState,
+        ),
+      );
+      return;
+    }
+    _set(
+      RiderCheckoutState(
+        trip: RiderCheckoutTripEligible(trip),
+        payment: paymentState,
+        receipt: const RiderReceiptLoading(),
+        receiptCheckAttempted: true,
+      ),
+    );
+    final receiptState = await _readReceipt(
+      tripId: trip.tripId,
+      paymentId: payment.paymentId!,
+      payment: payment,
+      generation: generation,
+      owner: owner,
+    );
+    if (!_isCurrent(generation, owner)) return;
+    _set(
+      RiderCheckoutState(
+        trip: RiderCheckoutTripEligible(trip),
+        payment: paymentState,
+        receipt: receiptState,
+        receiptCheckAttempted: true,
+      ),
+    );
+  }
+
   Future<RiderReceiptState> _readReceipt({
     required String tripId,
     required String paymentId,
@@ -460,17 +476,21 @@ class RiderCheckoutController extends ChangeNotifier {
     required SessionState owner,
   }) async {
     try {
-      final receipt = await _receiptReader
+      final receiptRead = await _receiptReader
           .readReceipt(tripId: tripId, paymentId: paymentId)
           .timeout(readDeadline);
       if (!_isCurrent(generation, owner)) {
         return const RiderReceiptUnavailable();
       }
-      final state = verifiedReceiptForPayment(
-        receipt: receipt,
-        tripId: tripId,
-        paymentId: paymentId,
-      );
+      final state = switch (receiptRead) {
+        RiderCanonicalReceiptFound(:final receipt) =>
+          verifiedReceiptForPayment(
+            receipt: receipt,
+            tripId: tripId,
+            paymentId: paymentId,
+          ),
+        RiderCanonicalReceiptNotIssued() => const RiderReceiptNotIssued(),
+      };
       if (state is RiderReceiptVerified &&
           (state.receipt.amountPaidFils != payment.amountFils ||
               state.receipt.currency != payment.currency)) {

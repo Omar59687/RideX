@@ -6,11 +6,12 @@ import 'package:ridex/features/rider_payments/models/rider_receipt_state.dart';
 
 class FakeRiderCheckoutReader implements RiderCheckoutReader {
   RiderCheckoutTrip? trip;
-  CardPayment? payment;
+  RiderCheckoutPaymentReadResult paymentRead =
+      const RiderCheckoutPaymentActionRequiredRead();
   Object? tripError;
   Object? paymentError;
   Completer<RiderCheckoutTrip?>? tripGate;
-  Completer<CardPayment?>? paymentGate;
+  Completer<RiderCheckoutPaymentReadResult>? paymentGate;
   Completer<void>? paymentReadStarted;
   final tripReads = <String>[];
   final paymentReads = <String>[];
@@ -30,7 +31,9 @@ class FakeRiderCheckoutReader implements RiderCheckoutReader {
   }
 
   @override
-  Future<CardPayment?> readCardPayment({required String tripId}) async {
+  Future<RiderCheckoutPaymentReadResult> readCardPayment({
+    required String tripId,
+  }) async {
     paymentReads.add(tripId);
     final started = paymentReadStarted;
     if (started != null && !started.isCompleted) started.complete();
@@ -42,19 +45,24 @@ class FakeRiderCheckoutReader implements RiderCheckoutReader {
     final error = paymentError;
     paymentError = null;
     if (error != null) throw error;
-    return payment;
+    return paymentRead;
+  }
+
+  set payment(CardPayment payment) {
+    paymentRead = RiderCheckoutPaymentFound(payment);
   }
 }
 
 class FakeRiderReceiptReader implements RiderReceiptReader {
-  RiderVerifiedReceipt? receipt;
+  RiderCanonicalReceiptReadResult receiptRead =
+      const RiderCanonicalReceiptNotIssued();
   Object? error;
-  Completer<RiderVerifiedReceipt?>? gate;
+  Completer<RiderCanonicalReceiptReadResult>? gate;
   Completer<void>? readStarted;
   final reads = <({String tripId, String paymentId})>[];
 
   @override
-  Future<RiderVerifiedReceipt?> readReceipt({
+  Future<RiderCanonicalReceiptReadResult> readReceipt({
     required String tripId,
     required String paymentId,
   }) async {
@@ -69,6 +77,10 @@ class FakeRiderReceiptReader implements RiderReceiptReader {
     final currentError = error;
     error = null;
     if (currentError != null) throw currentError;
-    return receipt;
+    return receiptRead;
+  }
+
+  set receipt(RiderVerifiedReceipt receipt) {
+    receiptRead = RiderCanonicalReceiptFound(receipt);
   }
 }

@@ -78,14 +78,13 @@ final class RiderReceiptVerified extends RiderReceiptState {
 /// Fail closed if the independently read receipt does not match the canonical
 /// Trip and Payment identity already verified in the same authenticated session.
 RiderReceiptState verifiedReceiptForPayment({
-  required RiderVerifiedReceipt? receipt,
+  required RiderVerifiedReceipt receipt,
   required String tripId,
   required String paymentId,
 }) {
   if (!isCanonicalTripId(tripId) || !isCanonicalTripId(paymentId)) {
     return const RiderReceiptUnknown();
   }
-  if (receipt == null) return const RiderReceiptNotIssued();
   if (!receipt.matches(tripId: tripId, paymentId: paymentId)) {
     return const RiderReceiptUnknown();
   }
@@ -95,17 +94,41 @@ RiderReceiptState verifiedReceiptForPayment({
 /// Separate, read-only seam for B05's eventually approved canonical receipt
 /// reader. No endpoint name, forged success, or direct finance table access.
 abstract interface class RiderReceiptReader {
-  Future<RiderVerifiedReceipt?> readReceipt({
+  /// Returns a typed outcome from an independent authenticated read. A
+  /// production adapter may return [RiderCanonicalReceiptNotIssued] only
+  /// when its reviewed contract authoritatively establishes absence. A null
+  /// row, hidden record, malformed payload, or uncertain result must not be
+  /// mapped to that outcome.
+  Future<RiderCanonicalReceiptReadResult> readReceipt({
     required String tripId,
     required String paymentId,
   });
+}
+
+/// Typed outcomes of an independent canonical receipt read. These are
+/// client-side read results, not server payment/receipt status values.
+sealed class RiderCanonicalReceiptReadResult {
+  const RiderCanonicalReceiptReadResult();
+}
+
+final class RiderCanonicalReceiptFound
+    extends RiderCanonicalReceiptReadResult {
+  const RiderCanonicalReceiptFound(this.receipt);
+
+  final RiderVerifiedReceipt receipt;
+}
+
+/// A reader may produce this only for an authoritative canonical absence.
+final class RiderCanonicalReceiptNotIssued
+    extends RiderCanonicalReceiptReadResult {
+  const RiderCanonicalReceiptNotIssued();
 }
 
 final class UnavailableRiderReceiptReader implements RiderReceiptReader {
   const UnavailableRiderReceiptReader();
 
   @override
-  Future<RiderVerifiedReceipt?> readReceipt({
+  Future<RiderCanonicalReceiptReadResult> readReceipt({
     required String tripId,
     required String paymentId,
   }) async {

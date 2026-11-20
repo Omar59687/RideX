@@ -240,3 +240,52 @@ credentials during those checks.
 5. **Combined acceptance:** run the four focused payment suites, existing Cash booking regressions, full serial Flutter suite, changed-file formatter, analyzer, and default/gated Android debug builds. Yousuf separately owns isolated SQL/Deno and migration evidence. Keep live provider, hosted migration, production account, and financial acceptance as separate explicit gates.
 
 Current dependency blocker is the missing approved source of a Payment ID for a Trip-scoped Rider read and the missing approved independent receipt lookup mapping. Also unresolved: Card matching is Cash-only today; capture-pending is not a current canonical `CardPaymentStatus`; trusted capture/void/refund/webhook effects and hosted R06/X2 parity remain backend/operator gates.
+
+### B05 typed read-boundary hardening — 2026-11-20
+
+The isolated B05 preparation branch
+`feature/p8-omar-b05-typed-reads` tightens the feature-local read contracts
+without implementing a Supabase adapter or inventing a wire response:
+
+- `RiderCheckoutReader.readCardPayment` now returns a sealed typed result:
+  either a linked `RiderCheckoutPaymentFound` or an explicit
+  `RiderCheckoutPaymentActionRequiredRead`. A missing/null result can no longer
+  implicitly present action-required. A production adapter may map to the
+  action-required result only after a reviewed backend contract proves there
+  is no prior or uncertain financial effect. Malformed, unauthorized, hidden,
+  and unknown responses must remain errors/UNKNOWN.
+- `RiderReceiptReader.readReceipt` now returns either
+  `RiderCanonicalReceiptFound` or `RiderCanonicalReceiptNotIssued`. The helper
+  that validates a found receipt no longer accepts null. An adapter must not
+  convert a hidden row, transport failure, malformed payload or ambiguous
+  empty response into not-issued.
+- The default checkout reader now throws an unavailable read error if Payment
+  is requested directly. It cannot return null that could be mistaken for an
+  action-required result.
+- Existing exact UUID, Trip/Booking/Payment linkage, monotonic Payment version,
+  JOD currency, integer-fils amount, receipt identity, receipt/Payment amount
+  equality, session epoch and default-disabled launcher checks remain in place.
+
+Three controller tests were added for explicit action-required mapping,
+default-reader fail-closed behavior and malformed Payment-read handling. The
+typed authoritative receipt absence path is explicit in its regression test.
+The focused test inventory is now 46 authored tests: controller 27, handoff
+8, checkout panel 6, receipt panel 5. These new tests have **not run in this
+workspace** because Flutter/Dart are unavailable. The earlier 43 passing
+Windows results apply to the earlier source revision; they do not verify this
+typed-result change. No backend or runtime adapter has been implemented.
+
+Windows verification for this branch:
+
+```powershell
+dart format --output=none --set-exit-if-changed lib/features/rider_payments/application/rider_checkout_controller.dart lib/features/rider_payments/models/rider_checkout_state.dart lib/features/rider_payments/models/rider_receipt_state.dart test/helpers/fake_rider_checkout_reader.dart test/rider_checkout_controller_test.dart test/rider_receipt_panel_test.dart
+flutter test --no-pub --concurrency=1 test/rider_checkout_controller_test.dart
+flutter test --no-pub --concurrency=1 test/rider_checkout_handoff_test.dart
+flutter test --no-pub --concurrency=1 test/rider_checkout_panel_test.dart
+flutter test --no-pub --concurrency=1 test/rider_receipt_panel_test.dart
+flutter analyze --no-pub lib/features/rider_payments test/helpers/fake_rider_checkout_reader.dart test/rider_checkout_controller_test.dart test/rider_receipt_panel_test.dart
+```
+
+This remains B05 interface preparation only. An approved A02/A04 contract is
+needed before a production reader can map these typed outcomes, discover a
+server-issued Payment ID for a Trip, or query receipt evidence.
