@@ -6,7 +6,6 @@ import 'package:ridex/core/models/driver_trip_completion.dart';
 import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/session_providers.dart';
-import 'package:ridex/features/rider_payments/application/rider_checkout_controller.dart';
 import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
 import 'package:ridex/features/rider_payments/models/rider_receipt_state.dart';
 import 'package:ridex/features/rider_payments/presentation/providers/rider_checkout_controller_provider.dart';
@@ -74,7 +73,8 @@ void main() {
     );
   });
 
-  test('feature provider injects receipt reads without shared wiring', () async {
+  test('feature provider injects receipt reads without shared wiring',
+      () async {
     final checkoutReader = FakeRiderCheckoutReader()
       ..trip = _trip()
       ..payment = _capturedPayment();

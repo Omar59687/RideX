@@ -111,8 +111,7 @@ sealed class RiderCanonicalReceiptReadResult {
   const RiderCanonicalReceiptReadResult();
 }
 
-final class RiderCanonicalReceiptFound
-    extends RiderCanonicalReceiptReadResult {
+final class RiderCanonicalReceiptFound extends RiderCanonicalReceiptReadResult {
   const RiderCanonicalReceiptFound(this.receipt);
 
   final RiderVerifiedReceipt receipt;

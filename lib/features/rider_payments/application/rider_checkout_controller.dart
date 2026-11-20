@@ -483,8 +483,7 @@ class RiderCheckoutController extends ChangeNotifier {
         return const RiderReceiptUnavailable();
       }
       final state = switch (receiptRead) {
-        RiderCanonicalReceiptFound(:final receipt) =>
-          verifiedReceiptForPayment(
+        RiderCanonicalReceiptFound(:final receipt) => verifiedReceiptForPayment(
             receipt: receipt,
             tripId: tripId,
             paymentId: paymentId,
