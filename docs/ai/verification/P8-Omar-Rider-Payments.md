@@ -262,28 +262,36 @@ without implementing a Supabase adapter or inventing a wire response:
 - The default checkout reader now throws an unavailable read error if Payment
   is requested directly. It cannot return null that could be mistaken for an
   action-required result.
+- The feature now exposes an injectable `riderReceiptReaderProvider` whose
+  default is `UnavailableRiderReceiptReader`; the checkout controller consumes
+  that provider. The auto-disposed `ChangeNotifierProvider` owns controller
+  disposal, so its factory no longer registers a second manual dispose call.
 - Existing exact UUID, Trip/Booking/Payment linkage, monotonic Payment version,
   JOD currency, integer-fils amount, receipt identity, receipt/Payment amount
   equality, session epoch and default-disabled launcher checks remain in place.
 
 Three controller tests were added for explicit action-required mapping,
-default-reader fail-closed behavior and malformed Payment-read handling. The
-typed authoritative receipt absence path is explicit in its regression test.
-The focused test inventory is now 46 authored tests: controller 27, handoff
-8, checkout panel 6, receipt panel 5. These new tests have **not run in this
-workspace** because Flutter/Dart are unavailable. The earlier 43 passing
-Windows results apply to the earlier source revision; they do not verify this
-typed-result change. No backend or runtime adapter has been implemented.
+default-reader fail-closed behavior and malformed Payment-read handling. Two
+provider tests verify the unavailable receipt-reader default, feature-local
+receipt-reader injection, and controller lifecycle disposal. The typed
+authoritative receipt absence path is explicit in its regression test. The
+focused test inventory is now 48 authored tests: controller 27, handoff 8,
+checkout panel 6, receipt panel 5, provider 2. These new tests have **not run
+in this workspace** because Flutter/Dart are unavailable. The earlier 43
+passing Windows results apply to the earlier source revision; they do not
+verify these typed-result/provider changes. No backend or runtime adapter has
+been implemented.
 
 Windows verification for this branch:
 
 ```powershell
-dart format --output=none --set-exit-if-changed lib/features/rider_payments/application/rider_checkout_controller.dart lib/features/rider_payments/models/rider_checkout_state.dart lib/features/rider_payments/models/rider_receipt_state.dart test/helpers/fake_rider_checkout_reader.dart test/rider_checkout_controller_test.dart test/rider_receipt_panel_test.dart
+dart format --output=none --set-exit-if-changed lib/features/rider_payments/application/rider_checkout_controller.dart lib/features/rider_payments/models/rider_checkout_state.dart lib/features/rider_payments/models/rider_receipt_state.dart lib/features/rider_payments/presentation/providers/rider_checkout_controller_provider.dart test/helpers/fake_rider_checkout_reader.dart test/rider_checkout_controller_test.dart test/rider_checkout_provider_test.dart test/rider_receipt_panel_test.dart
 flutter test --no-pub --concurrency=1 test/rider_checkout_controller_test.dart
 flutter test --no-pub --concurrency=1 test/rider_checkout_handoff_test.dart
 flutter test --no-pub --concurrency=1 test/rider_checkout_panel_test.dart
+flutter test --no-pub --concurrency=1 test/rider_checkout_provider_test.dart
 flutter test --no-pub --concurrency=1 test/rider_receipt_panel_test.dart
-flutter analyze --no-pub lib/features/rider_payments test/helpers/fake_rider_checkout_reader.dart test/rider_checkout_controller_test.dart test/rider_receipt_panel_test.dart
+flutter analyze --no-pub lib/features/rider_payments test/helpers/fake_rider_checkout_reader.dart test/rider_checkout_controller_test.dart test/rider_checkout_provider_test.dart test/rider_receipt_panel_test.dart
 ```
 
 This remains B05 interface preparation only. An approved A02/A04 contract is
