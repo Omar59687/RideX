@@ -1,0 +1,19 @@
+﻿# P8-A04 read-only financial contract v1
+
+Local implementation only. This does not enable Card, execute payments, create receipts, or assert hosted deployment. All UUIDs below are canonical server-issued identifiers. The authenticated session determines the caller; request bodies never assert a Rider or Admin role. Unauthorized, blocked, missing and inconsistent exact records all return zero rows. A malformed UUID is rejected by PostgreSQL input parsing.
+
+## Existing reads
+
+`user_canonical_payment_record(target_payment_id uuid)` returns `id, booking_request_id, trip_id, rider_id, method, final_amount_fils, currency, cash_status, card_status, version, card_brand, card_last_four` to its owning nonblocked Rider or active Admin. `user_trip_payment_summary(target_trip_id)` and `user_trip_receipt_summary(target_trip_id)` have their existing narrower shapes; notably the receipt summary has no `payment_id`. Existing summary errors are not the new uniform empty-result contract. Use the exact read below when verified linkage is required; never derive Payment ID from Booking ID.
+
+## New exact read
+
+`user_trip_financial_read_v1(target_trip_id uuid)` returns zero or one row: `contract_version` (integer 1), `trip_id` (uuid), `trip_version` (integer), `trip_status` (trip_status enum), `payment_id` (uuid), `payment_version` (integer), `payment_method` (payment_method enum), `amount_fils` (integer), `currency` (text), `cash_status` / `card_status` (nullable enums), `receipt_evidence` (`linked` or `unverified`), and nullable `receipt_id`, `receipt_number`, `receipt_amount_fils`, `receipt_currency`, `receipt_issued_at`.
+
+The server joins Trip to Payment by Trip, Rider, Booking, FareQuote, method and currency; it joins Receipt only when Receipt's Trip, Payment, FareQuote, method and currency match. `linked` verifies the identity links of the existing receipt row; it does not itself verify provider settlement. `unverified` means no matching linked receipt evidence was returned, not proof that no receipt exists. Trip completion, status, and amounts do not establish payment success or receipt issuance. Zero rows also does not prove a Trip or Payment is absent. Do not turn `unverified` into a negative receipt assertion.
+
+## New history read
+
+`user_trip_history_v1(page_size integer default 20, before_created_at timestamptz default null, before_trip_id uuid default null)` returns rows with `contract_version` (1), `trip_id`, `trip_version`, `trip_status`, `created_at`, and nullable `payment_id`, `payment_version`, `payment_method`. `page_size` is 1–50; the cursor must supply both timestamp and Trip UUID or neither. Order is `(created_at DESC, trip_id DESC)`; pass the last row's pair to retrieve the next page. A null Payment field means no consistent Payment link was returned, not proof of absence. Active Admin sees authorized records across Riders; a Rider sees only their own. Blocked and foreign callers receive no rows. History does not expose receipt status: request the exact read separately.
+
+Omar can render backend Card status and present a linked receipt only when the exact read returns it. Sanad can page Trip history with the tuple cursor, then obtain exact Payment and Receipt links independently. Consumers must not infer settlement or a verified missing receipt, and must not assume the older summary includes Payment ID. No Flutter/UI changes are part of this checkpoint.
