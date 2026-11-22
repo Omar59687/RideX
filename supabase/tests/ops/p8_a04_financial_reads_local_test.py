@@ -1,4 +1,4 @@
-﻿"""P8-A04 reads and Cash regressions; new network-isolated PostgreSQL only."""
+"""P8-A04 reads and Cash regressions; new network-isolated PostgreSQL only."""
 import json
 from pathlib import Path
 import r06_x2_local_test as h
@@ -11,7 +11,10 @@ def main():
         raise RuntimeError('Expected a new network-isolated container')
     print('isolated container:', container, flush=True)
     base = h.build_database(container)
-    for name in ('p8_a04_financial_reads.test.sql',
+    for name in ('p8_a04_legacy_read_privacy.test.sql',
+                 'p8_a04_financial_reads.test.sql',
+                 '019_phase3_safe_exposure_hardening.test.sql',
+                 '020_phase3_driver_finance_exposure_correction.test.sql',
                  '20261028150000_cash_only_rider_booking_confirmation.test.sql',
                  '20261028150001_cash_only_booking_confirmation_concurrency.test.sql'):
         h.tap(container, h.clone(container, base), Path('supabase/tests/database') / name)

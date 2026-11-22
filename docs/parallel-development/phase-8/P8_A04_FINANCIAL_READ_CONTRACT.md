@@ -1,10 +1,10 @@
-﻿# P8-A04 read-only financial contract v1
+# P8-A04 read-only financial contract v1
 
 Local implementation only. This does not enable Card, execute payments, create receipts, or assert hosted deployment. All UUIDs below are canonical server-issued identifiers. The authenticated session determines the caller; request bodies never assert a Rider or Admin role. Unauthorized, blocked, missing and inconsistent exact records all return zero rows. A malformed UUID is rejected by PostgreSQL input parsing.
 
 ## Existing reads
 
-`user_canonical_payment_record(target_payment_id uuid)` returns `id, booking_request_id, trip_id, rider_id, method, final_amount_fils, currency, cash_status, card_status, version, card_brand, card_last_four` to its owning nonblocked Rider or active Admin. `user_trip_payment_summary(target_trip_id)` and `user_trip_receipt_summary(target_trip_id)` have their existing narrower shapes; notably the receipt summary has no `payment_id`. Existing summary errors are not the new uniform empty-result contract. Use the exact read below when verified linkage is required; never derive Payment ID from Booking ID.
+`user_canonical_payment_record(target_payment_id uuid)` returns `id, booking_request_id, trip_id, rider_id, method, final_amount_fils, currency, cash_status, card_status, version, card_brand, card_last_four` to its owning nonblocked Rider or active Admin. `user_trip_payment_summary(target_trip_id)` and `user_trip_receipt_summary(target_trip_id)` have their existing narrower shapes; notably the receipt summary has no `payment_id`. Legacy summary RPCs preserve successful row shapes. Missing, blocked and unauthorized Payment lookups now all return `P0002` / `Payment was not found.`; equivalent Receipt lookups return `P0002` / `Receipt was not found.` Assigned Drivers retain the existing restricted Receipt read. A `P0002` receipt result means unavailable or unauthorized, and is not independent proof of receipt absence. Existing Driver completion code comments describe `P0002` as receipt absence; its returned result keeps `receiptVerified` false after verifying the completed Trip. Callers must treat that result as unverified, not proof of absence. Use the exact read below when verified linkage is required; never derive Payment ID from Booking ID.
 
 ## New exact read
 
