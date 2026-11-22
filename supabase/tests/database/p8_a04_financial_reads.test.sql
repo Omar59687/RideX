@@ -55,6 +55,7 @@ reset role;
 select ok((select prosecdef and proconfig @> array['search_path=""'] from pg_proc where oid='public.user_trip_financial_read_v1(uuid)'::regprocedure),'exact read is security definer with fixed search path');
 select ok((select prosecdef and proconfig @> array['search_path=""'] from pg_proc where oid='public.user_trip_history_v1(integer,timestamptz,uuid)'::regprocedure),'history is security definer with fixed search path');
 select ok(not has_function_privilege('service_role','public.user_trip_financial_read_v1(uuid)','execute'),'service role has no exact-reader grant');
+select ok(not has_function_privilege('service_role','public.user_trip_history_v1(integer,timestamptz,uuid)','execute'),'service role has no history-reader grant');
 select ok(not has_function_privilege('anon','public.user_trip_financial_read_v1(uuid)','execute'),'anon cannot execute exact read');
 select ok(not has_function_privilege('anon','public.user_trip_history_v1(integer,timestamptz,uuid)','execute'),'anon cannot execute history');
 select * from finish();
