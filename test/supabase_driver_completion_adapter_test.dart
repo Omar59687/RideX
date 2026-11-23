@@ -607,11 +607,11 @@ void boundaryTests() {
       }
       expect(transport.rpcCalls, hasLength(1));
     });
-    test('receipt P0002 preserves completed Trip, never becomes tripNotFound',
+    test('receipt P0002 cannot prove absence; keeps completed Trip unreceipted',
         () async {
       final transport = _successTransport()
         ..receiptError = const PostgrestException(
-          message: 'Receipt was not found.',
+          message: 'private masked or blocked receipt',
           code: 'P0002',
         );
       final result = await transport.repository.completeTrip(command());
@@ -701,11 +701,11 @@ void boundaryTests() {
       });
     }
     test(
-        'legitimate receipt absence publishes completed Trip, not payment success',
+        'privacy-scoped receipt P0002 publishes only verified Trip, not receipt absence',
         () async {
       final transport = _successTransport()
         ..receiptError = const PostgrestException(
-          message: 'absent',
+          message: 'masked or unauthorized',
           code: 'P0002',
         );
       final coordinator = _coordinator(transport, _StagingGateway());
@@ -714,6 +714,8 @@ void boundaryTests() {
       expect(outcome.result.receiptVerified, isFalse);
       expect(outcome.result.receiptNumber, isNull);
       expect(outcome.stagedCommand.isExactReplayOf(command()), isTrue);
+      expect(transport.rpcCalls, hasLength(1));
+      expect(await coordinator.complete(), same(outcome));
       expect(transport.rpcCalls, hasLength(1));
     });
   });

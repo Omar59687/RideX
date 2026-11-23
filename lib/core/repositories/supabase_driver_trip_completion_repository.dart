@@ -60,8 +60,9 @@ typedef DriverCompletionDispatchGuard = Future<void> Function(
 ///
 /// Both RPC and canonical row identities must match the command UUID (UUID case
 /// is insignificant). Canonical versions are read, never calculated. Receipt
-/// P0002 from the documented user_trip_receipt_summary contract means no receipt,
-/// not no Trip. It returns verified Trip truth without receipt/payment claims.
+/// P0002 from user_trip_receipt_summary is privacy-ambiguous: absent, blocked or
+/// unauthorized receipt records share the code. It preserves independently
+/// verified Trip completion, but NEVER proves receipt absence or payment status.
 /// Other receipt failures retain that truth on the typed exception. Card Trips
 /// may have no receipt until trusted payment execution issues one.
 ///
@@ -198,16 +199,17 @@ class SupabaseDriverTripCompletionRepository
         receiptNumber = number.trim();
       }
     } on PostgrestException catch (error) {
-      if (error.code?.trim().toUpperCase() != 'P0002') {
-        throw DriverCompletionAttemptException.receiptReread(
-          command,
-          _failure(error),
-          confirmed,
-        );
+      if (error.code?.trim().toUpperCase() == 'P0002') {
+        // This read cannot distinguish absent receipt from denied access.
+        // The Trip was independently verified; receiptVerified stays false.
+        // Never infer settlement, clear durable intent or replay completion.
+        return confirmed;
       }
-      // This boundary invokes only user_trip_receipt_summary: its P0002 is
-      // receipt absence. The matching completed Trip was already verified.
-      return confirmed;
+      throw DriverCompletionAttemptException.receiptReread(
+        command,
+        _failure(error),
+        confirmed,
+      );
     } on Object catch (error) {
       throw DriverCompletionAttemptException.receiptReread(
         command,
