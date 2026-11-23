@@ -67,7 +67,7 @@ void main() {
   final rpcBodies = <Map<String, dynamic>>[];
   late String status, method, assignedDriver, role, approval;
   late int version;
-  late bool blocked, missingReceipt, wrongReceipt, rpcReject;
+  late bool blocked, missingReceipt, emptyReceiptRows, wrongReceipt, rpcReject;
   Future<void> Function(String)? boundary;
 
   setUp(() async {
@@ -90,6 +90,7 @@ void main() {
     version = 4;
     blocked = false;
     missingReceipt = false;
+    emptyReceiptRows = false;
     wrongReceipt = false;
     rpcReject = false;
     lifecycle = const DriverAuthorityLifecycle(epoch: 1, isActive: true);
@@ -138,6 +139,8 @@ void main() {
           request.response.statusCode = 404;
           request.response.write(jsonEncode(
               {'code': 'P0002', 'message': 'private-receipt-absent'}));
+        } else if (emptyReceiptRows) {
+          request.response.write('[]');
         } else {
           request.response.write(jsonEncode([
             {
@@ -275,13 +278,27 @@ void main() {
             tripId: tripId),
         isA<CompletionValid>());
   });
-  test('receipt absence confirms Trip only, never invents financial success',
+  for (final scenario in ['privacy-masked P0002', 'empty result']) {
+    test('receipt $scenario is unavailable, not proven missing', () async {
+      missingReceipt = scenario == 'privacy-masked P0002';
+      emptyReceiptRows = scenario == 'empty result';
+      final read = await composition.readReceipt(
+          tripId: tripId,
+          capturedDriverId: fixture.driver,
+          capturedBackendNamespace: namespace);
+      expect(read.status, DriverReceiptReadStatus.unavailable);
+      expect(read.receiptNumber, isNull);
+      expect(rpcBodies, isEmpty);
+    });
+  }
+  test('receipt P0002 confirms Trip only; issuance stays unverified',
       () async {
     missingReceipt = true;
     final result = await composition.completeTrip(command);
     expect(result.backendVersion, 11);
     expect(result.receiptVerified, isFalse);
     expect(result.receiptNumber, isNull);
+    expect(rpcBodies.single['idempotency_key'], command.idempotencyKey);
   });
   test('wrong receipt lineage retains verified Trip in unresolved evidence',
       () async {
