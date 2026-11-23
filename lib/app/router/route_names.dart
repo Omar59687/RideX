@@ -12,6 +12,7 @@ class RouteNames {
   static const admin = 'admin';
   static const riderHome = 'riderHome';
   static const riderCanonicalPayment = 'riderCanonicalPayment';
+  static const riderPaymentStatus = 'riderPaymentStatus';
   static const pickup = 'pickup';
   static const destination = 'destination';
   static const vehicleType = 'vehicleType';

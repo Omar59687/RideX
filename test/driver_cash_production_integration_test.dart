@@ -4,6 +4,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ridex/features/driver_flow/domain/driver_restoration_hints.dart';
+import 'package:ridex/features/driver_flow/application/driver_completion_interaction.dart';
+import 'package:ridex/features/driver_flow/data/supabase_canonical_driver_port.dart';
+import 'package:ridex/features/driver_flow/presentation/providers/driver_completion_interaction_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/app/router/app_router.dart';
@@ -93,6 +97,17 @@ class RecoveryJournal implements DriverCompletionCommandStore {
   }
 }
 
+class FixtureInteraction extends ChangeNotifier
+    implements DriverCompletionInteraction {
+  @override
+  bool get isCurrent => true;
+  @override
+  Future<bool> verify({DriverCompleteTripCommand? expected}) async => true;
+  @override
+  Future<bool> confirmCompleted(DriverCompleteTripCommand command) async =>
+      true;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late HttpServer server;
@@ -178,7 +193,10 @@ void main() {
         response = {
           'driver_id': fixture.driver,
           'state': availabilityState,
-          'active_trip_id': activeTrip
+          'active_trip_id': activeTrip,
+          'vehicle_id': 'c7000000-0000-0000-0000-000000000001',
+          'reserved_booking_request_id': null,
+          'version': 7
         };
       } else if (path.endsWith('/trips')) {
         final requestedTrip = request.uri.queryParameters['id']!.substring(3);
@@ -194,6 +212,10 @@ void main() {
           response = {
             'id': trip,
             'driver_id': assignedDriver,
+            'rider_id': fixture.other,
+            'booking_request_id': fixture.other,
+            'fare_quote_id': fixture.other,
+            'vehicle_id': 'c7000000-0000-0000-0000-000000000001',
             'status': status,
             'version': version,
             'payment_method': method
@@ -273,8 +295,11 @@ void main() {
   ProviderContainer container(
       {bool approved = true,
       bool runtimeEnabled = false,
+      bool bindFixture = true,
       Future<DriverCompletionCommandStore> Function()? openStore}) {
+    final gate = FixtureInteraction();
     final c = ProviderContainer(overrides: [
+      driverCompletionInteractionGateProvider.overrideWithValue(gate),
       driverCashRuntimeEnabledProvider.overrideWithValue(runtimeEnabled),
       sessionControllerProvider.overrideWith(DriverSession.new),
       supabaseClientProvider.overrideWithValue(Supabase.instance.client),
@@ -288,8 +313,265 @@ void main() {
     ]);
     containers.add(c);
     c.listen(driverCashCompletionProvider, (_, __) {});
+    if (bindFixture) {
+      c.read(driverCashCompletionProvider)?.bindInteraction(gate);
+    }
     return c;
   }
+
+  CanonicalDriverCompletionInteraction canonicalGate(
+      ProviderContainer c, ValueNotifier<bool> connection) {
+    final controller = c.read(driverCashCompletionProvider)!;
+    final port = SupabaseCanonicalDriverPort.create(access: access, auth: auth);
+    addTearDown(port.dispose);
+    final gate = CanonicalDriverCompletionInteraction(
+        configuration: DriverCompletionInteractionConfiguration(
+            backend: access.backend,
+            driverId: fixture.driver,
+            vehicleId: 'c7000000-0000-0000-0000-000000000001',
+            reviewedNonproduction: true,
+            enabled: true),
+        port: port,
+        loadContext: controller.recovery.source.load,
+        connected: connection,
+        sessionCurrent: () => controller.isCurrent(),
+        readVehicle: () async => {
+              'id': 'c7000000-0000-0000-0000-000000000001',
+              'driver_id': fixture.driver,
+              'is_active': true
+            });
+    controller.bindInteraction(gate);
+    addTearDown(gate.dispose);
+    return gate;
+  }
+
+  test('C02 default-off controller never prepares or submits', () async {
+    final c = container(bindFixture: false);
+    final controller = c.read(driverCashCompletionProvider)!;
+    await controller.prepare();
+    await controller.complete();
+    expect(controller.canComplete, isFalse);
+    expect(bodies, isEmpty);
+  });
+
+  for (final scenario in [
+    'blocked',
+    'stale-version',
+    'invalid-transition',
+    'disconnect',
+    'unknown',
+    'reread-failed'
+  ]) {
+    test('C02 $scenario blocks duplicate submit and false success', () async {
+      final connection = ValueNotifier(true);
+      addTearDown(connection.dispose);
+      final c = container(bindFixture: false);
+      final controller = c.read(driverCashCompletionProvider)!;
+      canonicalGate(c, connection);
+      await controller.prepare();
+      expect(controller.canComplete, isTrue);
+      switch (scenario) {
+        case 'blocked':
+          blocked = true;
+        case 'stale-version':
+          version++;
+        case 'invalid-transition':
+          status = 'driverArrived';
+        case 'disconnect':
+          connection.value = false;
+        case 'unknown':
+          unknownRpc = true;
+        case 'reread-failed':
+          boundary = (path) async {
+            if (bodies.isNotEmpty && path.endsWith('/trips')) failReads = true;
+          };
+      }
+      await controller.complete();
+      await controller.complete();
+      await controller.prepare();
+      expect(controller.canComplete, isFalse);
+      expect(controller.state,
+          isNot(DriverCashCompletionState.completedReceiptVerified));
+      expect(controller.state,
+          isNot(DriverCashCompletionState.completedReceiptUnverified));
+      expect(bodies.length,
+          scenario == 'unknown' || scenario == 'reread-failed' ? 1 : 0);
+    });
+  }
+
+  testWidgets(
+      'C02 widget completes exactly once after canonical reread, never claims paid',
+      (tester) async {
+    final connection = ValueNotifier(true);
+    addTearDown(connection.dispose);
+    final c = container(bindFixture: false);
+    final controller = c.read(driverCashCompletionProvider)!;
+    canonicalGate(c, connection);
+    missingReceipt = true;
+    await tester.runAsync(() => controller.prepare());
+    expect(controller.canComplete, isTrue);
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: c,
+        child: const MaterialApp(
+            home: Scaffold(body: DriverCashCompletionPanel()))));
+    final button = find.text('Complete Cash trip');
+    await tester.runAsync(() async {
+      await tester.tap(button);
+      await tester.tap(button);
+      await controller.complete();
+    });
+    await tester.pump();
+    expect(bodies, hasLength(1));
+    expect(bodies.single['target_id'], trip);
+    expect(bodies.single['expected_version'], 4);
+    expect(bodies.single['requested_status'], 'completed');
+    expect(bodies.single['idempotency_key'], isNotEmpty);
+    expect(
+        controller.state, DriverCashCompletionState.completedReceiptUnverified);
+    expect(
+        find.text(
+            'Trip completed. Receipt unverified; reconciliation required.'),
+        findsOneWidget);
+    expect(find.textContaining('Payment successful'), findsNothing);
+    expect(find.textContaining('Paid'), findsNothing);
+    expect(controller.canComplete, isFalse);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  test(
+      'C02 disconnect during journal acquisition preserves evidence without dispatch',
+      () async {
+    final connection = ValueNotifier(true);
+    addTearDown(connection.dispose);
+    var armed = false;
+    final c = container(
+        bindFixture: false,
+        openStore: () async {
+          if (armed) connection.value = false;
+          return store;
+        });
+    final controller = c.read(driverCashCompletionProvider)!;
+    canonicalGate(c, connection);
+    await controller.recovery.reconcile();
+    await controller.prepare();
+    expect(controller.canComplete, isTrue);
+    armed = true;
+    await controller.complete();
+    expect(bodies, isEmpty);
+    expect(
+        await store.inspect(
+            backendNamespace: namespace,
+            driverId: fixture.driver,
+            tripId: trip),
+        isA<CompletionValid>());
+    expect(controller.canComplete, isFalse);
+  });
+
+  test(
+      'C02 stale Trip after durable staging blocks RPC and retains original version/key',
+      () async {
+    final connection = ValueNotifier(true);
+    addTearDown(connection.dispose);
+    var armed = false;
+    final c = container(
+        bindFixture: false,
+        openStore: () async {
+          if (armed) version = 6;
+          return store;
+        });
+    final controller = c.read(driverCashCompletionProvider)!;
+    canonicalGate(c, connection);
+    await controller.recovery.reconcile();
+    await controller.prepare();
+    expect(controller.canComplete, isTrue);
+    final original = (await controller.recovery.source.load())!.command;
+    armed = true;
+    await controller.complete();
+    final slot = await store.inspect(
+        backendNamespace: namespace, driverId: fixture.driver, tripId: trip);
+    expect((slot as CompletionValid).command.isExactReplayOf(original), isTrue);
+    expect(slot.command.expectedTripVersion, 4);
+    expect(bodies, isEmpty);
+    expect(controller.state, DriverCashCompletionState.unresolved);
+    await controller.complete();
+    expect(bodies, isEmpty);
+  });
+
+  testWidgets('C02 missing reviewed gate never reads the completion provider',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(overrides: [
+      driverCashRuntimeEnabledProvider.overrideWithValue(true),
+      driverCashCompletionProvider
+          .overrideWith((ref) => throw StateError('must not mount')),
+    ], child: const MaterialApp(home: DriverCanonicalTripScreen())));
+    expect(find.byType(DriverCashCompletionPanel), findsNothing);
+    expect(
+        find.textContaining('requires reviewed nonproduction'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  for (final scenario in ['blocked', 'stale', 'invalid', 'disconnect']) {
+    testWidgets(
+        'C02 widget $scenario never shows success or allows duplicate command',
+        (tester) async {
+      final connection = ValueNotifier(true);
+      addTearDown(connection.dispose);
+      final c = container(bindFixture: false);
+      final controller = c.read(driverCashCompletionProvider)!;
+      canonicalGate(c, connection);
+      await tester.runAsync(() => controller.prepare());
+      await tester.pumpWidget(UncontrolledProviderScope(
+          container: c,
+          child: const MaterialApp(
+              home: Scaffold(body: DriverCashCompletionPanel()))));
+      expect(find.text('Complete Cash trip'), findsOneWidget);
+      switch (scenario) {
+        case 'blocked':
+          blocked = true;
+        case 'stale':
+          version++;
+        case 'invalid':
+          status = 'driverArrived';
+        case 'disconnect':
+          connection.value = false;
+      }
+      await tester.runAsync(() => controller.complete());
+      await tester.pump();
+      expect(find.text('Complete Cash trip'), findsNothing);
+      expect(find.textContaining('Trip completed.'), findsNothing);
+      expect(controller.canComplete, isFalse);
+      expect(bodies, isEmpty);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
+  testWidgets(
+      'C02 covering route retires completion without a build-time provider notification',
+      (tester) async {
+    final c = container(runtimeEnabled: true);
+    final controller = c.read(driverCashCompletionProvider)!;
+    await tester.runAsync(() => controller.prepare());
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: c,
+        child: MaterialApp(
+            navigatorKey: navigator, home: const DriverCanonicalTripScreen())));
+    expect(controller.canComplete, isTrue);
+    navigator.currentState!.push(MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: Text('Covered'))));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(controller.canComplete, isFalse);
+    navigator.currentState!.pop();
+    await tester.pumpAndSettle();
+    await controller.complete();
+    expect(controller.canComplete, isFalse);
+    expect(bodies, isEmpty);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   test('source discovers canonical availability/Trip and retains exact intent',
       () async {
@@ -382,6 +664,96 @@ void main() {
     expect(opens, 0);
     expect(requests, isEmpty);
   });
+
+  test(
+      'C03 rejected original-version completion cannot poison aggregate terminal evidence',
+      () async {
+    await store.stage(
+        backendNamespace: namespace,
+        driverId: fixture.driver,
+        command: DriverCompleteTripCommand(
+            tripId: trip,
+            expectedTripVersion: 4,
+            idempotencyKey: 'conflicting-evidence'));
+    status = 'completed';
+    version = 4;
+    final recovery = container().read(driverCashCompletionProvider)!.recovery;
+    await recovery.reconcile();
+    expect(
+        recovery.state, DriverCashRecoveryState.journalCorruptedOrUnavailable);
+    expect(recovery.canonicalEvidence, isEmpty);
+    status = 'cancelledByAdmin';
+    version = 5;
+    await recovery.reconcile();
+    expect(recovery.state, DriverCashRecoveryState.completionNotVisible);
+    expect(recovery.canonicalEvidence[trip]!.status,
+        DriverTripLifecycleStatus.cancelledByAdmin);
+    expect(bodies, isEmpty);
+    expect(requests.any((r) => r.$2.endsWith('/user_trip_receipt_summary')),
+        isFalse);
+  });
+
+  test(
+      'C04 restoration hints borrow canonical recovery and hide IDs on revocation',
+      () async {
+    await store.stage(
+        backendNamespace: namespace,
+        driverId: fixture.driver,
+        command: DriverCompleteTripCommand(
+            tripId: trip,
+            expectedTripVersion: 4,
+            idempotencyKey: 'c04-original'));
+    status = 'completed';
+    version = 5;
+    final recovery = container().read(driverCashCompletionProvider)!.recovery;
+    await recovery.reconcile();
+    final hints = DriverCompletionRestorationHints(recovery);
+    addTearDown(hints.dispose);
+    expect(hints.value.tripId, trip);
+    expect(hints.value.requiresRecovery, isFalse);
+    blocked = true;
+    await recovery.reconcile();
+    expect(hints.value.tripId, isNull);
+    expect(hints.value.requiresRecovery, isTrue);
+    expect(bodies, isEmpty);
+    final original = await store.inspect(
+        backendNamespace: namespace,
+        driverId: fixture.driver,
+        tripId: trip) as CompletionValid;
+    expect(original.command.idempotencyKey, 'c04-original');
+  });
+
+  for (final terminal in [
+    'cancelledByRider',
+    'cancelledByDriver',
+    'cancelledByAdmin',
+    'failed'
+  ]) {
+    test('C03 aggregate retains terminal $terminal across recovery passes',
+        () async {
+      await store.stage(
+          backendNamespace: namespace,
+          driverId: fixture.driver,
+          command: DriverCompleteTripCommand(
+              tripId: trip,
+              expectedTripVersion: 4,
+              idempotencyKey: 'terminal-evidence'));
+      status = terminal;
+      version = 5;
+      final recovery = container().read(driverCashCompletionProvider)!.recovery;
+      await recovery.reconcile();
+      expect(recovery.state, DriverCashRecoveryState.completionNotVisible);
+      status = 'completed';
+      version = 6;
+      requests.clear();
+      await recovery.reconcile();
+      expect(recovery.state, DriverCashRecoveryState.outcomeUnknown);
+      expect(recovery.canonicalEvidence[trip]!.status.backendValue, terminal);
+      expect(requests.any((r) => r.$2.endsWith('/user_trip_receipt_summary')),
+          isFalse);
+      expect(bodies, isEmpty);
+    });
+  }
 
   test(
       'startup recovery reads existing command and receipt without RPC dispatch',
@@ -670,6 +1042,16 @@ void main() {
           DriverCashRecoveryState.completionVerifiedReceiptVerified);
       expect(await journalBytes(), bytes);
       expectReadOnly();
+    });
+
+    test(
+        'C04 multiple historical recovery records never choose a restoration ID',
+        () async {
+      final recovery = await startRecovery([1, 2]);
+      final hints = DriverCompletionRestorationHints(recovery);
+      addTearDown(hints.dispose);
+      expect(hints.value.tripId, isNull);
+      expect(bodies, isEmpty);
     });
 
     test('strongest canonical version is retained independently for each Trip',
@@ -1045,7 +1427,9 @@ void main() {
     await tester.pumpWidget(UncontrolledProviderScope(
         container: c,
         child: const MaterialApp(home: DriverCanonicalTripScreen())));
-    expect(find.text('Canonical Cash Trip access is disabled in this build.'),
+    expect(
+        find.text(
+            'Canonical Cash Trip interaction requires reviewed nonproduction configuration.'),
         findsOneWidget);
     expect(find.byType(DriverCashCompletionPanel), findsNothing);
     expect(requests, isEmpty);

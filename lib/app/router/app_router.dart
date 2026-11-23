@@ -25,6 +25,7 @@ import 'package:ridex/features/booking/presentation/screens/pickup_selection_scr
 import 'package:ridex/features/booking/presentation/screens/ride_request_searching_screen.dart';
 import 'package:ridex/features/booking/presentation/screens/vehicle_type_selection_screen.dart';
 import 'package:ridex/features/driver_application/presentation/screens/driver_application_status_screen.dart';
+import 'package:ridex/features/driver_flow/presentation/screens/driver_completion_status_screen.dart';
 import 'package:ridex/features/driver_home/presentation/screens/driver_home_screen.dart';
 import 'package:ridex/features/history/presentation/screens/trip_history_screen.dart';
 import 'package:ridex/features/history/presentation/screens/trip_details_screen.dart';
@@ -33,6 +34,7 @@ import 'package:ridex/features/notifications/presentation/screens/notifications_
 import 'package:ridex/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:ridex/features/profile/presentation/screens/driver_profile_screen.dart';
 import 'package:ridex/features/profile/presentation/screens/rider_profile_screen.dart';
+import 'package:ridex/features/rider_payments/presentation/screens/rider_payment_status_screen.dart';
 import 'package:ridex/features/ratings/presentation/screens/rating_screen.dart';
 import 'package:ridex/features/rider_home/presentation/screens/rider_home_screen.dart';
 import 'package:ridex/features/settings/presentation/screens/settings_screen.dart';
@@ -99,6 +101,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/rider/canonical-payment',
           name: RouteNames.riderCanonicalPayment,
           builder: (_, __) => const RiderCanonicalTripDetailScreen()),
+      GoRoute(
+        path: '/rider/payment-status/:tripId',
+        name: RouteNames.riderPaymentStatus,
+        builder: (_, state) => RiderPaymentStatusScreen(
+          tripId: state.pathParameters['tripId'] ?? '',
+        ),
+      ),
       GoRoute(
           path: '/rider/pickup',
           name: RouteNames.pickup,
@@ -218,7 +227,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           builder: (_, __) => const DriverCanonicalTripScreen()),
       GoRoute(
           path: '/driver/completed',
-          builder: (_, __) => const TripCompletionScreen(isDriverView: true)),
+          builder: (_, state) => DriverCompletionStatusScreen(
+            tripId: state.uri.queryParameters['trip'] ?? '',
+          )),
     ],
     errorBuilder: (context, state) => NavigationErrorScreen(
       error: state.error,

@@ -81,7 +81,7 @@ select is((select count(*) from public.user_trip_receipt_summary('94000000-0000-
 reset role;
 set local role authenticated; select set_config('request.jwt.claim.sub','90000000-0000-0000-0000-000000000004',true); select set_config('request.jwt.claim.role','authenticated',true);
 select is_empty($$select * from public.payments$$,'unrelated Rider cannot read payments');
-select throws_ok($$select * from public.user_trip_receipt_summary('94000000-0000-0000-0000-000000000001')$$,'42501','Finance data does not belong to this user.','unrelated Rider cannot read receipt summaries');
+select throws_ok($$select * from public.user_trip_receipt_summary('94000000-0000-0000-0000-000000000001')$$,'P0002','Receipt was not found.','unrelated Rider cannot read receipt summaries');
 reset role;
 select ok(not has_function_privilege('authenticated','public.backend_create_payment(uuid)','EXECUTE'),'payment creation is backend-only');
 select ok(has_function_privilege('service_role','public.backend_create_payment(uuid)','EXECUTE'),'service role can create payments');

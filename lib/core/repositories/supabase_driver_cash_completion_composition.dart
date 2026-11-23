@@ -9,6 +9,8 @@ import 'package:ridex/core/services/supabase/auth_service.dart';
 import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+/// `missing` is retained for compatibility, but a scoped receipt read cannot
+/// assert absence from P0002 or an empty result (both can mask access denial).
 enum DriverReceiptReadStatus { verified, missing, unavailable, unauthorized }
 
 final class DriverReceiptReadResult {
@@ -79,7 +81,9 @@ final class SupabaseDriverCashCompletionComposition
             DriverReceiptReadStatus.unavailable);
       }
       if (rows.isEmpty) {
-        return const DriverReceiptReadResult(DriverReceiptReadStatus.missing);
+        // Zero visible rows are inconclusive under participant-scoped reads.
+        return const DriverReceiptReadResult(
+            DriverReceiptReadStatus.unavailable);
       }
       final row = Map<String, Object?>.from(rows.single as Map);
       final id = row['id'];
@@ -97,14 +101,14 @@ final class SupabaseDriverCashCompletionComposition
       }
       return DriverReceiptReadResult(DriverReceiptReadStatus.verified,
           receiptNumber: number.trim());
-    } on PostgrestException catch (error) {
+    } on PostgrestException {
       if (!current()) {
         return const DriverReceiptReadResult(
             DriverReceiptReadStatus.unauthorized);
       }
-      return DriverReceiptReadResult(error.code?.toUpperCase() == 'P0002'
-          ? DriverReceiptReadStatus.missing
-          : DriverReceiptReadStatus.unavailable);
+      // P0002 can mean not found, blocked or unauthorized. Do not expose a
+      // privacy-sensitive absence claim or use this result as receipt evidence.
+      return const DriverReceiptReadResult(DriverReceiptReadStatus.unavailable);
     } on Object {
       if (!current()) {
         return const DriverReceiptReadResult(

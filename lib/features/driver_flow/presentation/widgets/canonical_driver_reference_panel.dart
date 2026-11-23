@@ -53,6 +53,7 @@ class _CanonicalDriverReferencePanelState
   ) {
     final view = controller?.view;
     final offer = view?.offer, trip = view?.trip;
+    final terminal = view?.terminalTrip;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -61,7 +62,10 @@ class _CanonicalDriverReferencePanelState
           style: Theme.of(context).textTheme.titleLarge,
         ),
         Text(
-          _message(view?.phase),
+          view?.restorationEnabled == true &&
+                  view?.phase == CanonicalDriverPresentationPhase.empty
+              ? 'No assigned active Trip.'
+              : _message(view?.phase),
           key: const ValueKey('canonical-driver-status'),
         ),
         if (offer != null) ...[
@@ -79,6 +83,18 @@ class _CanonicalDriverReferencePanelState
           Text('Quote ID: ${trip.quoteId}'),
           Text('Vehicle ID: ${trip.vehicleId}'),
         ],
+        if (terminal != null) ...[
+          Text('Terminal Trip ID: ${terminal.id}'),
+          Text('Canonical terminal status: ${terminal.status.backendValue}'),
+          const Text(
+              'This Trip is not active. Payment and receipt are not verified.'),
+        ],
+        if (view?.restorationEnabled == true && trip != null)
+          Text(view!.gpsFresh
+              ? 'GPS signal is recent.'
+              : 'GPS stale or unavailable. Location hidden.'),
+        if (view?.recoveryRequired == true)
+          const Text('Completion recovery required. No automatic retry.'),
         const Text('Fare unavailable. Route unavailable.'),
         const Text('Rider details unavailable. Vehicle details unavailable.'),
         const Text(
@@ -140,6 +156,10 @@ String _message(CanonicalDriverPresentationPhase? phase) => switch (phase) {
         'Offer expired. Actions unavailable.',
       CanonicalDriverPresentationPhase.trip =>
         'Canonical Trip reference verified.',
+      CanonicalDriverPresentationPhase.terminal =>
+        'Known Trip is terminal. No active Trip restored.',
+      CanonicalDriverPresentationPhase.recoveryRequired =>
+        'Completion outcome requires canonical recovery. Actions unavailable.',
       CanonicalDriverPresentationPhase.declined => 'Canonical offer declined.',
       CanonicalDriverPresentationPhase.pending => 'Checking original decision.',
       CanonicalDriverPresentationPhase.unknown =>

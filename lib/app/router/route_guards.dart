@@ -68,9 +68,11 @@ _RoutePolicy _policyForLocation(String location) {
   if (_publicLocations.contains(location)) return _RoutePolicy.public;
   if (_riderLocations.contains(location)) return _RoutePolicy.rider;
   if (_driverLocations.contains(location)) return _RoutePolicy.driver;
-  if (_sharedLocations.contains(location) || _isTripDetailsLocation(location)) {
+  if (_sharedLocations.contains(location) ||
+      _isTripDetailsLocation(location)) {
     return _RoutePolicy.shared;
   }
+  if (_isRiderPaymentStatusLocation(location)) return _RoutePolicy.rider;
 
   return switch (location) {
     '/admin' => _RoutePolicy.admin,
@@ -84,6 +86,11 @@ _RoutePolicy _policyForLocation(String location) {
 bool _isTripDetailsLocation(String location) {
   return location.startsWith('/history/') &&
       location.length > '/history/'.length;
+}
+
+bool _isRiderPaymentStatusLocation(String location) {
+  const prefix = '/rider/payment-status/';
+  return location.startsWith(prefix) && location.length > prefix.length;
 }
 
 const _publicLocations = {

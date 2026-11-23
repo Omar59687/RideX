@@ -91,8 +91,10 @@ void main() {
       for (final location in [
         '/rider/home',
         '/rider/canonical-payment',
+        '/rider/payment-status/a5100000-0000-4000-8000-000000000003',
         '/driver/home',
         '/driver/canonical-trip',
+        '/driver/completed',
         '/history',
         '/history/trip-1',
         '/notifications',
@@ -116,10 +118,18 @@ void main() {
       expect(redirectForLocation('/rider/home', session), isNull);
       expect(redirectForLocation('/rider/payment-method', session), isNull);
       expect(redirectForLocation('/rider/canonical-payment', session), isNull);
+      expect(
+        redirectForLocation(
+          '/rider/payment-status/a5100000-0000-4000-8000-000000000003',
+          session,
+        ),
+        isNull,
+      );
       expect(redirectForLocation('/history', session), isNull);
       expect(redirectForLocation('/driver/trip', session), '/rider/home');
       expect(redirectForLocation('/driver/canonical-trip', session),
           '/rider/home');
+      expect(redirectForLocation('/driver/completed', session), '/rider/home');
       expect(redirectForLocation('/admin', session), '/rider/home');
       expect(redirectForLocation('/sign-in', session), '/rider/home');
       expect(redirectForLocation('/account-blocked', session), '/rider/home');
@@ -135,12 +145,20 @@ void main() {
 
       expect(redirectForLocation('/driver/home', session), isNull);
       expect(redirectForLocation('/driver/canonical-trip', session), isNull);
+      expect(redirectForLocation('/driver/completed', session), isNull);
       expect(redirectForLocation('/history', session), isNull);
       expect(redirectForLocation('/rider/trip', session), '/driver/home');
       expect(redirectForLocation('/rider/payment-method', session),
           '/driver/home');
       expect(redirectForLocation('/rider/canonical-payment', session),
           '/driver/home');
+      expect(
+        redirectForLocation(
+          '/rider/payment-status/a5100000-0000-4000-8000-000000000003',
+          session,
+        ),
+        '/driver/home',
+      );
       expect(redirectForLocation('/admin', session), '/driver/home');
       expect(redirectForLocation('/sign-up', session), '/driver/home');
       expect(redirectForLocation('/account-blocked', session), '/driver/home');
