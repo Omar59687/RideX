@@ -12,6 +12,8 @@ import 'package:ridex/features/history/presentation/screens/trip_history_screen.
 import 'package:ridex/features/rider_payments/presentation/providers/rider_checkout_controller_provider.dart';
 import 'package:ridex/features/rider_payments/presentation/widgets/rider_checkout_panel.dart';
 
+enum _CanonicalHistoryFilter { all, completed, cancelled }
+
 /// Selects the canonical Rider history surface without changing Driver
 /// History's existing route or repository behavior.
 class RoleAwareHistoryRoute extends ConsumerWidget {
@@ -62,6 +64,7 @@ class _RiderCanonicalHistoryScreenState
   bool _loading = false;
   bool _failed = false;
   bool _loaded = false;
+  _CanonicalHistoryFilter _filter = _CanonicalHistoryFilter.all;
 
   @override
   void initState() {
@@ -135,6 +138,7 @@ class _RiderCanonicalHistoryScreenState
           _owner = null;
           _loaded = false;
           _loading = false;
+          _filter = _CanonicalHistoryFilter.all;
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _load(reset: true);
@@ -147,36 +151,70 @@ class _RiderCanonicalHistoryScreenState
     if (_owner != null && !identical(_owner, current)) {
       return const Scaffold(body: Center(child: Text('Refreshing Rider history.')));
     }
+    final visibleRows = _rows.where((row) => switch (_filter) {
+          _CanonicalHistoryFilter.all => true,
+          _CanonicalHistoryFilter.completed =>
+            row.status == DriverTripLifecycleStatus.completed,
+          _CanonicalHistoryFilter.cancelled =>
+            row.status == DriverTripLifecycleStatus.cancelledByRider ||
+                row.status == DriverTripLifecycleStatus.cancelledByDriver ||
+                row.status == DriverTripLifecycleStatus.cancelledByAdmin,
+        }).toList(growable: false);
     return Scaffold(
       appBar: AppBar(title: const Text('Your rides')),
-      body: !_loaded && _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _failed && _rows.isEmpty
-              ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Text('Trip history could not be verified.'),
-                  TextButton(onPressed: () => _load(reset: true), child: const Text('Retry')),
-                ]))
-              : _rows.isEmpty
-                  ? const Center(child: Text('No rides found.'))
-                  : ListView.builder(
-                      itemCount: _rows.length + (_cursor != null || _failed ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index == _rows.length) {
-                          return Center(child: TextButton(
-                            onPressed: _loading ? null : () => _load(reset: false),
-                            child: Text(_failed ? 'Retry' : 'Load more'),
-                          ));
-                        }
-                        final row = _rows[index];
-                        return ListTile(
-                          key: ValueKey('canonical-history-${row.tripId}'),
-                          title: Text(_statusLabel(row.status)),
-                          subtitle: Text(_dateLabel(row.createdAt)),
-                          trailing: Text(row.paymentMethod?.name.toUpperCase() ?? 'Payment unverified'),
-                          onTap: () => context.push('/history/${row.tripId}'),
-                        );
-                      },
-                    ),
+      body: Column(children: [
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final filter in _CanonicalHistoryFilter.values)
+              ChoiceChip(
+                key: Key('canonical-history-filter-${filter.name}'),
+                label: Text(switch (filter) {
+                  _CanonicalHistoryFilter.all => 'All',
+                  _CanonicalHistoryFilter.completed => 'Completed',
+                  _CanonicalHistoryFilter.cancelled => 'Cancelled',
+                }),
+                selected: _filter == filter,
+                onSelected: (_) => setState(() => _filter = filter),
+              ),
+          ],
+        ),
+        Expanded(
+          child: !_loaded && _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _failed && _rows.isEmpty
+                  ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      const Text('Trip history could not be verified.'),
+                      TextButton(onPressed: () => _load(reset: true), child: const Text('Retry')),
+                    ]))
+                  : _rows.isEmpty
+                      ? const Center(child: Text('No rides found.'))
+                      : visibleRows.isEmpty && _cursor == null
+                          ? const Center(child: Text('No trips match this filter.'))
+                          : ListView.builder(
+                              itemCount: visibleRows.length +
+                                  (_cursor != null || _failed ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (index == visibleRows.length) {
+                                  return Center(child: TextButton(
+                                    onPressed: _loading
+                                        ? null
+                                        : () => _load(reset: false),
+                                    child: Text(_failed ? 'Retry' : 'Load more'),
+                                  ));
+                                }
+                                final row = visibleRows[index];
+                                return ListTile(
+                                  key: ValueKey('canonical-history-${row.tripId}'),
+                                  title: Text(_statusLabel(row.status)),
+                                  subtitle: Text(_dateLabel(row.createdAt)),
+                                  trailing: Text(row.paymentMethod?.name.toUpperCase() ?? 'Payment unverified'),
+                                  onTap: () => context.push('/history/${row.tripId}'),
+                                );
+                              },
+                            ),
+        ),
+      ]),
     );
   }
 }
