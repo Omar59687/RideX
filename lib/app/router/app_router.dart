@@ -26,9 +26,8 @@ import 'package:ridex/features/booking/presentation/screens/ride_request_searchi
 import 'package:ridex/features/booking/presentation/screens/vehicle_type_selection_screen.dart';
 import 'package:ridex/features/driver_application/presentation/screens/driver_application_status_screen.dart';
 import 'package:ridex/features/driver_home/presentation/screens/driver_home_screen.dart';
-import 'package:ridex/features/history/presentation/screens/trip_history_screen.dart';
-import 'package:ridex/features/history/presentation/screens/trip_details_screen.dart';
 import 'package:ridex/features/history/presentation/screens/rider_canonical_trip_detail_screen.dart';
+import 'package:ridex/features/history/presentation/screens/rider_history_runtime_screens.dart';
 import 'package:ridex/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:ridex/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:ridex/features/profile/presentation/screens/driver_profile_screen.dart';
@@ -173,11 +172,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/history',
           name: RouteNames.tripHistory,
-          builder: (_, __) => const TripHistoryScreen()),
+          builder: (_, __) => const RoleAwareHistoryRoute()),
       GoRoute(
         path: '/history/:tripId',
         name: RouteNames.tripDetails,
-        builder: (_, state) => TripDetailsScreen(
+        builder: (_, state) => RoleAwareTripDetailsRoute(
           tripId: state.pathParameters['tripId']!,
         ),
       ),
