@@ -11,6 +11,7 @@ import 'package:ridex/features/rider_payments/application/rider_checkout_control
 import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
 import 'package:ridex/features/rider_payments/models/rider_receipt_state.dart';
 
+import 'helpers/fake_rider_checkout_launcher.dart';
 import 'helpers/fake_rider_checkout_reader.dart';
 
 const _tripId = 'a1b2c3d4-e5f6-4a1b-8c2d-a1b2c3d4e5f6';
@@ -39,6 +40,8 @@ RiderCheckoutTrip _trip({
       riderId: riderId,
       driverId: _driverId,
       version: version,
+      currentFareFils: 7450,
+      currency: 'JOD',
       status: status,
       paymentMethod: method,
     );
@@ -47,12 +50,13 @@ CardPayment _payment({
   String? paymentId = _paymentId,
   CardPaymentStatus status = CardPaymentStatus.cardPaymentAuthorized,
   int version = 2,
+  int amountFils = 7450,
 }) =>
     CardPayment(
       paymentId: paymentId,
       bookingRequestId: _bookingId,
       tripId: _tripId,
-      amountFils: 7450,
+      amountFils: amountFils,
       status: status,
       version: version,
     );
@@ -346,6 +350,22 @@ void main() {
     );
   });
 
+  test('Payment amount must match the canonical Trip fare', () async {
+    final reader = FakeRiderCheckoutReader()
+      ..trip = _trip()
+      ..payment = _payment(amountFils: 7451);
+    final session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+
+    expect(controller.state.payment, isA<RiderCheckoutPaymentUnknown>());
+  });
+
   test('unknown receipt read is not treated as a missing receipt', () async {
     final reader = FakeRiderCheckoutReader()
       ..trip = _trip()
@@ -365,7 +385,7 @@ void main() {
     expect(controller.state.receipt, isA<RiderReceiptUnknown>());
   });
 
-  test('terminal Trip clears checkout and never reads Card status', () async {
+  test('cancelled Trip clears checkout and never reads Card status', () async {
     final reader = FakeRiderCheckoutReader()
       ..trip = _trip(status: DriverTripLifecycleStatus.cancelledByRider);
     final session = SessionState.fromUser(_rider);
@@ -380,6 +400,56 @@ void main() {
     expect(controller.state.trip, isA<RiderCheckoutTripTerminal>());
     expect(controller.state.payment, isA<RiderCheckoutPaymentUnavailable>());
     expect(reader.paymentReads, isEmpty);
+  });
+
+  test('completed Card Trip shows historical receipt without checkout',
+      () async {
+    final reader = FakeRiderCheckoutReader()
+      ..trip = _trip(status: DriverTripLifecycleStatus.completed)
+      ..payment = _payment(status: CardPaymentStatus.cardPaymentSucceeded);
+    final receiptReader = FakeRiderReceiptReader()..receipt = _receipt();
+    final launcher = FakeRiderCheckoutLauncher();
+    final session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      receiptReader: receiptReader,
+      launcher: launcher,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+
+    expect(controller.state.trip, isA<RiderCheckoutTripTerminal>());
+    expect(controller.state.payment, isA<RiderCheckoutCaptured>());
+    expect(controller.state.receipt, isA<RiderReceiptVerified>());
+    await controller.startCheckout();
+    expect(launcher.requests, isEmpty);
+  });
+
+  test('completed Trip shows verified refund history without checkout',
+      () async {
+    final reader = FakeRiderCheckoutReader()
+      ..trip = _trip(status: DriverTripLifecycleStatus.completed)
+      ..payment = _payment(status: CardPaymentStatus.refunded, version: 3);
+    final receiptReader = FakeRiderReceiptReader()..receipt = _receipt();
+    final launcher = FakeRiderCheckoutLauncher();
+    final session = SessionState.fromUser(_rider);
+    final controller = RiderCheckoutController(
+      reader: reader,
+      receiptReader: receiptReader,
+      launcher: launcher,
+      readSession: () => session,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.refresh(tripId: _tripId);
+
+    expect(controller.state.trip, isA<RiderCheckoutTripTerminal>());
+    expect(controller.state.payment, isA<RiderCheckoutRefunded>());
+    expect(controller.state.receipt, isA<RiderReceiptVerified>());
+    await controller.startCheckout();
+    expect(launcher.requests, isEmpty);
   });
 
   test(

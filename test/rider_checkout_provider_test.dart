@@ -36,6 +36,8 @@ RiderCheckoutTrip _trip() => RiderCheckoutTrip(
       riderId: _riderId,
       driverId: _driverId,
       version: 3,
+      currentFareFils: 7450,
+      currency: 'JOD',
       status: DriverTripLifecycleStatus.accepted,
       paymentMethod: PaymentMethod.card,
     );

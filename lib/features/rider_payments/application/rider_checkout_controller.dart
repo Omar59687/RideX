@@ -311,7 +311,11 @@ class RiderCheckoutController extends ChangeNotifier {
     }
     _lastTrip = trip;
 
-    if (trip.isTerminal) {
+    final canReadCompletedCardHistory =
+        trip.status == DriverTripLifecycleStatus.completed &&
+            trip.paymentMethod == PaymentMethod.card &&
+            isCanonicalTripId(trip.driverId);
+    if (trip.isTerminal && !canReadCompletedCardHistory) {
       _set(
         RiderCheckoutState(
           trip: RiderCheckoutTripTerminal(trip),
@@ -320,9 +324,9 @@ class RiderCheckoutController extends ChangeNotifier {
       );
       return;
     }
-    if (trip.paymentMethod != PaymentMethod.card ||
+    if ((!trip.isTerminal && trip.paymentMethod != PaymentMethod.card) ||
         !isCanonicalTripId(trip.driverId) ||
-        !trip.isEligibleAssignedCardTrip) {
+        (!trip.isTerminal && !trip.isEligibleAssignedCardTrip)) {
       _set(
         const RiderCheckoutState(
           trip: RiderCheckoutTripIneligible(),
@@ -334,7 +338,7 @@ class RiderCheckoutController extends ChangeNotifier {
 
     _set(
       RiderCheckoutState(
-        trip: RiderCheckoutTripEligible(trip),
+        trip: _paymentTripState(trip),
         payment: const RiderCheckoutPaymentLoading(),
       ),
     );
@@ -348,8 +352,10 @@ class RiderCheckoutController extends ChangeNotifier {
         case RiderCheckoutPaymentActionRequiredRead():
           _set(
             RiderCheckoutState(
-              trip: RiderCheckoutTripEligible(trip),
-              payment: const RiderCheckoutActionRequired(),
+              trip: _paymentTripState(trip),
+              payment: trip.isTerminal
+                  ? const RiderCheckoutPaymentUnknown()
+                  : const RiderCheckoutActionRequired(),
             ),
           );
           return;
@@ -369,14 +375,14 @@ class RiderCheckoutController extends ChangeNotifier {
           RiderCheckoutPaymentReadFailure.unknownOutcome) {
         _set(
           RiderCheckoutState(
-            trip: RiderCheckoutTripEligible(trip),
+            trip: _paymentTripState(trip),
             payment: const RiderCheckoutPaymentUnknown(),
           ),
         );
       } else {
         _set(
           RiderCheckoutState(
-            trip: RiderCheckoutTripEligible(trip),
+            trip: _paymentTripState(trip),
             payment: RiderCheckoutPaymentReadError(error.failure),
           ),
         );
@@ -385,7 +391,7 @@ class RiderCheckoutController extends ChangeNotifier {
       if (!_isCurrent(generation, owner)) return;
       _set(
         RiderCheckoutState(
-          trip: RiderCheckoutTripEligible(trip),
+          trip: _paymentTripState(trip),
           payment: const RiderCheckoutPaymentReadError(
             RiderCheckoutPaymentReadFailure.unavailable,
           ),
@@ -403,10 +409,12 @@ class RiderCheckoutController extends ChangeNotifier {
     if (!isCanonicalTripId(payment.paymentId ?? '') ||
         payment.tripId?.toLowerCase() != trip.tripId.toLowerCase() ||
         payment.bookingRequestId?.toLowerCase() !=
-            trip.bookingRequestId.toLowerCase()) {
+            trip.bookingRequestId.toLowerCase() ||
+        payment.amountFils != trip.currentFareFils ||
+        payment.currency != trip.currency) {
       _set(
         RiderCheckoutState(
-          trip: RiderCheckoutTripEligible(trip),
+          trip: _paymentTripState(trip),
           payment: const RiderCheckoutPaymentUnknown(),
         ),
       );
@@ -421,7 +429,7 @@ class RiderCheckoutController extends ChangeNotifier {
                 payment != previousPayment))) {
       _set(
         RiderCheckoutState(
-          trip: RiderCheckoutTripEligible(trip),
+          trip: _paymentTripState(trip),
           payment: const RiderCheckoutPaymentUnknown(),
         ),
       );
@@ -436,7 +444,7 @@ class RiderCheckoutController extends ChangeNotifier {
     if (!receiptEligible) {
       _set(
         RiderCheckoutState(
-          trip: RiderCheckoutTripEligible(trip),
+          trip: _paymentTripState(trip),
           payment: paymentState,
         ),
       );
@@ -444,7 +452,7 @@ class RiderCheckoutController extends ChangeNotifier {
     }
     _set(
       RiderCheckoutState(
-        trip: RiderCheckoutTripEligible(trip),
+        trip: _paymentTripState(trip),
         payment: paymentState,
         receipt: const RiderReceiptLoading(),
         receiptCheckAttempted: true,
@@ -460,13 +468,18 @@ class RiderCheckoutController extends ChangeNotifier {
     if (!_isCurrent(generation, owner)) return;
     _set(
       RiderCheckoutState(
-        trip: RiderCheckoutTripEligible(trip),
+        trip: _paymentTripState(trip),
         payment: paymentState,
         receipt: receiptState,
         receiptCheckAttempted: true,
       ),
     );
   }
+
+  RiderCheckoutTripState _paymentTripState(RiderCheckoutTrip trip) =>
+      trip.isTerminal
+          ? RiderCheckoutTripTerminal(trip)
+          : RiderCheckoutTripEligible(trip);
 
   Future<RiderReceiptState> _readReceipt({
     required String tripId,

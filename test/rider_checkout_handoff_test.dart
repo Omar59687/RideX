@@ -32,6 +32,8 @@ RiderCheckoutTrip _trip({PaymentMethod method = PaymentMethod.card}) =>
       riderId: _riderId,
       driverId: _driverId,
       version: 4,
+      currentFareFils: 7450,
+      currency: 'JOD',
       status: DriverTripLifecycleStatus.accepted,
       paymentMethod: method,
     );

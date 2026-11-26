@@ -15,6 +15,8 @@ final class RiderCheckoutTrip {
     required this.riderId,
     required this.driverId,
     required this.version,
+    required this.currentFareFils,
+    required this.currency,
     required this.status,
     required this.paymentMethod,
   }) {
@@ -31,6 +33,16 @@ final class RiderCheckoutTrip {
     if (version < 1) {
       throw ArgumentError.value(version, 'version', 'Must be positive.');
     }
+    if (currentFareFils < 0 || currentFareFils > 2147483647) {
+      throw ArgumentError.value(
+        currentFareFils,
+        'currentFareFils',
+        'Must be nonnegative.',
+      );
+    }
+    if (currency != 'JOD') {
+      throw ArgumentError.value(currency, 'currency', 'Only JOD is supported.');
+    }
   }
 
   final String tripId;
@@ -38,6 +50,8 @@ final class RiderCheckoutTrip {
   final String riderId;
   final String driverId;
   final int version;
+  final int currentFareFils;
+  final String currency;
   final DriverTripLifecycleStatus status;
   final PaymentMethod paymentMethod;
 
@@ -90,7 +104,8 @@ final class RiderCheckoutPaymentReadException implements Exception {
 abstract interface class RiderCheckoutReader {
   Future<RiderCheckoutTrip?> readTrip({required String tripId});
 
-  /// Called only after [readTrip] returns an eligible canonical Card Trip.
+  /// Called only after [readTrip] returns an eligible canonical Card Trip or
+  /// a completed Card Trip being read for historical payment evidence.
   ///
   /// Implementations must return [RiderCheckoutPaymentFound] only for a
   /// canonical, linked Payment. [RiderCheckoutPaymentActionRequiredRead] is
