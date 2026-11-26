@@ -114,9 +114,7 @@ abstract final class A04FinancialReadParser {
 
     int integer(String key, {required int minimum}) {
       final value = row[key];
-      if (value is! int ||
-          value < minimum ||
-          value > _maxPostgresInteger) {
+      if (value is! int || value < minimum || value > _maxPostgresInteger) {
         throw FormatException('Invalid A04 integer field: $key.');
       }
       return value;
