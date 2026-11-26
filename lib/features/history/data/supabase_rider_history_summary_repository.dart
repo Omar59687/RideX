@@ -17,7 +17,8 @@ final class RiderHistorySummary {
     required this.paymentVersion,
     required this.paymentMethod,
   }) {
-    if (!isCanonicalTripId(tripId) || version < 1 ||
+    if (!isCanonicalTripId(tripId) ||
+        version < 1 ||
         (paymentId != null && !isCanonicalTripId(paymentId!)) ||
         (paymentVersion != null && paymentVersion! < 1) ||
         ((paymentId == null) != (paymentVersion == null)) ||
@@ -82,7 +83,8 @@ final class SupabaseRiderHistorySummaryRepository
   final bool Function() isCurrent;
   final Session? _sdkSession;
 
-  bool get _authorized => _sdkSession != null &&
+  bool get _authorized =>
+      _sdkSession != null &&
       !_sdkSession.isExpired &&
       _sdkSession.user.id == riderId &&
       identical(client.auth.currentSession, _sdkSession) &&
@@ -121,15 +123,18 @@ final class SupabaseRiderHistorySummaryRepository
       if (previous != null && !_isBefore(row, previous)) {
         throw const FormatException('Rider history order is invalid.');
       }
-      if (cursor != null && !_isBefore(row, RiderHistorySummary(
-            tripId: cursor.tripId,
-            version: 1,
-            status: DriverTripLifecycleStatus.accepted,
-            createdAt: cursor.createdAt,
-            paymentId: null,
-            paymentVersion: null,
-            paymentMethod: null,
-          ))) {
+      if (cursor != null &&
+          !_isBefore(
+              row,
+              RiderHistorySummary(
+                tripId: cursor.tripId,
+                version: 1,
+                status: DriverTripLifecycleStatus.accepted,
+                createdAt: cursor.createdAt,
+                paymentId: null,
+                paymentVersion: null,
+                paymentMethod: null,
+              ))) {
         throw const FormatException('Rider history cursor was ignored.');
       }
       previous = row;
@@ -179,8 +184,11 @@ final class SupabaseRiderHistorySummaryRepository
         .select('id,role,is_blocked')
         .eq('id', riderId)
         .maybeSingle();
-    if (!_authorized || row == null || row['id'] != riderId ||
-        row['role'] != 'rider' || row['is_blocked'] != false) {
+    if (!_authorized ||
+        row == null ||
+        row['id'] != riderId ||
+        row['role'] != 'rider' ||
+        row['is_blocked'] != false) {
       throw const RiderHistorySummarySessionChanged();
     }
   }
@@ -192,9 +200,8 @@ final class SupabaseRiderHistorySummaryRepository
       throw const FormatException('Unsupported history contract.');
     }
     final tripId = _uuid(row['trip_id']);
-    final paymentId = row['payment_id'] == null
-        ? null
-        : _uuid(row['payment_id']);
+    final paymentId =
+        row['payment_id'] == null ? null : _uuid(row['payment_id']);
     final paymentVersion = row['payment_version'] == null
         ? null
         : _positiveInt(row['payment_version']);

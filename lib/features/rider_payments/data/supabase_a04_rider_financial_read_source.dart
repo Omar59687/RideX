@@ -40,7 +40,8 @@ final class SupabaseA04AuthorizedTripContextReader
   final bool Function() isCurrent;
   final Session? _sdkSession;
 
-  bool get _authorized => _sdkSession != null &&
+  bool get _authorized =>
+      _sdkSession != null &&
       !_sdkSession.isExpired &&
       _sdkSession.user.id == riderId &&
       identical(client.auth.currentSession, _sdkSession) &&
@@ -52,9 +53,7 @@ final class SupabaseA04AuthorizedTripContextReader
     required String tripId,
     required String riderId,
   }) async {
-    if (!_authorized ||
-        riderId != this.riderId ||
-        !isCanonicalTripId(tripId)) {
+    if (!_authorized || riderId != this.riderId || !isCanonicalTripId(tripId)) {
       throw const RiderCheckoutTripReadException(
         RiderCheckoutTripReadFailure.unauthorized,
       );
@@ -91,7 +90,8 @@ final class SupabaseA04AuthorizedTripContextReader
       }
       final version = row['version'];
       final amount = row['current_fare_fils'];
-      if (version is! int || amount is! int ||
+      if (version is! int ||
+          amount is! int ||
           !isCanonicalTripId(row['booking_request_id'] as String? ?? '') ||
           !isCanonicalTripId(row['driver_id'] as String? ?? '') ||
           row['currency'] != 'JOD') {

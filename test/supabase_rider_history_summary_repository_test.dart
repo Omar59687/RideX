@@ -67,7 +67,8 @@ class _Backend {
           'token_type': 'bearer',
           'expires_at': DateTime.now()
                   .add(const Duration(hours: 1))
-                  .millisecondsSinceEpoch ~/ 1000,
+                  .millisecondsSinceEpoch ~/
+              1000,
           'user': {'id': id, 'aud': 'authenticated'},
         }),
       );
@@ -84,7 +85,8 @@ Map<String, dynamic> _historyRow({
   String? paymentId,
   int? paymentVersion,
   String? method,
-}) => {
+}) =>
+    {
       'contract_version': 1,
       'trip_id': id,
       'trip_version': 3,

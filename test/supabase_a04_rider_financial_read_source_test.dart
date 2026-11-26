@@ -70,11 +70,10 @@ class _Backend {
         jsonEncode({
           'access_token': 'offline-session',
           'token_type': 'bearer',
-          'expires_at':
-              DateTime.now()
-                      .add(const Duration(hours: 1))
-                      .millisecondsSinceEpoch ~/
-                  1000,
+          'expires_at': DateTime.now()
+                  .add(const Duration(hours: 1))
+                  .millisecondsSinceEpoch ~/
+              1000,
           'user': {'id': id, 'aud': 'authenticated'},
         }),
       );

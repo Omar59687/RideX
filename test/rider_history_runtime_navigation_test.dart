@@ -40,7 +40,8 @@ class _FakeHistory implements RiderHistorySummaryReader {
   Future<RiderHistorySummaryPage> readPage({
     int limit = 20,
     RiderHistorySummaryCursor? cursor,
-  }) async => RiderHistorySummaryPage(rows: [row]);
+  }) async =>
+      RiderHistorySummaryPage(rows: [row]);
 
   @override
   Future<RiderHistorySummary?> readExactTrip(String tripId) async {

@@ -85,7 +85,8 @@ class _RiderCanonicalHistoryScreenState
   Future<void> _load({required bool reset}) async {
     final owner = ref.read(sessionControllerProvider);
     final repository = ref.read(riderHistorySummaryRepositoryProvider);
-    if (owner.role != RideRole.rider || owner.user?.isBlocked != false ||
+    if (owner.role != RideRole.rider ||
+        owner.user?.isBlocked != false ||
         repository == null) {
       setState(() {
         _rows.clear();
@@ -111,7 +112,8 @@ class _RiderCanonicalHistoryScreenState
     });
     try {
       final page = await repository.readPage(cursor: cursor);
-      if (!mounted || generation != _generation ||
+      if (!mounted ||
+          generation != _generation ||
           !identical(ref.read(sessionControllerProvider), owner)) {
         return;
       }
@@ -122,7 +124,8 @@ class _RiderCanonicalHistoryScreenState
         _loading = false;
       });
     } on Object {
-      if (!mounted || generation != _generation ||
+      if (!mounted ||
+          generation != _generation ||
           !identical(ref.read(sessionControllerProvider), owner)) {
         return;
       }
@@ -184,15 +187,17 @@ class _RiderCanonicalHistoryScreenState
         body: Center(child: Text('Refreshing Rider history.')),
       );
     }
-    final visibleRows = _rows.where((row) => switch (_filter) {
-          _CanonicalHistoryFilter.all => true,
-          _CanonicalHistoryFilter.completed =>
-            row.status == DriverTripLifecycleStatus.completed,
-          _CanonicalHistoryFilter.cancelled =>
-            row.status == DriverTripLifecycleStatus.cancelledByRider ||
-                row.status == DriverTripLifecycleStatus.cancelledByDriver ||
-                row.status == DriverTripLifecycleStatus.cancelledByAdmin,
-        }).toList(growable: false);
+    final visibleRows = _rows
+        .where((row) => switch (_filter) {
+              _CanonicalHistoryFilter.all => true,
+              _CanonicalHistoryFilter.completed =>
+                row.status == DriverTripLifecycleStatus.completed,
+              _CanonicalHistoryFilter.cancelled =>
+                row.status == DriverTripLifecycleStatus.cancelledByRider ||
+                    row.status == DriverTripLifecycleStatus.cancelledByDriver ||
+                    row.status == DriverTripLifecycleStatus.cancelledByAdmin,
+            })
+        .toList(growable: false);
     return Scaffold(
       appBar: AppBar(title: const Text('Your rides')),
       body: Column(children: [
@@ -317,7 +322,8 @@ class _RiderCanonicalHistoryDetailScreenState
       final trip = repository == null
           ? null
           : await repository.readExactTrip(widget.tripId);
-      if (!mounted || generation != _generation ||
+      if (!mounted ||
+          generation != _generation ||
           !identical(ref.read(sessionControllerProvider), owner)) {
         return;
       }
@@ -331,7 +337,8 @@ class _RiderCanonicalHistoryDetailScreenState
             .refresh(tripId: widget.tripId);
       }
     } on Object {
-      if (!mounted || generation != _generation ||
+      if (!mounted ||
+          generation != _generation ||
           !identical(ref.read(sessionControllerProvider), owner)) {
         return;
       }
@@ -421,9 +428,8 @@ class _RiderCanonicalHistoryDetailScreenState
                       if (trip.paymentMethod == PaymentMethod.card) ...[
                         const SizedBox(height: 16),
                         RiderCheckoutPanel(
-                          state: ref
-                              .watch(riderCheckoutControllerProvider)
-                              .state,
+                          state:
+                              ref.watch(riderCheckoutControllerProvider).state,
                           onRetry: () => ref
                               .read(riderCheckoutControllerProvider)
                               .refresh(tripId: widget.tripId),
