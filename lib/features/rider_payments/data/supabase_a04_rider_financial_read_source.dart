@@ -52,7 +52,9 @@ final class SupabaseA04AuthorizedTripContextReader
     required String tripId,
     required String riderId,
   }) async {
-    if (!_authorized || riderId != this.riderId || !isCanonicalTripId(tripId)) {
+    if (!_authorized ||
+        riderId != this.riderId ||
+        !isCanonicalTripId(tripId)) {
       throw const RiderCheckoutTripReadException(
         RiderCheckoutTripReadFailure.unauthorized,
       );

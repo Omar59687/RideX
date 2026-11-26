@@ -36,14 +36,19 @@ final class RiderHistorySummary {
 }
 
 final class RiderHistorySummaryCursor {
-  const RiderHistorySummaryCursor({required this.createdAt, required this.tripId});
+  const RiderHistorySummaryCursor({
+    required this.createdAt,
+    required this.tripId,
+  });
   final DateTime createdAt;
   final String tripId;
 }
 
 final class RiderHistorySummaryPage {
-  RiderHistorySummaryPage({required List<RiderHistorySummary> rows, this.nextCursor})
-      : rows = List.unmodifiable(rows);
+  RiderHistorySummaryPage({
+    required List<RiderHistorySummary> rows,
+    this.nextCursor,
+  }) : rows = List.unmodifiable(rows);
   final List<RiderHistorySummary> rows;
   final RiderHistorySummaryCursor? nextCursor;
 }
@@ -187,7 +192,9 @@ final class SupabaseRiderHistorySummaryRepository
       throw const FormatException('Unsupported history contract.');
     }
     final tripId = _uuid(row['trip_id']);
-    final paymentId = row['payment_id'] == null ? null : _uuid(row['payment_id']);
+    final paymentId = row['payment_id'] == null
+        ? null
+        : _uuid(row['payment_id']);
     final paymentVersion = row['payment_version'] == null
         ? null
         : _positiveInt(row['payment_version']);

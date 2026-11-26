@@ -10,6 +10,7 @@ import 'package:ridex/features/history/data/supabase_rider_history_summary_repos
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _rider = 'a6000000-0000-0000-0000-000000000001';
+const _otherRider = 'a6000000-0000-0000-0000-000000000002';
 const _trip1 = 'a6100000-0000-0000-0000-000000000001';
 const _trip2 = 'a6100000-0000-0000-0000-000000000002';
 const _payment = 'a6200000-0000-0000-0000-000000000001';
@@ -57,13 +58,19 @@ class _Backend {
       'http://127.0.0.1:${server.port}',
       'offline-publishable',
     );
-    await client.auth.setInitialSession(jsonEncode({
-      'access_token': 'offline-session',
-      'token_type': 'bearer',
-      'expires_at': DateTime.now().add(const Duration(hours: 1)).millisecondsSinceEpoch ~/ 1000,
-      'user': {'id': _rider, 'aud': 'authenticated'},
-    }));
+    await setRider(_rider);
   }
+
+  Future<void> setRider(String id) => client.auth.setInitialSession(
+        jsonEncode({
+          'access_token': 'offline-session',
+          'token_type': 'bearer',
+          'expires_at': DateTime.now()
+                  .add(const Duration(hours: 1))
+                  .millisecondsSinceEpoch ~/ 1000,
+          'user': {'id': id, 'aud': 'authenticated'},
+        }),
+      );
 
   Future<void> close() async {
     await client.dispose();
@@ -109,12 +116,12 @@ void main() {
     HttpOverrides.global = oldOverrides;
   });
 
-  SupabaseRiderHistorySummaryRepository repository({bool Function()? current}) =>
+  SupabaseRiderHistorySummaryRepository repository() =>
       SupabaseRiderHistorySummaryRepository(
         client: backend.client,
         riderId: _rider,
         readSession: () => session,
-        isCurrent: current ?? () => true,
+        isCurrent: () => true,
       );
 
   test('parses the supported fields and stable keyset cursor', () async {
@@ -133,7 +140,10 @@ void main() {
     expect(page.rows.first.paymentId, _payment);
     expect(page.rows.last.paymentMethod, isNull);
     expect(page.nextCursor?.tripId, _trip2);
-    expect(backend.requests.map((request) => request.$1), ['GET', 'POST', 'GET']);
+    expect(
+      backend.requests.map((request) => request.$1),
+      ['GET', 'POST', 'GET'],
+    );
   });
 
   test('malformed and out of order history rows fail closed', () async {
@@ -143,44 +153,69 @@ void main() {
     ];
     await expectLater(repository().readPage(), throwsFormatException);
     backend.rows = [
-      {..._historyRow(id: _trip1, createdAt: '2026-11-26T10:00:00.000Z'), 'trip_version': 0},
+      {
+        ..._historyRow(
+          id: _trip1,
+          createdAt: '2026-11-26T10:00:00.000Z',
+        ),
+        'trip_version': 0,
+      },
     ];
     await expectLater(repository().readPage(), throwsFormatException);
     backend.rows = [
-      {..._historyRow(id: _trip1, createdAt: '2026-11-26T10:00:00.000Z'), 'payment_id': _payment},
+      {
+        ..._historyRow(
+          id: _trip1,
+          createdAt: '2026-11-26T10:00:00.000Z',
+        ),
+        'payment_id': _payment,
+      },
     ];
     await expectLater(repository().readPage(), throwsFormatException);
   });
 
-  test('exact Trip read is participant filtered and exposes only returned fields', () async {
-    final trip = await repository().readExactTrip(_trip1);
-    expect(trip?.tripId, _trip1);
-    expect(trip?.status.name, 'completed');
-    expect(trip?.paymentMethod?.name, 'card');
-    expect(trip?.paymentId, isNull);
-    final tripRequest = backend.requests.firstWhere(
-      (request) => request.$2.path.endsWith('/trips'),
-    );
-    expect(tripRequest.$2.queryParameters['rider_id'], 'eq.$_rider');
-  });
+  test(
+    'exact Trip read is participant filtered and exposes only returned fields',
+    () async {
+      final trip = await repository().readExactTrip(_trip1);
+      expect(trip?.tripId, _trip1);
+      expect(trip?.status.name, 'completed');
+      expect(trip?.paymentMethod?.name, 'card');
+      expect(trip?.paymentId, isNull);
+      final tripRequest = backend.requests.firstWhere(
+        (request) => request.$2.path.endsWith('/trips'),
+      );
+      expect(tripRequest.$2.queryParameters['rider_id'], 'eq.$_rider');
+    },
+  );
 
   test('missing exact record remains unavailable, not fabricated', () async {
     backend.exact = null;
     expect(await repository().readExactTrip(_trip1), isNull);
   });
 
-  test('session replacement suppresses late history page', () async {
-    backend.rows = [_historyRow(id: _trip1, createdAt: '2026-11-26T10:00:00.000Z')];
-    final release = Completer<void>();
-    backend.historyStarted = Completer<void>();
-    backend.historyBoundary = () => release.future;
-    var current = true;
-    final operation = repository(current: () => current).readPage();
-    await backend.historyStarted!.future;
-    current = false;
-    release.complete();
-    await expectLater(operation, throwsA(isA<RiderHistorySummarySessionChanged>()));
-  });
+  test(
+    'session replacement suppresses late history page',
+    () async {
+      backend.rows = [
+        _historyRow(
+          id: _trip1,
+          createdAt: '2026-11-26T10:00:00.000Z',
+        ),
+      ];
+      final release = Completer<void>();
+      backend.historyStarted = Completer<void>();
+      backend.historyBoundary = () => release.future;
+      final operation = repository().readPage();
+      await backend.historyStarted!.future;
+      await backend.setRider(_otherRider);
+      release.complete();
+      await expectLater(
+        operation,
+        throwsA(isA<RiderHistorySummarySessionChanged>()),
+      );
+    },
+  );
 }
 
 class _NoProxyHttpOverrides extends HttpOverrides {}

@@ -50,34 +50,47 @@ class _FakeHistory implements RiderHistorySummaryReader {
 }
 
 void main() {
-  testWidgets('Rider history opens exact authorized Trip details', (tester) async {
-    final history = _FakeHistory();
-    final router = GoRouter(
-      initialLocation: '/history',
-      routes: [
-        GoRoute(path: '/history', builder: (_, __) => const RoleAwareHistoryRoute()),
-        GoRoute(
-          path: '/history/:tripId',
-          builder: (_, state) => RoleAwareTripDetailsRoute(
-            tripId: state.pathParameters['tripId']!,
+  testWidgets(
+    'Rider history opens exact authorized Trip details',
+    (tester) async {
+      final history = _FakeHistory();
+      final router = GoRouter(
+        initialLocation: '/history',
+        routes: [
+          GoRoute(
+            path: '/history',
+            builder: (_, __) => const RoleAwareHistoryRoute(),
           ),
+          GoRoute(
+            path: '/history/:tripId',
+            builder: (_, state) => RoleAwareTripDetailsRoute(
+              tripId: state.pathParameters['tripId']!,
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sessionControllerProvider.overrideWith(_TestSession.new),
+            riderHistorySummaryRepositoryProvider.overrideWithValue(history),
+          ],
+          child: MaterialApp.router(routerConfig: router),
         ),
-      ],
-    );
-    addTearDown(router.dispose);
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        sessionControllerProvider.overrideWith(_TestSession.new),
-        riderHistorySummaryRepositoryProvider.overrideWithValue(history),
-      ],
-      child: MaterialApp.router(routerConfig: router),
-    ));
-    await tester.pumpAndSettle();
-    expect(find.byKey(ValueKey('canonical-history-$_trip')), findsOneWidget);
-    await tester.tap(find.byKey(ValueKey('canonical-history-$_trip')));
-    await tester.pumpAndSettle();
-    expect(history.exactRead, _trip);
-    expect(find.text('Trip status: Completed'), findsOneWidget);
-    expect(find.text('This history contract does not provide Cash payment or receipt details.'), findsOneWidget);
-  });
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(ValueKey('canonical-history-$_trip')), findsOneWidget);
+      await tester.tap(find.byKey(ValueKey('canonical-history-$_trip')));
+      await tester.pumpAndSettle();
+      expect(history.exactRead, _trip);
+      expect(find.text('Trip status: Completed'), findsOneWidget);
+      expect(
+        find.text(
+          'This history contract does not provide Cash payment or receipt details.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 }

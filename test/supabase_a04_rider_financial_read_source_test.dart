@@ -4,10 +4,11 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/core/models/app_user.dart';
+import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/features/rider_payments/data/supabase_a04_rider_financial_read_source.dart';
-import 'package:ridex/core/models/payment_method.dart';
+import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _rider = 'a5000000-0000-0000-0000-000000000001';
@@ -70,7 +71,10 @@ class _Backend {
           'access_token': 'offline-session',
           'token_type': 'bearer',
           'expires_at':
-              DateTime.now().add(const Duration(hours: 1)).millisecondsSinceEpoch ~/ 1000,
+              DateTime.now()
+                      .add(const Duration(hours: 1))
+                      .millisecondsSinceEpoch ~/
+                  1000,
           'user': {'id': id, 'aud': 'authenticated'},
         }),
       );
@@ -103,29 +107,29 @@ void main() {
     HttpOverrides.global = oldOverrides;
   });
 
-  SupabaseA04AuthorizedTripContextReader reader({
-    SessionState Function()? readSession,
-    bool Function()? isCurrent,
-  }) =>
+  SupabaseA04AuthorizedTripContextReader reader() =>
       SupabaseA04AuthorizedTripContextReader(
         client: backend.client,
         riderId: _rider,
-        readSession: readSession ?? () => appSession,
-        isCurrent: isCurrent ?? () => true,
+        readSession: () => appSession,
+        isCurrent: () => true,
       );
 
-  test('reads exact assigned Card Trip through authenticated RLS client', () async {
-    final trip = await reader().readAuthorizedTrip(
-      tripId: _trip,
-      riderId: _rider,
-    );
-    expect(trip?.tripId, _trip);
-    expect(trip?.bookingRequestId, _booking);
-    expect(trip?.driverId, _driver);
-    expect(trip?.currentFareFils, 14500);
-    expect(trip?.paymentMethod, PaymentMethod.card);
-    expect(backend.requests, ['/rest/v1/users', '/rest/v1/trips']);
-  });
+  test(
+    'reads exact assigned Card Trip through authenticated RLS client',
+    () async {
+      final trip = await reader().readAuthorizedTrip(
+        tripId: _trip,
+        riderId: _rider,
+      );
+      expect(trip?.tripId, _trip);
+      expect(trip?.bookingRequestId, _booking);
+      expect(trip?.driverId, _driver);
+      expect(trip?.currentFareFils, 14500);
+      expect(trip?.paymentMethod, PaymentMethod.card);
+      expect(backend.requests, ['/rest/v1/users', '/rest/v1/trips']);
+    },
+  );
 
   test('blocked profile fails closed before reading the Trip', () async {
     backend.profile = {...backend.profile!, 'is_blocked': true};
@@ -144,28 +148,36 @@ void main() {
     );
   });
 
-  test('session replacement during Trip read suppresses the late row', () async {
-    final release = Completer<void>();
-    backend.tripStarted = Completer<void>();
-    backend.tripBoundary = () => release.future;
-    var current = true;
-    final operation = reader(isCurrent: () => current).readAuthorizedTrip(
-      tripId: _trip,
-      riderId: _rider,
-    );
-    await backend.tripStarted!.future;
-    current = false;
-    release.complete();
-    await expectLater(operation, throwsA(isA<RiderCheckoutTripReadException>()));
-  });
+  test(
+    'session replacement during Trip read suppresses the late row',
+    () async {
+      final release = Completer<void>();
+      backend.tripStarted = Completer<void>();
+      backend.tripBoundary = () => release.future;
+      final operation = reader().readAuthorizedTrip(
+        tripId: _trip,
+        riderId: _rider,
+      );
+      await backend.tripStarted!.future;
+      await backend.setRider(_otherRider);
+      release.complete();
+      await expectLater(
+        operation,
+        throwsA(isA<RiderCheckoutTripReadException>()),
+      );
+    },
+  );
 
-  test('foreign requested identity is rejected before network access', () async {
-    await expectLater(
-      reader().readAuthorizedTrip(tripId: _trip, riderId: _otherRider),
-      throwsA(isA<RiderCheckoutTripReadException>()),
-    );
-    expect(backend.requests, isEmpty);
-  });
+  test(
+    'foreign requested identity is rejected before network access',
+    () async {
+      await expectLater(
+        reader().readAuthorizedTrip(tripId: _trip, riderId: _otherRider),
+        throwsA(isA<RiderCheckoutTripReadException>()),
+      );
+      expect(backend.requests, isEmpty);
+    },
+  );
 }
 
 class _NoProxyHttpOverrides extends HttpOverrides {}

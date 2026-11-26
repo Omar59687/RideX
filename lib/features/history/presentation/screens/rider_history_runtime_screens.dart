@@ -25,7 +25,9 @@ class RoleAwareHistoryRoute extends ConsumerWidget {
     if (role == RideRole.rider) return const RiderCanonicalHistoryScreen();
     if (role == RideRole.driver) return const TripHistoryScreen();
     return const Scaffold(
-      body: Center(child: Text('Trip history is unavailable for this account.')),
+      body: Center(
+        child: Text('Trip history is unavailable for this account.'),
+      ),
     );
   }
 }
@@ -69,7 +71,9 @@ class _RiderCanonicalHistoryScreenState
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load(reset: true));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load(reset: true);
+    });
   }
 
   @override
@@ -108,7 +112,9 @@ class _RiderCanonicalHistoryScreenState
     try {
       final page = await repository.readPage(cursor: cursor);
       if (!mounted || generation != _generation ||
-          !identical(ref.read(sessionControllerProvider), owner)) return;
+          !identical(ref.read(sessionControllerProvider), owner)) {
+        return;
+      }
       setState(() {
         _rows.addAll(page.rows);
         _cursor = page.nextCursor;
@@ -117,7 +123,9 @@ class _RiderCanonicalHistoryScreenState
       });
     } on Object {
       if (!mounted || generation != _generation ||
-          !identical(ref.read(sessionControllerProvider), owner)) return;
+          !identical(ref.read(sessionControllerProvider), owner)) {
+        return;
+      }
       setState(() {
         _failed = true;
         _loaded = true;
@@ -129,6 +137,7 @@ class _RiderCanonicalHistoryScreenState
   @override
   Widget build(BuildContext context) {
     final current = ref.watch(sessionControllerProvider);
+    final repository = ref.watch(riderHistorySummaryRepositoryProvider);
     ref.listen(sessionControllerProvider, (previous, next) {
       if (!identical(previous, next)) {
         _generation++;
@@ -145,11 +154,35 @@ class _RiderCanonicalHistoryScreenState
         });
       }
     });
+    ref.listen(riderHistorySummaryRepositoryProvider, (previous, next) {
+      if (!identical(previous, next)) {
+        _generation++;
+        setState(() {
+          _rows.clear();
+          _cursor = null;
+          _owner = null;
+          _loaded = false;
+          _loading = false;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _load(reset: true);
+        });
+      }
+    });
     if (current.role != RideRole.rider || current.user?.isBlocked != false) {
-      return const Scaffold(body: Center(child: Text('Sign in as a Rider to view your trips.')));
+      return const Scaffold(
+        body: Center(child: Text('Sign in as a Rider to view your trips.')),
+      );
+    }
+    if (repository == null) {
+      return const Scaffold(
+        body: Center(child: Text('Trip history could not be verified.')),
+      );
     }
     if (_owner != null && !identical(_owner, current)) {
-      return const Scaffold(body: Center(child: Text('Refreshing Rider history.')));
+      return const Scaffold(
+        body: Center(child: Text('Refreshing Rider history.')),
+      );
     }
     final visibleRows = _rows.where((row) => switch (_filter) {
           _CanonicalHistoryFilter.all => true,
@@ -183,33 +216,53 @@ class _RiderCanonicalHistoryScreenState
           child: !_loaded && _loading
               ? const Center(child: CircularProgressIndicator())
               : _failed && _rows.isEmpty
-                  ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      const Text('Trip history could not be verified.'),
-                      TextButton(onPressed: () => _load(reset: true), child: const Text('Retry')),
-                    ]))
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Trip history could not be verified.'),
+                          TextButton(
+                            onPressed: () => _load(reset: true),
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    )
                   : _rows.isEmpty
                       ? const Center(child: Text('No rides found.'))
                       : visibleRows.isEmpty && _cursor == null
-                          ? const Center(child: Text('No trips match this filter.'))
+                          ? const Center(
+                              child: Text('No trips match this filter.'),
+                            )
                           : ListView.builder(
                               itemCount: visibleRows.length +
                                   (_cursor != null || _failed ? 1 : 0),
                               itemBuilder: (context, index) {
                                 if (index == visibleRows.length) {
-                                  return Center(child: TextButton(
-                                    onPressed: _loading
-                                        ? null
-                                        : () => _load(reset: false),
-                                    child: Text(_failed ? 'Retry' : 'Load more'),
-                                  ));
+                                  return Center(
+                                    child: TextButton(
+                                      onPressed: _loading
+                                          ? null
+                                          : () => _load(reset: false),
+                                      child: Text(
+                                        _failed ? 'Retry' : 'Load more',
+                                      ),
+                                    ),
+                                  );
                                 }
                                 final row = visibleRows[index];
                                 return ListTile(
-                                  key: ValueKey('canonical-history-${row.tripId}'),
+                                  key: ValueKey(
+                                    'canonical-history-${row.tripId}',
+                                  ),
                                   title: Text(_statusLabel(row.status)),
                                   subtitle: Text(_dateLabel(row.createdAt)),
-                                  trailing: Text(row.paymentMethod?.name.toUpperCase() ?? 'Payment unverified'),
-                                  onTap: () => context.push('/history/${row.tripId}'),
+                                  trailing: Text(
+                                    row.paymentMethod?.name.toUpperCase() ??
+                                        'Payment unverified',
+                                  ),
+                                  onTap: () =>
+                                      context.push('/history/${row.tripId}'),
                                 );
                               },
                             ),
@@ -239,7 +292,9 @@ class _RiderCanonicalHistoryDetailScreenState
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
   }
 
   @override
@@ -259,19 +314,27 @@ class _RiderCanonicalHistoryDetailScreenState
       _failed = false;
     });
     try {
-      final trip = repository == null ? null : await repository.readExactTrip(widget.tripId);
+      final trip = repository == null
+          ? null
+          : await repository.readExactTrip(widget.tripId);
       if (!mounted || generation != _generation ||
-          !identical(ref.read(sessionControllerProvider), owner)) return;
+          !identical(ref.read(sessionControllerProvider), owner)) {
+        return;
+      }
       setState(() {
         _trip = trip;
         _loading = false;
       });
       if (trip?.paymentMethod == PaymentMethod.card) {
-        await ref.read(riderCheckoutControllerProvider).refresh(tripId: widget.tripId);
+        await ref
+            .read(riderCheckoutControllerProvider)
+            .refresh(tripId: widget.tripId);
       }
     } on Object {
       if (!mounted || generation != _generation ||
-          !identical(ref.read(sessionControllerProvider), owner)) return;
+          !identical(ref.read(sessionControllerProvider), owner)) {
+        return;
+      }
       setState(() {
         _failed = true;
         _loading = false;
@@ -282,6 +345,7 @@ class _RiderCanonicalHistoryDetailScreenState
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionControllerProvider);
+    final repository = ref.watch(riderHistorySummaryRepositoryProvider);
     ref.listen(sessionControllerProvider, (previous, next) {
       if (!identical(previous, next)) {
         _generation++;
@@ -295,33 +359,71 @@ class _RiderCanonicalHistoryDetailScreenState
         });
       }
     });
+    ref.listen(riderHistorySummaryRepositoryProvider, (previous, next) {
+      if (!identical(previous, next)) {
+        _generation++;
+        setState(() {
+          _trip = null;
+          _owner = null;
+          _loading = true;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _load();
+        });
+      }
+    });
     if (session.role != RideRole.rider || session.user?.isBlocked != false) {
-      return const Scaffold(body: Center(child: Text('Trip access could not be verified.')));
+      return const Scaffold(
+        body: Center(child: Text('Trip access could not be verified.')),
+      );
+    }
+    if (repository == null) {
+      return const Scaffold(
+        body: Center(child: Text('Trip access could not be verified.')),
+      );
     }
     if (_owner != null && !identical(_owner, session)) {
-      return const Scaffold(body: Center(child: Text('Refreshing Trip details.')));
+      return const Scaffold(
+        body: Center(child: Text('Refreshing Trip details.')),
+      );
     }
     final trip = _trip;
+    final paymentMethod =
+        trip?.paymentMethod?.name.toUpperCase() ?? 'Unavailable';
     return Scaffold(
       appBar: AppBar(title: const Text('Trip details')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _failed
-              ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Text('Trip details could not be verified.'),
-                  TextButton(onPressed: _load, child: const Text('Retry')),
-                ]))
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Trip details could not be verified.'),
+                      TextButton(
+                        onPressed: _load,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
               : trip == null
-                  ? const Center(child: Text('Trip not available.'))
+                  ? const Center(
+                      child: Text(
+                        'Trip is unavailable or could not be authorized.',
+                      ),
+                    )
                   : ListView(padding: const EdgeInsets.all(16), children: [
                       Text('Trip status: ${_statusLabel(trip.status)}'),
                       Text('Trip date: ${_dateLabel(trip.createdAt)}'),
                       Text('Trip version: ${trip.version}'),
-                      Text('Payment method: ${trip.paymentMethod?.name.toUpperCase() ?? 'Unavailable'}'),
+                      Text('Payment method: $paymentMethod'),
                       if (trip.paymentMethod == PaymentMethod.card) ...[
                         const SizedBox(height: 16),
                         RiderCheckoutPanel(
-                          state: ref.watch(riderCheckoutControllerProvider).state,
+                          state: ref
+                              .watch(riderCheckoutControllerProvider)
+                              .state,
                           onRetry: () => ref
                               .read(riderCheckoutControllerProvider)
                               .refresh(tripId: widget.tripId),
@@ -332,7 +434,10 @@ class _RiderCanonicalHistoryDetailScreenState
                       ] else
                         const Padding(
                           padding: EdgeInsets.only(top: 16),
-                          child: Text('This history contract does not provide Cash payment or receipt details.'),
+                          child: Text(
+                            'This history contract does not provide Cash '
+                            'payment or receipt details.',
+                          ),
                         ),
                     ]),
     );
