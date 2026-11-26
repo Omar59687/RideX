@@ -64,10 +64,16 @@ function stops(value: unknown): unknown[] {
   });
 }
 /** A locator is never authority. Read all linkage from one owned DB projection. */
-export function checkedBooking(b: Row, ownerId: string, bookingId: string, quoteId: string): Row {
+export function checkedBooking(
+  b: Row,
+  ownerId: string,
+  bookingId: string,
+  quoteId: string,
+  method: "cash" | "card" = "cash",
+): Row {
   if (b.id !== bookingId || b.rider_id !== ownerId) throw new CashMatchingError("unauthorized");
   if (
-    b.payment_method !== "cash" ||
+    b.payment_method !== method ||
     !["confirmed", "searching", "matched"].includes(String(b.status)) ||
     !integer(b.version) || Number(b.version) < 1 || b.fare_quote_id !== quoteId
   ) throw new CashMatchingError("invalid_state");
@@ -86,7 +92,12 @@ export function checkedBooking(b: Row, ownerId: string, bookingId: string, quote
   ) throw new CashMatchingError("invalid_state");
   return q;
 }
-export function assignedTrip(b: Row, q: Row, ownerId: string): string | undefined {
+export function assignedTrip(
+  b: Row,
+  q: Row,
+  ownerId: string,
+  method: "cash" | "card" = "cash",
+): string | undefined {
   const trips = rows(b.trips);
   if (b.status !== "matched") {
     if (trips.length) throw new CashMatchingError("invalid_state");
@@ -114,7 +125,7 @@ export function assignedTrip(b: Row, q: Row, ownerId: string): string | undefine
     t.fare_quote_id !== q.id || t.rider_id !== ownerId || t.driver_id !== b.matched_driver_id ||
     t.vehicle_id !== b.matched_vehicle_id || !uuid.test(String(t.driver_id)) ||
     !uuid.test(String(t.vehicle_id)) ||
-    t.payment_method !== "cash" || t.currency !== q.currency ||
+    t.payment_method !== method || t.currency !== q.currency ||
     t.original_fare_fils !== q.fixed_fare_fils ||
     t.pickup == null || t.destination == null || canonical(t.pickup) !== canonical(q.pickup) ||
     canonical(t.destination) !== canonical(q.destination) ||
@@ -129,8 +140,12 @@ export function assignedTrip(b: Row, q: Row, ownerId: string): string | undefine
   }
   return String(t.id);
 }
-export class CashMatchingAdapter {
-  constructor(private readonly port: CashMatchingPort) {}
+class MatchingAdapter {
+  constructor(
+    private readonly port: CashMatchingPort,
+    private readonly method: "cash" | "card",
+    private readonly gate: () => Promise<void>,
+  ) {}
   async request(
     bookingId: string,
     quoteId: string,
@@ -153,6 +168,7 @@ export class CashMatchingAdapter {
     const owner = await readOwner();
     if (!uuid.test(owner.id)) throw new CashMatchingError("unauthorized");
     const guard = async () => {
+      await this.gate();
       const current = await readOwner();
       if (current.id !== owner.id || current.session !== owner.session) {
         throw new CashMatchingError("unauthorized");
@@ -163,7 +179,7 @@ export class CashMatchingAdapter {
       const value = await this.port.read(bookingId);
       await guard();
       if (!value) throw new CashMatchingError("unauthorized");
-      const q = checkedBooking(value, owner.id, bookingId, quoteId);
+      const q = checkedBooking(value, owner.id, bookingId, quoteId, this.method);
       return { b: value, q };
     };
     const result = (state: MatchingResult["state"], tripId?: string): MatchingResult => ({
@@ -174,7 +190,7 @@ export class CashMatchingAdapter {
     });
     try {
       let { b, q } = await read();
-      const trip = assignedTrip(b, q, owner.id);
+      const trip = assignedTrip(b, q, owner.id, this.method);
       if (trip) return result("assigned", trip);
       // Let the database clock and locked expiry contract reconcile due offers.
       // The caller only invokes the trusted RPC; returned state is never trusted
@@ -185,7 +201,7 @@ export class CashMatchingAdapter {
         await guard();
         await this.port.expireOffers(bookingId, Number(b.version));
         ({ b, q } = await read());
-        const reconciledTrip = assignedTrip(b, q, owner.id);
+        const reconciledTrip = assignedTrip(b, q, owner.id, this.method);
         if (reconciledTrip) return result("assigned", reconciledTrip);
       }
       // Recover prior effects BEFORE enforcing the caller's original version.
@@ -212,7 +228,7 @@ export class CashMatchingAdapter {
       if (!candidates.length) return result("noCandidates");
       for (const c of candidates) {
         ({ b, q } = await read());
-        const assigned = assignedTrip(b, q, owner.id);
+        const assigned = assignedTrip(b, q, owner.id, this.method);
         if (assigned) return result("assigned", assigned);
         await guard();
         const offered = row(
@@ -233,7 +249,7 @@ export class CashMatchingAdapter {
         }
       }
       ({ b, q } = await read());
-      const assigned = assignedTrip(b, q, owner.id);
+      const assigned = assignedTrip(b, q, owner.id, this.method);
       if (assigned) return result("assigned", assigned);
       if (rows(b.driver_match_offers).some((o) => o.status === "offered")) {
         return result("awaitingDriver");
@@ -246,7 +262,7 @@ export class CashMatchingAdapter {
       // different Driver within this request. The next request recovers state.
       try {
         const { b, q } = await read();
-        const trip = assignedTrip(b, q, owner.id);
+        const trip = assignedTrip(b, q, owner.id, this.method);
         if (trip) return result("assigned", trip);
         if (rows(b.driver_match_offers).some((o) => o.status === "offered")) {
           return result("awaitingDriver");
@@ -256,6 +272,25 @@ export class CashMatchingAdapter {
       }
       throw new CashMatchingError("unknown");
     }
+  }
+}
+
+/** Cash remains pinned to Cash with its existing endpoint contract. */
+export class CashMatchingAdapter extends MatchingAdapter {
+  constructor(port: CashMatchingPort) {
+    super(port, "cash", () => Promise.resolve());
+  }
+}
+
+export interface CardMatchingPort extends CashMatchingPort {
+  cardMatchingEnabled(): Promise<boolean>;
+}
+/** Gate is read from the backend on every guarded step; SQL is the mutation authority. */
+export class CardMatchingAdapter extends MatchingAdapter {
+  constructor(port: CardMatchingPort) {
+    super(port, "card", async () => {
+      if (await port.cardMatchingEnabled() !== true) throw new CashMatchingError("invalid_state");
+    });
   }
 }
 
@@ -287,7 +322,7 @@ export class SupabaseCashMatchingPort implements CashMatchingPort {
       throw new CashMatchingError("invalid_request");
     }
   }
-  private async call(path: string, privileged = false, body?: Row): Promise<unknown> {
+  protected async call(path: string, privileged = false, body?: Row): Promise<unknown> {
     const key = privileged ? this.secretKey : this.publicKey;
     const response = await this.send(this.url + path, {
       method: body ? "POST" : "GET",
@@ -369,5 +404,14 @@ export class SupabaseCashMatchingPort implements CashMatchingPort {
       target_booking_request_id: id,
       expected_booking_version: version,
     });
+  }
+}
+
+/** Trusted server port; gate result is read from the database, never a request. */
+export class SupabaseCardMatchingPort extends SupabaseCashMatchingPort implements CardMatchingPort {
+  async cardMatchingEnabled(): Promise<boolean> {
+    const value = await this.call("/rest/v1/rpc/backend_card_matching_enabled", true, {});
+    if (value !== true && value !== false) throw new CashMatchingError("unknown");
+    return value;
   }
 }

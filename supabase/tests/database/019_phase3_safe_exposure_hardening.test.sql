@@ -44,7 +44,7 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'f9000000-0000-0000-0000-000000000002', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
-select throws_ok($$select public.user_payment_summary('f9200000-0000-0000-0000-000000000005')$$, '42501', 'Finance data does not belong to this user.', 'assigned Driver cannot read Payment summaries');
+select throws_ok($$select public.user_payment_summary('f9200000-0000-0000-0000-000000000005')$$, 'P0002', 'Payment was not found.', 'assigned Driver cannot read Payment summaries');
 reset role;
 
 set local role authenticated;
@@ -56,7 +56,7 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'f9000000-0000-0000-0000-000000000004', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
-select throws_ok($$select public.user_payment_summary('f9200000-0000-0000-0000-000000000005')$$, '42501', 'A non-blocked finance participant is required.', 'blocked users cannot read safe finance summaries');
+select throws_ok($$select public.user_payment_summary('f9200000-0000-0000-0000-000000000005')$$, 'P0002', 'Payment was not found.', 'blocked users cannot read safe finance summaries');
 reset role;
 
 set local role service_role;

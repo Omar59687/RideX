@@ -1,8 +1,10 @@
 import {
+  CardMatchingAdapter,
   CashMatchingAdapter,
   CashMatchingError,
   CashMatchingPort,
   Row,
+  SupabaseCardMatchingPort,
   SupabaseCashMatchingPort,
 } from "./cash_matching_adapter.ts";
 const id = (n: number) => `a7050000-0000-0000-0000-${String(n).padStart(12, "0")}`;
@@ -559,3 +561,79 @@ for (const status of [403, 404, 500]) {
     },
   );
 }
+
+class CardFake extends Fake {
+  enabled = false;
+  constructor() {
+    super();
+    this.b.payment_method = "card";
+  }
+  cardMatchingEnabled() {
+    return Promise.resolve(this.enabled);
+  }
+}
+const runCard = (p: CardFake, v = 3) => new CardMatchingAdapter(p).request(bId, qId, v);
+Deno.test("Card gate defaults off and prevents discovery", async () => {
+  const p = new CardFake();
+  await rejected(() => runCard(p), "invalid_state");
+  eq(p.discoveries, 0);
+  eq(p.calls, 0);
+});
+Deno.test("gated Card matching recovers duplicate without another offer", async () => {
+  const p = new CardFake();
+  p.enabled = true;
+  eq((await runCard(p)).state, "awaitingDriver");
+  eq((await runCard(p)).state, "awaitingDriver");
+  eq(p.calls, 1);
+});
+Deno.test("Card matching denies foreign actor, stale version and invalid locator", async () => {
+  const p = new CardFake();
+  p.enabled = true;
+  p.ownerId = id(99);
+  await rejected(() => runCard(p), "unauthorized");
+  p.ownerId = rId;
+  await rejected(() => runCard(p, 2), "conflict");
+  await rejected(() => new CardMatchingAdapter(p).request("bad", qId, 3), "invalid_request");
+  eq(p.calls, 0);
+});
+Deno.test("Card assigned result requires exact canonical Card Trip", async () => {
+  const p = new CardFake();
+  p.enabled = true;
+  assigned(p.b);
+  (p.b.trips as Row[])[0].payment_method = "card";
+  eq((await runCard(p)).tripId, tId);
+  (p.b.trips as Row[])[0].payment_method = "cash";
+  await rejected(() => runCard(p), "invalid_state");
+});
+Deno.test("gate revocation between reads prevents Card offer", async () => {
+  const p = new CardFake();
+  p.enabled = true;
+  p.onRead = () => {
+    p.enabled = false;
+  };
+  await rejected(() => runCard(p), "invalid_state");
+  eq(p.calls, 0);
+});
+
+Deno.test("Card server port reads only backend gate and rejects malformed response", async () => {
+  let calls = 0;
+  const transport: typeof fetch = (_input, init) => {
+    calls++;
+    const input = String(_input);
+    if (!input.endsWith("/rest/v1/rpc/backend_card_matching_enabled")) {
+      throw new Error("wrong endpoint");
+    }
+    const headers = new Headers(init?.headers);
+    if (headers.get("apikey") !== "secret-test") throw new Error("not server key");
+    return Promise.resolve(new Response(calls === 1 ? "true" : '"true"', { status: 200 }));
+  };
+  const port = new SupabaseCardMatchingPort(
+    "https://example.invalid",
+    "public-test",
+    "rider-test",
+    "secret-test",
+    transport,
+  );
+  eq(await port.cardMatchingEnabled(), true);
+  await rejected(() => port.cardMatchingEnabled(), "unknown");
+});
