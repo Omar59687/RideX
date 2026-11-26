@@ -1,0 +1,302 @@
+{
+  "checkpoint": "P8-C06",
+  "branch": "feature/p8-c06-driver-final-integration",
+  "base_c05": "27cfad61b67ad80233754fa13c7844e592a9c43c",
+  "origin_main": "3be1aa67eecb49ce95ea77077b63964eb3cbc62c",
+  "toolchain": {
+    "flutter": "3.41.2",
+    "dart": "3.11.0",
+    "dependency_resolution": "temporary SDK resolution for tests/build; committed lockfile restored",
+    "lock_blob": "bb6148d20da9613013f01aa25dfefe82566360f1",
+    "exact_lock_exit": 65,
+    "temporary_changes": [
+      "characters 1.4.0 -> 1.4.1",
+      "matcher 0.12.17 -> 0.12.18",
+      "material_color_utilities 0.11.1 -> 0.13.0",
+      "meta 1.16.0 -> 1.17.0",
+      "test_api 0.7.6 -> 0.7.9"
+    ]
+  },
+  "full_tests": {
+    "command": "flutter test --no-pub --reporter json --dart-define=SUPABASE_URL= --dart-define=SUPABASE_PUBLISHABLE_KEY=",
+    "exit": 0,
+    "passed": 3037,
+    "failed": 0,
+    "skipped": 6,
+    "test_files": 163,
+    "hidden_harness_events_not_counted_as_tests": 169,
+    "elapsed_seconds": 122.561,
+    "skips": [
+      {
+        "file": "test/canonical_rider_router_test.dart",
+        "test": "production GoRouter protects and refreshes /rider/cash-searching"
+      },
+      {
+        "file": "test/canonical_rider_router_test.dart",
+        "test": "production GoRouter protects and refreshes /rider/canonical-trip"
+      },
+      {
+        "file": "test/live_supabase_auth_test.dart",
+        "test": "live Supabase auth sign up, sign in, sign out, and restore session"
+      },
+      {
+        "file": "test/live_supabase_role_state_test.dart",
+        "test": "live Supabase role state public signup creates only Rider accounts"
+      },
+      {
+        "file": "test/p7_d05_realtime_acceptance_test.dart",
+        "test": "P7-D05 local real Realtime acceptance delivers Trip INSERT and UPDATE only to active participants"
+      },
+      {
+        "file": "test/p7_d05_realtime_acceptance_test.dart",
+        "test": "P7-D05 local real Realtime acceptance delivers Driver location INSERT only to Trip participants"
+      }
+    ]
+  },
+  "driver_subset_within_full_suite": {
+    "passed": 1518,
+    "failed": 0,
+    "skipped": 0,
+    "files": {
+      "test/canonical_driver_offer_discovery_test.dart": 51,
+      "test/canonical_driver_presentation_controller_test.dart": 48,
+      "test/canonical_driver_reference_panel_test.dart": 10,
+      "test/canonical_driver_repository_test.dart": 57,
+      "test/controlled_driver_runtime_test.dart": 36,
+      "test/driver_accept_trip_test.dart": 1,
+      "test/driver_active_trip_restoration_test.dart": 38,
+      "test/driver_authority_foundation_test.dart": 72,
+      "test/driver_availability_controller_test.dart": 60,
+      "test/driver_availability_screen_test.dart": 18,
+      "test/driver_cash_completion_gate_screen_test.dart": 16,
+      "test/driver_cash_completion_gate_test.dart": 26,
+      "test/driver_cash_completion_hook_test.dart": 26,
+      "test/driver_cash_composition_test.dart": 26,
+      "test/driver_cash_production_integration_test.dart": 87,
+      "test/driver_completion_c03_recovery_test.dart": 21,
+      "test/driver_completion_command_store_test.dart": 19,
+      "test/driver_completion_coordinator_test.dart": 55,
+      "test/driver_completion_error_mapping_test.dart": 31,
+      "test/driver_completion_handoff_test.dart": 52,
+      "test/driver_completion_interaction_test.dart": 27,
+      "test/driver_flow_contract_test.dart": 20,
+      "test/driver_flow_repository_provider_test.dart": 3,
+      "test/driver_gps_stream_service_test.dart": 16,
+      "test/driver_home_location_sharing_test.dart": 10,
+      "test/driver_incoming_offer_controller_test.dart": 30,
+      "test/driver_incoming_offer_screen_test.dart": 19,
+      "test/driver_location_repository_test.dart": 6,
+      "test/driver_location_validation_policy_test.dart": 3,
+      "test/driver_offer_actions_controller_test.dart": 81,
+      "test/driver_offer_actions_screen_test.dart": 6,
+      "test/driver_readonly_recovery_test.dart": 86,
+      "test/driver_single_client_binding_test.dart": 73,
+      "test/driver_tracking_controller_test.dart": 56,
+      "test/driver_trip_completion_contract_test.dart": 31,
+      "test/driver_trip_lifecycle_audit_test.dart": 32,
+      "test/driver_trip_presentation_controller_test.dart": 104,
+      "test/driver_trip_preview_screen_test.dart": 17,
+      "test/file_driver_completion_command_store_test.dart": 45,
+      "test/google_canonical_driver_map_test.dart": 2,
+      "test/pending_completion_store_test.dart": 29,
+      "test/supabase_canonical_driver_port_test.dart": 11,
+      "test/supabase_driver_completion_adapter_test.dart": 58,
+      "test/trip_realtime_canonical_driver_delivery_test.dart": 3
+    },
+    "classification": "driver_*, canonical_driver_*, supabase_driver_*, supabase_canonical_driver_* plus controlled runtime, native/pending journal, canonical Realtime delivery and map tests; session/financial cross-cutting tests are also in the full suite"
+  },
+  "analysis": {
+    "cumulative_changed_dart_files": 31,
+    "cumulative_exit": 0,
+    "full_exit": 1,
+    "inherited_diagnostics": [
+      {
+        "severity": "info",
+        "file": "lib/core/services/rider_live_map_projection.dart",
+        "line": 68,
+        "rule": "prefer_initializing_formals",
+        "origin_main_blob": "a574c3ad0844e8f884b539abe31de42ecf674165"
+      },
+      {
+        "severity": "info",
+        "file": "lib/features/booking/application/rider_search_controller.dart",
+        "line": 492,
+        "rule": "curly_braces_in_flow_control_structures",
+        "origin_main_blob": "3562f8fe1ff9b6b88d8abafdbe5a6e3bff6aaca4"
+      },
+      {
+        "severity": "info",
+        "file": "lib/features/booking/application/rider_search_controller.dart",
+        "line": 540,
+        "rule": "curly_braces_in_flow_control_structures",
+        "origin_main_blob": "3562f8fe1ff9b6b88d8abafdbe5a6e3bff6aaca4"
+      },
+      {
+        "severity": "info",
+        "file": "lib/features/booking/application/rider_search_controller.dart",
+        "line": 569,
+        "rule": "curly_braces_in_flow_control_structures",
+        "origin_main_blob": "3562f8fe1ff9b6b88d8abafdbe5a6e3bff6aaca4"
+      },
+      {
+        "severity": "info",
+        "file": "lib/features/booking/application/rider_search_controller.dart",
+        "line": 578,
+        "rule": "curly_braces_in_flow_control_structures",
+        "origin_main_blob": "3562f8fe1ff9b6b88d8abafdbe5a6e3bff6aaca4"
+      },
+      {
+        "severity": "info",
+        "file": "lib/features/booking/presentation/screens/booking_confirmation_screen.dart",
+        "line": 167,
+        "rule": "curly_braces_in_flow_control_structures",
+        "origin_main_blob": "f47f9bf3d34d70890bd3ed25ccd79645486a9e16"
+      },
+      {
+        "severity": "info",
+        "file": "lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart",
+        "line": 382,
+        "rule": "curly_braces_in_flow_control_structures",
+        "origin_main_blob": "ac0dfb8f4254e622104efc4d06342b46b990f777"
+      },
+      {
+        "severity": "info",
+        "file": "lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart",
+        "line": 387,
+        "rule": "curly_braces_in_flow_control_structures",
+        "origin_main_blob": "ac0dfb8f4254e622104efc4d06342b46b990f777"
+      },
+      {
+        "severity": "info",
+        "file": "lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart",
+        "line": 454,
+        "rule": "deprecated_member_use",
+        "origin_main_blob": "ac0dfb8f4254e622104efc4d06342b46b990f777"
+      },
+      {
+        "severity": "info",
+        "file": "lib/features/booking/presentation/screens/canonical_ride_searching_screen.dart",
+        "line": 457,
+        "rule": "deprecated_member_use",
+        "origin_main_blob": "ac0dfb8f4254e622104efc4d06342b46b990f777"
+      },
+      {
+        "severity": "info",
+        "file": "lib/features/trips/presentation/widgets/rider_driver_vehicle_details_card.dart",
+        "line": 22,
+        "rule": "prefer_initializing_formals",
+        "origin_main_blob": "f24a8cbfa4865260255175c8d259896a83c90e6a"
+      },
+      {
+        "severity": "info",
+        "file": "lib/features/trips/presentation/widgets/rider_driver_vehicle_details_card.dart",
+        "line": 23,
+        "rule": "prefer_initializing_formals",
+        "origin_main_blob": "f24a8cbfa4865260255175c8d259896a83c90e6a"
+      },
+      {
+        "severity": "info",
+        "file": "test/canonical_ride_searching_cancellation_screen_test.dart",
+        "line": 186,
+        "rule": "deprecated_member_use",
+        "origin_main_blob": "7a0fc1223aa7de2791ebeb468fc87c55f0898802"
+      },
+      {
+        "severity": "info",
+        "file": "test/p8_d04_active_trip_restoration_test.dart",
+        "line": 66,
+        "rule": "library_private_types_in_public_api",
+        "origin_main_blob": "73dd1fe7282db78f6c8397c5667253a11b5612ae"
+      },
+      {
+        "severity": "warning",
+        "file": "test/rider_cancellation_rpc_routing_test.dart",
+        "line": 1,
+        "rule": "unused_import",
+        "origin_main_blob": "fa58f12c325199b8f08ea512d48721f65bb24e8b"
+      },
+      {
+        "severity": "warning",
+        "file": "test/rider_matching_controller_test.dart",
+        "line": 7,
+        "rule": "unused_import",
+        "origin_main_blob": "b209c79524d03a607339ed280acd159033ac7224"
+      },
+      {
+        "severity": "warning",
+        "file": "test/rider_matching_controller_test.dart",
+        "line": 14,
+        "rule": "unused_import",
+        "origin_main_blob": "b209c79524d03a607339ed280acd159033ac7224"
+      },
+      {
+        "severity": "info",
+        "file": "test/rider_matching_controller_test.dart",
+        "line": 141,
+        "rule": "curly_braces_in_flow_control_structures",
+        "origin_main_blob": "b209c79524d03a607339ed280acd159033ac7224"
+      },
+      {
+        "severity": "info",
+        "file": "test/rider_matching_controller_test.dart",
+        "line": 193,
+        "rule": "curly_braces_in_flow_control_structures",
+        "origin_main_blob": "b209c79524d03a607339ed280acd159033ac7224"
+      },
+      {
+        "severity": "info",
+        "file": "test/rider_v2_adaptive_accessibility_test.dart",
+        "line": 145,
+        "rule": "deprecated_member_use",
+        "origin_main_blob": "5c74f63dc7d51438662306b76495c663967fa507"
+      },
+      {
+        "severity": "info",
+        "file": "test/rider_v2_adaptive_accessibility_test.dart",
+        "line": 342,
+        "rule": "deprecated_member_use",
+        "origin_main_blob": "5c74f63dc7d51438662306b76495c663967fa507"
+      }
+    ],
+    "new_diagnostics": 0
+  },
+  "format": {
+    "command": "dart format --output=none --set-exit-if-changed <all cumulative changed Dart files>",
+    "exit": 0,
+    "files": 31,
+    "c06_fix": "formatter-only driver_trip_transition_policy.dart"
+  },
+  "builds": [
+    {
+      "command": "flutter build apk --debug --no-pub",
+      "exit": 0,
+      "installed_or_launched": false
+    },
+    {
+      "command": "flutter build apk --debug --no-pub -t lib/main_acceptance.dart --dart-define=RIDEX_ENABLE_CASH_MATCHING_INTEGRATION=true --dart-define=RIDEX_ENABLE_TEST_DRIVER_CANONICAL=true --dart-define=RIDEX_APPROVED_NONPRODUCTION=false --dart-define=RIDEX_APPROVED_OFFER_COMMANDS=false",
+      "exit": 0,
+      "installed_or_launched": false
+    }
+  ],
+  "review": {
+    "verdict": "APPROVED",
+    "scope": "cumulative origin/main through approved C05 including adjacent existing journal/completion/auth/backend contracts",
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "semantic_fixes": 0,
+    "nonblocking_candidates": [
+      "late older overlapping repository response cache behavior",
+      "aggregate retained-fact getters after server eligibility denial; current C04 hint consumer suppresses revoked state"
+    ]
+  },
+  "raw_log_sha256": {
+    "ridex-p8-c06-full-tests.jsonl": "e659068c038acf28961cd5cc28d65578aea56345f438e71101a7d450bd9fcfa1",
+    "ridex-p8-c06-analyze.log": "661ac8c7f035aaa185a12046882b3778224db18a74992764a7411d5c227523dd",
+    "ridex-p8-c06-owned-analyze.log": "e99e02e63b505ef27306f1a8c0a3eea29f3a38e319854f44fd3fb298bdab3019",
+    "ridex-p8-c06-build.log": "7078b25c21d10d2f3be35b1f6a14d5b9009aad710ffdb27ce61d1a95d25188cf",
+    "ridex-p8-c06-acceptance-build.log": "49b962d039d9635562b480e004f5d860a617f46ded90e929dfe72073df0e00b0",
+    "ridex-p8-c06-lock-check.log": "1f93c2bd911ad725245766e2fdfe8e8c7a3004886c47ca19cbe4b67bb15e5dff"
+  },
+  "hosted_acceptance": false
+}

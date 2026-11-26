@@ -433,73 +433,36 @@ void main() {
     });
   });
 
-  group('DriverActiveTripScreen completion', () {
-    testWidgets('completes once and navigates without payment claims',
-        (tester) async {
-      final repository = TripsRepositoryDouble();
-      final container = containerWith(
-        seed: inProgressTrip(),
-        repository: repository,
-      );
-      await pumpDriverTrip(tester, container);
-
-      await tester.tap(find.text('Complete trip'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Ride finished successfully'), findsOneWidget);
-      expect(repository.completeCalls, 1);
-      expect(find.textContaining('Paid'), findsNothing);
-      expect(find.textContaining('receipt'), findsNothing);
-      expect(find.textContaining('Cash'), findsNothing);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('rapid repeated taps complete exactly once', (tester) async {
-      final gate = Completer<void>();
-      final repository = TripsRepositoryDouble()..gate = gate;
-      final container = containerWith(
-        seed: inProgressTrip(),
-        repository: repository,
-      );
-      await pumpDriverTrip(tester, container);
-
-      await tester.tap(find.text('Complete trip'));
-      await tester.pump();
-      await tester.tap(find.text('Complete trip'));
-      await tester.pump();
-      expect(repository.completeCalls, 1);
-      gate.complete();
-      await tester.pumpAndSettle();
-
-      expect(find.text('Ride finished successfully'), findsOneWidget);
-      expect(repository.completeCalls, 1);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('failure stays on the trip with an honest message',
-        (tester) async {
-      final repository = TripsRepositoryDouble()
-        ..failNext = StateError('network unavailable');
-      final container = containerWith(
-        seed: inProgressTrip(),
-        repository: repository,
-      );
-      await pumpDriverTrip(tester, container);
-
-      await tester.tap(find.text('Complete trip'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Drive to destination'), findsOneWidget);
-      expect(
-        find.text('Could not complete the trip. Try again.'),
-        findsOneWidget,
-      );
-      expect(
-        container.read(activeTripControllerProvider)?.status,
-        TripStatus.inProgress,
-      );
-      expect(tester.takeException(), isNull);
-    });
+  group('DriverActiveTripScreen completion isolation', () {
+    for (final seed in <MockTrip?>[
+      null,
+      inProgressTrip(),
+      MockData.sampleTrip(status: TripStatus.completed),
+    ]) {
+      testWidgets('legacy ${seed?.status} cannot complete or navigate', (
+        tester,
+      ) async {
+        final repository = TripsRepositoryDouble();
+        final container = containerWith(seed: seed, repository: repository);
+        await pumpDriverTrip(tester, container);
+        final button = find.widgetWithText(
+          ElevatedButton,
+          'Completion unavailable',
+        );
+        expect(tester.widget<ElevatedButton>(button).onPressed, isNull);
+        for (var i = 0; i < 3; i++) {
+          await tester.tap(button);
+        }
+        await tester.pumpAndSettle();
+        expect(repository.completeCalls, 0);
+        expect(find.text('Ride finished successfully'), findsNothing);
+        expect(
+          find.textContaining('Payment and receipt are not verified.'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }
 

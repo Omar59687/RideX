@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:ridex/app/theme/app_spacing.dart';
 import 'package:ridex/core/models/mock_trip.dart';
 import 'package:ridex/core/providers/session_providers.dart';
@@ -23,9 +22,11 @@ class DriverActiveTripScreen extends ConsumerWidget {
       body: Stack(
         children: [
           const Positioned.fill(
-              child: Padding(
-                  padding: EdgeInsets.only(top: 12),
-                  child: MapPlaceholder(height: 620))),
+            child: Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: MapPlaceholder(height: 620),
+            ),
+          ),
           Positioned(
             top: 16,
             left: 0,
@@ -33,8 +34,10 @@ class DriverActiveTripScreen extends ConsumerWidget {
             child: Card(
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.md),
-                child: Text('Destination route active',
-                    style: Theme.of(context).textTheme.titleLarge),
+                child: Text(
+                  'Destination route active',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
               ),
             ),
           ),
@@ -51,32 +54,11 @@ class DriverActiveTripScreen extends ConsumerWidget {
                         'This mock state mirrors the active driver flow without backend dependencies.',
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  AppButton(
-                    label: 'Complete trip',
-                    onPressed: () async {
-                      try {
-                        await ref
-                            .read(activeTripControllerProvider.notifier)
-                            .completeTrip();
-                      } on Object {
-                        // The controller leaves the trip unchanged on
-                        // failure; fall through to the status check below
-                        // instead of navigating.
-                      }
-                      if (!context.mounted) return;
-                      if (ref.read(activeTripControllerProvider)?.status ==
-                          TripStatus.completed) {
-                        context.go('/driver/completed');
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Could not complete the trip. Try again.',
-                            ),
-                          ),
-                        );
-                      }
-                    },
+                  const AppButton(label: 'Completion unavailable'),
+                  const SizedBox(height: AppSpacing.sm),
+                  const Text(
+                    'Demo Trip only. Canonical completion requires a verified '
+                    'active Driver Trip. Payment and receipt are not verified.',
                   ),
                 ],
               ),
