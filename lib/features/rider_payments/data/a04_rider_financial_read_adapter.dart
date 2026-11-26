@@ -130,6 +130,14 @@ abstract final class A04FinancialReadParser {
       return value;
     }
 
+    T enumValue<T>(String key, T Function(String) parse) {
+      try {
+        return parse(string(key));
+      } on ArgumentError {
+        throw FormatException('Invalid A04 enum field: $key.');
+      }
+    }
+
     String uuid(String key) {
       final value = string(key);
       if (!isCanonicalTripId(value)) {
@@ -144,13 +152,15 @@ abstract final class A04FinancialReadParser {
     }
     final tripId = uuid('trip_id');
     final tripVersion = integer('trip_version', minimum: 1);
-    final tripStatus = DriverTripLifecycleStatus.fromBackendValue(
-      string('trip_status'),
+    final tripStatus = enumValue(
+      'trip_status',
+      DriverTripLifecycleStatus.fromBackendValue,
     );
     final paymentId = uuid('payment_id');
     final paymentVersion = integer('payment_version', minimum: 1);
-    final paymentMethod = PaymentMethod.fromBackendValue(
-      string('payment_method'),
+    final paymentMethod = enumValue(
+      'payment_method',
+      PaymentMethod.fromBackendValue,
     );
     final amountFils = integer('amount_fils', minimum: 0);
     final currency = string('currency');
@@ -160,8 +170,10 @@ abstract final class A04FinancialReadParser {
     if (row['cash_status'] != null) {
       throw const FormatException('Card A04 row cannot include cash status.');
     }
-    final rawCardStatus = string('card_status');
-    final cardStatus = CardPaymentStatus.fromBackendValue(rawCardStatus);
+    final cardStatus = enumValue(
+      'card_status',
+      CardPaymentStatus.fromBackendValue,
+    );
 
     final evidenceValue = string('receipt_evidence');
     final evidence = switch (evidenceValue) {

@@ -273,6 +273,27 @@ void main() {
     }
   });
 
+  test('unknown Trip status is normalized to FormatException', () {
+    expect(
+      () => A04FinancialReadParser.parse([_row(tripStatus: 'requested')]),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+  test('unknown Payment method is normalized to FormatException', () {
+    expect(
+      () => A04FinancialReadParser.parse([_row(paymentMethod: 'credit')]),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+  test('unknown Card status is normalized to FormatException', () {
+    expect(
+      () => A04FinancialReadParser.parse([_row(cardStatus: 'paid')]),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
   test('linked receipt amount and currency must exactly match payment', () {
     expect(
       () => A04FinancialReadParser.parse([_row(receiptAmount: 7451)]),
