@@ -6,7 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/session_providers.dart';
-import 'package:ridex/features/history/data/supabase_rider_history_summary_repository.dart';
+import 'package:ridex/core/repositories/supabase_rider_history_summary_repository.dart';
+import 'package:ridex/features/history/data/rider_history_summary_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _rider = 'a6000000-0000-0000-0000-000000000001';

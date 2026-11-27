@@ -253,15 +253,61 @@ insert into public.driver_match_offers (
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000012', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
-select lives_ok($$select public.driver_transition_trip('54000000-0000-0000-0000-000000000003', 'accepted', 1, 'accept-card')$$, 'Driver accepts Card Trip');
 select throws_ok(
-  $$select public.driver_transition_trip((select id from public.trips where payment_method = 'card'), 'driverArriving', 1, 'card-arriving-before-auth')$$,
+  $$select public.driver_transition_trip('54000000-0000-0000-0000-000000000003', 'accepted', 1, 'accept-card')$$,
+  '55000', 'Card matching is disabled.',
+  'new Card Driver assignment remains disabled by the default-off gate'
+);
+reset role;
+select is((select count(*) from public.trips), 1::bigint, 'disabled Card assignment creates no Trip');
+select is((select status::text from public.driver_match_offers where id = '54000000-0000-0000-0000-000000000003'), 'offered', 'disabled Card assignment leaves the offer unchanged');
+
+-- Seed a synthetic pre-gate Card Trip only to preserve the independent
+-- authorization-before-arrival regression. This is fixture data, not a match
+-- acceptance and does not enable Card matching.
+update public.booking_requests
+set status = 'matched', matched_at = now(),
+    matched_driver_id = '50000000-0000-0000-0000-000000000012',
+    matched_vehicle_id = '51000000-0000-0000-0000-000000000012'
+where id = '52000000-0000-0000-0000-000000000002';
+update public.driver_match_offers
+set status = 'accepted', responded_at = now()
+where id = '54000000-0000-0000-0000-000000000003';
+insert into public.trips (
+  id, booking_request_id, fare_quote_id, rider_id, driver_id, vehicle_id,
+  status, payment_method, pickup, destination, route_distance_meters,
+  route_duration_seconds, original_fare_fils, current_fare_fils
+) values (
+  '55000000-0000-0000-0000-000000000001',
+  '52000000-0000-0000-0000-000000000002',
+  '53000000-0000-0000-0000-000000000002',
+  '50000000-0000-0000-0000-000000000001',
+  '50000000-0000-0000-0000-000000000012',
+  '51000000-0000-0000-0000-000000000012',
+  'accepted', 'card',
+  '{"latitude":31.94,"longitude":35.92,"label":"Card pickup"}',
+  '{"latitude":31.99,"longitude":35.98,"label":"Card destination"}',
+  3000, 900, 2500, 2500
+);
+insert into public.trip_status_events (trip_id, sequence, to_status, actor_user_id)
+values ('55000000-0000-0000-0000-000000000001', 1, 'accepted', '50000000-0000-0000-0000-000000000012');
+update public.driver_availability
+set state = 'onTrip', reserved_booking_request_id = null,
+    active_trip_id = '55000000-0000-0000-0000-000000000001'
+where driver_id = '50000000-0000-0000-0000-000000000012';
+select public.backend_create_payment('55000000-0000-0000-0000-000000000001');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000012', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select throws_ok(
+  $$select public.driver_transition_trip('55000000-0000-0000-0000-000000000001', 'driverArriving', 1, 'card-arriving-before-auth')$$,
   '55000', 'Card Trip progression requires a verified authorized Payment.',
-  'Card Driver cannot start arriving before verified authorization'
+  'legacy assigned Card Trip cannot start arriving before verified authorization'
 );
 reset role;
 select public.backend_record_payment_attempt(
-  (select id from public.payments where trip_id = (select id from public.trips where payment_method = 'card')),
+  (select id from public.payments where trip_id = '55000000-0000-0000-0000-000000000001'),
   'initialAuthorization', 2500, '008-card-auth', 'provider'
 );
 select public.backend_complete_payment_attempt(
@@ -269,28 +315,28 @@ select public.backend_complete_payment_attempt(
   'succeeded', '008-card-provider-auth'
 );
 select public.backend_transition_payment(
-  (select id from public.payments where trip_id = (select id from public.trips where payment_method = 'card')),
+  (select id from public.payments where trip_id = '55000000-0000-0000-0000-000000000001'),
   1, null, 'cardPaymentAuthorized'
 );
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000012', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
-select lives_ok($$select public.driver_transition_trip((select id from public.trips where payment_method = 'card'), 'driverArriving', 1, 'card-arriving')$$, 'Card Driver starts arriving');
-select lives_ok($$select public.driver_transition_trip((select id from public.trips where payment_method = 'card'), 'driverArrived', 2, 'card-arrived')$$, 'Card Driver arrives');
-select lives_ok($$select public.driver_transition_trip((select id from public.trips where payment_method = 'card'), 'inProgress', 3, 'card-start')$$, 'Card Trip starts');
+select lives_ok($$select public.driver_transition_trip('55000000-0000-0000-0000-000000000001', 'driverArriving', 1, 'card-arriving')$$, 'authorized legacy Card Driver starts arriving');
+select lives_ok($$select public.driver_transition_trip('55000000-0000-0000-0000-000000000001', 'driverArrived', 2, 'card-arrived')$$, 'authorized legacy Card Driver arrives');
+select lives_ok($$select public.driver_transition_trip('55000000-0000-0000-0000-000000000001', 'inProgress', 3, 'card-start')$$, 'authorized legacy Card Trip starts');
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select throws_ok(
   $$select public.rider_create_trip_change_request(
-    (select id from public.trips where payment_method = 'card'), 4,
+    '55000000-0000-0000-0000-000000000001', 4,
     '{"latitude":32.03,"longitude":36.03}', '[]', null
   )$$, '55000', 'In-progress Trip changes are Cash-only.', 'Card Trips reject in-progress route changes'
 );
 reset role;
 select throws_ok(
-  $$update public.trips set current_fare_fils = current_fare_fils + 50 where payment_method = 'card'$$,
+  $$update public.trips set current_fare_fils = current_fare_fils + 50 where id = '55000000-0000-0000-0000-000000000001'$$,
   '55000', 'Card Trip route and fare snapshots are fixed.', 'Card fare cannot be adjusted even by a trusted table writer'
 );
 
@@ -300,7 +346,7 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 select is((select count(*) from public.trips), 2::bigint, 'non-blocked Admin has restricted Trip read access');
 select throws_ok(
   $$select public.admin_terminate_trip(
-    (select id from public.trips where payment_method = 'card'), 4,
+    '55000000-0000-0000-0000-000000000001', 4,
     'cancelledByAdmin', 'safety_exception'
   )$$,
   '55000',
@@ -308,27 +354,27 @@ select throws_ok(
   'Admin Card termination fails closed before provider reconciliation'
 );
 select is(
-  (select status::text from public.trips where payment_method = 'card'),
+  (select status::text from public.trips where id = '55000000-0000-0000-0000-000000000001'),
   'inProgress',
   'failed Admin Card termination leaves the Trip unchanged'
 );
 reset role;
 select throws_ok(
   $$select public.backend_transition_payment(
-    (select id from public.payments where trip_id = (select id from public.trips where payment_method = 'card')),
+    (select id from public.payments where trip_id = '55000000-0000-0000-0000-000000000001'),
     2, null, 'paymentCancelled'
   )$$,
   '55000', 'Payment cancellation requires a terminal cancelled Trip.',
   'trusted Payment service cannot cancel Card while Trip remains active'
 );
 select is(
-  (select status::text from public.trips where payment_method = 'card'),
+  (select status::text from public.trips where id = '55000000-0000-0000-0000-000000000001'),
   'inProgress',
   'blocked Payment cancellation leaves active Card Trip unchanged'
 );
 reset role;
-select is((select current_fare_fils from public.trips where payment_method = 'card'), 2500, 'Admin termination does not create a partial Card charge');
-select is((select status::text from public.trips where payment_method = 'card'), 'inProgress', 'blocked Admin termination preserves the active Trip state');
+select is((select current_fare_fils from public.trips where id = '55000000-0000-0000-0000-000000000001'), 2500, 'Admin termination does not create a partial Card charge');
+select is((select status::text from public.trips where id = '55000000-0000-0000-0000-000000000001'), 'inProgress', 'blocked Admin termination preserves the active Trip state');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000002', true);

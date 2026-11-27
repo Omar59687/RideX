@@ -2,9 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/models/session_status.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/repositories/supabase_rider_history_summary_repository.dart';
 import 'package:ridex/core/services/supabase/supabase_client_provider.dart';
 import 'package:ridex/core/services/supabase/supabase_initialization_provenance.dart';
-import 'package:ridex/features/history/data/supabase_rider_history_summary_repository.dart';
+import 'package:ridex/features/history/data/rider_history_summary_repository.dart';
 
 final riderHistorySummaryRepositoryProvider =
     Provider.autoDispose<RiderHistorySummaryReader?>((ref) {

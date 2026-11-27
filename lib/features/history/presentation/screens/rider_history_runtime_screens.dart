@@ -6,7 +6,7 @@ import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/session_providers.dart';
 import 'package:ridex/core/widgets/ride_x_bottom_navigation.dart';
-import 'package:ridex/features/history/data/supabase_rider_history_summary_repository.dart';
+import 'package:ridex/features/history/data/rider_history_summary_repository.dart';
 import 'package:ridex/features/history/presentation/providers/rider_history_summary_provider.dart';
 import 'package:ridex/features/history/presentation/screens/trip_details_screen.dart';
 import 'package:ridex/features/history/presentation/screens/trip_history_screen.dart';

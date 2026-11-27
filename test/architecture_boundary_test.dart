@@ -131,6 +131,7 @@ const _supabaseInfrastructureFiles = {
   'lib/core/repositories/supabase_rider_trip_cancellation_repository.dart',
   'lib/core/repositories/supabase_admin_payment_reader.dart',
   'lib/core/repositories/supabase_a04_rider_financial_read_source.dart',
+  'lib/core/repositories/supabase_rider_history_summary_repository.dart',
   'lib/core/repositories/rider_canonical_trip_detail_repository.dart',
   'lib/core/repositories/supabase_auth_repository.dart',
   'lib/core/repositories/supabase_driver_trip_completion_repository.dart',

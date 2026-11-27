@@ -138,7 +138,7 @@ Deno.test({
   ignore: !isolatedTargetConfigured,
   permissions: {
     env: ["P8_HTTP_CONTAINER", "P8_HTTP_DB"],
-    run: [{ command: "docker" }],
+    run: ["docker"],
     net: ["127.0.0.1"],
   },
   sanitizeOps: false,

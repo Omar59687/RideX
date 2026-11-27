@@ -74,12 +74,15 @@ select is(
      and coalesce(array_to_string(functions.proconfig, ','), '') not in ('search_path=""', 'search_path=')),
   0::bigint, 'public and private functions use an empty search path'
 );
--- Current authorized backend inventory, including Phase 6 additions. Match all
--- signatures before checking privileges so missing, unexpected or overloaded
--- RPCs cannot hide behind a matching count or a privilege-filtered query.
--- The fenced recorder was added by migration 20261028140221; no new grant is
--- authorized by this test. Production dispatch remains outside this contract.
-create temporary table expected_backend_rpcs (signature regprocedure primary key);
+-- Exact inventory of public backend-prefixed functions, including the
+-- service-only Phase 8 wrappers and the intentionally ungranted command helper.
+-- Match every signature before checking grants so unexpected overloads cannot
+-- hide behind a privilege-filtered query. The helper is called only from its
+-- session-bound SECURITY DEFINER wrapper; service_role must not execute it.
+create temporary table expected_backend_rpcs (
+  signature regprocedure primary key,
+  service_role_execute boolean not null default true
+);
 insert into expected_backend_rpcs(signature) values
   ('public.backend_apply_trip_fare_adjustment(uuid,integer,integer)'),
   ('public.backend_calculate_fare_quote(uuid,integer,integer,integer,text)'),
@@ -104,22 +107,30 @@ insert into expected_backend_rpcs(signature) values
   ('public.backend_record_refund_attempt(uuid,text,text)'),
   ('public.backend_record_stripe_test_preparation(uuid,uuid,text)'),
   ('public.backend_record_stripe_test_preparation_fenced(uuid,uuid,text)'),
-  ('public.backend_transition_payment(uuid,integer,cash_payment_status,card_payment_status)');
+  ('public.backend_transition_payment(uuid,integer,cash_payment_status,card_payment_status)'),
+  ('public.backend_card_matching_enabled()'),
+  ('public.backend_prepare_card_authorization_for_session(uuid,uuid,bigint,uuid,uuid,integer,integer,text)'),
+  ('public.backend_quarantine_test_webhook(text,text,text,text,uuid,uuid,uuid,integer,text)'),
+  ('public.backend_acquire_test_webhook_admission()'),
+  ('public.backend_release_test_webhook_admission(uuid)'),
+  ('public.backend_inspect_quarantined_test_event(text)');
+insert into expected_backend_rpcs(signature, service_role_execute) values
+  ('public.backend_prepare_card_command(uuid,uuid,uuid,integer,integer,text,text,text)', false);
 select results_eq(
   $$select functions.oid from pg_proc as functions
     where functions.pronamespace = 'public'::regnamespace
       and starts_with(functions.proname, 'backend_') order by functions.oid$$,
   $$select signature::oid from expected_backend_rpcs order by signature::oid$$,
-  'backend RPC signatures exactly match the authorized inventory'
+  'backend function signatures exactly match the security inventory'
 );
 select ok(
   (select bool_and(
-    has_function_privilege('service_role', signature::oid, 'execute')
+    has_function_privilege('service_role', signature::oid, 'execute') = service_role_execute
     and not has_function_privilege('public', signature::oid, 'execute')
     and not has_function_privilege('anon', signature::oid, 'execute')
     and not has_function_privilege('authenticated', signature::oid, 'execute')
   ) from expected_backend_rpcs),
-  'every expected backend RPC is executable only by service_role among API roles'
+  'service_role execution matches the inventory and clients cannot execute backend functions'
 );
 select ok(not has_schema_privilege('authenticated', 'private', 'USAGE'), 'clients cannot resolve private helpers');
 select ok(not has_function_privilege('authenticated', 'private.refresh_driver_rating_aggregate()', 'execute'), 'rating aggregate helper is private');
