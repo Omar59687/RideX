@@ -7,7 +7,7 @@ import 'package:ridex/core/models/app_user.dart';
 import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/session_providers.dart';
-import 'package:ridex/features/rider_payments/data/supabase_a04_rider_financial_read_source.dart';
+import 'package:ridex/core/repositories/supabase_a04_rider_financial_read_source.dart';
 import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 

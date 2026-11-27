@@ -7,7 +7,7 @@ import 'package:ridex/core/services/supabase/supabase_initialization_provenance.
 import 'package:ridex/features/rider_payments/application/rider_checkout_controller.dart';
 import 'package:ridex/features/rider_payments/application/rider_checkout_launcher.dart';
 import 'package:ridex/features/rider_payments/data/a04_rider_financial_read_adapter.dart';
-import 'package:ridex/features/rider_payments/data/supabase_a04_rider_financial_read_source.dart';
+import 'package:ridex/core/repositories/supabase_a04_rider_financial_read_source.dart';
 import 'package:ridex/features/rider_payments/models/rider_checkout_state.dart';
 import 'package:ridex/features/rider_payments/models/rider_receipt_state.dart';
 

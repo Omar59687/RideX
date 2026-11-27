@@ -49,7 +49,10 @@ jobs:
           deno-version: v2.x
       - name: Edge Function unit tests
         working-directory: supabase/functions
-        run: deno test --node-modules-dir=auto
+        # Only the two synthetic-target identifiers are readable here. The
+        # HTTP/Postgres integration test is explicitly skipped unless its
+        # isolated test target is supplied by the dedicated local harness.
+        run: deno test --node-modules-dir=auto --allow-env=P8_HTTP_CONTAINER,P8_HTTP_DB
       - name: Relevant function and matching type checks
         run: >-
           deno check --no-config --node-modules-dir=auto
@@ -70,7 +73,38 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - name: Start fresh local Supabase stack
+      - name: Select isolated Supabase DB host port
+        # GitHub-hosted runners can have the default Postgres port occupied.
+        # Select an ephemeral free port for this disposable workflow checkout;
+        # Supabase CLI and its local tests read the same config file afterward.
+        run: |
+          python - <<'PY'
+          import re
+          import socket
+          from pathlib import Path
+
+          with socket.socket() as listener:
+              listener.bind(("127.0.0.1", 0))
+              port = listener.getsockname()[1]
+
+          config = Path("supabase/config.toml")
+          source = config.read_text()
+          section = re.compile(r"(?ms)(^\[db\]\s*\n)(.*?)(?=^\[|\Z)")
+          match = section.search(source)
+          if match is None:
+              raise SystemExit("[db] section not found")
+          body, replacements = re.subn(
+              r"(?m)^port\s*=\s*\d+\s*$",
+              f"port = {port}",
+              match.group(2),
+              count=1,
+          )
+          if replacements != 1:
+              raise SystemExit("[db].port was not uniquely found")
+          config.write_text(source[:match.start(2)] + body + source[match.end(2):])
+          print(f"Using isolated local Supabase DB host port {port}")
+          PY
+      - name: Start local Supabase stack
         run: supabase start
       - name: Apply canonical migrations to disposable local database
         run: supabase db reset --local

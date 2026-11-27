@@ -52,6 +52,35 @@ class _FakeHistory implements RiderHistorySummaryReader {
 
 void main() {
   testWidgets(
+    'unavailable Rider history retains the navigation shell',
+    (tester) async {
+      final router = GoRouter(
+        initialLocation: '/history',
+        routes: [
+          GoRoute(
+            path: '/history',
+            builder: (_, __) => const RoleAwareHistoryRoute(),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sessionControllerProvider.overrideWith(_TestSession.new),
+            riderHistorySummaryRepositoryProvider.overrideWithValue(null),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Trip history could not be verified.'), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'Rider history opens exact authorized Trip details',
     (tester) async {
       final history = _FakeHistory();
@@ -82,6 +111,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byKey(ValueKey('canonical-history-$_trip')), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
       await tester.tap(find.byKey(ValueKey('canonical-history-$_trip')));
       await tester.pumpAndSettle();
       expect(history.exactRead, _trip);

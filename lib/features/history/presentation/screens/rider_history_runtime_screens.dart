@@ -5,6 +5,7 @@ import 'package:ridex/core/models/driver_trip_completion.dart';
 import 'package:ridex/core/models/payment_method.dart';
 import 'package:ridex/core/models/ride_role.dart';
 import 'package:ridex/core/providers/session_providers.dart';
+import 'package:ridex/core/widgets/ride_x_bottom_navigation.dart';
 import 'package:ridex/features/history/data/supabase_rider_history_summary_repository.dart';
 import 'package:ridex/features/history/presentation/providers/rider_history_summary_provider.dart';
 import 'package:ridex/features/history/presentation/screens/trip_details_screen.dart';
@@ -179,6 +180,7 @@ class _RiderCanonicalHistoryScreenState
     }
     if (repository == null) {
       return const Scaffold(
+        bottomNavigationBar: RideXBottomNavigation(currentIndex: 1),
         body: Center(child: Text('Trip history could not be verified.')),
       );
     }
@@ -200,6 +202,7 @@ class _RiderCanonicalHistoryScreenState
         .toList(growable: false);
     return Scaffold(
       appBar: AppBar(title: const Text('Your rides')),
+      bottomNavigationBar: const RideXBottomNavigation(currentIndex: 1),
       body: Column(children: [
         Wrap(
           spacing: 8,

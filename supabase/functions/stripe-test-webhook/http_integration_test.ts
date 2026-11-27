@@ -7,9 +7,9 @@ import {
 } from "../_shared/payments/stripe_webhook_quarantine.ts";
 const container = Deno.env.get("P8_HTTP_CONTAINER") ?? "";
 const db = Deno.env.get("P8_HTTP_DB") ?? "";
-if (!/^ridex-r06-x2-[0-9a-f]{12}$/.test(container) || !/^r06_x2_test_[0-9a-f]{10}$/.test(db)) {
-  throw new Error("isolated test target required");
-}
+const isolatedTargetConfigured =
+  /^ridex-r06-x2-[0-9a-f]{12}$/.test(container) &&
+  /^r06_x2_test_[0-9a-f]{10}$/.test(db);
 const encoder = new TextEncoder();
 const secret = "whsec_synthetic_local_only";
 const account = "acct_TestAccount";
@@ -135,6 +135,12 @@ async function listen(store: WebhookQuarantineStore, enabled = true) {
 }
 Deno.test({
   name: "real loopback HTTP with network-isolated PostgreSQL quarantine and restart",
+  ignore: !isolatedTargetConfigured,
+  permissions: {
+    env: ["P8_HTTP_CONTAINER", "P8_HTTP_DB"],
+    run: [{ command: "docker" }],
+    net: ["127.0.0.1"],
+  },
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
