@@ -149,6 +149,69 @@ begin
 end;
 $$;
 
+-- Legacy Card lifecycle cases use a transaction-local canonical snapshot.
+-- The production acceptance RPC is tested separately and must reject Card
+-- while matching is disabled. This fixture does not change the gate or issue
+-- any provider command; all rows are rolled back at the end of this file.
+create or replace function pg_temp.seed_legacy_card_trip(sequence_number integer)
+returns uuid language plpgsql as $$
+declare
+  booking_id uuid := ('c7200000-0000-0000-0000-' || lpad(sequence_number::text, 12, '0'))::uuid;
+  quote_id uuid := ('c7300000-0000-0000-0000-' || lpad(sequence_number::text, 12, '0'))::uuid;
+  offer_id uuid := ('c7400000-0000-0000-0000-' || lpad(sequence_number::text, 12, '0'))::uuid;
+  trip_id uuid := ('c7500000-0000-0000-0000-' || lpad(sequence_number::text, 12, '0'))::uuid;
+begin
+  if sequence_number not in (2, 4, 5) or not exists (
+    select 1 from public.booking_requests
+    where id = booking_id and payment_method = 'card' and status = 'searching'
+  ) then
+    raise exception 'Expected a searching synthetic Card booking.';
+  end if;
+  update public.driver_availability
+  set state = 'available', vehicle_id = 'c7100000-0000-0000-0000-000000000001',
+      reserved_booking_request_id = null, active_trip_id = null
+  where driver_id = 'c7000000-0000-0000-0000-000000000002';
+  insert into public.driver_match_offers (
+    id, booking_request_id, fare_quote_id, driver_id, vehicle_id,
+    radius_meters, expires_at
+  ) values (
+    offer_id, booking_id, quote_id,
+    'c7000000-0000-0000-0000-000000000002',
+    'c7100000-0000-0000-0000-000000000001',
+    3000, now() + interval '15 seconds'
+  );
+  update public.booking_requests
+  set status = 'matched', matched_at = now(),
+      matched_driver_id = 'c7000000-0000-0000-0000-000000000002',
+      matched_vehicle_id = 'c7100000-0000-0000-0000-000000000001'
+  where id = booking_id;
+  update public.driver_match_offers
+  set status = 'accepted', responded_at = now()
+  where id = offer_id;
+  insert into public.trips (
+    id, booking_request_id, fare_quote_id, rider_id, driver_id, vehicle_id,
+    status, payment_method, pickup, destination, route_distance_meters,
+    route_duration_seconds, original_fare_fils, current_fare_fils
+  )
+  select trip_id, booking_id, quote_id, booking.rider_id,
+    'c7000000-0000-0000-0000-000000000002',
+    'c7100000-0000-0000-0000-000000000001',
+    'accepted', 'card', quote.pickup, quote.destination,
+    quote.route_distance_meters, quote.route_duration_seconds,
+    quote.fixed_fare_fils, quote.fixed_fare_fils
+  from public.booking_requests as booking
+  join public.fare_quotes as quote on quote.id = quote_id
+  where booking.id = booking_id and quote.booking_request_id = booking.id;
+  insert into public.trip_status_events (trip_id, sequence, to_status, actor_user_id)
+  values (trip_id, 1, 'accepted', 'c7000000-0000-0000-0000-000000000002');
+  update public.driver_availability
+  set state = 'onTrip', active_trip_id = trip_id
+  where driver_id = 'c7000000-0000-0000-0000-000000000002';
+  perform public.backend_create_payment(trip_id);
+  return trip_id;
+end;
+$$;
+
 create or replace function pg_temp.driver_transition(
   target_trip_id uuid, next_status public.trip_status,
   expected_version integer, command_key text
@@ -236,7 +299,17 @@ select is(
   'Cash completion replay cannot duplicate the Receipt'
 );
 
-insert into test_trips values (2, pg_temp.assign_trip(2));
+select throws_ok(
+  $$select pg_temp.assign_trip(2)$$, '55000', 'Card matching is disabled.',
+  'disabled Card matching rejects assignment before any Trip is created'
+);
+select is((select count(*) from public.trips where booking_request_id = 'c7200000-0000-0000-0000-000000000002'),
+  0::bigint, 'rejected Card assignment leaves no Trip');
+select is((select count(*) from public.driver_match_offers where booking_request_id = 'c7200000-0000-0000-0000-000000000002'),
+  0::bigint, 'rejected Card assignment rolls back its offer');
+select is((select count(*) from public.payments where booking_request_id = 'c7200000-0000-0000-0000-000000000002'),
+  0::bigint, 'rejected Card assignment creates no Payment');
+insert into test_trips values (2, pg_temp.seed_legacy_card_trip(2));
 select throws_ok(
   format(
     $$select pg_temp.driver_transition(%L, 'driverArriving', 1, '017-card-denied')$$,
@@ -305,7 +378,11 @@ select is(
   'Rider cancellation atomically cancels a Cash Payment'
 );
 
-insert into test_trips values (4, pg_temp.assign_trip(4));
+select throws_ok(
+  $$select pg_temp.assign_trip(4)$$, '55000', 'Card matching is disabled.',
+  'disabled Card matching rejects the unauthorised cancellation fixture'
+);
+insert into test_trips values (4, pg_temp.seed_legacy_card_trip(4));
 select pg_temp.as_user('c7000000-0000-0000-0000-000000000001');
 select public.rider_cancel_trip(
   (select trip_id from test_trips where sequence_number = 4), 1, 'changed_mind'
@@ -317,7 +394,11 @@ select is(
   'Rider cancellation atomically cancels an unauthorised Card Payment'
 );
 
-insert into test_trips values (5, pg_temp.assign_trip(5));
+select throws_ok(
+  $$select pg_temp.assign_trip(5)$$, '55000', 'Card matching is disabled.',
+  'disabled Card matching rejects the authorised cancellation fixture'
+);
+insert into test_trips values (5, pg_temp.seed_legacy_card_trip(5));
 select public.backend_record_payment_attempt(
   (select id from public.payments
    where trip_id = (select trip_id from test_trips where sequence_number = 5)),
