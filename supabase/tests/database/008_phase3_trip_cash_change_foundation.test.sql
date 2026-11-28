@@ -430,7 +430,21 @@ select is(
   ) and array_to_string(proconfig, ',') in ('search_path=""', 'search_path=')),
   8::bigint, 'all public Checkpoint 3.4 command functions have empty search paths'
 );
-select is((select count(*) from public.audit_records where action = 'trip.accepted'), 2::bigint, 'Trip acceptance is audited once per Trip despite replay');
+select is(
+  (select count(*) from public.audit_records where action = 'trip.accepted'),
+  1::bigint,
+  'Cash Trip acceptance is audited once despite replay; the synthetic Card Trip has no acceptance command'
+);
+select is(
+  (select count(*) from public.audit_records
+   where action = 'trip.accepted'
+     and actor_user_id = '50000000-0000-0000-0000-000000000011'
+     and target_user_id = '50000000-0000-0000-0000-000000000001'
+     and new_data ->> 'trip_id' =
+       (select id::text from public.trips where booking_request_id = '52000000-0000-0000-0000-000000000001')),
+  1::bigint,
+  'the single acceptance audit identifies the authorized Driver, Rider and canonical Cash Trip'
+);
 select is((select count(*) from public.audit_records where action = 'trip.terminated_by_admin'), 0::bigint, 'blocked Admin termination creates no terminal audit record');
 
 select * from finish();
