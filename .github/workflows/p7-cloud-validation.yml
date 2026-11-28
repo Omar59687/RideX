@@ -110,8 +110,20 @@ jobs:
         run: supabase db reset --local
       - name: D05 participant RLS pgTAP
         run: supabase test db supabase/tests/database/p7_d05_realtime_rls.test.sql
-      - name: Pull isolated PostgreSQL test image
-        run: docker pull public.ecr.aws/supabase/postgres:17.11.0.006
+      - name: Reuse or pull pinned isolated PostgreSQL test image
+        env:
+          TEST_IMAGE: public.ecr.aws/supabase/postgres:17.11.0.006
+          MIRROR_IMAGE: supabase/postgres:17.11.0.006
+          IMAGE_DIGEST: sha256:c141fd17ac6a76c4323e90b3aee8ff1a23d2e89e547c2b963cfadc309c079cc2
+        run: |
+          cached_digests="$(docker image inspect --format '{{json .RepoDigests}}' "$TEST_IMAGE" 2>/dev/null || true)"
+          if grep -Fq "$IMAGE_DIGEST" <<<"$cached_digests"; then
+            echo "Reusing the already available PostgreSQL test image at the pinned digest."
+          else
+            docker pull --platform linux/amd64 "docker.io/${MIRROR_IMAGE}@${IMAGE_DIGEST}"
+            docker tag "$MIRROR_IMAGE" "$TEST_IMAGE"
+            docker image inspect --format '{{json .RepoDigests}}' "$TEST_IMAGE" | grep -Fq "$IMAGE_DIGEST"
+          fi
       - name: Offline activation contract tests
         run: python -m unittest discover -s supabase/tests/ops -p 'test_p7_activation_contract.py' -v
       - name: Driver availability and matching pgTAP
